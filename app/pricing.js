@@ -421,6 +421,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
       phone: clean(client.phone),
       email: clean(client.email),
       companyId: clean(client.companyId),
+      address: clean(client.address),
       notes: clean(client.notes),
     },
     package: {

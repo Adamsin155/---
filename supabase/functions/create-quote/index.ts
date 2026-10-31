@@ -34,17 +34,20 @@ function serviceKey(): string {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const LIMITS = { name: 120, company: 120, companyId: 20, phone: 40, email: 160, notes: 2000 };
+const LIMITS = { name: 120, company: 120, companyId: 20, address: 200, phone: 40, email: 160, notes: 2000 };
 
-// A price offer may go without the client's details (the owner, 29.10.2026); an agreement needs the name.
-function cleanClient(raw: Record<string, unknown> = {}, nameRequired = true) {
+// A price offer may go without the client's details (the owner, 29.10.2026); an agreement needs the
+// name, and since 31.10.2026 the company number and the business address.
+function cleanClient(raw: Record<string, unknown> = {}, agreement = true) {
   const out: Record<string, string> = {};
   for (const [key, max] of Object.entries(LIMITS)) {
     const value = typeof raw[key] === 'string' ? (raw[key] as string).trim() : '';
     if (value.length > max) throw new Error(`${key} too long`);
     out[key] = value;
   }
-  if (!out.name && nameRequired) throw new Error('client name required');
+  if (!out.name && agreement) throw new Error('client name required');
+  if (!out.companyId && agreement) throw new Error('client company id required');
+  if (!out.address && agreement) throw new Error('client address required');
   if (out.companyId && !/^[0-9][0-9-]{3,18}$/.test(out.companyId)) throw new Error('invalid company id');
   return out;
 }

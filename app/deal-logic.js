@@ -1,25 +1,31 @@
 // A new deal from the field (the owner's decision of 3.10.2026): Stav, the field
-// sales agent, fills "עסקה חדשה" on deal.html and sends it "לעירית להכנת חוזה".
-// Irit gets "להכין חוזה ל־<עסק>" with a 10-minute clock in office hours only (as
-// every office clock: WORK_HOURS in protocol.js); the builder (index.html?deal=<id>)
-// opens prefilled from the deal, and the quote it creates is linked to the deal.
+// sales agent, fills "עסקה חדשה" on deal.html and sends it "לעירית ולאופיר להכנת חוזה".
+// Since 31.10.2026 (docs/ops.md, section 85) both ring until one of them takes it; whoever took
+// it has 10 minutes in office hours only (as every office clock: WORK_HOURS in protocol.js), and
+// the other can no longer touch it. The builder (index.html?deal=<id>) opens prefilled from the
+// deal, and the quote it creates is linked to the deal.
 // Stav sees only his own deals and their status.
 //
 // Pure, no DOM and no network: deal.html, Irit's block in "המשימות שלי", the builder
 // and the reminder rules (app/reminder-rules.js, also on the server) share it. The
 // table is public.deal_requests (supabase/migrations/20261003100000_sales_deals.sql).
-import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, maxDiscountFor, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS } from './catalog.js';
+import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, maxDiscountFor, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS, PACKAGES, packageId } from './catalog.js';
 import { emptySelection, reconcile, formatILS } from './pricing.js';
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
-import { isSales } from './protocol.js';
+import { isSales, PEOPLE } from './protocol.js';
 
 // Sales land on their page, always (clients.html and the office's pages send them
 // there): they have no client work and see nothing of the clients.
 export const SALES_SCREEN = 'deal.html';
 export const landingOf = (person) => (isSales(person) ? SALES_SCREEN : null);
 
-// Irit's clock: 10 minutes of office time from the moment the deal came in.
+// The clock: 10 minutes of office time from the moment it was taken (while nobody took it, from
+// the moment the deal came in). While nobody took it, both ring again every DEAL_MINUTES.
 export const DEAL_MINUTES = 10;
+// Who prepares a deal: whoever takes it first (public.deal_take).
+export const DEAL_PREPARERS = ['irit', 'ofir'];
+// How long the other one still sees "אופיר לקח" before the card goes away.
+export const TAKEN_SHOWN_MINUTES = 10;
 
 // The statuses as Stav reads them.
 export const DEAL_STATUS = {
@@ -40,12 +46,33 @@ export const DEAL_DOC = { agreement: 'חוזה', quote: 'הצעת מחיר' };
 export const docTypeOf = (d) => (d?.doc_type === 'quote' ? 'quote' : 'agreement');
 export const contractTitle = (d) => `להכין ${DEAL_DOC[docTypeOf(d)]} ל־${String(d?.business_name || '').trim()}`;
 // The button that sends the deal to Irit, by what she is asked to prepare.
-export const submitText = (docType) => (docType === 'quote' ? 'לעירית להכנת הצעת מחיר' : docType === 'agreement' ? 'לעירית להכנת חוזה' : 'לעירית');
+export const submitText = (docType) => (docType === 'quote' ? 'לעירית ולאופיר להכנת הצעת מחיר' : docType === 'agreement' ? 'לעירית ולאופיר להכנת חוזה' : 'לעירית ולאופיר');
 // Where Irit's notification opens: the builder, prefilled from the deal.
 export const dealUrl = (d) => `index.html?deal=${encodeURIComponent(d.id)}`;
-export const dealDue = (d) => { const at = parseDate(d?.created_at); return at ? addWorkingMinutes(at, DEAL_MINUTES) : null; };
+export const dealDue = (d) => { const at = parseDate(d?.taken_at) || parseDate(d?.created_at); return at ? addWorkingMinutes(at, DEAL_MINUTES) : null; };
+// "אופיר לקח" / "עירית לקחה".
+export const takenText = (who) => (who === 'irit' ? 'עירית לקחה' : who === 'ofir' ? 'אופיר לקח' : '');
+// Where a deal stands for the seller: "אצל אופיר".
+export const holderText = (d) => (d?.status === 'pending' && PEOPLE[d?.taken_by] ? `אצל ${PEOPLE[d.taken_by].name}` : '');
+// The rings while nobody took the deal: at once, then every DEAL_MINUTES of office time. The latest
+// one that came ({ n, id, at }); its id names it, so the log lets each out once, and one the engine
+// missed is not sent late.
+const RING_SLOTS_MAX = 1000;
+export function dealRingSlot(d, now) {
+  let at = parseDate(d?.created_at);
+  if (!at || at > now) return null;
+  let n = 0;
+  while (n < RING_SLOTS_MAX) {
+    const next = addWorkingMinutes(at, DEAL_MINUTES);
+    if (next > now) break;
+    at = next;
+    n += 1;
+  }
+  return { n, id: n === 0 ? 'now' : `again${n}`, at };
+}
 
-const LIMITS = { business_name: 120, contact_name: 120, phone: 30, notes: 2000 };
+const LIMITS = { business_name: 120, contact_name: 120, phone: 30, notes: 2000, company_id: 20, business_address: 200 };
+const COMPANY_ID = /^[0-9][0-9-]{3,18}$/;
 const clean = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 
 // The add-ons a deal may carry for this package (the builder's rules, app/pricing.js).
@@ -79,14 +106,27 @@ export function validateDeal(form = {}) {
     if (!DEAL_DOC[form.doc_type]) errors.doc_type = 'בחרו מה להכין: חוזה או הצעת מחיר.';
     else row.doc_type = form.doc_type;
   }
+  // The company number and the business address (31.10.2026): required in an agreement, optional
+  // in a price offer.
+  const companyId = clean(form.company_id, LIMITS.company_id);
+  const address = clean(form.business_address, LIMITS.business_address);
+  if (companyId && !COMPANY_ID.test(companyId)) errors.company_id = 'מספר לא תקין. יש להזין ספרות בלבד.';
+  if (form.doc_type === 'agreement' && !companyId) errors.company_id = 'בחוזה חובה למלא ח.פ / ע.מ.';
+  if (form.doc_type === 'agreement' && !address) errors.business_address = 'בחוזה חובה למלא את כתובת העסק.';
+  if (companyId) row.company_id = companyId;
+  if (address) row.business_address = address;
   if (form.kind === 'free') return validateFreeDeal(form, row, errors);
   if (form.kind === 'custom') return validateCustomDeal(form, row, errors);
   if (!TIERS.some((t) => t.id === form.tier)) errors.tier = 'בחרו חבילה.';
   if (!INFLUENCERS[form.influencer]) errors.influencer = 'בחרו משפיענים.';
   const discount = Number(form.discount ?? 0);
-  const cap = maxDiscountFor(form.tier);
+  // "הנחה חריגה" (31.10.2026): any amount, up to the package's monthly price.
+  const packagePrice = TIERS.some((t) => t.id === form.tier) && INFLUENCERS[form.influencer] ? PACKAGES[packageId(form.tier, form.influencer)]?.price : null;
+  const cap = form.special_discount === true ? (packagePrice ?? Infinity) : maxDiscountFor(form.tier);
   if (!Number.isFinite(discount) || discount < 0 || discount * 100 > cap || Math.round(discount) !== discount) {
-    errors.discount = `הנחה בשקלים שלמים, עד ${cap / 100} ₪ לחודש.`;
+    errors.discount = form.special_discount === true
+      ? `הנחה בשקלים שלמים, עד המחיר החודשי של החבילה (${formatILS(cap)}).`
+      : `הנחה בשקלים שלמים, עד ${cap / 100} ₪ לחודש. סכום גבוה יותר: לסמן ״הנחה חריגה״.`;
   }
   if (Object.keys(errors).length) return { ok: false, errors, row: null };
   const f = form.free || {};
@@ -101,7 +141,11 @@ export function validateDeal(form = {}) {
   });
   return {
     ok: true, errors: {},
-    row: { ...row, tier: selection.tier, influencer: selection.influencer, paid: selection.paid, free: selection.free, discount_agorot: Math.round(discount * 100) },
+    // Above the old limit of the column (200 ₪, also a podcast's 800 ₪) it goes in the column of its own.
+    row: {
+      ...row, tier: selection.tier, influencer: selection.influencer, paid: selection.paid, free: selection.free,
+      ...(discount * 100 > MAX_DISCOUNT ? { discount_agorot: 0, special_discount_agorot: discount * 100 } : { discount_agorot: Math.round(discount * 100) }),
+    },
   };
 }
 
@@ -149,6 +193,7 @@ function validateFreeDeal(form, row, errors) {
   return { ok: true, errors: {}, row: { ...row, tier: null, influencer: null, paid: [], free: {}, discount_agorot: 0, custom: { text } } };
 }
 
+const discountOfDeal = (d) => Number(d?.special_discount_agorot) || Number(d?.discount_agorot) || 0;
 // One line of what was sold, for Irit's notification and her task.
 export function dealSummary(d) {
   if (isFreeDeal(d)) {
@@ -165,7 +210,8 @@ export function dealSummary(d) {
   const parts = [[tier?.short, INFLUENCERS[d?.influencer]?.name].filter(Boolean).join(' · ')];
   const extras = addonNames(d);
   if (extras.length) parts.push(`תוספות: ${extras.join(', ')}`);
-  if (d?.discount_agorot) parts.push(`הנחה ${formatILS(d.discount_agorot)} לחודש`);
+  const discount = discountOfDeal(d);
+  if (discount) parts.push(`${discount > maxDiscountFor(d?.tier) ? 'הנחה חריגה' : 'הנחה'} ${formatILS(discount)} לחודש`);
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -181,6 +227,12 @@ export function addonNames(d) {
   ].filter(Boolean);
 }
 
+// The fields of "פרטי הלקוח" in the builder.
+const clientOfDeal = (d) => ({
+  'c-name': d?.contact_name || '', 'c-company': d?.business_name || '', 'c-companyid': d?.company_id || '',
+  'c-address': d?.business_address || '', 'c-phone': d?.phone || '', 'c-notes': d?.notes || '',
+});
+
 // The builder, opened from the deal: an agreement with the deal's package, add-ons
 // and discount, and the client's details. Anything the catalog no longer allows is
 // left out (reconcile), as in the builder itself.
@@ -194,16 +246,13 @@ export function prefillFromDeal(d) {
     influencer: INFLUENCERS[d?.influencer] ? d.influencer : emptySelection().influencer,
     paid: Array.isArray(d?.paid) ? d.paid.filter((id) => PAID_ADDONS.some((a) => a.id === id)) : [],
     free: { ...emptySelection().free, ...(d?.free || {}) },
-    discount: Math.max(0, Math.min(maxDiscountFor(d?.tier), Number(d?.discount_agorot) || 0)),
+    discount: Math.min(maxDiscountFor(d?.tier), discountOfDeal(d)),
   });
+  // An exceptional discount: the builder's custom contract takes any amount (state.discount holds it).
+  const special = discountOfDeal(d) > maxDiscountFor(selection.tier);
   return {
-    selection,
-    client: {
-      'c-name': d?.contact_name || '',
-      'c-company': d?.business_name || '',
-      'c-phone': d?.phone || '',
-      'c-notes': d?.notes || '',
-    },
+    selection: special ? { ...selection, discount: discountOfDeal(d), custom: {} } : selection,
+    client: clientOfDeal(d),
   };
 }
 
@@ -213,7 +262,7 @@ export function prefillFromDeal(d) {
 function prefillFromFreeDeal(d) {
   return {
     selection: { ...emptySelection(), docType: docTypeOf(d) },
-    client: { 'c-name': d?.contact_name || '', 'c-company': d?.business_name || '', 'c-phone': d?.phone || '', 'c-notes': d?.notes || '' },
+    client: clientOfDeal(d),
     ai: { text: d.custom.text.slice(0, FREE_TEXT_MAX), free: true },
   };
 }
@@ -231,11 +280,15 @@ function prefillFromCustomDeal(d) {
   if (Number.isInteger(c.term_months)) custom.termMonths = Math.max(CUSTOM_LIMITS.termMin, Math.min(CUSTOM_LIMITS.termMax, c.term_months));
   return {
     selection: { ...emptySelection(), docType: docTypeOf(d), custom },
-    client: { 'c-name': d?.contact_name || '', 'c-company': d?.business_name || '', 'c-phone': d?.phone || '', 'c-notes': d?.notes || '' },
+    client: clientOfDeal(d),
   };
 }
 
 // Stav's list: newest first.
 export const byNewest = (a, b) => new Date(b.created_at) - new Date(a.created_at);
-// Irit's list: the deals still waiting for a contract, oldest (most urgent) first.
-export const pendingDeals = (deals = []) => deals.filter((d) => d.status === 'pending').sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+// The office's list: the deals still waiting for a contract, oldest (most urgent) first. With
+// `me` given: Irit or Ofir no longer sees a deal the other took, after a short while.
+export const pendingDeals = (deals = [], { me = null, now = new Date() } = {}) => deals
+  .filter((d) => d.status === 'pending')
+  .filter((d) => !me || !d.taken_by || d.taken_by === me || now - new Date(d.taken_at) < TAKEN_SHOWN_MINUTES * 60e3)
+  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));

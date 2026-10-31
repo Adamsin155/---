@@ -376,5 +376,7 @@ export function explainError(err) {
   if (/not staff/i.test(msg)) return 'המשתמש מחובר אך אינו מורשה ליצור הצעות. יש לבקש הרשאה ממנהל המערכת.';
   if (/not signed in/i.test(msg)) return 'יש להתחבר מחדש.';
   if (/client name required/i.test(msg)) return 'חסר שם לקוח.';
+  if (/client company id required/i.test(msg)) return 'בחוזה חובה למלא ח.פ / ע.מ.';
+  if (/client address required/i.test(msg)) return 'בחוזה חובה למלא את כתובת העסק.';
   return 'הפעולה לא הושלמה. נסו שוב בעוד רגע.';
 }

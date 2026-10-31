@@ -8,7 +8,7 @@
 import { REVIEW_TOPICS, PEOPLE, editorNames } from './protocol.js';
 import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor, charEndedAt } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
-import { dealUrl, dealDue } from './deal-logic.js';
+import { dealUrl, dealDue, holderText } from './deal-logic.js';
 import { unsignedList, UNSIGNED_URL } from './unsigned-logic.js';
 
 // The protocol's order (docs/protocols/irit.md, step 19). The words come from
@@ -58,7 +58,7 @@ const item = (o) => ({ client: null, title: null, hash: '', href: null, since: n
 function contracts({ live, cs, st, deals, now }) {
   const out = [];
   for (const d of deals || []) {
-    if (d.status === 'pending') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'עסקה מהשטח: להכין חוזה', href: dealUrl(d), since: parseDate(d.created_at), late: !!dealDue(d) && dealDue(d) < now }));
+    if (d.status === 'pending') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: `עסקה מהשטח: להכין חוזה${holderText(d) ? ` (${holderText(d)})` : ''}`, href: d.taken_by ? dealUrl(d) : 'clients.html', since: parseDate(d.created_at), late: !!dealDue(d) && dealDue(d) < now }));
     if (d.status === 'approval') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'חוזה מותאם: מוכן לשליחה', href: 'quotes.html', since: parseDate(d.created_at) }));
     if (d.status === 'rejected') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'החוזה לא אושר: לתקן ולשלוח מחדש', href: 'quotes.html', since: parseDate(d.created_at), late: true }));
   }

@@ -108,13 +108,13 @@ test('the deal form: cleaned, checked, the catalog\'s rules for add-ons; what Ir
   assert.equal(pre.selection.docType, 'agreement');
   assert.deepEqual([pre.selection.tier, pre.selection.influencer, pre.selection.paid, pre.selection.discount], ['social', 'natali', ['photographer'], 15000]);
   assert.equal(pre.selection.free.simeonJoin, true);
-  assert.deepEqual(pre.client, { 'c-name': 'רון כהן', 'c-company': 'פיצה רון', 'c-phone': '050-7654321', 'c-notes': 'לחזור אחרי 17:00' });
+  assert.deepEqual(pre.client, { 'c-name': 'רון כהן', 'c-company': 'פיצה רון', 'c-companyid': '', 'c-address': '', 'c-phone': '050-7654321', 'c-notes': 'לחזור אחרי 17:00' });
   // Irit's list: the oldest first, only those waiting.
   assert.deepEqual(pendingDeals([{ id: 'b', status: 'pending', created_at: '2026-10-05T10:00:00Z' }, { id: 'a', status: 'pending', created_at: '2026-10-05T09:00:00Z' }, { id: 'c', status: 'sent', created_at: '2026-10-05T08:00:00Z' }]).map((x) => x.id), ['a', 'b']);
 });
 
 // ── 2. Irit's 10 minutes, in office hours ──
-test('a new deal: Irit rings at once; after 10 office minutes Irit again and Ofir; the contract sent stops it', () => {
+test('a new deal: Irit and Ofir ring at once, and again every 10 office minutes; the contract sent stops it (tests/deal-pool.test.mjs: taking it)', () => {
   const w = world();
   const d = { ...validateDeal(DEAL_FORM).row, id: 'd1', status: 'pending', created_by_email: 'stav@x', created_at: IL(2026, 10, 5, 10).toISOString() };
   w.deals.push(d);
@@ -123,14 +123,15 @@ test('a new deal: Irit rings at once; after 10 office minutes Irit again and Ofi
   assert.equal(now.exempt, 'clock');
   assert.equal(now.title, 'להכין חוזה ל־פיצה רון');
   assert.match(now.body, /^מסתיו: Social · נטלי דדון/);
-  assert.match(now.body, /יעד היום 10:10/);
-  assert.equal(now.url, 'index.html?deal=d1');
-  none(due(w, IL(2026, 10, 5, 10, 9)), 'dealNew', 'due');
+  assert.match(now.body, /מי שלוקח ראשון מכין/);
+  assert.equal(now.url, 'clients.html#mine');
+  one(due(w, IL(2026, 10, 5, 10)), 'dealNew', 'now', 'ofir');
+  none(due(w, IL(2026, 10, 5, 10, 9)), 'dealNew', 'again1');
   const at10 = due(w, IL(2026, 10, 5, 10, 10));
-  assert.equal(one(at10, 'dealNew', 'due', 'irit').level, 'ring');
-  const ofir = one(at10, 'dealNew', 'ofir', 'ofir');
+  assert.equal(one(at10, 'dealNew', 'again1', 'irit').level, 'ring');
+  const ofir = one(at10, 'dealNew', 'again1', 'ofir');
   assert.equal(ofir.level, 'ring');
-  assert.match(ofir.title, /חוזה לא נשלח 10 דקות: פיצה רון/);
+  assert.match(ofir.title, /עוד אף אחד לא לקח: להכין חוזה ל־פיצה רון/);
   // The contract sent (a quote linked, or marked): nothing more.
   d.status = 'sent';
   none(due(w, IL(2026, 10, 5, 10, 10)), 'dealNew');
@@ -142,8 +143,8 @@ test('the 10 minutes count office time only: a deal at 17:55 is due at 09:05 the
   assert.equal(hhmm(dealDue({ created_at: IL(2026, 10, 8, 20).toISOString() })), '11.10 09:10');
   const w = world();
   w.deals.push({ ...validateDeal(DEAL_FORM).row, id: 'd2', status: 'pending', created_by_email: 'stav@x', created_at: IL(2026, 10, 5, 17, 55).toISOString() });
-  none(due(w, IL(2026, 10, 5, 18, 30)), 'dealNew', 'due');
-  one(due(w, IL(2026, 10, 6, 9, 5)), 'dealNew', 'ofir', 'ofir');
+  none(due(w, IL(2026, 10, 5, 18, 30)), 'dealNew', 'again1');
+  one(due(w, IL(2026, 10, 6, 9, 5)), 'dealNew', 'again1', 'ofir');
 });
 
 // ── 3. Signed: the seller hears, quietly ──

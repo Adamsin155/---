@@ -103,6 +103,16 @@
             <input class="input" id="d-phone" name="phone" type="tel" inputmode="tel" dir="ltr" maxlength="30" autocomplete="tel" required aria-describedby="d-phone-err">
             <div class="err" id="d-phone-err" hidden></div>
           </div>
+          <div class="field">
+            <label for="d-company_id">ח.פ / ע.מ<span class="req" id="d-company_id-req" aria-hidden="true" hidden>*</span></label>
+            <input class="input" id="d-company_id" name="company_id" dir="ltr" inputmode="numeric" maxlength="20" aria-describedby="d-company_id-err">
+            <div class="err" id="d-company_id-err" hidden></div>
+          </div>
+          <div class="field">
+            <label for="d-business_address">כתובת העסק<span class="req" id="d-business_address-req" aria-hidden="true" hidden>*</span></label>
+            <input class="input" id="d-business_address" name="business_address" maxlength="200" autocomplete="street-address" placeholder="רחוב, מספר, עיר" aria-describedby="d-business_address-err">
+            <div class="err" id="d-business_address-err" hidden></div>
+          </div>
         </fieldset>
 
         <!-- What Irit prepares, then what was closed in the seller's own words (the owner, 29.10.2026:
@@ -121,7 +131,7 @@
           <div class="field deal-freetext">
             <label for="d-text">מה סגרת עם הלקוח (כמו שהיית כותב בוואטסאפ)<span class="req" aria-hidden="true">*</span></label>
             <textarea class="input" id="d-text" name="text" rows="6" maxlength="2000" aria-describedby="d-text-hint d-text-err" placeholder="למשל: בלי משפיען 4,900 בחודש · צילום כל חודש 8 תכנים · 2 דפי נחיתה"></textarea>
-            <small class="hint" id="d-text-hint">כותבים במילים שלך: מחיר, מה כלול, תקופה. עירית מכינה מזה בדיוק את מה שכתבת.</small>
+            <small class="hint" id="d-text-hint">כותבים במילים שלך: מחיר, מה כלול, תקופה. מי שלוקח את העסקה מכין מזה בדיוק את מה שכתבת.</small>
             <div class="err" id="d-text-err" hidden></div>
           </div>
           <button type="button" class="btn-text deal-switch" id="d-to-package">או לבחור חבילה מהרשימה</button>
@@ -149,10 +159,14 @@
         <fieldset class="deal-sec deal-builtin">
           <legend>הנחה והערות</legend>
           <div class="field deal-builtin">
-            <label for="d-discount">הנחה לחודש (₪, עד 200; בפודקאסט עד 800)</label>
+            <label for="d-discount" id="d-discount-label">הנחה לחודש (₪, עד 200; בפודקאסט עד 800)</label>
             <input class="input deal-num" id="d-discount" name="discount" type="number" inputmode="numeric" min="0" max="800" step="1" value="0" dir="ltr" aria-describedby="d-discount-err">
             <div class="err" id="d-discount-err" hidden></div>
           </div>
+          <label class="deal-choice" for="d-special">
+            <input type="checkbox" class="cbox" id="d-special" name="special_discount">
+            <span class="deal-choice-text"><span class="deal-choice-label">הנחה חריגה</span><span class="deal-choice-sub">כל סכום, עד המחיר החודשי של החבילה</span></span>
+          </label>
           <div class="field">
             <label for="d-notes">הערות</label>
             <textarea class="input" id="d-notes" name="notes" rows="3" maxlength="2000" placeholder="למשל: לחזור אחרי 17:00, הלקוח רוצה להתחיל בעוד שבוע"></textarea>
@@ -160,7 +174,7 @@
         </fieldset>
 
         <div class="err" id="d-err" role="alert" hidden></div>
-        <button type="submit" class="btn btn-primary deal-submit" id="d-submit">לעירית</button>
+        <button type="submit" class="btn btn-primary deal-submit" id="d-submit">לעירית ולאופיר</button>
       </form>
 
       <section class="deal-mine" id="deal-mine" aria-labelledby="mine-h" hidden>

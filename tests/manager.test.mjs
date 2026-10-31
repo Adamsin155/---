@@ -28,10 +28,10 @@ test('the managers: the owner, Irit and Ofir; the prices for the owners only (6.
   assert.deepEqual(who.map(isManager), [true, true, true, false, false, false, false]);
   assert.deepEqual(who.map(seesFinance), [true, false, false, false, false, false, false]);
   // The list of sent quotes: the owners, Irit, who builds the contracts, and Ofir (29.10.2026);
-  // its amounts and the month's sums: the owners and Ofir. The sellers' deals: the owners and Irit.
+  // its amounts and the month's sums: the owners and Ofir. The sellers' deals: the owners, Irit and Ofir (31.10.2026).
   assert.deepEqual(who.map(canSeeQuoteList), [true, true, true, false, false, false, false]);
   assert.deepEqual(who.map(seesQuoteMoney), [true, false, true, false, false, false, false]);
-  assert.deepEqual(who.map(canSeeDeals), [true, true, false, false, false, false, false]);
+  assert.deepEqual(who.map(canSeeDeals), [true, true, true, false, false, false, false]);
   assert.equal(seesQuoteMoney(v('ofir', 'office', new Error('x'))), false);
   assert.equal(seesFinance(v(null, 'office', new Error('x'))), false);
   assert.equal(canSeeQuoteList(v('irit', 'office', new Error('x'))), false);

@@ -81,7 +81,7 @@ before(async () => {
 });
 
 test('the file: the newest, none of the refused words, every update with a where, and it runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql']);
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));

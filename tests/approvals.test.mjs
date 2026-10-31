@@ -174,7 +174,7 @@ test('another offer: what Irit reads, the two new statuses, and the builder open
   const pre = prefillFromDeal(d);
   assert.equal(pre.selection.docType, 'agreement');
   assert.deepEqual(pre.selection.custom, { terms: '15 סרטונים ו־10 גרפיקות,\nבלי משפיענים', qty: { videos: 15, graphics: 10 }, price: 250000, termMonths: 6 });
-  assert.deepEqual(pre.client, { 'c-name': 'רון כהן', 'c-company': 'פיצה רון', 'c-phone': '050-7654321', 'c-notes': 'דחוף' });
+  assert.deepEqual(pre.client, { 'c-name': 'רון כהן', 'c-company': 'פיצה רון', 'c-companyid': '', 'c-address': '', 'c-phone': '050-7654321', 'c-notes': 'דחוף' });
   // As it is, the server takes it, and it is an exceptional contract with his numbers.
   validateSelection(pre.selection);
   assert.deepEqual(exceptionOf(pre.selection).map((e) => e.text), ['15 סרטונים במקום 25', '10 גרפיקות במקום 35', 'מחיר חודשי 2,500 ₪ במקום 3,900 ₪', 'תקופה 6 חודשים במקום 12', 'תנאים מיוחדים']);
@@ -186,7 +186,7 @@ test('the 10-minute contract ladder stops once the deal has its contract (also a
   const d = { ...validateDeal(FORM).row, id: 'd9', status: 'pending', created_by_email: 'stav@x', created_at: IL(2026, 10, 5, 10).toISOString() };
   w.deals.push(d);
   const first = due(w, IL(2026, 10, 5, 10));
-  assert.deepEqual(of(first, 'dealNew', 'now').map((x) => [x.person, x.title]), [['irit', 'להכין חוזה ל־פיצה רון']]);
+  assert.deepEqual(of(first, 'dealNew', 'now').map((x) => [x.person, x.title]).sort(), [['irit', 'להכין חוזה ל־פיצה רון'], ['ofir', 'להכין חוזה ל־פיצה רון']]);
   assert.match(of(first, 'dealNew', 'now')[0].body, /מסתיו: הצעה אחרת · 2,500 ₪ לחודש/);
   // 10:06: a deal left in 'approval' from before 29.10.2026: not her clock, and nobody rings to approve.
   w.deals[0] = { ...d, status: 'approval', quote_id: 'q1' };

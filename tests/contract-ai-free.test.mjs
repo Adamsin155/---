@@ -281,10 +281,10 @@ test('Stav writes what he closed and picks חוזה or הצעת מחיר; Irit\'
   const pre = prefillFromDeal(d);
   assert.deepEqual(pre.selection, { ...emptySelection(), docType: 'quote' });
   assert.deepEqual(pre.ai, { text: 'בלי משפיען 4,900 בחודש\nצילום כל חודש 8 תכנים', free: true });
-  assert.deepEqual(pre.client, { 'c-name': 'רות', 'c-company': 'שטיחי רות', 'c-phone': '050-1234567', 'c-notes': '' });
+  assert.deepEqual(pre.client, { 'c-name': 'רות', 'c-company': 'שטיחי רות', 'c-companyid': '', 'c-address': '', 'c-phone': '050-1234567', 'c-notes': '' });
   assert.equal(prefillFromDeal({ ...d, doc_type: 'agreement' }).selection.docType, 'agreement');
   // The two choices, and the words of the button.
-  assert.deepEqual([submitText('agreement'), submitText('quote'), submitText(null)], ['לעירית להכנת חוזה', 'לעירית להכנת הצעת מחיר', 'לעירית']);
+  assert.deepEqual([submitText('agreement'), submitText('quote'), submitText(null)], ['לעירית ולאופיר להכנת חוזה', 'לעירית ולאופיר להכנת הצעת מחיר', 'לעירית ולאופיר']);
   const bad = (patch, field) => { const r = validateDeal({ ...form, ...patch }); assert.equal(r.ok, false); assert.ok(r.errors[field], JSON.stringify(r.errors)); };
   bad({ doc_type: '' }, 'doc_type');
   bad({ doc_type: 'contract' }, 'doc_type');

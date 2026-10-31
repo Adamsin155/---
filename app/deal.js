@@ -1,7 +1,8 @@
 // deal.html: the field sales agent's page (Stav; the owner's decision of 3.10.2026).
-// "עסקה חדשה": the business, the contact, the phone, what Irit prepares (חוזה / הצעת
-// מחיר), and what was closed in his own words, as he would write it on WhatsApp (29.10.2026;
-// docs/ops.md, section 79), sent "לעירית להכנת חוזה" / "לעירית להכנת הצעת מחיר". A package
+// "עסקה חדשה": the business, the contact, the phone, the company number and the address (required
+// in an agreement, 31.10.2026), what is prepared (חוזה / הצעת מחיר), and what was closed in his own
+// words, as he would write it on WhatsApp (29.10.2026; docs/ops.md, section 79), sent "לעירית ולאופיר
+// להכנת חוזה" / "... להכנת הצעת מחיר": whoever takes it first prepares it (section 85). A package
 // from the list (the influencers, the add-ons, the discount and notes) stays as a second
 // way ("או לבחור חבילה מהרשימה"); under it his own
 // deals with their status (ממתין לחוזה / חוזה נשלח / נחתם). He sees nothing else: the
@@ -12,7 +13,7 @@ import { TIERS, INFLUENCERS, FREE_ADDONS, PACKAGES, packageId } from './catalog.
 import { formatILS } from './pricing.js';
 import { PEOPLE, isSales } from './protocol.js';
 import {
-  validateDeal, addonsFor, statusText, byNewest, dealSummary, submitText,
+  validateDeal, addonsFor, statusText, byNewest, dealSummary, submitText, holderText,
 } from './deal-logic.js';
 import { loadDeals, addDeal } from './deal-data.js';
 import { $, fill, h, toast, errorText, mountSession, viewerOf, formatStamp } from './protocol-ui.js';
@@ -31,9 +32,9 @@ const STATUS_ICON = { pending: ['hourglass', 'orange'], approval: ['send', 'purp
 let me = null;
 let deals = [];
 // The seller's own words (29.10.2026) first; a package from the list is the second way.
-const FIELDS = ['business', 'contact', 'phone', 'doc_type', 'text', 'tier', 'influencer', 'discount'];
+const FIELDS = ['business', 'contact', 'phone', 'company_id', 'business_address', 'doc_type', 'text', 'tier', 'influencer', 'discount'];
 const FIELD_OF = {
-  business_name: 'business', contact_name: 'contact', phone: 'phone', doc_type: 'doc_type', text: 'text',
+  business_name: 'business', contact_name: 'contact', phone: 'phone', company_id: 'company_id', business_address: 'business_address', doc_type: 'doc_type', text: 'text',
   tier: 'tier', influencer: 'influencer', discount: 'discount',
 };
 let kindNow = 'free';
@@ -49,7 +50,17 @@ function showKind() {
   $('d-to-package').hidden = !free;
   for (const el of document.querySelectorAll('.deal-builtin')) el.hidden = !chosen || free;
   $('d-submit').textContent = SUBMIT_TEXT();
+  for (const f of ['company_id', 'business_address']) $(`d-${f}-req`).hidden = docType() !== 'agreement';
 }
+// "הנחה חריגה": the limit goes away (the logic checks it against the package's price).
+function showSpecial() {
+  const on = $('d-special').checked;
+  $('d-discount-label').textContent = on ? 'הנחה חריגה לחודש (₪)' : 'הנחה לחודש (₪, עד 200; בפודקאסט עד 800)';
+  if (on) $('d-discount').removeAttribute('max');
+  else $('d-discount').max = '800';
+  clearErr('discount');
+}
+$('d-special').addEventListener('change', showSpecial);
 const SUBMIT_TEXT = () => submitText(docType());
 for (const el of document.querySelectorAll('input[name="doc_type"]')) {
   el.addEventListener('change', () => {
@@ -126,7 +137,10 @@ function readForm() {
     influencer: picked('influencer'),
     paid: [...document.querySelectorAll('input[name="paid"]:checked')].map((x) => x.value),
     free,
+    company_id: $('d-company_id').value,
+    business_address: $('d-business_address').value,
     discount: $('d-discount').value === '' ? 0 : Number($('d-discount').value),
+    special_discount: $('d-special').checked,
     notes: $('d-notes').value,
   };
 }
@@ -171,8 +185,9 @@ $('deal-form').addEventListener('submit', async (e) => {
     kindNow = 'free';
     renderChoices();
     showKind();
+    showSpecial();
     renderList();
-    toast(`נשלח לעירית: ${d.business_name}. ${d.doc_type === 'quote' ? 'הצעת המחיר' : 'החוזה'} בדרך.`);
+    toast(`נשלח לעירית ולאופיר: ${d.business_name}. ${d.doc_type === 'quote' ? 'הצעת המחיר' : 'החוזה'} בדרך.`);
     $('deal-h1').setAttribute('tabindex', '-1');
     $('deal-h1').focus();
   } catch (err) {
@@ -183,7 +198,7 @@ $('deal-form').addEventListener('submit', async (e) => {
     btn.textContent = SUBMIT_TEXT();
   }
 });
-for (const id of ['d-business', 'd-contact', 'd-phone', 'd-discount', 'd-text']) $(id).addEventListener('input', () => clearErr(id.slice(2)));
+for (const id of ['d-business', 'd-contact', 'd-phone', 'd-company_id', 'd-business_address', 'd-discount', 'd-text']) $(id).addEventListener('input', () => clearErr(id.slice(2)));
 
 // ── His deals ───────────────────────────────
 const STATUS_CLASS = { pending: 'is-pending', approval: 'is-approval', rejected: 'is-rejected', sent: 'is-sent', signed: 'is-signed', cancelled: 'is-cancelled' };
@@ -195,9 +210,9 @@ function renderList() {
     h('div', { class: 'deal-item-head' },
       iconSquare(...(STATUS_ICON[d.status] || ['briefcase', 'navy']), { size: 'sm' }),
       h('strong', { class: 'deal-item-name', dir: 'auto' }, d.business_name),
-      h('span', { class: `deal-status ${STATUS_CLASS[d.status] || ''}` }, statusText(d))),
+      h('span', { class: `deal-status ${STATUS_CLASS[d.status] || ''}` }, [statusText(d), holderText(d)].filter(Boolean).join(' · '))),
     h('p', { class: 'deal-item-meta' }, `${dealSummary(d)} · נשלח ${formatStamp(d.created_at)}`),
-    d.status === 'rejected' ? h('p', { class: 'deal-item-meta' }, 'החוזה לא אושר כמו שהוא. עירית מתקנת ושולחת אותו ללקוח.') : null,
+    d.status === 'rejected' ? h('p', { class: 'deal-item-meta' }, 'החוזה לא אושר כמו שהוא. המשרד מתקן ושולח אותו ללקוח.') : null,
     d.status === 'signed' && d.signed_at ? h('p', { class: 'deal-item-meta' }, `נחתם ${formatStamp(d.signed_at)} 🎉`) : null)));
 }
 

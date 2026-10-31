@@ -380,6 +380,10 @@ function renderDocType() {
   });
   // A price offer needs no client details (the owner, 29.10.2026); an agreement needs the name.
   $('c-name').required = signable;
+  for (const id of ['c-companyid', 'c-address']) {
+    $(id).required = signable;
+    $(`${id}-req`).hidden = !signable;
+  }
   document.querySelector('label[for="c-name"] .req').hidden = !signable;
   if (!signable) { $('c-name').setAttribute('aria-invalid', 'false'); $('c-name-err').hidden = true; }
 }
@@ -827,7 +831,7 @@ function showRemoved(names) {
 
 /* ── Draft: survives a refresh or a visit to another page in this tab ── */
 const DRAFT_KEY = 'astrateg-draft';
-const CLIENT_FIELDS = ['c-name', 'c-company', 'c-companyid', 'c-phone', 'c-email', 'c-notes'];
+const CLIENT_FIELDS = ['c-name', 'c-company', 'c-companyid', 'c-address', 'c-phone', 'c-email', 'c-notes'];
 // Once a link was made (or the contract went for approval) the draft is gone: the next one starts
 // clean after a refresh (the owner, 25.10.2026). A refresh in the middle still keeps the work.
 let sentDone = false;
@@ -901,6 +905,7 @@ function readClient() {
     phone: $('c-phone').value,
     email: $('c-email').value,
     companyId: $('c-companyid').value,
+    address: $('c-address').value,
     notes: $('c-notes').value,
   };
 }
@@ -909,18 +914,26 @@ function validateClient() {
   const name = $('c-name');
   const email = $('c-email');
   const cid = $('c-companyid');
-  // A price offer may go without the client's details (the owner, 29.10.2026).
-  const nameOk = name.value.trim().length > 0 || !DOC_TYPES[state.docType].signable;
+  const address = $('c-address');
+  // A price offer may go without the client's details (the owner, 29.10.2026); an agreement needs
+  // the name, the company number and the business address (31.10.2026).
+  const signable = DOC_TYPES[state.docType].signable;
+  const nameOk = name.value.trim().length > 0 || !signable;
   const emailOk = !email.value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
-  const cidOk = !cid.value.trim() || /^[0-9][0-9-]{3,18}$/.test(cid.value.trim());
+  const cidMissing = signable && !cid.value.trim();
+  const cidOk = !cidMissing && (!cid.value.trim() || /^[0-9][0-9-]{3,18}$/.test(cid.value.trim()));
+  const addressOk = address.value.trim().length > 0 || !signable;
   cid.setAttribute('aria-invalid', String(!cidOk));
+  $('c-companyid-err').textContent = cidMissing ? 'בחוזה חובה למלא ח.פ / ע.מ.' : 'מספר לא תקין. יש להזין ספרות בלבד.';
   $('c-companyid-err').hidden = cidOk;
+  address.setAttribute('aria-invalid', String(!addressOk));
+  $('c-address-err').hidden = addressOk;
   name.setAttribute('aria-invalid', String(!nameOk));
   $('c-name-err').hidden = nameOk;
   email.setAttribute('aria-invalid', String(!emailOk));
   $('c-email-err').hidden = emailOk;
-  if (!nameOk || !emailOk || !cidOk) {
-    const target = !nameOk ? name : !cidOk ? cid : email;
+  if (!nameOk || !emailOk || !cidOk || !addressOk) {
+    const target = !nameOk ? name : !cidOk ? cid : !addressOk ? address : email;
     target.scrollIntoView({ block: 'center', behavior: 'smooth' });
     target.focus({ preventScroll: true });
     return false;
@@ -928,9 +941,9 @@ function validateClient() {
   return true;
 }
 
-['c-name', 'c-email', 'c-companyid'].forEach((id) => $(id).addEventListener('input', () => {
+['c-name', 'c-email', 'c-companyid', 'c-address'].forEach((id) => $(id).addEventListener('input', () => {
   if ($(id).getAttribute('aria-invalid') === 'true') {
-    const ok = id === 'c-name' ? $(id).value.trim().length > 0 : true;
+    const ok = id === 'c-name' || id === 'c-address' ? $(id).value.trim().length > 0 : true;
     if (ok) { $(id).setAttribute('aria-invalid', 'false'); $(`${id}-err`).hidden = true; }
   }
 }));
@@ -1358,6 +1371,10 @@ async function openFromDeal(id) {
     const [{ loadDeal }, { prefillFromDeal, contractTitle }] = await Promise.all([import('./deal-data.js'), import('./deal-logic.js')]);
     const d = await loadDeal(id);
     if (!d) { toast('העסקה לא נמצאה, או שאין לך גישה אליה.'); return; }
+    // Opened from an old notification or a direct link: this takes it too. Someone else's stays theirs.
+    const { takeDeal } = await import('./deal-data.js');
+    const taken = await takeDeal(d.id);
+    if (!taken.ok) { toast(`העסקה כבר אצל ${taken.taken_by === 'irit' ? 'עירית' : 'אופיר'}.`); return; }
     dealId = d.id;
     let words = null;
     if (!restoreDraft(d.id)) {
@@ -1422,7 +1439,7 @@ async function openForRevise(id) {
       state = reconcile({ ...emptySelection(), ...rest, free: { ...emptySelection().free, ...rest.free }, custom }).selection;
       if (Number.isInteger(discount)) state.discount = discount;
       const cl = q.model?.client || {};
-      const map = { 'c-name': cl.name, 'c-company': cl.company, 'c-companyid': cl.companyId, 'c-phone': cl.phone, 'c-email': cl.email, 'c-notes': cl.notes };
+      const map = { 'c-name': cl.name, 'c-company': cl.company, 'c-companyid': cl.companyId, 'c-address': cl.address, 'c-phone': cl.phone, 'c-email': cl.email, 'c-notes': cl.notes };
       for (const [fid, v] of Object.entries(map)) $(fid).value = v || '';
       $('discount').value = String((state.discount || 0) / 100);
       syncCustomInputs();
