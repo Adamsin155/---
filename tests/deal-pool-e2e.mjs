@@ -226,6 +226,7 @@ async function typeAndCorrect(page, sel, value, del) {
   assert.equal(await el.inputValue(), value, `${sel} typed again`);
 }
 const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true }); };
+const closeUp = async (page, sel, name) => { if (OUT) await page.locator(sel).screenshot({ path: `${OUT}/${name}.png` }); };
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const smallTargets = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(s)].filter((el) => el.offsetParent && el.getBoundingClientRect().height < 43.5)
   .map((el) => `${el.id || el.className || el.textContent.trim().slice(0, 20)}:${Math.round(el.getBoundingClientRect().height)}`), sel);
@@ -476,10 +477,12 @@ async function pool(engine) {
     assert.equal(await noSideScroll(ofir), true);
     await ofir.locator('#c-address').scrollIntoViewIfNeeded();
     await shot(ofir, `03-builder-address-${L}`);
+    await closeUp(ofir, '#client-form', `03b-builder-client-fields-${L}`);
     await ofir.locator('#btn-preview').click();
     await ofir.locator('#dlg-preview[open]').waitFor();
     assert.ok((await ofir.locator('#preview-body').innerText()).includes(ADDRESS));
     await shot(ofir, `04-document-address-${L}`);
+    await closeUp(ofir, '#preview-body', `04b-document-close-up-${L}`);
     await ofir.locator('#dlg-preview .close').click();
   });
 
