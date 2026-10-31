@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!-- Never inside another site's frame: this page gives an app access. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, section 51): what the first paint is, before the page is drawn. -->
+  <script src="app/login-gate.js"></script>
+  <link rel="stylesheet" href="app/styles/login.css">
+  <title>חיבור ל־Claude · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <meta name="theme-color" content="#EEF0F4">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
+  <link rel="stylesheet" href="app/styles/mcp-consent.css">
+  <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
+  <link rel="modulepreload" href="app/supa.js">
+  <link rel="modulepreload" href="app/login-ui.js">
+  <link rel="modulepreload" href="app/mcp-logic.js">
+  <link rel="modulepreload" href="app/vendor/supabase.js">
+</head>
+<body>
+  <main class="list-shell mc-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">ברוכים השבים</h2>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" hidden>
+      <section class="mc-card" id="card" aria-labelledby="card-h" aria-live="polite">
+        <img class="mc-logo" src="app/assets/logo.png" alt="astrateg" width="403" height="280">
+        <h1 id="card-h" tabindex="-1">רגע…</h1>
+        <div id="card-body"></div>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="app/mcp-consent.js"></script>
+</body>
+</html>

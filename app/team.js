@@ -15,9 +15,11 @@ import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
 import { avatar } from './shell.js';
 import { loadMetricoolCard, paintMetricoolCard } from './metricool-team.js';
 import { loadVaultCodeCard, paintVaultCodeCard } from './vault-code-team.js';
+import { loadMcpCard, paintMcpCard } from './mcp-team.js';
 
 let metricool = null;        // "חיבור Metricool" (app/metricool-team.js): the owner's card; null when not for this person or not built
 let vaultCode = null;        // "קוד הכספת" (app/vault-code-team.js): the owner's card; null when not for this person or not built
+let mcp = null;              // "חיבור ל־Claude" (app/mcp-team.js): the owners' card; null when not for this person or not built
 let rows = [];               // staff rows with their login state (from the function)
 let caller = null;           // { email, person, owner }
 const links = new Map();     // email -> { link, type, name } made on this page
@@ -113,7 +115,8 @@ async function load() {
   try {
     const [data] = await Promise.all([call('list'), loadPush().catch(() => { pushByEmail = null; }), loadWaTeam().then((x) => { wa = x; }, () => { wa = null; }), loadCalendars().catch(() => { calByEmail = null; }),
       loadMetricoolCard().then((x) => { metricool = x; }, () => { metricool = null; }),
-      loadVaultCodeCard().then((x) => { vaultCode = x; }, () => { vaultCode = null; })]);
+      loadVaultCodeCard().then((x) => { vaultCode = x; }, () => { vaultCode = null; }),
+      loadMcpCard().then((x) => { mcp = x; }, () => { mcp = null; })]);
     rows = data.rows || [];
     caller = data.caller;
   } catch (err) {
@@ -135,6 +138,8 @@ function render() {
   paintMetricoolCard(metricool, document.querySelector('.tm-block'), load);
   // "קוד הכספת" (the owner only): the shared code that opens the vault's passwords.
   paintVaultCodeCard(vaultCode, document.querySelector('.tm-block'), load, nameOfEmail);
+  // "חיבור ל־Claude" (the owners only): who may connect, on or off, and the last use.
+  paintMcpCard(mcp, document.querySelector('.tm-block'), load, nameOfEmail);
   for (const [id, value] of typed) { const el = document.getElementById(id); if (el) el.value = value; }
   if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
 }
