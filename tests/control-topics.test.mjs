@@ -73,7 +73,7 @@ test('contracts and signatures: Stav\'s deals before there is a client, and proc
     ['הוכן', 'החוזה הוכן ולא נשלח', true],
     ['חריג', 'חוזה מותאם: מוכן לשליחה', false],
   ]);
-  assert.equal(t.contracts.items[1].href, 'index.html?deal=d1');
+  assert.equal(t.contracts.items[1].href, 'clients.html'); // nobody took it: the card, where the button is
   assert.equal(t.contracts.items[0].hash, 'p01');
   assert.equal(t.contracts.late, 3);
   assert.deepEqual(rows(t.signatures), [
