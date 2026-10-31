@@ -30,6 +30,7 @@
 .deal-choice-label { font-weight: 600; font-size: 16px; line-height: 1.3; color: var(--text); }
 .deal-choice-sub { color: var(--muted); font-size: 13.5px; line-height: 1.4; }
 .deal-num { max-width: 140px; }
+#deal-form .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
 .deal-count { margin-top: 4px; }
 .deal-submit { width: 100%; min-height: 52px; font-size: 17px; }
 .deal-mine { margin-top: 12px; max-width: 640px; }
