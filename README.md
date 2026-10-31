@@ -53,6 +53,7 @@ app/vendor/ supabase-js (MIT)
 supabase/   migrations, functions/create-quote
 docs/       כללי תמחור, חלוקת אחריות, מדריך מותג, מחקר
 .claude/agents/  סוכני UX, עיצוב, טכנולוגיה, איכות, מחקר ועוזר משפטי
+.claude/skills/astrateg-ad-scripts/  סקיל לכתיבת תסריטים בעברית למודעות וידאו ממומנות (מטה, רילס, טיקטוק)
 ```
 
 שינוי מחיר, כמות, זכאות או נוסח ההסכם: מעדכנים את `docs/pricing-rules.md`, `app/catalog.js` או `app/legal.js`, מריצים `npm test`, ופורסים מחדש את הפונקציה `create-quote` (היא כוללת את `app/pricing.js`, `app/catalog.js` ו־`app/legal.js`).
