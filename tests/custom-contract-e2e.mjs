@@ -531,6 +531,9 @@ try {
     await irit.locator('#revise-note:not([hidden])').waitFor();
     assert.match(await text(irit, '#revise-note'), new RegExp(`תיקון חוזה ${refused.number} · לא אושר: ההנחה גבוהה מדי`));
     assert.equal(await text(irit, '#btn-link'), 'יצירת קישור לחתימה');
+    // A contract from before 31.10.2026 has no address: it is completed here, as any agreement now.
+    await irit.locator('#c-companyid').fill('514729938');
+    await irit.locator('#c-address').fill('הרצל 12, תל אביב');
     await irit.locator('#btn-link').click();
     await irit.locator('#dlg-share[open]').waitFor();
     assert.equal(lastCreate().revise, refused.id);
