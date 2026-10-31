@@ -196,7 +196,7 @@ async function ownerSees(engine) {
 
   await step(`${L}: the filter box: real typing and deleting, key by key: Hebrew intact, the cursor stays, the list follows`, async () => {
     const box = p.locator('#oi-q');
-    assert.equal(await box.evaluate((el) => getComputedStyle(el).fontSize), engine.options.isMobile ? '16px' : await box.evaluate((el) => getComputedStyle(el).fontSize));
+    if (engine.options.isMobile) assert.equal(await box.evaluate((el) => getComputedStyle(el).fontSize), '16px', 'Safari does not zoom in');
     await box.click();
     const TEXT = 'פיצה רון';
     await box.pressSequentially(TEXT, { delay: 25 });

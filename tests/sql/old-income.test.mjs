@@ -152,6 +152,6 @@ test('nothing hangs on it: no trigger, no foreign key to or from it, no function
   assert.equal(triggers.rows[0].n, 0);
   const keys = await db.query("select count(*)::int as n from pg_constraint where contype = 'f' and (conrelid = 'public.old_income_deals'::regclass or confrelid = 'public.old_income_deals'::regclass)");
   assert.equal(keys.rows[0].n, 0);
-  const fns = await db.query("select count(*)::int as n from pg_proc where prosrc like '%old_income%'");
+  const fns = await db.query("select count(*)::int as n from pg_proc where strpos(prosrc, 'old_income') > 0");
   assert.equal(fns.rows[0].n, 0);
 });
