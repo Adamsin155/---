@@ -56,6 +56,7 @@ async function fakeSupabase(route) {
     if (staleOnce) { staleOnce = false; return json(401, { error: 'not signed in' }); }
     try { validateSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
     if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
+    if (body.selection?.docType !== 'quote' && (!body.client?.companyId?.trim() || !body.client?.address?.trim())) return json(400, { error: 'company id and address required' }); // as create-quote (31.10.2026)
     const q = {
       id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(++seq).padStart(4, '0')}`,
       created_at: new Date().toISOString(), created_by_email: USER.email,
@@ -223,6 +224,7 @@ await step('preview renders text safely and matches summary', async () => {
   await page.locator('#c-phone').fill('050-123-4567');
   await page.locator('#c-email').fill('dana@example.com');
   await page.locator('#c-companyid').fill('514729938');
+  await page.locator('#c-address').fill('הרצל 12, תל אביב');
   await page.locator('#c-notes').fill('שורה ראשונה\nשורה <b>שנייה</b>');
   await page.locator('#btn-preview').click();
   const dlg = page.locator('#dlg-preview');
@@ -239,6 +241,7 @@ await step('preview renders text safely and matches summary', async () => {
   assert.match(docText, /תנאי ההסכם/);
   assert.match(docText, /6,900 ₪ לחודש \+ מע״מ כחוק/);
   assert.match(docText, /514729938/);
+  assert.match(docText, /הרצל 12, תל אביב/);
   assert.match(docText, /אסטרטג טכנולוגיות בע״מ/);
   await shot(page, '02-preview', false);
   await page.keyboard.press('Escape');
@@ -477,6 +480,8 @@ await step('discount: up to 200 ILS a month, shown in summary, document and agre
   await d.locator('#discount').blur();
   assert.equal(await d.locator('#discount').inputValue(), '200');
   await d.locator('#c-name').fill('בדיקת הנחה');
+  await d.locator('#c-companyid').fill('514729938');
+  await d.locator('#c-address').fill('הרצל 12, תל אביב');
   await d.locator('#btn-preview').click();
   const doc = await text(d, '#preview-body');
   assert.match(doc, /הנחה/);

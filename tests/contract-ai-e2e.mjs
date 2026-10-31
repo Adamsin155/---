@@ -249,6 +249,8 @@ try {
   await step('by hand: a custom contract that differs from the package gets its link at once (no manager since 29.10.2026)', async () => {
     await freshBuilder(irit);
     await irit.locator('#c-name').fill('רון כהן');
+    await irit.locator('#c-companyid').fill('514729938');
+    await irit.locator('#c-address').fill('הרצל 12, תל אביב');
     await irit.locator('.custom-head .switch').click();
     await irit.locator('#custom-body').waitFor();
     await irit.locator('#discount').fill('350');
@@ -294,6 +296,8 @@ try {
     await irit.locator('#c-name').fill('דנה לוי');
     await irit.locator('#c-company').fill('קפה דנה');
     await irit.locator('#c-phone').fill('050-1234567');
+    await irit.locator('#c-companyid').fill('514729938');
+    await irit.locator('#c-address').fill('הרצל 12, תל אביב');
     await typeDeal(irit);
     await irit.locator('#ai-go').click();
     // Busy while the model reads.
@@ -408,6 +412,8 @@ try {
   await step('an AI preparation used already: the contract is created all the same, by hand (no tag)', async () => {
     await freshBuilder(irit);
     await irit.locator('#c-name').fill('יוסי');
+    await irit.locator('#c-companyid').fill('514729938');
+    await irit.locator('#c-address').fill('הרצל 12, תל אביב');
     await typeDeal(irit);
     await irit.locator('#ai-go').click();
     await irit.locator('#ai-result:not([hidden])').waitFor();

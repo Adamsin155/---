@@ -1,10 +1,11 @@
 // End-to-end check of the owner's decisions of 3.10.2026 in the browser, against an
 // in-memory fake of Supabase (as the other suites):
 //   - Stav (sales) signs in, lands on deal.html (also from clients.html), sends "עסקה
-//     חדשה" "לעירית להכנת חוזה", and sees only his deals with their status; at 360px
+//     חדשה" "לעירית ולאופיר להכנת חוזה", and sees only his deals with their status; at 360px
 //     nothing scrolls sideways and the targets are 44px.
-//   - Irit sees "להכין חוזה ל־<עסק>" in "המשימות שלי" with its office-time clock, opens
-//     the builder prefilled from the deal, and the quote she creates is linked to it.
+//   - Irit sees "להכין חוזה ל־<עסק>" in "המשימות שלי" with its office-time clock, takes it
+//     ("אני לוקח"; two people at once: tests/deal-pool-e2e.mjs), opens the builder prefilled
+//     from the deal, and the quote she creates is linked to it.
 // Run: npx http-server -p 8094 -s -c-1 . &  then  BASE_URL=http://localhost:8094/ node tests/deal-e2e.mjs [outDir]
 import { chromium } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
@@ -104,6 +105,11 @@ async function fakeSupabase(route) {
     return json(200, { id: 'q-new', number: 'AST-2026-0042', token: randomUUID() });
   }
   if (p === '/rest/v1/rpc/is_staff') return json(200, !!me && staff.some((s) => s.email === me.email));
+  if (p === '/rest/v1/rpc/deal_take') {
+    const d = deals.find((x) => x.id === body.p_id);
+    if (!d.taken_by && d.status === 'pending') Object.assign(d, { taken_by: personOf(me), taken_at: serverNow() });
+    return json(200, { ok: d.taken_by === personOf(me), taken_by: d.taken_by, status: d.status });
+  }
   if (p.startsWith('/rest/v1/rpc/')) return json(200, []);
   if (!me) return json(401, { message: 'permission denied' });
   const m = /^\/rest\/v1\/(\w+)$/.exec(p);
@@ -176,10 +182,12 @@ await step('the form: what is missing is said field by field; every target is 44
   assert.equal(calls.filter((c) => c.insert).length, 0, 'nothing sent');
 });
 
-await step('Stav sends the deal "לעירית להכנת חוזה": the add-ons follow the package, the row is his, the status "ממתין לחוזה"', async () => {
+await step('Stav sends the deal "לעירית ולאופיר להכנת חוזה": the add-ons follow the package, the row is his, the status "ממתין לחוזה"', async () => {
   await stav.fill('#d-business', 'פיצה רון');
   await stav.fill('#d-contact', 'רון כהן');
   await stav.fill('#d-phone', '050-7654321');
+  await stav.fill('#d-company_id', '514729938');
+  await stav.fill('#d-business_address', 'הרצל 12, תל אביב');
   // "חוזה", then the second way: a package from the list.
   await stav.check('#d-doc-agreement');
   await stav.click('#d-to-package');
@@ -196,7 +204,7 @@ await step('Stav sends the deal "לעירית להכנת חוזה": the add-ons 
   await stav.waitForFunction(() => document.querySelectorAll('#deal-list .deal-item').length === 2);
   const sent = calls.filter((c) => c.insert).at(-1).insert;
   assert.deepEqual({ ...sent, free: undefined }, {
-    business_name: 'פיצה רון', contact_name: 'רון כהן', phone: '050-7654321', notes: 'לחזור אחרי 17:00', doc_type: 'agreement',
+    business_name: 'פיצה רון', contact_name: 'רון כהן', phone: '050-7654321', company_id: '514729938', business_address: 'הרצל 12, תל אביב', notes: 'לחזור אחרי 17:00', doc_type: 'agreement',
     tier: 'social', influencer: 'natali', paid: ['photographer'], discount_agorot: 15000, free: undefined,
   });
   assert.equal(sent.free.simeonJoin, true);
@@ -208,7 +216,7 @@ await step('Stav sends the deal "לעירית להכנת חוזה": the add-ons 
 // ── Irit ──────────────────────────────────
 const irit = await newPage();
 const dealId = () => deals.find((d) => d.business_name === 'פיצה רון').id;
-await step('Irit: "להכין חוזה ל־פיצה רון" in המשימות שלי, with the 10-minute office clock, the details and the link to the builder', async () => {
+await step('Irit: "להכין חוזה ל־פיצה רון" in המשימות שלי, with the 10-minute office clock, the details and "אני לוקח"', async () => {
   await signIn(irit, 'clients.html#mine', 'irit@astrateg.test');
   await irit.waitForSelector('#deals-card:not([hidden]) .deal-task');
   const card = irit.locator(`.deal-task[data-deal="${dealId()}"]`);
@@ -217,7 +225,9 @@ await step('Irit: "להכין חוזה ל־פיצה רון" in המשימות ש
   assert.match(t, /נשארו \d+:\d\d/);
   assert.match(t, /Social · נטלי דדון · תוספות: צלם חודשי, צירוף סמיון ליום הצילום עם נטלי · הנחה 150 ₪ לחודש/);
   assert.match(t, /רון כהן · 050-7654321 · מסתיו/);
-  assert.equal(await card.locator('a.btn', { hasText: 'להכנת החוזה' }).getAttribute('href'), `index.html?deal=${dealId()}`);
+  assert.match(t, /ח\.פ 514729938 · הרצל 12, תל אביב/);
+  assert.equal(await card.locator('button', { hasText: 'אני לוקח' }).count(), 1);
+  assert.equal(await card.locator('a.btn').count(), 0, 'the builder opens by taking it');
   // The other seller's deal is there too (the office reads all); Stav's signed one is not (done).
   assert.equal(await irit.locator('.deal-task').count(), 2);
   await shot(irit, 'deal-03-irit');
@@ -234,6 +244,9 @@ await step('the builder opens prefilled from the deal; the quote created is link
   await b.waitForFunction(() => document.getElementById('c-company').value === 'פיצה רון');
   assert.equal(await b.inputValue('#c-name'), 'רון כהן');
   assert.equal(await b.inputValue('#c-phone'), '050-7654321');
+  assert.equal(await b.inputValue('#c-companyid'), '514729938');
+  assert.equal(await b.inputValue('#c-address'), 'הרצל 12, תל אביב');
+  assert.equal(deals.find((d) => d.id === dealId()).taken_by, 'irit', 'opening it takes it');
   assert.equal(await b.inputValue('#discount'), '150');
   assert.equal(await b.isChecked('input[name="influencer"][value="natali"]'), true);
   assert.equal(await b.isChecked('input[name="tier"][value="social"]'), true);
@@ -256,6 +269,11 @@ await step('"החוזה נשלח" on the other deal: it leaves the list', async 
   await irit.reload();
   await irit.waitForSelector('#deals-card:not([hidden]) .deal-task');
   assert.equal(await irit.locator('.deal-task').count(), 1, 'the linked one is not waiting any more');
+  // Nobody took this one yet: she takes it, and is back on her list with the work buttons.
+  await irit.locator('.deal-task button', { hasText: 'אני לוקח' }).click();
+  await irit.waitForURL(/index\.html\?deal=/);
+  await irit.goto(`${BASE}clients.html#mine`);
+  await irit.waitForSelector('#deals-card:not([hidden]) .deal-task');
   await irit.locator('.deal-task button', { hasText: 'החוזה נשלח' }).click();
   await irit.waitForSelector('#deals-card', { state: 'hidden' });
   assert.equal(calls.filter((c) => c.update?.status === 'sent').length, 1);

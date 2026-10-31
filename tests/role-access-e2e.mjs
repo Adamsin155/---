@@ -190,6 +190,8 @@ await step('a member of staff who signs in from the builder\'s own dialog and is
   await page.goto(`${BASE}index.html`);
   await page.click('#start-agreement');
   await page.fill('#c-name', 'דנה לוי');
+  await page.fill('#c-companyid', '514729938');
+  await page.fill('#c-address', 'הרצל 12, תל אביב');
   await page.click('#btn-link');
   await page.waitForSelector('#dlg-login[open]');
   await page.fill('#lg-email', emailOf('nadia'));

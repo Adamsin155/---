@@ -148,11 +148,11 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.ok(tops[0] < tops[1] && tops[1] < tops[2], `order: ${tops}`);
   assert.ok(tops[0] < 740, `the now-bar starts at ${tops[0]}px`);
   // The design keeps pink for the screen's one main action: "לקוח חדש". The rows' own actions
-  // ("להכנת החוזה", "חיבור ליומן") are the outlined style.
+  // ("אני לוקח", "חיבור ליומן") are the outlined style.
   const pink = await page.evaluate(() => [...document.querySelectorAll('#app .btn-primary')]
     .filter((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && !el.closest('dialog'); }).map((el) => el.id || el.textContent.trim()));
   assert.deepEqual(pink.filter((x) => x !== 'btn-new'), [], `pink actions on Irit's work screen: ${pink}`);
-  assert.equal(await page.locator('#deals-card a.btn', { hasText: 'להכנת החוזה' }).first().evaluate((el) => el.classList.contains('btn-primary')), false);
+  assert.equal(await page.locator('#deals-card button.btn', { hasText: 'אני לוקח' }).first().evaluate((el) => el.classList.contains('btn-primary')), false);
   assert.match(await page.innerText('#deals-card'), /עסקאות חדשות מהשטח \(2\)[^]*להכין חוזה ל־קפה הפינה[^]*להכין חוזה ל־מאפיית השכונה/);
   const list = await shortList(page, 'irit');
   // Protocol v8: what was her one card of "מחר" (the eight follow-up topics of the client that shoots

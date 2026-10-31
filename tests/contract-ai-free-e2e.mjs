@@ -8,7 +8,7 @@
 //     נחיתה" included, 12 months, in the custom contract's own fields; "יצירת קישור לצפייה" gives the
 //     link at once;
 //   - two offers in one text: "הצעה 1 · הצעה 2", one tap loads each, "להמשיך להצעה 2" after the first;
-//   - Stav on an iPhone 13 (WebKit): "הצעת מחיר", then the big box, typed key by key, "לעירית להכנת
+//   - Stav on an iPhone 13 (WebKit): "הצעת מחיר", then the big box, typed key by key, "לעירית ולאופיר להכנת
 //     הצעת מחיר"; and "חוזה" on a 360px Chromium;
 //   - Irit sees "להכין הצעת מחיר ל־…" with the 10-minute clock and Stav's words, opens it: the AI box
 //     already has his text, the switch on, the client's details filled, the document his choice; one
@@ -184,6 +184,12 @@ async function fakeSupabase(route) {
     const name = p.slice('/rest/v1/rpc/'.length);
     if (name === 'is_staff') return json(200, !!me && staff.some((s) => s.email === me.email));
     if (name === 'is_office') return json(200, isOffice(me));
+    if (name === 'deal_take') {
+      const d = deals.find((x) => x.id === body.p_id);
+      const who = personOf(me);
+      if (!d.taken_by && d.status === 'pending' && ['irit', 'ofir'].includes(who)) Object.assign(d, { taken_by: who, taken_at: serverNow() });
+      return json(200, { ok: !d.taken_by || d.taken_by === who, taken_by: d.taken_by ?? null, status: d.status });
+    }
     if (name === 'my_person') return json(200, personOf(me) ?? null);
     if (name === 'get_quote') {
       const q = quotes.find((x) => x.token === body.p_token);
@@ -421,20 +427,22 @@ try {
     await phone.context().close();
   });
 
-  await step('Stav on a 360px phone: "חוזה", the big box opens, his words go to Irit "לעירית להכנת חוזה"', async () => {
+  await step('Stav on a 360px phone: "חוזה", the big box opens, his words go "לעירית ולאופיר להכנת חוזה"', async () => {
     const stav = await newPage(browser, { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
     await signIn(stav, 'stav', 'deal.html', '#deal-form:not([hidden])');
     assert.ok(await stav.locator('#d-free').isHidden(), 'the box opens after the choice');
-    assert.equal(await text(stav, '#d-submit'), 'לעירית');
+    assert.equal(await text(stav, '#d-submit'), 'לעירית ולאופיר');
     await stav.locator('#d-submit').click();
     assert.ok(await stav.locator('#d-doc_type-err').isVisible());
     await stav.fill('#d-business', 'מוסך דוד');
     await stav.fill('#d-contact', 'דוד');
     await stav.fill('#d-phone', '050-7654321');
+    await stav.fill('#d-company_id', '514729938');
+    await stav.fill('#d-business_address', 'התעשייה 4, חולון');
     await stav.locator('label[for="d-doc-agreement"]').tap();
     await stav.locator('#d-free:not([hidden])').waitFor();
     assert.equal(await stav.evaluate(() => document.activeElement.id), 'd-text', 'the cursor is in the box');
-    assert.equal(await text(stav, '#d-submit'), 'לעירית להכנת חוזה');
+    assert.equal(await text(stav, '#d-submit'), 'לעירית ולאופיר להכנת חוזה');
     await stav.keyboard.type('6,500 עם נטלי, סושיאל', { delay: 6 });
     assert.equal(await stav.inputValue('#d-text'), '6,500 עם נטלי, סושיאל');
     assert.deepEqual(await smallTargets(stav, '#deal-form .deal-choice, #deal-form .input, #d-submit, #d-to-package'), []);
@@ -465,7 +473,7 @@ try {
 if (!exitCode) {
   const safari = await webkit.launch();
   try {
-    await step('Stav on an iPhone 13 (WebKit): "הצעת מחיר", his words key by key, "לעירית להכנת הצעת מחיר"', async () => {
+    await step('Stav on an iPhone 13 (WebKit): "הצעת מחיר", his words key by key, "לעירית ולאופיר להכנת הצעת מחיר"', async () => {
       const stav = await newPage(safari, { ...devices['iPhone 13'] });
       await signIn(stav, 'stav', 'deal.html', '#deal-form:not([hidden])');
       await stav.fill('#d-business', 'שטיחי רות');
@@ -473,7 +481,7 @@ if (!exitCode) {
       await stav.fill('#d-phone', '050-1234567');
       await stav.locator('label[for="d-doc-quote"]').tap();
       await stav.locator('#d-free:not([hidden])').waitFor();
-      assert.equal(await text(stav, '#d-submit'), 'לעירית להכנת הצעת מחיר');
+      assert.equal(await text(stav, '#d-submit'), 'לעירית ולאופיר להכנת הצעת מחיר');
       // 16px: Safari does not zoom into the box.
       assert.equal(await stav.locator('#d-text').evaluate((el) => getComputedStyle(el).fontSize), '16px');
       await typeKeys(stav, '#d-text', STAV);
@@ -484,7 +492,7 @@ if (!exitCode) {
       await stav.waitForFunction(() => document.querySelectorAll('#deal-list .deal-item').length === 2);
       const ins = calls.filter((c) => c.insert).at(-1).insert;
       assert.deepEqual([ins.doc_type, ins.custom], ['quote', { text: STAV }]);
-      assert.match(await text(stav, '#toast'), /נשלח לעירית: שטיחי רות\. הצעת המחיר בדרך/);
+      assert.match(await text(stav, '#toast'), /נשלח לעירית ולאופיר: שטיחי רות\. הצעת המחיר בדרך/);
       await stav.context().close();
     });
 
@@ -498,10 +506,11 @@ if (!exitCode) {
       assert.match(t, /להכין הצעת מחיר ל־שטיחי רות/);
       assert.match(t, /נשארו \d+:\d\d/);
       assert.match(t, /הצעת מחיר: בלי משפיען 4,900 בחודש\s+צילום כל חודש 8 תכנים\s+2 דפי נחיתה/);
-      const open = card.locator('a.btn', { hasText: 'להכנת הצעת המחיר' });
-      assert.equal(await open.getAttribute('href'), `index.html?deal=${d.id}`);
+      // Nobody took it yet (31.10.2026): "אני לוקח" is the one action, and it opens the builder.
+      const open = card.locator('button', { hasText: 'אני לוקח' });
+      assert.equal(await card.locator('a.btn').count(), 0);
       // The agreement deal of the 360px step: its own words, its own button.
-      assert.ok(await irit.locator('.deal-task', { hasText: 'להכין חוזה ל־מוסך דוד' }).locator('a.btn', { hasText: 'להכנת החוזה' }).count());
+      assert.equal(await irit.locator('.deal-task', { hasText: 'להכין חוזה ל־מוסך דוד' }).locator('button', { hasText: 'אני לוקח' }).count(), 1);
       await card.scrollIntoViewIfNeeded();
       await shot(irit, '11-irit-deal-card-iphone13');
       await open.tap();

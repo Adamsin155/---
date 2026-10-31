@@ -115,6 +115,12 @@ const view = (q) => ({
 const hidden = (q) => !q || q.status === 'cancelled' || q.approval === 'rejected';
 
 function rpc(name, body, me, json) {
+  if (name === 'deal_take') {
+    const d = deals.find((x) => x.id === body.p_id);
+    const who = personOf(me);
+    if (!d.taken_by && d.status === 'pending' && ['irit', 'ofir'].includes(who)) Object.assign(d, { taken_by: who, taken_at: serverNow() });
+    return json(200, { ok: !d.taken_by || d.taken_by === who, taken_by: d.taken_by ?? null, status: d.status });
+  }
   if (name === 'is_staff') return json(200, !!me && staff.some((s) => s.email === me.email));
   if (name === 'is_office') return json(200, isOffice(me));
   if (name === 'get_quote') {
@@ -320,6 +326,8 @@ try {
     assert.ok(await irit.locator('#sum-diff').isHidden());
     await irit.locator('#c-name').fill('רון כהן');
     await irit.locator('#c-company').fill('פיצה רון');
+    await irit.locator('#c-companyid').fill('514729938');
+    await irit.locator('#c-address').fill('הרצל 12, תל אביב');
     await irit.locator('#c-phone').fill('050-7654321');
     await irit.locator('#discount').fill('200');
     await irit.locator('#btn-link').click();
@@ -362,6 +370,8 @@ try {
     await irit.locator('#custom-group').waitFor();
     await irit.locator('#c-name').fill('דנה לוי');
     await irit.locator('#c-company').fill('קפה דנה');
+    await irit.locator('#c-companyid').fill('514729938');
+    await irit.locator('#c-address').fill('הרצל 12, תל אביב');
     await irit.locator('#c-phone').fill('050-1234567');
     await irit.locator('.custom-head .switch').click();
     await irit.locator('#custom-body').waitFor();
@@ -553,6 +563,7 @@ try {
       id: randomUUID(), created_at: minutesAgo(5), created_by_email: 'stav@astrateg.test', seller: 'stav', business_name: 'מוסך אבי', contact_name: 'אבי', phone: '052-1112233',
       tier: null, influencer: null, paid: [], free: {}, discount_agorot: 0, notes: 'רוצה להתחיל בנובמבר', status: 'pending', quote_id: null, sent_at: null, signed_at: null, status_by_email: null,
       custom: { description: '15 סרטונים ו־10 גרפיקות, יום צילום אחד, בלי קולאב', videos: 15, graphics: 10, price_agorot: 250000, term_months: 6 },
+      company_id: '514729938', business_address: 'התעשייה 4, חולון',
     };
     deals.push(deal);
     await irit.goto(`${BASE}index.html?deal=${deal.id}`);

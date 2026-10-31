@@ -287,7 +287,7 @@ try {
       assert.equal(new URL(page.url()).hash, '', 'the address is clean');
       assert.match(await page.locator('#ai-summary').innerText(), /סרטונים: 20/);
       assert.match(await page.locator('#ai-summary').innerText(), /ללא Highlights/);
-      for (const id of ['c-name', 'c-company', 'c-companyid', 'c-phone', 'c-email', 'c-notes']) assert.equal(await page.locator(`#${id}`).inputValue(), '', id);
+      for (const id of ['c-name', 'c-company', 'c-companyid', 'c-address', 'c-phone', 'c-email', 'c-notes']) assert.equal(await page.locator(`#${id}`).inputValue(), '', id);
       assert.equal(await page.locator('#start').isVisible(), false);
       assert.equal(await noSideScroll(page), true, label);
       // The totals on the screen are the tool's.
