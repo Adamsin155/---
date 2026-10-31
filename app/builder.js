@@ -1368,7 +1368,7 @@ async function openFromDeal(id) {
   if (!staff?.isStaff && !(await askLogin())) return;
   if (denied) return;
   try {
-    const [{ loadDeal }, { prefillFromDeal, contractTitle }] = await Promise.all([import('./deal-data.js'), import('./deal-logic.js')]);
+    const [{ loadDeal }, { prefillFromDeal, contractTitle, isCustomDeal }] = await Promise.all([import('./deal-data.js'), import('./deal-logic.js')]);
     const d = await loadDeal(id);
     if (!d) { toast('העסקה לא נמצאה, או שאין לך גישה אליה.'); return; }
     // Opened from an old notification or a direct link: this takes it too. Someone else's stays theirs.
@@ -1406,9 +1406,9 @@ async function openFromDeal(id) {
     }
     toast(words !== null
       ? `${contractTitle(d)}: מה שנכתב בשטח כבר בתיבה. ללחוץ ״הכנה בדיוק כמו שכתבתי״.`
-      : state.custom
+      : isCustomDeal(d)
         ? `${contractTitle(d)}: הצעה אחרת מהשטח. נפתח חוזה מותאם אישית עם מה שנכתב; לבחור חבילת בסיס, לבדוק, וליצור קישור.`
-        : `${contractTitle(d)}: הפרטים מהעסקה נטענו. לבדוק ולהשלים, ואז ליצור קישור.`);
+        : `${contractTitle(d)}: הפרטים מהעסקה נטענו${state.custom ? ', עם ההנחה החריגה' : ''}. לבדוק ולהשלים, ואז ליצור קישור.`);
   } catch (err) {
     const s = await getSupa().catch(() => null);
     toast(`העסקה לא נטענה. ${s ? s.explainError(err) : ''}`.trim());

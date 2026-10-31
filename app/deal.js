@@ -45,7 +45,7 @@ const docType = () => document.querySelector('input[name="doc_type"]:checked')?.
 function showKind() {
   const chosen = !!docType();
   const free = kind() === 'free';
-  $('d-free').hidden = !chosen;
+  $('d-free').hidden = !chosen || !free;
   $('d-text').closest('.field').hidden = !free;
   $('d-to-package').hidden = !free;
   for (const el of document.querySelectorAll('.deal-builtin')) el.hidden = !chosen || free;
