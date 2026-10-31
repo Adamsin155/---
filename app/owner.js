@@ -46,6 +46,9 @@ import { daySummary, headline, waitingText, assignText } from './day-summary.js'
 // Who did what on which day (docs/ops.md, section 82).
 import { WORK_DAYS, canSeeWorkHistory, workHistory, lastWork, allDays, driveCoverage } from './work-history-logic.js';
 import { loadWorkHistory } from './work-history-data.js';
+// The old system's income, to look at (docs/ops.md, section 86).
+import { canSeeOldIncome } from './old-income-logic.js';
+import { showOldIncome } from './old-income-ui.js';
 import { icon as kIcon, iconSquare, headIcon, besideIcon, leadIcon, dateLeaf } from './kit.js';
 import { warm, taken } from './supa.js';
 
@@ -197,7 +200,7 @@ function renderKeepingFocus() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['now', 'all', 'eod', 'work', 'table', 'shoots', 'archive'];
+const TABS = ['now', 'all', 'eod', 'work', 'old-income', 'table', 'shoots', 'archive'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 // The page's heading follows the tab.
 const VIEW_TITLES = {
@@ -205,6 +208,7 @@ const VIEW_TITLES = {
   all: ['כל הלקוחות במבט', 'איפה כל לקוח, מה הבא, מי ומתי. לחיצה על לקוח מציגה את השאר.'],
   eod: ['סיכום היום', 'כמה פריטים באיחור אצל כל עובד, ומה היה להיום ועוד לא בוצע.'],
   work: ['עבודה לפי עובד', 'מה כל עובד עשה בכל יום. בוחרים עובד, ואז יום.'],
+  'old-income': ['הכנסות ישנות', 'מה שנרשם במערכת הישנה, לפי חודש. בוחרים חודש ורואים את העסקאות.'],
   table: ['כל הלקוחות בטבלה', 'שורה לכל לקוח: מה בחוזה, איפה הוא עומד, מה הבא ומה בוצע. מיון, סינון וייצוא.'],
   shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
@@ -253,6 +257,7 @@ function render() {
   if (view === 'now') renderNow();
   else if (view === 'eod') renderEod();
   else if (view === 'work') renderWork();
+  else if (view === 'old-income') showOldIncome();
   else if (view === 'table') renderTable();
   else if (view === 'shoots') renderShoots();
   else if (view === 'archive') renderArchive();
@@ -943,6 +948,7 @@ mountSession(async (staff) => {
   $('tab-shoots').hidden = !mayShoots;
   $('tab-eod').hidden = !mayEod;
   $('tab-work').hidden = !canSeeWorkHistory(v);
+  $('tab-old-income').hidden = !canSeeOldIncome(v);
   $('tab-archive').hidden = !mayArchive;
   $('ow-tabs').hidden = tabsShown().length < 2;
   // Someone with a person of their own goes back to their own tasks; the owner to the team's work.
@@ -966,7 +972,7 @@ mountSession(async (staff) => {
 function dressOwner() {
   for (const [hid, name, tone] of [['rows-h', 'alert', 'pink'], ['ans-h', 'chat', 'blue'], ['board-h', 'calendar', 'blue'], ['eod-items-h', 'clock', 'orange'], ['ar-h', 'archive', 'navy'],
     ['na-h', 'lock', 'navy'], ['landing-h', 'inbox', 'teal'], ['wk-h', 'chart', 'purple'], ['approvals-h', 'sign', 'orange']]) headIcon($(hid), name, tone);
-  for (const [tid, name] of [['tab-now', 'alert'], ['tab-all', 'grid'], ['tab-eod', 'clock'], ['tab-table', 'table'], ['tab-shoots', 'camera'], ['tab-archive', 'archive']]) leadIcon($(tid), name);
+  for (const [tid, name] of [['tab-now', 'alert'], ['tab-all', 'grid'], ['tab-eod', 'clock'], ['tab-old-income', 'coins'], ['tab-table', 'table'], ['tab-shoots', 'camera'], ['tab-archive', 'archive']]) leadIcon($(tid), name);
   besideIcon($('eod-head'), 'clock', 'orange');
   const empty = $('ow-empty');
   if (empty && !empty.querySelector('.k-svg')) { empty.classList.add('k-emptyrow'); empty.prepend(kIcon('check-circle', { size: 20 })); }

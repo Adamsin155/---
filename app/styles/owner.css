@@ -408,3 +408,36 @@
 .wh-cover { margin-top: 12px; display: grid; gap: 6px; }
 .wh-missing summary { cursor: pointer; font-size: 14px; color: var(--text-2); min-height: 32px; }
 .wh-missing p { margin: 4px 0 0; font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+
+/* "הכנסות ישנות" (owner.html#old-income; docs/ops.md, section 86). */
+.oi-total { margin: 0 0 14px; padding: 18px 16px; color: #fff; background: var(--ds-navy); border-radius: var(--ds-r-card); }
+.oi-total p { margin: 0; }
+.oi-total .oi-sum { font-family: var(--font-h); font-size: 38px; font-weight: 700; line-height: 1.15; }
+.oi-total .oi-sum-label { margin-top: 4px; font-size: 15px; font-weight: 600; }
+.oi-total .oi-copy { margin-top: 10px; font-size: 14px; }
+.oi-search { margin: 0 0 12px; }
+.oi-found { margin: 0 0 10px; font-weight: 600; }
+.oi-months:empty { display: none; }
+.oi-m-t { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.oi-m-t strong { font-size: 16px; }
+.oi-m-n { font-size: 14px; color: var(--ds-ink-2); }
+.oi-m-s { flex: none; font-size: 16px; }
+.oi-chev { flex: none; width: 9px; height: 9px; margin-inline: 2px 4px; border-block-end: 2px solid var(--ds-ink-2); border-inline-end: 2px solid var(--ds-ink-2); transform: rotate(45deg); transition: transform .15s; }
+[aria-expanded='true'] > .oi-chev { transform: rotate(-135deg); }
+.oi-deals { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.oi-deals[hidden] { display: none; }
+.oi-deal { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'biz biz amt' 'date pkg pkg' 'quiet quiet quiet'; column-gap: 10px; row-gap: 2px; padding: 10px 12px; background: var(--ds-surface); border: 1px solid var(--line); border-radius: var(--ds-r-item); }
+.oi-date { grid-area: date; font-size: 14px; color: var(--ds-ink-2); white-space: nowrap; }
+.oi-biz { grid-area: biz; font-size: 15px; overflow-wrap: anywhere; }
+.oi-pkg { grid-area: pkg; font-size: 14px; color: var(--ds-ink-2); overflow-wrap: anywhere; }
+.oi-amt { grid-area: amt; font-size: 15px; white-space: nowrap; }
+.oi-quiet { grid-area: quiet; margin-top: 2px; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+.oi-msg { margin: 0 0 10px; font-weight: 600; }
+@media (min-width: 761px) {
+  .oi-deal { grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-areas: 'date biz pkg amt' '. quiet quiet quiet'; align-items: baseline; }
+  .oi-search .input { max-width: 420px; }
+}
+@media (max-width: 760px) {
+  #oi-q { font-size: 16px; } /* Safari does not zoom into the field */
+  .oi-total .oi-sum { font-size: 32px; }
+}

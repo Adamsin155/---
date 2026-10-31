@@ -505,6 +505,8 @@ test('every client table has row level security, and no policy on it lets every 
     // The counts from the Drive (20261120100000_drive_daily.sql): the office only, as the log above.
     drive_daily: /progress_office\(\)/,
     drive_scan_state: /progress_office\(\)/,
+    // The old system's income (20261123100000_old_income.sql): the owners only; its rows have no client.
+    old_income_deals: /sees_money\(\)/,
     // The scripts (20261003120000_scripts.sql): Lior and the owner, and the people they
     // granted the client to; not the rest of the office (tests/sql/scripts.test.mjs).
     client_scripts: /can_manage_scripts\(\)/,

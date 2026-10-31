@@ -93,6 +93,7 @@
           <button type="button" role="tab" class="tab" id="tab-all" aria-controls="view-all">כל הלקוחות במבט</button>
           <button type="button" role="tab" class="tab" id="tab-eod" aria-controls="view-eod" hidden>סיכום היום</button>
           <button type="button" role="tab" class="tab" id="tab-work" aria-controls="view-work" hidden>עבודה לפי עובד</button>
+          <button type="button" role="tab" class="tab" id="tab-old-income" aria-controls="view-old-income" hidden>הכנסות ישנות</button>
           <button type="button" role="tab" class="tab" id="tab-table" aria-controls="view-table" hidden>טבלה</button>
           <button type="button" role="tab" class="tab" id="tab-shoots" aria-controls="view-shoots" hidden>ימי צילום</button>
           <button type="button" role="tab" class="tab" id="tab-archive" aria-controls="view-archive" hidden>ארכיון</button>
@@ -158,6 +159,22 @@
         <!-- Who did what on which day (app/work-history-logic.js; docs/ops.md, section 82). -->
         <section class="block ow-view wh-view" id="view-work" role="tabpanel" aria-labelledby="tab-work" hidden>
           <div id="wh-body" aria-live="polite"></div>
+        </section>
+
+        <!-- The old system's income, to look at: the owners only (app/old-income-ui.js; docs/ops.md, section 86). -->
+        <section class="block ow-view oi-view" id="view-old-income" role="tabpanel" aria-labelledby="tab-old-income" hidden>
+          <div class="oi-total" id="oi-total" hidden>
+            <p class="oi-sum" id="oi-sum"></p>
+            <p class="oi-sum-label" id="oi-sum-label"></p>
+            <p class="oi-copy" id="oi-copy"></p>
+          </div>
+          <div class="field oi-search" id="oi-search" role="search" hidden>
+            <label for="oi-q">חיפוש לפי שם עסק</label>
+            <input class="input" id="oi-q" type="search" autocomplete="off" enterkeyhint="search" placeholder="שם העסק">
+          </div>
+          <p class="oi-found" id="oi-found" role="status" aria-live="polite" hidden></p>
+          <ul class="wh-list oi-months" id="oi-months"></ul>
+          <div id="oi-msg" aria-live="polite"></div>
         </section>
 
         <!-- The manager table (app/manager-table.js): one row per client. The price columns

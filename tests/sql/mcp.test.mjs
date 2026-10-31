@@ -44,7 +44,7 @@ async function tryAs(who, sql, params = []) {
 const allowed = async (who) => (await tryAs(who, 'select public.mcp_allowed() as ok'))[0].ok;
 
 test('the file: the newest, only adds, and runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261122100000_deal_pool.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261122100000_deal_pool.sql', '20261123100000_old_income.sql']);
   assert.equal(SQL.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));
   const { rows } = await db.query('select count(*)::int as n from public.mcp_access');
