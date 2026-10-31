@@ -156,8 +156,17 @@ async function ownerSees(engine) {
     assert.equal(await p.locator('#tab-old-income').isVisible(), true);
     assert.equal(await p.locator('#tab-old-income').getAttribute('aria-selected'), 'true');
     assert.equal(await p.locator('#ow-title').innerText(), 'הכנסות ישנות');
+    // The chosen tab is whole in its row, not cut at the edge.
+    await p.waitForTimeout(600);
+    const cut = await p.evaluate(() => {
+      const t = document.getElementById('tab-old-income').getBoundingClientRect();
+      const r = document.getElementById('ow-tabs').getBoundingClientRect();
+      return { tab: [Math.round(t.left), Math.round(t.right)], row: [Math.round(r.left), Math.round(r.right)], whole: t.left >= r.left - 0.5 && t.right <= r.right + 0.5 };
+    });
+    assert.equal(cut.whole, true, JSON.stringify(cut));
     assert.equal(await p.locator('#oi-sum').innerText(), money(SUM));
-    assert.match(await p.locator('#oi-sum-label').innerText(), /סכום כפי שנרשם במערכת הישנה · 6 עסקאות/);
+    assert.equal(await p.locator('#oi-sum-label').innerText(), 'סכום כפי שנרשם במערכת הישנה');
+    assert.equal(await p.locator('#oi-count').innerText(), '6 עסקאות');
     assert.equal(await p.locator('#oi-copy').innerText(), COPY);
     assert.deepEqual(await months(p), ['אוקטובר 2026', 'מרץ 2026', 'דצמבר 2025', 'בלי תאריך']);
     const first = await p.locator('#oi-m-2026-10').innerText();

@@ -222,8 +222,9 @@ function showTab(tab) {
   const t = tab.getBoundingClientRect();
   if (!t.width) return;
   const pad = 5;
-  if (t.left < r.left + pad) row.scrollLeft -= r.left + pad - t.left;
-  else if (t.right > r.right - pad) row.scrollLeft += t.right - (r.right - pad);
+  // To the tab's own snap point (its start, the right edge): the row snaps to a tab, and a smaller
+  // move would snap straight back and leave the tab cut (.tabs-scroll, app/styles/shell.css).
+  if (t.left < r.left + pad || t.right > r.right - pad) row.scrollLeft += t.right - (r.right - pad);
 }
 function setView(v, focus = false) {
   view = tabsShown().includes(v) ? v : tabsShown()[0];

@@ -70,7 +70,8 @@ function draw() {
   const all = totalOf(state.rows);
   fill($('oi-msg'));
   $('oi-sum').textContent = shekels(all.sum);
-  $('oi-sum-label').textContent = `${SUM_LABEL} · ${countText(all.count)}`;
+  $('oi-sum-label').textContent = SUM_LABEL;
+  $('oi-count').textContent = countText(all.count);
   $('oi-copy').textContent = COPY_LINE;
   $('oi-total').hidden = false;
   $('oi-search').hidden = false;

@@ -414,6 +414,7 @@
 .oi-total p { margin: 0; }
 .oi-total .oi-sum { font-family: var(--font-h); font-size: 38px; font-weight: 700; line-height: 1.15; }
 .oi-total .oi-sum-label { margin-top: 4px; font-size: 15px; font-weight: 600; }
+.oi-total .oi-count { font-size: 15px; }
 .oi-total .oi-copy { margin-top: 10px; font-size: 14px; }
 .oi-search { margin: 0 0 12px; }
 .oi-found { margin: 0 0 10px; font-weight: 600; }
@@ -422,9 +423,9 @@
 .oi-m-t strong { font-size: 16px; }
 .oi-m-n { font-size: 14px; color: var(--ds-ink-2); }
 .oi-m-s { flex: none; font-size: 16px; }
-.oi-chev { flex: none; width: 9px; height: 9px; margin-inline: 2px 4px; border-block-end: 2px solid var(--ds-ink-2); border-inline-end: 2px solid var(--ds-ink-2); transform: rotate(45deg); transition: transform .15s; }
-[aria-expanded='true'] > .oi-chev { transform: rotate(-135deg); }
-.oi-deals { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.oi-chev { flex: none; width: 9px; height: 9px; margin-inline: 2px 4px; border-bottom: 2px solid var(--ds-ink-2); border-right: 2px solid var(--ds-ink-2); transform: translateY(-2px) rotate(45deg); transition: transform .15s; }
+[aria-expanded='true'] > .oi-chev { transform: translateY(2px) rotate(-135deg); }
+.oi-deals { list-style: none; margin: 8px 0 0; padding: 0; padding-inline-start: 8px; display: grid; gap: 8px; }
 .oi-deals[hidden] { display: none; }
 .oi-deal { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'biz biz amt' 'date pkg pkg' 'quiet quiet quiet'; column-gap: 10px; row-gap: 2px; padding: 10px 12px; background: var(--ds-surface); border: 1px solid var(--line); border-radius: var(--ds-r-item); }
 .oi-date { grid-area: date; font-size: 14px; color: var(--ds-ink-2); white-space: nowrap; }
@@ -433,6 +434,7 @@
 .oi-amt { grid-area: amt; font-size: 15px; white-space: nowrap; }
 .oi-quiet { grid-area: quiet; margin-top: 2px; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
 .oi-msg { margin: 0 0 10px; font-weight: 600; }
+#oi-retry { min-height: 44px; }
 @media (min-width: 761px) {
   .oi-deal { grid-template-columns: 92px minmax(0, 1fr) minmax(0, 1fr) auto; grid-template-areas: 'date biz pkg amt' '. quiet quiet quiet'; align-items: baseline; }
   .oi-search .input { max-width: 420px; }
