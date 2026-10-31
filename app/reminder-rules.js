@@ -55,7 +55,7 @@ import {
   businessDaysBetween, weekKey, erevOn, nextWorkMoment, CHAR_ENDED, clientLabel, clientState, blockers,
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals and the station-change message.
-import { DEAL_MINUTES, contractTitle, dealSummary, dealUrl } from './deal-logic.js';
+import { DEAL_MINUTES, DEAL_PREPARERS, contractTitle, dealSummary, dealUrl, dealDue, dealRingSlot } from './deal-logic.js';
 import { stationChange } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
 import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
@@ -1472,25 +1472,28 @@ export const RULES = [
   },
 
   // ── The owner's decisions of 3.10.2026 ──
-  // A new deal from the field (Stav, deal.html): "להכין חוזה ל־<עסק>". Irit rings at
-  // once; 10 office minutes later, if the contract was not sent (a quote linked to
-  // the deal, or Irit marked it sent or cancelled), Irit rings again and Ofir too.
+  // A new deal from the field (Stav, deal.html): "להכין חוזה ל־<עסק>". Since 31.10.2026 (docs/ops.md,
+  // section 85) Irit and Ofir ring together, at once and every 10 office minutes, until one takes it
+  // ("אני לוקח", public.deal_take; the ring opens the card, where the button is). Whoever took it
+  // rings once more 10 office minutes after taking, if the contract was not sent by then (a quote
+  // linked to the deal, or marked sent or cancelled). The other hears nothing more.
   {
     id: 'dealNew', event: 'עסקה חדשה מהשטח: חוזה תוך 10 דקות', procs: [],
     instances(env) {
-      return (env.deals || []).filter((d) => d.status === 'pending' && parseDate(d.created_at)).map((d) => {
-        const at = parseDate(d.created_at);
-        return {
-          id: d.id, cid: null, deal: d, name: d.business_name, seller: env.personOf(d.created_by_email),
-          url: dealUrl(d), anchors: { event: at, due: addWorkingMinutes(at, DEAL_MINUTES) },
-        };
+      return (env.deals || []).filter((d) => d.status === 'pending' && parseDate(d.created_at)).flatMap((d) => {
+        const base = { id: d.id, cid: null, deal: d, name: d.business_name, seller: env.personOf(d.created_by_email) };
+        if (d.taken_by) return [{ ...base, url: dealUrl(d), anchors: { event: parseDate(d.taken_at) || parseDate(d.created_at), due: dealDue(d) } }];
+        const slot = dealRingSlot(d, env.now);
+        return slot ? [{ ...base, slot, url: MINE_URL, anchors: { event: slot.at } }] : [];
       });
     },
-    steps: [
-      { id: 'now', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => contractTitle(i.deal), body: (i, env) => `${i.seller ? `מ${personName(i.seller)}: ` : ''}${dealSummary(i.deal)}. יעד ${whenText(i.anchors.due, env.now)}.` },
-      { id: 'due', from: 'due', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עברו ${DEAL_MINUTES} דקות: ${contractTitle(i.deal)}`, body: () => 'החוזה עוד לא נשלח.' },
-      { id: 'ofir', from: 'due', to: 'ofir', level: 'ring', exempt: 'clock', title: (i) => `חוזה לא נשלח ${DEAL_MINUTES} דקות: ${i.name}`, body: (i) => `עסקה ${i.seller ? `של ${personName(i.seller)} ` : ''}מחכה לחוזה מעירית.` },
-    ],
+    steps: (i) => (i.deal.taken_by
+      ? [{ id: 'due', from: 'due', to: i.deal.taken_by, level: 'ring', exempt: 'clock', title: () => `עברו ${DEAL_MINUTES} דקות: ${contractTitle(i.deal)}`, body: () => 'החוזה עוד לא נשלח.' }]
+      : [{
+        id: i.slot.id, to: DEAL_PREPARERS, level: 'ring', exempt: 'clock',
+        title: () => (i.slot.n === 0 ? contractTitle(i.deal) : `עוד אף אחד לא לקח: ${contractTitle(i.deal)}`),
+        body: () => `${i.seller ? `מ${personName(i.seller)}: ` : ''}${dealSummary(i.deal)}. מי שלוקח ראשון מכין.`,
+      }]),
   },
 
   // The deal's client signed: the seller hears, quietly ("<עסק> חתם 🎉").

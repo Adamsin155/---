@@ -36,9 +36,9 @@ export const QUOTE_MONEY_VIEWERS = ['ofir'];
 export const seesQuoteMoney = (v) => isOwnerView(v) || (known(v) && QUOTE_MONEY_VIEWERS.includes(v.me));
 export const canSeeQuoteList = (v) => seesQuoteMoney(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
 // Stav's and Amos's deals with what was agreed (the discount, a price typed by hand):
-// Irit, who prepares the contract from them, and the owners (not Ofir: they are not on
-// quotes.html, and public.deal_requests does not answer him).
-export const canSeeDeals = (v) => isOwnerView(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
+// Irit and Ofir, whoever takes it prepares the contract (31.10.2026), and the owners.
+export const DEAL_VIEWERS = ['irit', 'ofir'];
+export const canSeeDeals = (v) => isOwnerView(v) || (known(v) && DEAL_VIEWERS.includes(v.me));
 // The builder of a quote and of the contract (index.html), 8.10.2026: whoever prepares a
 // contract. Ofir builds them too (the owner, 28.10.2026; until then he only approved an
 // exceptional one from his approvals card). The create-quote function answers the office only

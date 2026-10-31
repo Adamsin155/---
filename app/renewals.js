@@ -127,7 +127,7 @@ export function renewalDraft(client, model = null) {
     state,
     client: {
       'c-name': s(c.name) || s(client.name), 'c-company': s(c.company) || s(client.business),
-      'c-companyid': s(c.companyId), 'c-phone': s(c.phone), 'c-email': s(c.email), 'c-notes': '',
+      'c-companyid': s(c.companyId), 'c-address': s(c.address) || s(client.address), 'c-phone': s(c.phone), 'c-email': s(c.email), 'c-notes': '',
     },
   };
 }

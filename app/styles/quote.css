@@ -153,6 +153,7 @@
 .qd-hashes { display: flex; gap: 14px; }
 
 @media (max-width: 640px) {
+  #client-form .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
   .qd { padding: 28px 18px 24px; }
   .qd-top { flex-direction: column-reverse; gap: 14px; }
   .qd-top h1 { font-size: 28px; }

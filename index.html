@@ -259,9 +259,14 @@
               <input class="input" id="c-company" name="company" autocomplete="organization" maxlength="120">
             </div>
             <div class="field">
-              <label for="c-companyid">ח.פ / ע.מ</label>
+              <label for="c-companyid">ח.פ / ע.מ<span class="req" id="c-companyid-req" aria-hidden="true">*</span></label>
               <input class="input" id="c-companyid" name="companyId" dir="ltr" inputmode="numeric" maxlength="20" aria-describedby="c-companyid-err" placeholder="9 ספרות">
               <div class="err" id="c-companyid-err" hidden>מספר לא תקין. יש להזין ספרות בלבד.</div>
+            </div>
+            <div class="field">
+              <label for="c-address">כתובת העסק<span class="req" id="c-address-req" aria-hidden="true">*</span></label>
+              <input class="input" id="c-address" name="address" autocomplete="street-address" maxlength="200" aria-describedby="c-address-err" placeholder="רחוב, מספר, עיר">
+              <div class="err" id="c-address-err" hidden>בחוזה חובה למלא את כתובת העסק.</div>
             </div>
             <div class="field">
               <label for="c-phone">טלפון</label>
