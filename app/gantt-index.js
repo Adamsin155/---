@@ -99,6 +99,7 @@ function renderAll() {
   const all = summaries(now);
   renderFilters(all);
   const f = state.filter;
+  renderFilterLine(f);
   // A filter is one question: the week waits, and "not connected" is the card itself for those who connect.
   const card = f === 'not-connected' && state.canConnect;
   $('gx-week').hidden = !!f;
@@ -109,6 +110,21 @@ function renderAll() {
 }
 
 // ── The filters ─────────────────────────────
+// With a filter on the rest of the list is not there, and it looked as if it was gone (the owner,
+// 1.11.2026): a line says so, with the way back.
+function renderFilterLine(f) {
+  let line = $('gx-only');
+  if (!f) { line?.remove(); return; }
+  if (!line) {
+    line = h('p', { class: 'gx-only', id: 'gx-only', role: 'status' });
+    $('gx-filters').after(line);
+  }
+  const words = FILTERS.find(([k]) => k === f)?.[1] || '';
+  line.replaceChildren(
+    h('span', {}, `מוצגים רק: ${words}. `),
+    h('button', { type: 'button', class: 'btn-text', id: 'gx-only-all', onclick: () => setFilter(f) }, 'הצגת כל הלקוחות'),
+  );
+}
 function setFilter(key) {
   state.filter = state.filter === key ? null : key;
   state.more = false;
