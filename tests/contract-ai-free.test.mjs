@@ -305,3 +305,32 @@ test('no amount written at all: 36 videos and 36 graphics, as the package (the o
   const b = run(answer([draft({ influencer: 'none', monthlyPrice: 490000, quantities: [{ key: 'videos', value: 20 }, { key: 'graphics', value: 12 }] })])).applied[0];
   assert.deepEqual(b.selection.custom.qty, { videos: 20, graphics: 12 });
 });
+
+test('Natali and Semyon together (the owner, 1.11.2026): her package with the switch on, the written quantities and price', () => {
+  const raw = {
+    drafts: [{
+      title: 'נטלי וסמיון', docType: 'agreement', influencer: 'natali', simeonJoin: true, tier: null, monthlyPrice: 390000, priceIncludesVat: false, monthlyShoot: false, monthlyContents: null,
+      quantities: [{ key: 'videos', value: 48 }, { key: 'graphics', value: 36 }], addons: [], months: null, extraLines: [], specialClauses: [], discount: null, client: {},
+    }],
+    questions: [], notes: null,
+  };
+  const { result } = validateFreeResult(raw);
+  assert.equal(result.drafts[0].simeonJoin, true);
+  const { selection, marks, summary, skipped } = applyFreeDraft(emptySelection(), result.drafts[0]);
+  assert.equal(selection.influencer, 'natali');
+  assert.equal(selection.free.simeonJoin, true);
+  assert.equal(marks['free:simeonJoin'], true);
+  assert.ok(summary.some((s) => s.includes('סמיון')));
+  assert.deepEqual(skipped, []);
+  assert.deepEqual([selection.custom.qty, selection.custom.price, selection.custom.noInfluencer], [{ videos: 48 }, 390000, undefined]);
+  // Not available without her: said, not silently dropped.
+  const other = applyFreeDraft(emptySelection(), { ...result.drafts[0], influencer: 'simeon' });
+  assert.equal(other.selection.free.simeonJoin, false);
+  assert.ok(other.skipped.some((s) => s.includes('נטלי')));
+  // An answer without the field stays as before.
+  assert.equal(validateFreeResult({ drafts: [{ influencer: 'natali' }] }).result.drafts[0].simeonJoin, false);
+  // The prompt and the schema know it.
+  assert.match(freeSystemPrompt(), /simeonJoin: true when the text names both Natali and Semyon/);
+  assert.ok(FREE_SCHEMA.properties.drafts.items.properties.simeonJoin);
+  assert.ok(FREE_SCHEMA.properties.drafts.items.required.includes('simeonJoin'));
+});

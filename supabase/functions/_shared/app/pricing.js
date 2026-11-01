@@ -422,7 +422,8 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
       phone: clean(client.phone),
       email: clean(client.email),
       companyId: clean(client.companyId),
-      address: clean(client.address),
+      // Only when written: a document without one keeps its bytes (tests/custom-contract.test.mjs).
+      ...(clean(client.address) ? { address: clean(client.address) } : {}),
       notes: clean(client.notes),
     },
     package: {

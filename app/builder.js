@@ -7,6 +7,7 @@ import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
   paidAddonAvailable, freeAddonAvailable,
   exceptionOf, normalizeSelection, baseQuantities,
+  effectiveQuantities,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { iconSquare, headIcon, noteIcon } from './kit.js';
@@ -136,6 +137,11 @@ function renderTiers() {
     const pkg = PACKAGES[pid];
     const specs = SPECS[pid];
     const id = `tier-${tier.id}`;
+    // The chosen package in a custom contract: what this contract holds, not the catalog's numbers (the owner, 1.11.2026).
+    const own = state.tier === tier.id && customOn();
+    const qty = own ? effectiveQuantities(selectionToSend()) : null;
+    const price = own && Number.isInteger(state.custom.price) ? state.custom.price : pkg.price;
+    const months = own && Number.isInteger(state.custom.termMonths) ? state.custom.termMonths : TERM_MONTHS;
     return h('div', { class: 'tier' },
       h('input', {
         type: 'radio', name: 'tier', id, value: tier.id, checked: state.tier === tier.id,
@@ -149,13 +155,13 @@ function renderTiers() {
             h('span', { class: 'radio-dot', 'aria-hidden': 'true' }),
           ),
           h('div', { class: 'tier-price' },
-            h('span', { class: 'amount', dir: 'ltr' }, formatILS(pkg.price)),
+            h('span', { class: 'amount', dir: 'ltr' }, formatILS(price)),
             h('span', { class: 'per' }, 'לחודש · לפני מע״מ'),
           ),
-          h('div', { class: 'tier-term', dir: 'rtl' }, h('span', { dir: 'ltr' }, formatILS(pkg.price * TERM_MONTHS)), ' ל־12 חודשים'),
+          h('div', { class: 'tier-term', dir: 'rtl' }, h('span', { dir: 'ltr' }, formatILS(price * months)), ` ל־${months} חודשים`),
           state.tier === tier.id && aiLive.has('package') ? aiTag() : null,
         ),
-        h('ul', { class: 'specs' }, SPEC_ROWS.map((r) => specRow(r, specs[r.key]))),
+        h('ul', { class: 'specs' }, SPEC_ROWS.map((r) => specRow(r, qty && Number.isInteger(qty[r.key]) ? qty[r.key] : specs[r.key]))),
       ),
     );
   }));
@@ -164,13 +170,12 @@ function renderTiers() {
 function renderIncluded() {
   const pid = packageId(state.tier, state.influencer);
   const tier = TIERS.find((t) => t.id === state.tier);
-  // "בלי משפיענים" (29.10.2026): what this contract itself includes, not the package it starts from.
-  const none = state.custom?.noInfluencer === true;
-  const includes = none ? currentModel().package.includes : PACKAGES[pid].includes;
+  // A custom contract (since 1.11.2026 every one, "בלי משפיענים" since 29.10.2026): what it itself includes, not the package it starts from.
+  const includes = customOn() ? currentModel().package.includes : PACKAGES[pid].includes;
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
       h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, none ? 'בלי משפיענים' : INFLUENCERS[state.influencer].name)),
-      h('span', { class: 'tag' }, none ? 'כמו שנכתב בחוזה' : 'כמויות לשנה'),
+      h('span', { class: 'tag' }, customOn() ? 'כמו שנכתב בחוזה' : 'כמויות לשנה'),
     ),
     h('ul', {}, includes.map((i) => h('li', {},
       h('span', { class: 'inc-qty' + (i.qty === null ? ' is-check' : '') }, i.qty === null ? '✓' : String(i.qty)),
