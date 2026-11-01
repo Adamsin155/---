@@ -598,10 +598,15 @@ function checkFreeDraft(d, n, drop) {
   const { result: base, dropped } = validateAiResult({
     months: r.months, monthlyPrice: r.monthlyPrice, priceIncludesVat: r.priceIncludesVat, discount: r.discount,
     extraLines: r.extraLines, specialClauses: r.specialClauses, client: r.client,
-    quantities: (Array.isArray(r.quantities) ? r.quantities : []).filter((x) => isObject(x) && FREE_QTY.includes(x.key)),
+    // A list from Claude; { key: value } when the function already checked it and the page checks again
+    // (until 1.11.2026 the page threw the second form away, and every written quantity with it).
+    quantities: isObject(r.quantities)
+      ? Object.fromEntries(Object.entries(r.quantities).filter(([k]) => FREE_QTY.includes(k)))
+      : (Array.isArray(r.quantities) ? r.quantities : []).filter((x) => isObject(x) && FREE_QTY.includes(x.key)),
   });
   for (const x of dropped) if (x.field !== 'priceIncludesVat') at(x.text);
   if (r.priceIncludesVat === true && given(base.monthlyPrice)) out.vatFrom = wholeShekels(toInt(r.monthlyPrice));
+  else if (Number.isInteger(r.vatFrom)) out.vatFrom = r.vatFrom; // checked once already
   Object.assign(out, {
     months: base.months, monthlyPrice: base.monthlyPrice, discount: base.discount, quantities: base.quantities,
     extraLines: base.extraLines, specialClauses: base.specialClauses, client: base.client,
