@@ -171,6 +171,7 @@ function renderIncluded() {
   const pid = packageId(state.tier, state.influencer);
   const tier = TIERS.find((t) => t.id === state.tier);
   // A custom contract (since 1.11.2026 every one, "בלי משפיענים" since 29.10.2026): what it itself includes, not the package it starts from.
+  const none = state.custom?.noInfluencer === true;
   const includes = customOn() ? currentModel().package.includes : PACKAGES[pid].includes;
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
