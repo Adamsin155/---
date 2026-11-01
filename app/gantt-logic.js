@@ -395,10 +395,11 @@ export function problemRank(s) {
   return 3;
 }
 export const isProblem = (s) => problemRank(s) < 3;
-// The three filters at the top of the index (and their hashes: #failed, #nothing-ahead, #not-connected).
+// The filters at the top of the index (and their hashes: #failed, #nothing-ahead, #connected, #not-connected).
 export const INDEX_FILTERS = {
   failed: (s) => s.failed > 0,
   'nothing-ahead': (s) => s.nothingAhead,
+  connected: (s) => s.connected === true,
   'not-connected': (s) => s.notConnected,
 };
 // "Problems first" (20.10.2026): by problemRank, then by the next post with nothing
