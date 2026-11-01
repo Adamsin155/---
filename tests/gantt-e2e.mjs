@@ -871,6 +871,10 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   assert.deepEqual(await page.locator('#gx-list .gx-name').allInnerTexts(), ['קפה נדיה']);
   // "לא מחוברים": for Ilai the card of section 33 itself, open (it left "המשימות שלי").
   await page.click('#gx-f-not-connected');
+  assert.match(await page.innerText('#gx-only'), /מוצגים רק: לא מחוברים ל־Metricool/);
+  await page.click('#gx-only-all');
+  assert.equal(await page.locator('#gx-only').count(), 0, 'back to the whole list');
+  await page.click('#gx-f-not-connected');
   await page.waitForSelector('#metricool-card:not([hidden]) .mcn-row');
   assert.match(await page.innerText('#metricool-h'), /לקוחות שלא מחוברים ל־Metricool \(2\)/);
   assert.equal(await page.locator('#metricool-card .mcn-row').count(), 2);
@@ -943,7 +947,7 @@ await step('the index for the owner, Irit, Lior and Ofir (reading; "יצירת �
   const ph = await newPage(pctx);
   await signIn(ph, 'clients.html#mine', 'ilai@astrateg.test');
   await ph.waitForSelector('#side-list #side-gantt');
-  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן']); // no year in his menu since 20.10.2026
+  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שאלו']); // no year in his menu since 20.10.2026
   await ph.click('#side-gantt');
   await ph.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
   assert.equal(await noHScroll(ph), true);
