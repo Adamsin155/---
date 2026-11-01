@@ -13,9 +13,26 @@
 //
 // `db`: logRow(id), task(id), client(id), nag(id), answered(inbound) → boolean,
 //       byWaId(mid) → the Jako message with that id, or null,
-//       apply({ inbound, message, from, plan }) → result (public.whatsapp_jako_reply)
+//       apply({ inbound, message, from, plan }) → result (public.whatsapp_jako_reply),
+//       takeDeal(id, person) → 'taken' | 'mine' | 'closed' | the person who holds it (takeDealRow below)
 import { hookAction, nagIdOf, jakoOpen, jakoReplyPlan, jakoTitle } from './app/wa-logic.js';
-import { taskIdOf } from './app/wa-templates.js';
+import { taskIdOf, caseOfKey } from './app/wa-templates.js';
+import { DEAL_PREPARERS, takenText } from './app/deal-logic.js';
+
+// "אני על זה" on a new deal of the field takes it, as "אני לוקח" in the app (the owner, 1.11.2026;
+// docs/ops.md, section 88). One row, so of two presses only one wins. With the service key the trigger
+// public.deal_requests_taken stamps the time and refuses nothing, so the conditions are here.
+// `admin`: the service-role client.
+export async function takeDealRow(admin, id, person) {
+  const { data, error } = await admin.from('deal_requests').update({ taken_by: person })
+    .eq('id', id).eq('status', 'pending').is('taken_by', null).select('id');
+  if (error) throw error;
+  if (data?.length) return 'taken';
+  const { data: d, error: e } = await admin.from('deal_requests').select('status, taken_by').eq('id', id).maybeSingle();
+  if (e) throw e;
+  if (!d || d.status !== 'pending') return 'closed';
+  return d.taken_by === person ? 'mine' : d.taken_by;
+}
 
 /**
  * One button on one message of ours. `inbound`: what makes this reply one (the
@@ -32,6 +49,16 @@ export async function applyReply({ db, action, message, inbound, match = 'exact'
   const nag = nagIdOf(log) ? await db.nag(nagIdOf(log)) : null;
   const title = jakoTitle({ log, nag });
   if (!jakoOpen({ action, log, task, nag })) return { result: 'closed', title };
+  if (action === 'onit' && log.rule === 'dealNew' && db.takeDeal && DEAL_PREPARERS.includes(log.person)) {
+    const out = await db.takeDeal(caseOfKey(log.key), log.person);
+    // Kept once, as every press (public.whatsapp_inbound); the deal itself was changed above.
+    const seen = await db.apply({ inbound, message: message.id, from: message.phone, plan: { op: 'none', why: `deal_${DEAL_PREPARERS.includes(out) ? 'other' : out}`, ...(match === 'last' ? { match } : {}) } });
+    if (seen === 'duplicate') return { result: 'duplicate', title: '' };
+    if (out === 'taken') return { result: 'deal_taken', title };
+    if (out === 'mine') return { result: 'unchanged', title };
+    if (out === 'closed') return { result: 'closed', title };
+    return { result: 'deal_other', title: takenText(out) };
+  }
   const client = action === 'onit' && log.ref && log.client_id ? await db.client(log.client_id) : null;
   const plan = { ...jakoReplyPlan({ action, log, message, task, client, nag }), ...(match === 'last' ? { match } : {}) };
   const result = await db.apply({ inbound, message: message.id, from: message.phone, plan });

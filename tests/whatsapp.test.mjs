@@ -1156,3 +1156,33 @@ test('through Jako "המשימה בוצעה" closes only what a reply may close,
     assert.doesNotMatch(a.text, /את\/ה|פתח\/י|סמן\/י/, r);
   }
 });
+
+test('"אני על זה" on a new deal takes it; the other hears who was first (the owner, 1.11.2026)', async () => {
+  const fake = (take, seen = 'none') => {
+    const applied = [];
+    return { applied, db: {
+      logRow: async () => ({ id: 10, key: 'dealNew:-:d1:now@ofir', rule: 'dealNew', person: 'ofir', title: 'להכין חוזה ל־פיצה רון', client_id: null, ref: null }),
+      answered: async () => false, task: async () => null, nag: async () => null, client: async () => null,
+      takeDeal: async (id, person) => { assert.deepEqual([id, person], ['d1', 'ofir']); return take; },
+      apply: async (x) => { applied.push(x); return seen; },
+    } };
+  };
+  const message = { id: 7, log_id: 10, person: 'ofir', phone: '972501234567', template: 'reminder' };
+  const go = (w) => applyReply({ db: w.db, action: 'onit', message, inbound: 'wamid.1' });
+  let w = fake('taken');
+  assert.deepEqual(await go(w), { result: 'deal_taken', title: 'להכין חוזה ל־פיצה רון' });
+  assert.deepEqual(w.applied[0].plan, { op: 'none', why: 'deal_taken' });
+  assert.match(hookAnswer('deal_taken', 'להכין חוזה ל־פיצה רון').text, /^קיבלתי, העסקה אצלך: להכין חוזה ל־פיצה רון\. מכינים במערכת: https/);
+  assert.equal(hookAnswer('deal_taken').ok, true);
+  w = fake('irit');
+  assert.deepEqual(await go(w), { result: 'deal_other', title: 'עירית לקחה' });
+  assert.deepEqual(w.applied[0].plan, { op: 'none', why: 'deal_other' });
+  assert.deepEqual([hookAnswer('deal_other', 'עירית לקחה').ok, hookAnswer('deal_other', 'עירית לקחה').text], [false, 'עירית לקחה את העסקה. הפרטים במערכת.']);
+  assert.equal((await go(fake('mine'))).result, 'unchanged');
+  assert.equal((await go(fake('closed'))).result, 'closed');
+  assert.equal((await go(fake('taken', 'duplicate'))).result, 'duplicate');
+  // "המשימה בוצעה" on a deal does not close it.
+  w = fake('taken');
+  const done = await applyReply({ db: w.db, action: 'done', message, inbound: 'wamid.2' });
+  assert.equal(done.result, 'closed');
+});

@@ -13,6 +13,7 @@ import { makeJakoWhatsapp } from './wa-poll.js';
 import { waRecipients } from '../_shared/app/wa-logic.js';
 import { graphSend } from '../_shared/wa-graph.js';
 import { makeJako } from '../_shared/wa-jako.js';
+import { takeDealRow } from '../_shared/wa-jako-reply.js';
 
 type Row = Record<string, any>;
 
@@ -93,6 +94,7 @@ export async function whatsappChannel(admin: any) {
         return out;
       },
       logRow: (id: number) => row('reminder_log', 'id, key, rule, person, level, client_id, ref, title', 'id', id),
+      takeDeal: (id: string, person: string) => takeDealRow(admin, id, person),
       task: (id: string) => (UUID.test(id) ? row('client_tasks', 'id, owner, done_at, started_at, source, brief, result', 'id', id) : null),
       nag: (id: string) => (UUID.test(id) ? row('staff_tasks', 'id, assignee, status, body', 'id', id) : null),
       async client(id: string) {

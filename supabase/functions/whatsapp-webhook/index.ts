@@ -18,6 +18,7 @@ import { HOOK_HEADER, HOOK_MAX_BODY, hookGate, hookSecretOf, jakoReply } from '.
 import { hookAnswer } from '../_shared/app/wa-logic.js';
 import { graphSend } from '../_shared/wa-graph.js';
 import { makeJako } from '../_shared/wa-jako.js';
+import { takeDealRow } from '../_shared/wa-jako-reply.js';
 
 function serviceKey(): string {
   try {
@@ -100,6 +101,7 @@ const hookDb = {
     return data;
   },
   logRow: db.logRow,
+  takeDeal: (id: string, person: string) => takeDealRow(admin, id, person),
   task: db.task,
   client: db.client,
   async nag(id: string) {

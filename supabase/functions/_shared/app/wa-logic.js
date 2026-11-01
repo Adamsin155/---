@@ -157,6 +157,9 @@ export function hookAnswer(result, title = '') {
     case 'done': return { ok: true, text: `סומן בוצע${t}. אם זו לא המשימה הנכונה, אפשר לבטל במערכת.` };
     case 'started': case 'claimed': case 'noted': return { ok: true, text: `קיבלתי, נרשם ״אני על זה״${t}. התזכורות ימשיכו עד שיסומן בוצע.` };
     case 'unchanged': return { ok: true, text: `כבר רשום במערכת${t}.` };
+    // A new deal of the field (31.10 and 1.11.2026): the first to press takes it; `title`: who took it, for the other.
+    case 'deal_taken': return { ok: true, text: `קיבלתי, העסקה אצלך${t}. מכינים במערכת: ${MINE_LINK}` };
+    case 'deal_other': return { ok: false, text: `${title} את העסקה. הפרטים במערכת.` };
     case 'duplicate': return { ok: true, text: 'כבר סומן.' };
     case 'taken': return { ok: false, text: `מישהו אחר כבר לקח את זה${t}. הפרטים במערכת.` };
     case 'closed': return { ok: false, text: 'המשימה הזאת כבר סגורה.' };
