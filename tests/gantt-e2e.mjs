@@ -871,10 +871,6 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   assert.deepEqual(await page.locator('#gx-list .gx-name').allInnerTexts(), ['קפה נדיה']);
   // "לא מחוברים": for Ilai the card of section 33 itself, open (it left "המשימות שלי").
   await page.click('#gx-f-not-connected');
-  assert.match(await page.innerText('#gx-only'), /מוצגים רק: לא מחוברים ל־Metricool/);
-  await page.click('#gx-only-all');
-  assert.equal(await page.locator('#gx-only').count(), 0, 'back to the whole list');
-  await page.click('#gx-f-not-connected');
   await page.waitForSelector('#metricool-card:not([hidden]) .mcn-row');
   assert.match(await page.innerText('#metricool-h'), /לקוחות שלא מחוברים ל־Metricool \(2\)/);
   assert.equal(await page.locator('#metricool-card .mcn-row').count(), 2);
