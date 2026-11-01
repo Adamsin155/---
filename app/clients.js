@@ -47,7 +47,7 @@ import { ilaiSection, coveredByCard } from './ilai-card.js';
 import { accessPanel, watchAccess, isAccessCard } from './access-check-ui.js';
 import { landingNow, officeLinks } from './office-ui.js';
 import { hasProfiles, modeOf } from './manager-rules.js';
-import { profileOf, managerTabs, opensClients, writesChar } from './shell-rules.js';
+import { profileOf, managerTabs, opensClients, writesChar, listsAllClients } from './shell-rules.js';
 // The signed contract's file in "לקוח חדש" (27.10.2026); the upload itself (app/files-ui.js) loads only when one is chosen.
 import { CONTRACT_KIND, CONTRACT_LABEL, contractFileProblem } from './contract-file.js';
 import { folderItemOf } from './qa-logic.js';
@@ -412,7 +412,7 @@ function applyScope() {
   $('tab-performance').textContent = own ? 'הנתונים שלי' : 'ביצועים';
   $('btn-new').hidden = !opensClients({ me, scope, error: viewerError }); // the owners, Irit, Lior and Ofir (27.10.2026)
   $('cta-char').hidden = !writesChar({ me, scope, error: viewerError }); // "אפיון חדש": the same four (27.10.2026)
-  $('tab-clients').textContent = own ? 'הלקוחות שלי' : 'לקוחות';
+  $('tab-clients').textContent = own && !listsAllClients(me) ? 'הלקוחות שלי' : 'לקוחות';
   $('tab-mine').textContent = managing || (!me && !personal) ? 'עבודת הצוות' : 'המשימות שלי';
   // One plain heading for everyone who is a person in the protocol: "שלום <name>" (it
   // was "לקוחות ופרוטוקול עבודה" for the office and "שלום …" for the rest; 6.10.2026).
@@ -2234,7 +2234,7 @@ function renderClients() {
   const FILTERS = [['active', 'פעילים'], ['late', 'עם איחור'], ['client', 'ממתין ללקוח'],
     ...(withLogins ? [['nologins', `בלי גישות (${clients.filter(noLogins).length})`]] : []),
     ['ending', 'מסיימים'], ['ended', 'הסתיימו'], ['cancelled', 'בוטלו']];
-  fill($('client-filters'), own ? h('p', { class: 'muted mine-hint' }, 'לקוחות שיש לך בהם עבודה פתוחה או מתוכננת, או שהעריכה שלהם אצלך.')
+  fill($('client-filters'), own && listsAllClients(me) ? h('p', { class: 'muted mine-hint' }, 'כל הלקוחות הפעילים. בכרטיס הלקוח, ב״גישות לרשתות״, נמצאות הסיסמאות.') : own ? h('p', { class: 'muted mine-hint' }, 'לקוחות שיש לך בהם עבודה פתוחה או מתוכננת, או שהעריכה שלהם אצלך.')
     : FILTERS.map(([k, label]) => h('button', {
       type: 'button', class: 'chip', 'aria-pressed': String(clientFilter === k),
       onclick: () => glide(() => { clientFilter = k; renderClients(); }),
@@ -2242,7 +2242,7 @@ function renderClients() {
 
   const q = $('client-search').value.trim();
   const open = (c) => c.status === 'active' || c.status === 'ending';
-  const pool = own ? (me ? myClients(me) : []) : clients;
+  const pool = own && listsAllClients(me) ? clients.filter(open) : own ? (me ? myClients(me) : []) : clients;
   const list = pool.filter((c) => {
     if (q && !`${c.name} ${c.business || ''} ${own ? '' : c.phone || ''}`.toLowerCase().includes(q.toLowerCase())) return false;
     if (own) return true;
