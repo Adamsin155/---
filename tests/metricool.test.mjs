@@ -378,7 +378,7 @@ test('the brands and the connection check: only names and counts come back, neve
 test('who may call what: the brands for the office, the check for the owner, the sync for nobody signed in', () => {
   const who = (person) => ({ person });
   assert.deepEqual(['brands', 'check', 'sync'].map((a) => mayCall(a, who(null))), [true, true, false]);
-  for (const p of ['irit', 'lior', 'ofir', 'ilai']) assert.deepEqual(['brands', 'check', 'sync'].map((a) => mayCall(a, who(p))), [true, false, false], p);
+  for (const p of ['irit', 'lior', 'ofir', 'ilai', 'noam']) assert.deepEqual(['brands', 'check', 'sync'].map((a) => mayCall(a, who(p))), [true, false, false], p);
   for (const p of ['nadia', 'eli', 'stav', 'nirel']) assert.deepEqual(['brands', 'check', 'sync'].map((a) => mayCall(a, who(p))), [false, false, false], p);
   assert.equal(mayCall('brands', null), false);
   assert.deepEqual([...ACTIONS].sort(), ['brands', 'check', 'sync']);

@@ -25,7 +25,7 @@ export function corsHeaders(origin) {
 export const bearer = (header) => /^Bearer\s+(\S+)$/i.exec(String(header || ''))?.[1] || null;
 // brands: the office. check: the owner. sync: pg_cron, with the x-cron-secret header.
 export const ACTIONS = new Set(['brands', 'check', 'sync']);
-export const OFFICE = ['irit', 'lior', 'ofir', 'ilai'];
+export const OFFICE = ['irit', 'lior', 'ofir', 'ilai', 'noam'];
 // From a staff row ({ person } or null): what this caller may ask for.
 export const mayCall = (action, staffRow) => {
   if (!staffRow) return false;
