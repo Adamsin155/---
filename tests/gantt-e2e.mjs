@@ -840,6 +840,13 @@ await step('"גאנט תוכן" in the menu opens the index: the week across cli
   assert.match(await page.innerText('#gx-f-failed'), /נכשלו\s*1/);
   assert.match(await page.innerText('#gx-f-nothing-ahead'), /אין מתוזמן קדימה\s*1/);
   assert.match(await page.innerText('#gx-f-not-connected'), /לא מחוברים ל־Metricool\s*2/);
+  // The connected ones (the owner, 1.11.2026), and the way back.
+  const connectedN = Number((await page.innerText('#gx-f-connected')).match(/\d+/)[0]);
+  assert.ok(connectedN > 0);
+  await page.click('#gx-f-connected');
+  assert.equal(await page.locator('#gx-list .gx-client').count(), connectedN);
+  assert.equal(await page.locator('#metricool-card').isVisible(), false);
+  await page.click('#gx-clear');
   // Ilai (and the owner) can start a Gantt from here; the way in is the client's own page.
   const make = page.locator(`#gx-list .gx-client[data-client="${C.id}"] .gx-create`);
   assert.match(await make.innerText(), /^יצירת הגאנט מהתבנית/);

@@ -363,7 +363,8 @@ test('the index, problems first (20.10.2026): failed, nothing scheduled ahead, n
   assert.deepEqual([ok, off].map(isProblem), [false, false]);
   // Nothing ahead sorts first among the quiet ones too (it used to be '9999', last).
   assert.deepEqual(sorted.slice(3), ['off', 'ok']);
-  assert.deepEqual(Object.keys(INDEX_FILTERS), ['failed', 'nothing-ahead', 'not-connected']);
+  assert.deepEqual(Object.keys(INDEX_FILTERS), ['failed', 'nothing-ahead', 'connected', 'not-connected']);
+  assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS.connected).map((s) => s.client.id), ['ok', 'far', 'bad']);
   assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS.failed).map((s) => s.client.id), ['bad']);
   assert.deepEqual([ok, far, bad, off, none].filter(INDEX_FILTERS['nothing-ahead']).map((s) => s.client.id), ['far']);
   // "לא מחוברים ל־Metricool": the one marked "no brand" too (it is not connected, 26.10.2026).
