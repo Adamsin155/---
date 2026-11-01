@@ -511,6 +511,7 @@ export function freeCatalogText() {
     '## Influencers (only when the text names one)', infl,
     '## Package types (only when the text says it: "פודקאסט"; "טלוויזיה" or "ערוץ 14" for social-tv; else null)', tiers,
     '## Additions at an influencer (only when the text asks for them)', addons,
+    `## Semyon joining Natali's shoot day\n\`simeonJoin\`: ${FREE_ADDONS.simeonJoin.name}, at no cost; only with \`natali\`.`,
     '## Quantities', qty,
     `## Term\n${TERM_MONTHS} months unless the text says otherwise; ${CUSTOM_LIMITS.termMin}–${CUSTOM_LIMITS.termMax}.`,
   ].join('\n\n');
@@ -522,6 +523,7 @@ Do exactly what the text says, nothing more. Do not map the deal onto a catalog 
 - title: a short Hebrew name for the draft, from the text (for example "4,900 בלי משפיען").
 - docType: "quote" when the text asks for "הצעת מחיר" or "הצעה", "agreement" when it asks for "חוזה" or "הסכם"; null when it does not say.
 - influencer: the key of the influencer the text names; "none" when it says there is none ("בלי משפיען", "ללא משפיענים") and also when it names none.
+- simeonJoin: true when the text names both Natali and Semyon ("נטלי וסמיון", "נטלי דדון וסמיון", "נטלי עם סמיון", "צילום עם סמיון" in a deal with Natali), in any order: then influencer is "natali" and Semyon is not written again as a special clause. Otherwise false.
 - tier: only when the text says the kind of package; else null.
 - monthlyPrice: the monthly price written, in agorot (4,900 is 490000). It is the whole monthly price, with everything in the draft included. A price is before VAT unless the text says it includes VAT ("כולל מע״מ"; then priceIncludesVat is true and the number is given as written). Never compute or guess a price; null when none is written.
 - monthlyShoot: true when the text has a shoot or a photographer every month ("צילום כל חודש", "צלם חודשי"); monthlyContents: the contents a month written with it ("8 תכנים"), else null.
@@ -529,7 +531,7 @@ Do exactly what the text says, nothing more. Do not map the deal onto a catalog 
 - addons: only additions at the influencer that the text asks for.
 - months: only when the text states the term.
 - extraLines: anything else that is sold ("2 דפי נחיתה" is {label: "דפי נחיתה", qty: 2}), with a monthly price only when the text gives that thing its own price. Without a price it is included in the monthly price.
-- specialClauses: short Hebrew clauses for anything agreed that is not a setting above (payment, exit terms).
+- specialClauses: short Hebrew clauses for anything agreed that is not a setting above (payment, exit terms). A total that only sums the quantities above ("84 תכנים סך הכל" with 48 videos and 36 graphics) is not a clause.
 - discount: a monthly discount before VAT in agorot, only when the text states one.
 - client: the customer's details when the text gives them; "" for anything it does not give.
 - questions: at most ${FREE_MAX_QUESTIONS} short Hebrew questions, only for what is genuinely missing to write the document (no price at all, or a price that is truly ambiguous). Never ask about something the text states, and never suggest a package.
@@ -555,6 +557,7 @@ export const FREE_SCHEMA = object({
       title: { type: 'string' },
       docType: nullable({ type: 'string', enum: ['quote', 'agreement'] }),
       influencer: nullable({ type: 'string', enum: [...FREE_INFLUENCERS, 'none'] }),
+      simeonJoin: { type: 'boolean' },
       tier: nullable({ type: 'string', enum: TIER_IDS }),
       monthlyPrice: nullable(INT),
       priceIncludesVat: { type: 'boolean' },
@@ -581,6 +584,7 @@ function checkFreeDraft(d, n, drop) {
     title: clip(cleanLine(r.title), 60),
     docType: ['quote', 'agreement'].includes(r.docType) ? r.docType : null,
     influencer: 'none',
+    simeonJoin: r.simeonJoin === true,
     tier: TIER_IDS.includes(r.tier) ? r.tier : null,
     monthlyPrice: null, vatFrom: null,
     monthlyShoot: r.monthlyShoot === true, monthlyContents: null,
@@ -657,6 +661,14 @@ export function applyFreeDraft(current, draft) {
   } else {
     marks.package = packageId(tier, influencer);
     summary.push(`משפיענים: ${INFLUENCERS[influencer].name} (${tierOf(tier).name})`);
+  }
+  // Natali and Semyon together (the owner, 1.11.2026): Natali's package with the switch on.
+  if (d.simeonJoin) {
+    if (!none && freeAddonAvailable('simeonJoin', { ...sel, custom })) {
+      sel.free = { ...sel.free, simeonJoin: true };
+      marks['free:simeonJoin'] = true;
+      summary.push(FREE_ADDONS.simeonJoin.name);
+    } else skipped.push(`${FREE_ADDONS.simeonJoin.name}: רק בחבילה של נטלי דדון`);
   }
   if (d.monthlyShoot) sel.paid = ['photographer'];
   for (const id of d.addons || []) {
