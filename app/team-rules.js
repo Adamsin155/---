@@ -6,7 +6,7 @@
 export const TEAM_MANAGERS = ['irit', 'lior'];
 // The office accounts (public.is_office() in the database). A copy of OFFICE_PERSONS
 // in supabase/functions/staff-admin/rules.js, which decides (the unit tests compare them).
-export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai'];
+export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'noam']; // Noam since 1.11.2026 (sees every client, as Ilai)
 // Whose sign-in link only the owner makes (linkByOwnerOnly in the function's rules):
 // the owner's, an office account's and any account with the vault. A manager still
 // makes a link for their own account.

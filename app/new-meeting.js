@@ -12,6 +12,7 @@ import { icon } from './kit.js';
 import { guestNames } from './calendar-view.js';
 import { KINDS, MEET_PEOPLE, searchClients, checkMeeting, meetingInvite, kindLabel, personName } from './new-meeting-logic.js';
 import { saveMeeting, saveShootDay } from './date-set.js';
+import { DEFAULT_CHARACTERIZER } from './protocol.js';
 
 let ctx = null; // { viewer, clients(), emails(), clientMail(), site(), checksOf(id), onSaved(row, mark) }
 let dlg = null;
@@ -88,7 +89,7 @@ function pick(c) {
   fill(box, h('span', { class: 'nm-picked-n' }, h('strong', {}, c.business || c.name), c.business && c.name ? ` · ${c.name}` : ''),
     h('button', { type: 'button', class: 'btn-text', id: 'nm-change', onclick: unpick }, 'החלפה'));
   box.hidden = false;
-  el('nm-who').value = MEET_PEOPLE.includes(c.characterizer) ? c.characterizer : 'ofir';
+  el('nm-who').value = MEET_PEOPLE.includes(c.characterizer) ? c.characterizer : DEFAULT_CHARACTERIZER;
   el('nm-type').value = choiceOf(c);
   atLabel();
   guests();
