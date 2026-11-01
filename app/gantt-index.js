@@ -38,7 +38,7 @@ export const stateMark = (s) => (s === 'posted' ? h('span', { class: 'gt-tick', 
 
 const SHOW = 12;
 // The filters, in the order of the chips: [hash, words].
-const FILTERS = [['failed', 'נכשלו'], ['nothing-ahead', 'אין מתוזמן קדימה'], ['not-connected', 'לא מחוברים ל־Metricool']];
+const FILTERS = [['failed', 'נכשלו'], ['nothing-ahead', 'אין מתוזמן קדימה'], ['connected', 'מחוברים ל־Metricool'], ['not-connected', 'לא מחוברים ל־Metricool']];
 const NOTHING_AHEAD = `אין מתוזמן ב־${AHEAD_DAYS} הימים הקרובים`;
 let state = null; // { clients, byClient, has, plans, conns, canEdit, canConnect, viewer, ui, sort, q, more, filter, allWeek }
 
