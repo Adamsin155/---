@@ -334,3 +334,22 @@ test('Natali and Semyon together (the owner, 1.11.2026): her package with the sw
   assert.ok(FREE_SCHEMA.properties.drafts.items.properties.simeonJoin);
   assert.ok(FREE_SCHEMA.properties.drafts.items.required.includes('simeonJoin'));
 });
+
+test('checked twice, by the function and by the page, nothing is lost (the owner, 1.11.2026: the quantities did not change)', () => {
+  const raw = {
+    drafts: [{
+      title: 'נטלי וסמיון', docType: 'agreement', influencer: 'natali', simeonJoin: true, tier: 'social', monthlyPrice: 472000, priceIncludesVat: true, monthlyShoot: true, monthlyContents: 10,
+      quantities: [{ key: 'videos', value: 48 }, { key: 'graphics', value: 36 }], addons: ['natali-reel'], months: 6, extraLines: [{ label: 'דף נחיתה', qty: 2, monthly: null }], specialClauses: ['תשלום בהעברה'], discount: 10000,
+      client: { name: 'א', company: 'ב', companyId: '514729938', phone: '', email: '' },
+    }],
+    questions: ['מה?'], notes: 'הערה',
+  };
+  const once = validateFreeResult(raw);
+  const twice = validateFreeResult(once.result);
+  assert.deepEqual(twice.dropped, []);
+  assert.deepEqual(twice.result, once.result);
+  assert.deepEqual(twice.result.drafts[0].quantities, { videos: 48, graphics: 36 });
+  const { selection, summary } = applyFreeDraft(emptySelection(), twice.result.drafts[0]);
+  assert.equal(selection.custom.qty.videos, 48);
+  assert.ok(summary.includes('סרטונים: 48'));
+});
