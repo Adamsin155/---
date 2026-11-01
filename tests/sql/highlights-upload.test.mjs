@@ -50,7 +50,8 @@ test('the process exists once, Ofir\'s, with the one new key', () => {
   const p = PROCESSES.filter((x) => x.id === 'p08b');
   assert.equal(p.length, 1);
   assert.deepEqual(p[0].items.map((i) => i.key), [KEY]);
-  assert.deepEqual(p[0].owners, ['ofir']);
+  // Since 1.11.2026 the client's characterizer's (Ofir or Noam): Ofir for a client of his.
+  assert.deepEqual(p[0].owners({ characterizer: 'ofir' }), ['ofir']);
 });
 
 test('version 7: the function, the column default, a new client', async () => {

@@ -17,7 +17,7 @@
 //      process 4's items and closes Irit's follow-up (her section 5) by itself.
 //      Missing material opens one task for Irit with a ready message to the client;
 //      when it blocks today's work, an exception rings Lior too.
-import { NETWORKS, PEOPLE } from './protocol.js';
+import { NETWORKS, PEOPLE, characterizerOf } from './protocol.js';
 import { CHAR_ENDED, addBusinessDays } from './protocol-logic.js';
 import { dayKeyIL } from './tz.js';
 import { fillTemplate, listText, DEFAULT_TEMPLATES } from './messages-logic.js';
@@ -258,4 +258,4 @@ export function draftWins(draft, row) {
   return !row?.at || !draft.at || new Date(draft.at) >= new Date(row.at);
 }
 
-export const characterizerName = (client) => PEOPLE[client?.characterizer || 'ofir']?.name || 'אופיר';
+export const characterizerName = (client) => PEOPLE[characterizerOf(client)]?.name || 'נעם';

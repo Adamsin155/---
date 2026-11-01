@@ -2,7 +2,7 @@
 // "קביעת מועד" dialogs do (app/clients.js openMeet / openShoot), for the calendar page's
 // Google suggestions and its "פגישה חדשה" (the owner, 21.10.2026). The same fields, the
 // same rules, the same questions:
-//   - a meeting: a day and an hour, and who runs it (Ofir or Lior); updateClient({ char_at,
+//   - a meeting: a day and an hour, and who runs it (Noam or Ofir, or Lior); updateClient({ char_at,
 //     characterizer }); a first date also marks "נקבעה פגישה" (p03.scheduled) unless it is
 //     already answered;
 //   - a shoot day: a day and an hour and who films (a choice of app/shoot-crew.js: the shoot
@@ -15,8 +15,9 @@
 import { updateClient, setCheck } from './protocol-data.js';
 import { noteDateChange } from './owner-data.js';
 import { isChoice, soloOf, crewPatch } from './shoot-crew.js';
+import { CHARACTERIZERS } from './protocol.js';
 
-export const MEET_PEOPLE = ['ofir', 'lior'];
+export const MEET_PEOPLE = CHARACTERIZERS; // Noam, Ofir, or Lior when nobody else can (app/protocol.js)
 const SCHEDULED = 'p03.scheduled';
 const answered = (check) => !!check && (check.state === 'done' || check.state === 'na');
 const refuse = (text) => Object.assign(new Error(text), { rule: true });

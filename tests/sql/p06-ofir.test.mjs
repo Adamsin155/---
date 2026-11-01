@@ -57,20 +57,22 @@ before(async () => {
 
 test('the file: the newest but three, none of the refused words, every UPDATE with a WHERE, nothing created, and the writers block the app generates', () => {
   // After it Niro and "הצל", the old documents in full and the monthly shoot day (28.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql']);
   const sql = migrationSql(FILE);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
   // Only the form's submission is replaced; no permission is granted or taken but its own.
   assert.deepEqual([...sql.matchAll(/create\s+or\s+replace\s+function\s+([a-z_.]+)/gi)].map((m) => m[1]), ['public.access_form_submit']);
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], [FILE, true]);
+  // Its block was the app's until Noam (1.11.2026): the newest block is 20261123100000_noam.sql's now.
+  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261123100000_noam.sql', true]);
 });
 
 test('who writes process 6: the office (Ofir among them), Ilai no more; the rest of Ilai\'s as before', async () => {
   const insert = (who, key) => as(db, users[who], async (tx) => (await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, $2, 'done') returning item_key", [ids.ron, key])).rows.length).catch(() => 0);
   const p06 = PROCESSES.find((p) => p.id === 'p06');
-  assert.deepEqual(p06.owners, ['ofir']);
+  // Since 1.11.2026 the client's characterizer's (Ofir or Noam; tests/sql/noam.test.mjs): Ofir for a client of his.
+  assert.deepEqual(p06.owners({ characterizer: 'ofir' }), ['ofir']);
   const keys = [...p06.items.map((i) => i.key), 'p06.claim', 'p06.wait', 'p06.handoff.ofir', 'p05.handoff.ofir', 'p05.newlogo', 'p07.made', 'p07b.posted'];
   const office = ['owner', 'irit', 'lior', 'ofir'];
   for (const key of keys) {
@@ -84,7 +86,8 @@ test('who writes process 6: the office (Ofir among them), Ilai no more; the rest
   for (const key of ['p05.newlogo', 'p07.made', 'p07b.posted']) assert.equal(mayWrite({ person: 'ilai', client: {}, key }), true, key);
   const rows = (await db.query("select key, persons from private.protocol_writers where key like 'p06.%' order by key")).rows;
   assert.ok(rows.length > 0);
-  for (const r of rows) assert.deepEqual(r.persons, [], r.key);
+  // Nothing of Ilai's; since 1.11.2026 Noam (not the office) writes them, beside Ofir.
+  for (const r of rows) assert.ok(!r.persons.includes('ilai') && r.persons.every((p) => ['noam', 'ofir', 'lior'].includes(p)), `${r.key}: ${r.persons}`);
 });
 
 test('the client\'s form: a network to open is an urgent task for Ofir', async () => {

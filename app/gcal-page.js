@@ -18,7 +18,7 @@ import { h, fill, toast, errorText, formatWhen, landingTag } from './protocol-ui
 import { googleIcsUrl, googleEvent, suggestionOf, suggestionText } from './gcal-logic.js';
 import { saveMeeting, saveShootDay } from './date-set.js';
 import { sendsInvites, timeText } from './calendar-view.js';
-import { PEOPLE } from './protocol.js';
+import { PEOPLE, characterizerOf } from './protocol.js';
 // "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer.
 import { CREW_GROUPS, choiceOf } from './shoot-crew.js';
 import { icon, iconSquare } from './kit.js';
@@ -76,7 +76,7 @@ function suggestionNode(row, client) {
   if (!s) return null;
   const id = `gc-${row.uid}`.replace(/[^\w-]/g, '_');
   const type = choice.get(row.uid) ?? (choiceOf(client) || null);
-  const person = client.characterizer || 'ofir';
+  const person = characterizerOf(client);
   return h('div', { class: 'gc-sug', role: 'group', 'aria-labelledby': `${id}-q` },
     h('p', { class: 'gc-q', id: `${id}-q` }, suggestionText(s, client), s.kind === 'char' ? h('span', { class: 'gc-with' }, ` עם ${PEOPLE[person]?.name || ''}`) : null),
     s.kind === 'shoot' ? h('div', { class: 'gc-types', role: 'group', 'aria-label': 'מי מצלם?' },

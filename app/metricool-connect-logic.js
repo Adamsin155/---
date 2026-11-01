@@ -17,8 +17,9 @@ const OWNER = 'owner';
 // Who connects a client to its brand, and so who has the card. The same three as
 // public.can_connect_metricool(); tests/sql/protocol-2110.test.mjs holds the two lists equal.
 // v11 (the owner, 21.10.2026): connecting is Ofir's step, right after he takes the accesses;
-// Ilai keeps the right (the Gantt is his) but it is no longer his task.
-export const CONNECTORS = [OWNER, 'ofir', 'ilai'];
+// Ilai keeps the right (the Gantt is his) but it is no longer his task. Since 1.11.2026 it is
+// the step of whoever sets the client's pages up (6: Noam or Ofir), so Noam connects too.
+export const CONNECTORS = [OWNER, 'ofir', 'ilai', 'noam'];
 const personOfViewer = (viewer) => {
   if (!viewer || viewer.error) return null;
   if (viewer.me) return viewer.me;

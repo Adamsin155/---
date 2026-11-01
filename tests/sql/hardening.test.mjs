@@ -155,10 +155,10 @@ test('private.protocol_writers is what scripts/protocol-writers.mjs makes of app
   // A row the app no longer makes stays with nobody in it (the migrations never remove a row):
   // p06.metricool, Ilai's until protocol v11 (20261031110000), now the office's; and the rest of
   // process 6, Ilai's until 28.10.2026 (20261111100000_p06_ofir.sql), the office's (Ofir's) too.
+  // Since 1.11.2026 (20261123100000_noam.sql) the rows of 6 are made again, with Noam in them.
   const all = (await db.query('select key, proc, round, persons from private.protocol_writers order by key')).rows;
   const made = new Set(writerRows().map((r) => r.key));
-  assert.deepEqual(all.filter((r) => !made.has(r.key)).map((r) => [r.key, r.persons]),
-    ['p06.@part', 'p06.address', 'p06.bio', 'p06.details', 'p06.look', 'p06.metricool', 'p06.name', 'p06.newpages', 'p06.phone', 'p06.verified'].map((k) => [k, []]));
+  assert.deepEqual(all.filter((r) => !made.has(r.key)).map((r) => [r.key, r.persons]), []);
   const rows = all.filter((r) => made.has(r.key));
   const want = writerRows().map((r) => ({ key: r.key, proc: r.proc, round: r.round, persons: r.persons })).sort((a, b) => (a.key < b.key ? -1 : 1));
   assert.deepEqual(rows, want);

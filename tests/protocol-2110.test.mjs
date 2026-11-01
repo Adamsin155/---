@@ -114,9 +114,11 @@ test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, rig
   assert.match(v11.changes.join(' '), /ממתין ללקוח.*בכל שעה/);
   assert.equal(itemSince('p06.metricool'), 1);
   const p06 = PROCESSES.find((p) => p.id === 'p06');
-  assert.deepEqual(p06.items.find((i) => i.key === 'p06.metricool').owners ?? p06.owners, ['ofir']);
+  // Since 1.11.2026 the client's characterizer's: Ofir for a client he characterizes (tests/noam.test.mjs).
+  const ofirs = { characterizer: 'ofir' };
+  assert.deepEqual((p06.items.find((i) => i.key === 'p06.metricool').owners ?? p06.owners)(ofirs), ['ofir']);
   // Since 28.10.2026 the rest of 6 is Ofir's too (the owner; tests/p06-ofir.test.mjs).
-  assert.deepEqual(p06.owners, ['ofir']);
+  assert.deepEqual(p06.owners(ofirs), ['ofir']);
   // Ofir took the accesses at the characterization (Monday 5.10 12:30): the item is on his list, not on Ilai's.
   const w = world();
   const c = afterMeeting(w, { name: 'גמא' });

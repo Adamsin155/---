@@ -5,7 +5,7 @@
 //
 //   The owner, Irit, Lior and Ofir (SCOPE 'office' in app/protocol.js, and the owner):
 //     every key, as the app lets them today.
-//   Everyone else (Ilai, Eli, the editors), only:
+//   Everyone else (Ilai, Noam, Eli, the editors), only:
 //     - an item of theirs: the item's owners, or its process's (the placeholder
 //       'editor' is the editor of that shoot: the client's, or the round's);
 //     - "אני על זה" (pNN.claim) on a process they own that has two owners (the card's
@@ -61,6 +61,7 @@ const PROBES = [
   { editor: EDITOR, characterizer: null, has_logo: null },
   { editor: EDITOR, characterizer: 'ofir', has_logo: true },
   { editor: EDITOR, characterizer: 'lior', has_logo: false },
+  { editor: EDITOR, characterizer: 'noam', has_logo: null }, // Noam (1.11.2026)
 ];
 export function tokens(owners) {
   const list = typeof owners === 'function' ? PROBES.flatMap((c) => owners(c)) : owners || [];

@@ -10,7 +10,7 @@ import { briefBlock } from './briefs.js';
 import { businessPhoneOf, logoUrlOf, closingLine } from './characterization.js';
 import { SEEN, DAY_BEFORE_KEY, readDayBefore } from './shoot-prep.js';
 import { loadCharacterization, loadBriefs } from './intake-data.js';
-import { writesChar } from './shell-rules.js';
+import { writesChar, MEETING_PEOPLE } from './shell-rules.js';
 
 const enc = encodeURIComponent;
 const baseOf = (procId) => String(procId).replace(/^r\d+-/, '');
@@ -39,7 +39,9 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   // The content Gantt (gantt.html): Ilai's processes 9, 28 and 29, for whoever sees the process.
   if (clientId && ['p09', 'p28', 'p29'].includes(b)) return h('a', { class: 'btn btn-sm ik-go gantt-go', href: `gantt.html?id=${enc(clientId)}` }, 'גאנט התוכן');
   if (clientId && readsChar(me) && CHAR_PROCS.includes(b)) return h('a', { class: 'btn btn-sm ik-go char-go', href: charViewHref(clientId) }, 'האפיון של הלקוח');
-  if (scope !== 'office' || !clientId) return null;
+  // Noam (1.11.2026) is not the office: the meeting's own two steps of process 4 only.
+  if (scope !== 'office' && !(clientId && b === 'p04' && MEETING_PEOPLE.includes(me))) return null;
+  if (!clientId) return null;
   const round = Number(/^r(\d+)-/.exec(String(procId))?.[1] || 1);
   const r = round > 1 ? `&round=${round}` : '';
   const go = (href, label) => h('a', { class: 'btn btn-sm ik-go', href }, label);

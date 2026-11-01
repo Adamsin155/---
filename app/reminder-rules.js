@@ -48,7 +48,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -110,7 +110,7 @@ export const DIGESTS = { morning: '08:30', lists: ['12:00', '16:00'], owner: EOD
 // What is scheduled for 09:00–09:30 goes into the 08:30 digest instead.
 export const FOLD = { from: '09:00', to: '09:30' };
 // Rings a day each person is expected to get (section 5), for the owner's weekly report.
-export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, nirel: 3, nadia: 3, yariv: 3, anna: 3, eli: 3, owner: 1 };
+export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, noam: 5, nirel: 3, nadia: 3, yariv: 3, anna: 3, eli: 3, owner: 1 };
 // A step that should have gone out this long ago and never did (the engine was
 // down, or the rules were just switched on) is recorded as stale, never sent late.
 // A digest line belongs to the digest of its moment (the engine queues it within
@@ -275,7 +275,7 @@ export function casesOf(env, b, keep = () => true) {
 }
 const shootAt = (i) => parseDate(i.ctx.shoot_at);
 const charAt = (i) => parseDate(i.ctx.char_at);
-const characterizer = (c) => c.characterizer || 'ofir';
+const characterizer = (c) => characterizerOf(c);
 // Items of `person` in a process that are still open.
 const openOf = (i, person) => i.proc.items.filter((it) => !it.optional && it.owners.includes(person) && !i.resolved(it.key.slice(i.pre.length)));
 const openItems = (i, keys) => keys.filter((k) => !i.resolved(k));
@@ -304,8 +304,15 @@ export const LATE_WATCHERS = ['ofir', 'lior'];
 // a handoff that just landed is not "late" in the minute it arrives (found live, 6.10.2026).
 export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
-// (8ב: Ofir, `highlightsUpload`): `late` does not tell that watcher again; the other still hears.
-export const LATE_RUNG = { p08b: 'ofir' };
+// (8ב: whoever uploads the client's Highlights, `highlightsUpload`): `late` does not tell that
+// watcher again; the other still hears. A value may depend on the client: since 1.11.2026 8ב
+// is the characterizer's, Noam or Ofir (pagesOwnerOf), and Noam is no watcher, so when it is
+// his both Ofir and Lior hear.
+export const LATE_RUNG = { p08b: (c) => pagesOwnerOf(c) };
+export const lateRungOf = (procId, client) => {
+  const r = LATE_RUNG[baseId(procId)];
+  return typeof r === 'function' ? r(client || {}) : r || null;
+};
 
 // The pass over the clients (33) is late from the third business day without one (and
 // "never" is 99: due today, not late by 99 days).
@@ -376,8 +383,9 @@ export const RULES = [
     id: 'started', event: 'השעון התחיל (6–10)', procs: ['p07', 'p08', 'p09', 'p10'],
     instances(env) {
       const out = [];
-      const TEAM = [['ilai', ['p07', 'p09'], 'p07'], ['ofir', ['p08'], 'p08'], ['lior', ['p10'], 'p10']];
       for (const c of env.clients) {
+        // 8 (the Highlights) is the client's characterizer's since 1.11.2026: Noam or Ofir (pagesOwnerOf).
+        const TEAM = [['ilai', ['p07', 'p09'], 'p07'], [pagesOwnerOf(c), ['p08'], 'p08'], ['lior', ['p10'], 'p10']];
         const p4 = env.stateOf(c).states.find((s) => s.proc.id === 'p04');
         if (!p4) continue;
         const i0 = procCase(env, c, p4);
@@ -401,23 +409,24 @@ export const RULES = [
     ],
   },
 
-  // 5→6: access received. Ofir at once (30 minutes to check); Lior after 30 office minutes.
-  // Process 6 is Ofir's since 28.10.2026 (the owner; it was Ilai's). When Ofir took the
+  // 5→6: access received. Whoever checks them at once (30 minutes to check); Lior after 30
+  // office minutes. Process 6 was Ofir's from 28.10.2026 (it was Ilai's); since 1.11.2026 it is
+  // the client's characterizer's, Noam or Ofir (pagesOwnerOf). When the checker took the
   // accesses himself (he runs the characterization) he is not told what he just marked
-  // (`self`); his deadline ring and Lior's stay.
+  // (`self`); his deadline ring and Lior's stay. (The step ids keep their old names.)
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
       return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
-        .map((i) => ({ ...i, id: 'p06', self: env.personOf(i.check('p05.access')?.by_email) === 'ofir', anchors: { event: i.doneAt('p05.access') } }));
+        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check('p05.access')?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt('p05.access') } }));
     },
     steps: [
-      { id: 'now', to: 'ofir', level: 'ring', exempt: 'clock', when: (i) => !i.self, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      { id: 'now', to: (i) => i.checker, level: 'ring', exempt: 'clock', when: (i) => !i.self, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
       // v10: whoever checks hears at his own deadline too (the deadline of 6: these same 30 office
       // minutes). Until then only Lior was rung, and the checker heard nothing until the next
       // morning's reminder (6 is in OWN_LATE: no "באיחור" of `lateOwn`). Nothing is added for Lior.
-      { id: 'ofir30', officeMinutes: 30, to: 'ofir', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `באיחור: לבדוק את הגישות של ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` },
-      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות ו${personName('ofir')} עוד לא סימן שבדק.` },
+      { id: 'ofir30', officeMinutes: 30, to: (i) => i.checker, level: 'ring', exempt: 'clock', overdue: true, title: (i) => `באיחור: לבדוק את הגישות של ${i.name}`, body: () => `עברו 30 דקות מקבלת הגישות. לבדוק אותן מהכספת ולסמן. ${personName('lior')} קיבל הודעה.` },
+      { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `גישות לא נבדקו: ${i.name}`, body: (i) => `עברו 30 דקות מקבלת הגישות ו${personName(i.checker)} עוד לא סימן שבדק.` },
     ],
   },
 
@@ -477,7 +486,7 @@ export const RULES = [
     },
     steps: [
       { id: 'irit', to: 'irit', level: 'quiet', title: (i) => `הלקוח מילא את פרטי הכניסה לרשתות: ${i.name}`, body: (i) => summaryText(i.link.summary) || 'הפרטים בכספת.' },
-      { id: 'ofir', to: 'ofir', level: 'ring', exempt: 'clock', when: (i) => !i.covered && i.have.length > 0, title: (i) => `קיבלת גישות מהלקוח: ${i.name}`, body: (i, env) => `הלקוח מילא בטופס: ${i.have.join(', ')}. יש לך 30 דקות לבדוק אותן מהכספת. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
+      { id: 'ofir', to: (i) => pagesOwnerOf(i.client), level: 'ring', exempt: 'clock', when: (i) => !i.covered && i.have.length > 0, title: (i) => `קיבלת גישות מהלקוח: ${i.name}`, body: (i, env) => `הלקוח מילא בטופס: ${i.have.join(', ')}. יש לך 30 דקות לבדוק אותן מהכספת. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
       { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', when: (i) => !i.covered && i.pending.length > 0, title: (i) => `גישות מהלקוח לא נבדקו: ${i.name}`, body: () => 'עברו 30 דקות עבודה מאז שהלקוח מילא את הטופס, והגישות עוד מסומנות ״עוד לא נבדק״.' },
     ],
   },
@@ -1381,8 +1390,9 @@ export const RULES = [
     ],
   },
 
-  // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and Ofir are told (quiet):
-  // Ofir checks the accesses since 28.10.2026 (Ilai was told until then).
+  // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and the checker are told
+  // (quiet): Ofir checked the accesses from 28.10.2026 (Ilai was told until then); since 1.11.2026
+  // the client's characterizer, Noam or Ofir (pagesOwnerOf). The step id stays 'ofir'.
   {
     id: 'accessClosed', event: 'גישה שבורה נסגרה (6)', procs: ['p06'],
     instances(env) {
@@ -1398,7 +1408,7 @@ export const RULES = [
       return out;
     },
     steps: ['irit', 'ofir'].map((p) => ({
-      id: p, to: p, level: 'quiet',
+      id: p, to: p === 'ofir' ? (i) => pagesOwnerOf(i.client) : p, level: 'quiet',
       title: (i) => `${i.fix.partial ? 'גישה תוקנה חלקית' : 'גישה תוקנה'}: ${i.name}`,
       body: (i) => `${NETWORK_NAME[i.network] || i.network}.${i.fix.partial ? ` עדיין חסר: ${i.fix.missing}` : ''}`,
     })),
@@ -1465,7 +1475,7 @@ export const RULES = [
     steps: LATE_WATCHERS.map((p) => ({
       id: p, to: p, level: 'quiet', batch: true, overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
       // Not a second message to the watcher its own ladder already rang for this deadline.
-      when: (i) => LATE_RUNG[baseId(i.proc.id)] !== p,
+      when: (i) => lateRungOf(i.proc.id, i.client) !== p,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
       body: (i, env) => `היעד היה ${whenText(i.anchors.event, env.now)}.`,
     })),
@@ -1545,7 +1555,8 @@ export const RULES = [
   },
 
   // 8ב (v7, the owner's decision of 6.10.2026): the Highlights are ready (process 8
-  // complete, not by importing history). Ofir, who just finished them, is told quietly
+  // complete, not by importing history). Whoever just finished them (Ofir; since 1.11.2026
+  // the client's characterizer, Noam or Ofir: pagesOwnerOf) is told quietly
   // and has 30 office minutes to upload them and mark it; when they pass without the
   // mark he rings (a client that started before v7: the item is new for it, so no
   // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).
@@ -1556,8 +1567,8 @@ export const RULES = [
         .map((i) => ({ ...i, id: `${i.proc.id}@${i.s.startAt.toISOString()}`, anchors: { event: i.s.startAt, due: i.s.dueAt } }));
     },
     steps: [
-      { id: 'now', to: 'ofir', level: 'quiet', title: (i) => `ה־Highlights מוכנים: להעלות לרשתות תוך 30 דקות · ${i.name}`, body: (i, env) => `${i.proc.title}. יעד ${whenText(i.anchors.due, env.now)} (30 דקות עבודה).` },
-      { id: 'due', from: 'due', to: 'ofir', level: 'ring', exempt: 'clock', overdue: true, title: (i) => `ה־Highlights של ${i.name} עוד לא הועלו לרשתות`, body: (i, env) => `עברו 30 דקות עבודה מאז שהוכנו (היעד היה ${whenText(i.anchors.due, env.now)}). להעלות לעמודי הלקוח ולסמן.` },
+      { id: 'now', to: (i) => pagesOwnerOf(i.client), level: 'quiet', title: (i) => `ה־Highlights מוכנים: להעלות לרשתות תוך 30 דקות · ${i.name}`, body: (i, env) => `${i.proc.title}. יעד ${whenText(i.anchors.due, env.now)} (30 דקות עבודה).` },
+      { id: 'due', from: 'due', to: (i) => pagesOwnerOf(i.client), level: 'ring', exempt: 'clock', overdue: true, title: (i) => `ה־Highlights של ${i.name} עוד לא הועלו לרשתות`, body: (i, env) => `עברו 30 דקות עבודה מאז שהוכנו (היעד היה ${whenText(i.anchors.due, env.now)}). להעלות לעמודי הלקוח ולסמן.` },
     ],
   },
 
@@ -2273,7 +2284,7 @@ export function nextNagSlot(d) {
 }
 // Ofir and Lior hear of every late process through the rule `late` at this very moment, their
 // own too ("באיחור: … · אופיר"): they are not told twice.
-const toldByLate = (x, p) => x.kind === 'proc' && LATE_WATCHERS.includes(p) && LATE_RUNG[baseId(x.procId)] !== p;
+const toldByLate = (x, p) => x.kind === 'proc' && LATE_WATCHERS.includes(p) && lateRungOf(x.procId, x.client) !== p;
 // Who held each late item at the moment of a reminder hour, from the marks as they stood then:
 // work that was handed to someone after 09:00 is not "still late" on them at 09:45.
 const lateKey = (x) => (x.kind === 'task' ? `t:${x.task.id}` : `${x.cid}:${x.procId}`);

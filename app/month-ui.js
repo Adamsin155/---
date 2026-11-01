@@ -17,8 +17,9 @@ const cardUrl = (id) => `client.html?id=${enc(id)}#month`;
 // others mark their own. The database lets the office write; this is the screen's rule.
 const ON_BEHALF = new Set(['irit', 'lior', 'ofir']);
 export const mayMark = (item, me, office) => !!office && (!me || me === item.owner || ON_BEHALF.has(me));
-// Who works the cycle: the office screens' people and Ilai (public.is_office()).
-export const worksCycle = ({ me = null, scope = 'own', error = null } = {}) => !error && (scope === 'office' || me === 'ilai');
+// Who works the cycle: the office screens' people, Ilai and Noam (public.is_office(); Noam since
+// 1.11.2026, for the Metricool card on the Gantt index: he connects the pages he set up).
+export const worksCycle = ({ me = null, scope = 'own', error = null } = {}) => !error && (scope === 'office' || me === 'ilai' || me === 'noam');
 
 // ── One item ──────────────────────────────
 const STATUS_TEXT = { overdue: 'באיחור', today: 'היום' };

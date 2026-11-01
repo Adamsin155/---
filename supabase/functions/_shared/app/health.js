@@ -24,7 +24,7 @@
 // Time waiting on the client never counts against the staff: a process that waits
 // on the client is not late (its deadline moved on by the wait, decision 3), it is
 // never "not started", and deliverables the client is holding are not behind.
-import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS, PASS_OWNER, isStarDay, starShort } from './protocol.js';
+import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS, PASS_OWNER, isStarDay, starShort, characterizerOf } from './protocol.js';
 import {
   isResolved, blockers, businessDaysBetween, isBusinessDay, parseDate, roundsOf, roundContext, IMPORT_NOTE,
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
@@ -996,7 +996,7 @@ export function upcomingEvents(clients, stateOf, now = new Date(), days = 7, che
       if (at && at >= from && at <= until) out.push({ at, kind, label, client: c, who, done: !!st?.complete, procId: st?.proc.id || null });
     };
     const p04 = byId.get('p04');
-    add(parseDate(c.char_at), 'char', 'פגישת אפיון', c.characterizer || 'ofir', p04);
+    add(parseDate(c.char_at), 'char', 'פגישת אפיון', characterizerOf(c), p04);
     for (const x of shootContexts(c)) {
       const round = x.n > 1 ? ` · סבב ${x.n}` : '';
       add(parseDate(x.ctx.shoot_at), 'shoot', `יום צילום${round}`, 'lior', byId.get(`${x.pid}p19`));

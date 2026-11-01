@@ -86,7 +86,7 @@ test('mayWrite: the office everything; the rest their own items and marks', () =
 });
 
 test('the table\'s tokens: people, the editor of that shoot, and any editor while it has none', () => {
-  const people = new Set(['irit', 'lior', 'ofir', 'ilai', 'eli', 'nirel', 'nadia', 'yariv', 'anna', EDITOR, EDITOR_FREE]);
+  const people = new Set(['irit', 'lior', 'ofir', 'ilai', 'noam', 'eli', 'nirel', 'nadia', 'yariv', 'anna', EDITOR, EDITOR_FREE]);
   for (const r of writerRows()) for (const p of r.persons) assert.ok(people.has(p), `${r.key}: ${p}`);
   // The placeholder of an unassigned editor is nobody's.
   assert.ok(!writerRows().some((r) => r.persons.includes('editor')));

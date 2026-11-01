@@ -2,7 +2,7 @@
 // processes 32 and 33) and the performance report.
 import {
   PEOPLE, STAFF_PEOPLE, EDITORS, PHASES, PROCESSES, CLIENT_STATUS, OFFICE_REVIEWS, REVIEW_TOPICS,
-  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, PASS_OWNER, editorsOf,
+  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, PASS_OWNER, editorsOf, characterizerOf, CHARACTERIZERS,
 } from './protocol.js';
 import { passDue } from './pass-logic.js';
 import {
@@ -972,7 +972,7 @@ function openMeet(g, focusId) {
   $('meet-at').removeAttribute('aria-invalid');
   $('meet-ctx').textContent = clientLabel(g.client);
   $('meet-at').value = g.client.char_at ? inputValueIL(new Date(g.client.char_at)) : '';
-  $('meet-who').value = g.client.characterizer || 'ofir';
+  $('meet-who').value = characterizerOf(g.client);
   meetDlg.showModal();
   $('meet-at').focus();
 }
@@ -982,7 +982,7 @@ $('meet-form').addEventListener('submit', async (ev) => {
   const at = $('meet-at').value ? fromInputIL($('meet-at').value) : null;
   const person = $('meet-who').value;
   $('meet-at').setAttribute('aria-invalid', String(!at));
-  if (!at || !['ofir', 'lior'].includes(person)) {
+  if (!at || !CHARACTERIZERS.includes(person)) {
     $('meet-err').textContent = 'בחרו יום ושעה לפגישה.';
     $('meet-err').hidden = false;
     $('meet-at').focus();

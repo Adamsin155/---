@@ -5,7 +5,7 @@
 // Pure, no DOM, Israel time. Everything is computed from what the tab already loads:
 // the clients with their marks and states, the open tasks, each person's work, and
 // (for Irit and the owners, who may read them) Stav's deals.
-import { REVIEW_TOPICS, PEOPLE, editorNames } from './protocol.js';
+import { REVIEW_TOPICS, PEOPLE, editorNames, characterizerOf } from './protocol.js';
 import { businessDaysBetween, addBusinessDays, parseDate, IMPORT_NOTE, inLanding, workFloor, charEndedAt } from './protocol-logic.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
 import { dealUrl, dealDue, holderText } from './deal-logic.js';
@@ -133,7 +133,7 @@ function chars({ live, cs, st, now }) {
     if (!p4 || p4.complete || isResolved(cs(c), 'p04.saved') || charEndedAt(cs(c))) continue;
     const p3 = states.find((x) => x.proc.id === 'p03');
     const at = parseDate(c.char_at);
-    const who = nameOf(c.characterizer || 'ofir');
+    const who = nameOf(characterizerOf(c));
     if (!at) {
       if (p3 && !p3.ready) continue;
       out.push(item({ id: `${c.id}:p03`, client: c, text: 'לא נקבעה פגישת אפיון', hash: 'p03', since: parseDate(c.deal_at), late: p3?.status === 'overdue' }));

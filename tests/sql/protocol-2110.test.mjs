@@ -48,7 +48,7 @@ test('the file: what came after it, none of the refused words, every UPDATE with
   // Irit's Gantt (20261102100000_gantt_irit.sql, 22.10.2026), which replaces can_edit_gantt again, and a
   // monthly client's count (20261104100000_editor_progress_month.sql, 22.10.2026), nothing of the protocol either, and
   // the old system's signed documents (20261105100000_legacy_contracts.sql, 25.10.2026); "הכנת חוזה עם AI" (20261106100000_contract_ai.sql) and a shoot day without influencers (20261107100000_shoot_crew.sql, 25.10.2026); the old system's characterizations (20261109100000_legacy_characterizations.sql, 26.10.2026), a table of their own.
-  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql']);
+  assert.deepEqual(files.slice(files.indexOf(MIGRATION) + 1), ['20261031120000_nirel_any_shoot.sql', '20261101100000_editor_progress.sql', '20261102100000_gantt_irit.sql', '20261104100000_editor_progress_month.sql', '20261105100000_legacy_contracts.sql', '20261106100000_contract_ai.sql', '20261107100000_shoot_crew.sql', '20261109100000_legacy_characterizations.sql', '20261110100000_batch_2710.sql', '20261111100000_p06_ofir.sql', '20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql']);
   const sql = migrationSql(MIGRATION);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
@@ -56,7 +56,7 @@ test('the file: what came after it, none of the refused words, every UPDATE with
   // Its writers block was the app's until process 6 passed to Ofir (20261111100000_p06_ofir.sql, 28.10.2026):
   // the newest block is that file's now (tests/sql/p06-ofir.test.mjs checks it against app/protocol.js).
   assert.match(sql, /-- protocol-writers:begin/);
-  assert.equal(latestBlock().file, '20261111100000_p06_ofir.sql');
+  assert.equal(latestBlock().file, '20261123100000_noam.sql'); // Noam (1.11.2026); 20261111100000_p06_ofir.sql before
 });
 
 test('version 11: the function, the column default, a new client', async () => {
@@ -68,7 +68,7 @@ test('version 11: the function, the column default, a new client', async () => {
 });
 
 test('who connects to Metricool: Ofir, Ilai and the owner (the app\'s CONNECTORS); Ofir does not edit the Gantt', async () => {
-  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai']);
+  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai', 'noam']); // Noam since 1.11.2026 (tests/sql/noam.test.mjs)
   for (const [who, person] of Object.entries(PEOPLE)) {
     const can = (await run(who, 'select public.can_connect_metricool() as ok')).rows[0].ok;
     assert.equal(can, CONNECTORS.includes(person ?? 'owner'), who);
