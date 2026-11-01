@@ -41,6 +41,10 @@ export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'noam'];
 // Outside the office, who runs the characterization meeting itself: the end of the meeting and
 // its form (process 4, intake.html#end and #form) on the clients whose work is theirs.
 export const MEETING_PEOPLE = ['noam'];
+// Her own work like Ilai, but the list of clients is all of them, to reach any client's vault (the
+// owner, 1.11.2026). The database already answers her for every client (public.is_office()).
+export const ALL_CLIENTS_PEOPLE = ['noam'];
+export const listsAllClients = (me) => ALL_CLIENTS_PEOPLE.includes(me);
 export const writesChar = (v) => known(v) && (v.scope === 'office' || MEETING_PEOPLE.includes(v.me)) && (!v.me || CHAR_WRITERS.includes(v.me));
 // The index of the content Gantt: the office, Ilai and Noam (as worksCycle in month-ui.js).
 export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai' || v.me === 'noam');
@@ -80,7 +84,7 @@ export function menuOf(viewer) {
   } else if (seesAllClients(viewer)) {
     list.push({ id: 'overview', href: 'owner.html#all', label: 'כל הלקוחות במבט', short: 'במבט' }); // Lior: screen 2 and the table
   }
-  list.push({ id: 'clients', href: 'clients.html#clients', label: office ? 'לקוחות' : 'הלקוחות שלי' });
+  list.push({ id: 'clients', href: 'clients.html#clients', label: office || listsAllClients(me) ? 'לקוחות' : 'הלקוחות שלי' });
   // The content Gantt of every client (gantt.html without a client), 6.10.2026: Ilai, whose
   // it is, always has a way in, also with no open work; the owner, Irit, Lior and Ofir read.
   if (seesGantt(viewer)) list.push({ id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
