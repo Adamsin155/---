@@ -98,7 +98,12 @@ test('to whom: everyone on the team with a login, and the owner; the text is req
   const offered = ASSIGNEES().map((p) => p.key);
   const sql = readFileSync(new URL(`../../supabase/migrations/${MIGRATION}`, import.meta.url), 'utf8');
   const listed = /assignee text not null check \(assignee in \(([^)]+)\)\)/.exec(sql)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
-  assert.deepEqual([...listed].sort(), [...offered].sort());
+  // Noam (1.11.2026) is offered too; his place in the check waits for the owner's approval
+  // (supabase/pending/noam_checks.sql, which widens it; tests/sql/noam.test.mjs runs it).
+  const pending = readFileSync(new URL('../../supabase/pending/noam_checks.sql', import.meta.url), 'utf8');
+  const widened = /check \(assignee in \(([^)]+)\)\)/.exec(pending)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
+  assert.deepEqual([...widened].sort(), [...offered].sort());
+  assert.deepEqual([...listed, 'noam'].sort(), [...offered].sort());
   for (const p of ['yariv', 'anna']) assert.match((await give('irit', p)).error, /the assignee has no login/, p);
   for (const p of ['editor', 'nobody', '', null]) assert.match((await give('irit', p)).error, /unknown assignee/, String(p));
   for (const body of ['', '   ', null, 'א'.repeat(BODY_MAX + 1)]) assert.match((await give('irit', 'nadia', body)).error, /task text is required/);
@@ -186,6 +191,8 @@ test('cancelling: whoever gave it, or the owner; never the assignee; kept as can
 });
 
 test('the reminder log takes one row per 10-minute slot of a task, for every assignee, and never the same slot twice', async () => {
+  // Noam (1.11.2026) is in the log's check once the owner approves supabase/pending/noam_checks.sql.
+  await db.exec(readFileSync(new URL('../../supabase/pending/noam_checks.sql', import.meta.url), 'utf8'));
   const add = (key, person) => call('service', "insert into public.reminder_log (key, rule, person, level, channel, status, title, exempt, url) values ($1, 'nag', $2, 'ring', 'push', 'pending', 'משימה מעירית: x', true, $3) on conflict (key) do nothing returning id",
     [key, person, person === 'stav' || person === 'amos' ? 'deal.html' : 'clients.html#mine']);
   for (const p of ASSIGNEES().map((x) => x.key)) {

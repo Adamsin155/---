@@ -5,6 +5,7 @@ import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
   STAFF_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
   PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms, starWords,
+  pagesOwnerOf,
 } from './protocol.js';
 // "מי מצלם" (25.10.2026): a day with influencers, or Lior and one photographer.
 import { SOLO_PREFIX, soloOf, choiceOf, roundWithCrew, timeLabel } from './shoot-crew.js';
@@ -2093,7 +2094,7 @@ function syncAccTask() {
   $('acc-password-wrap').hidden = linked;
   $('acc-task-wrap').hidden = accessWorks(st) || st === NEW_STATUS || accEditing?.status === st;
   // A network to open is Ofir's since 28.10.2026 (the owner; process 6 was Ilai's).
-  $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : 'לפתוח משימה לאופיר: לפתוח את הרשת ללקוח';
+  $('acc-task-text').textContent = st === 'broken' ? 'לפתוח משימה לליאור: לשחזר את הגישה עם הלקוח' : `לפתוח משימה ל${PEOPLE[pagesOwnerOf(client)]?.name || 'מבצע האפיון'}: לפתוח את הרשת ללקוח`;
 }
 $('acc-status').addEventListener('change', syncAccTask);
 $('acc-network').addEventListener('change', syncAccTask);
@@ -2129,7 +2130,8 @@ $('acc-form').addEventListener('submit', async (e) => {
     await saveAccess(id, a);
     $('acc-password').value = '';
     if (!accessWorks(st) && accEditing?.status !== st && $('acc-task').checked) {
-      const owner = st === 'broken' ? 'lior' : 'ofir';
+      // A network to open: whoever sets the pages up (the characterizer, Noam or Ofir; 1.11.2026).
+      const owner = st === 'broken' ? 'lior' : pagesOwnerOf(client);
       const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
       const t = await addTask({ client_id: id, title, owner, urgent: true });
       tasks = [t, ...tasks];

@@ -4,7 +4,7 @@
 // today's characterizations, clients waiting for an editor, and the assignment
 // (22א) with each editor's load. Pure, no DOM, Israel time; the marks are in
 // app/office-marks.js.
-import { EDITORS, editorsFor, PEOPLE, isStarDay, starShort } from './protocol.js';
+import { EDITORS, editorsFor, PEOPLE, isStarDay, starShort, characterizerOf } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   businessDaysBetween, addBusinessDays, pauseOf, roundsOf, parseDate, inLanding, workFloor,
@@ -93,7 +93,7 @@ export function qaNotice({ meetings = [], readyAt, now = new Date() }) {
 
 // ── Today's characterizations ───────────────
 export function charsToday({ clients, stateOf, now = new Date(), person = 'ofir' }) {
-  return clients.filter((c) => inWork(c) && (c.characterizer || 'ofir') === person && parseDate(c.char_at) && daysBetweenIL(now, parseDate(c.char_at)) === 0)
+  return clients.filter((c) => inWork(c) && characterizerOf(c) === person && parseDate(c.char_at) && daysBetweenIL(now, parseDate(c.char_at)) === 0)
     .map((c) => {
       const p4 = stateOf(c).states.find((s) => s.proc.id === 'p04');
       return { client: c, at: parseDate(c.char_at), done: !!p4?.complete, doneAt: p4?.completedAt || null };

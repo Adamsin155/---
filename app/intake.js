@@ -20,7 +20,7 @@
 //                           saved to the client's characterization and nothing else: no
 //                           mark in the protocol, no clock, no task, no ring
 //   (no client)             "אפיון חדש": the client picked from a list, searched by words
-import { PEOPLE, NETWORKS, shootTypeName } from './protocol.js';
+import { PEOPLE, NETWORKS, shootTypeName, characterizerOf } from './protocol.js';
 import { clientState, blockers, roundsOf, CHAR_ENDED } from './protocol-logic.js';
 import {
   loadClient, loadChecks, loadTasks, setCheck, clearCheck, updateClient, addTask, loadDirectory,
@@ -46,7 +46,7 @@ import { inputValueIL, fromInputIL } from './tz.js';
 // The materials themselves (logo, photos, videos) go into the client's files from the phone.
 import { mountClientFiles, fileCount } from './files-ui.js';
 import { readsChar } from './intake-ui.js';
-import { writesChar } from './shell-rules.js';
+import { writesChar, MEETING_PEOPLE } from './shell-rules.js';
 import { searchClients } from './client-search.js';
 import { loadCharacterizations } from './intake-data.js';
 import { supabase } from './supa.js';
@@ -144,7 +144,7 @@ function render(focusId = null) {
 
 function renderHead() {
   const c = client;
-  const charBy = PEOPLE[c.characterizer || 'ofir']?.name;
+  const charBy = PEOPLE[characterizerOf(c)]?.name;
   fill($('ik-head'),
     h('div', { class: 'kicker' }, 'אפיון ותוכן'),
     h('h1', {}, c.name),
@@ -156,15 +156,19 @@ function renderHead() {
         ...roundsOf(c).map((r) => h('option', { value: String(r.n), selected: round === r.n }, `סבב ${r.n}`)))) : null);
 }
 
+// Noam (1.11.2026, MEETING_PEOPLE) is not the office: the meeting's end and its form only.
+let meetingOnly = false;
+const shownSections = () => (meetingOnly ? SECTIONS.filter(([k]) => k === 'end' || k === 'form') : SECTIONS);
+
 function renderTabs() {
   $('ik-tabs').hidden = charOnly;
   if (charOnly) { fill($('ik-tabs')); return; }
-  fill($('ik-tabs'), h('ul', {}, ...SECTIONS.map(([k, label]) => h('li', {},
+  fill($('ik-tabs'), h('ul', {}, ...shownSections().map(([k, label]) => h('li', {},
     h('a', { href: `#${k}`, class: `ik-tab${k === section ? ' is-on' : ''}`, 'aria-current': k === section ? 'page' : null, id: `tab-${k}` }, label)))));
 }
 
 function setSection(k, focusId = null) {
-  if (!SECTIONS.some(([x]) => x === k)) k = 'end';
+  if (!shownSections().some(([x]) => x === k)) k = 'end';
   section = k;
   if (location.hash !== `#${k}`) history.replaceState(null, '', `#${k}`);
   render(focusId);
@@ -798,7 +802,7 @@ async function showRead() {
   $('back').href = me === 'nirel' ? 'editor.html' : 'clients.html#mine';
   $('back').textContent = me === 'nirel' ? '→ העריכה והבריפים שלי' : '→ המשימות שלי';
   const f = charRow?.fields || {};
-  const charBy = PEOPLE[client.characterizer || 'ofir']?.name;
+  const charBy = PEOPLE[characterizerOf(client)]?.name;
   fill($('ik-head'),
     h('div', { class: 'kicker' }, 'האפיון של הלקוח · לקריאה'),
     h('h1', { id: 'rd-h', tabindex: '-1' }, client.name),
@@ -845,7 +849,7 @@ mountSession(async (staff) => {
   if (!id || charOnly) {
     if (!writesChar(v)) {
       $('app').hidden = true;
-      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור ולאופיר.' : 'לא נבחר לקוח.';
+      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר ולנעם.' : 'לא נבחר לקוח.';
       return;
     }
     if (!id) { await showPicker(); return; }
@@ -853,13 +857,14 @@ mountSession(async (staff) => {
     await load();
     return;
   }
-  if (scope !== 'office' && readsChar(me)) { await showRead(); return; }
-  if (scope !== 'office') {
+  meetingOnly = scope !== 'office' && MEETING_PEOPLE.includes(me);
+  if (scope !== 'office' && !meetingOnly && readsChar(me)) { await showRead(); return; }
+  if (scope !== 'office' && !meetingOnly) {
     $('app').hidden = true;
     $('state').textContent = 'האפיון ושיחת הדגשים פתוחים לצוות המשרד. הדגשים עצמם מופיעים בכרטיס הלקוח.';
     return;
   }
-  const asked = SECTIONS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : null;
+  const asked = shownSections().some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : null;
   if (asked) section = asked;
   await load();
   if (client && !asked) {

@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeReminders, planDelivery } from '../app/reminder-engine.js';
-import { LATE_RUNG, LATE_WATCHERS } from '../app/reminder-rules.js';
+import { LATE_RUNG, LATE_WATCHERS, lateRungOf } from '../app/reminder-rules.js';
 import { clocksFor } from '../app/clocks.js';
 import { PROCESSES, STATIONS, PROTOCOL_VERSION, WORK_HOURS } from '../app/protocol.js';
 import { clientState, openItemsFor, onOfficeTime, IMPORT_NOTE, clientLabel } from '../app/protocol-logic.js';
@@ -53,9 +53,11 @@ test('8ב in the protocol: right after 8, Ofir\'s, in "אפיון", one new key,
   const i = PROCESSES.findIndex((p) => p.id === 'p08b');
   const p = PROCESSES[i];
   assert.equal(PROCESSES[i - 1].id, 'p08');
-  assert.deepEqual([p.num, p.title, p.phase, p.owners], ['8ב', 'העלאת ה־Highlights לרשתות', 'parallel', ['ofir']]);
+  assert.deepEqual([p.num, p.title, p.phase], ['8ב', 'העלאת ה־Highlights לרשתות', 'parallel']);
+  // Since 1.11.2026 the client's characterizer's: Ofir or Noam, Noam when none was set, Ofir when Lior ran the meeting.
+  assert.deepEqual(['ofir', 'noam', null, 'lior'].map((characterizer) => p.owners({ characterizer })), [['ofir'], ['noam'], ['noam'], ['ofir']]);
   assert.deepEqual(p.items.map((x) => [x.key, x.label, !!x.optional]), [['p08b.posted', 'ה־Highlights הועלו לעמודי הלקוח ברשתות', false]]);
-  assert.equal(p.what, 'אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.');
+  assert.equal(p.what, 'אחרי שה־Highlights מוכנים, מבצע האפיון (נעם או אופיר) מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.');
   assert.deepEqual([p.start, p.due], [{ from: 'p08' }, { from: 'p08', minutes: 30 }]);
   assert.equal(onOfficeTime(p.due), true, '30 office minutes');
   const char = STATIONS.find((s) => s.key === 'char').procs;
@@ -145,7 +147,9 @@ test('the reminders: a quiet note to Ofir when it starts, a ring when 30 office 
   const late = due(w, IL(2026, 10, 5, 13, 46)).filter((r) => r.rule === 'late' && P8B(r));
   assert.deepEqual(late.map((r) => [r.person, r.level]), [['lior', 'quiet']]);
   assert.match(late[0].title, /^באיחור: .*פיצה רון.* · 8ב · העלאת ה־Highlights לרשתות · אופיר$/);
-  assert.deepEqual(LATE_RUNG, { p08b: 'ofir' });
+  assert.deepEqual(Object.keys(LATE_RUNG), ['p08b']);
+  assert.equal(lateRungOf('p08b', c), 'ofir', 'this client is Ofir\'s to characterize');
+  assert.equal(lateRungOf('p08b', { ...c, characterizer: 'noam' }), 'noam');
   assert.ok(LATE_WATCHERS.includes('ofir'));
   // Whenever the engine runs (even catching up, with an empty log): Ofir never gets two
   // messages about this upload for the same minute.

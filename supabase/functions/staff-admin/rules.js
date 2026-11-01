@@ -19,12 +19,12 @@
 // Keep in step with TEAM_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
 // function cannot import files from outside its folder.
-export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos'];
+export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos'];
 export const TEAM_MANAGERS = ['irit', 'lior'];
 // The office accounts: they see every client, the quotes and the office screens
 // (public.is_office() in the database; SCOPE 'office' and Ilai in app/protocol.js).
 // Keep in step with OFFICE_PERSONS in app/team-rules.js (the unit tests compare them).
-export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai'];
+export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'noam']; // Noam since 1.11.2026 (sees every client, as Ilai)
 
 // Pages a sign-in link may open. The link is only for the office's own site.
 export const LINK_PAGES = ['https://adamsin155.github.io/---/clients.html', 'https://app.astrateg.tech/clients.html'];

@@ -19,12 +19,19 @@ test('the function knows the same people and managers as the app', () => {
   assert.deepEqual(TEAM_MANAGERS, teamRules.TEAM_MANAGERS);
   // The office accounts: the function's list, the screen's copy, and public.is_office() in the database.
   assert.deepEqual(OFFICE_PERSONS, teamRules.OFFICE_PERSONS);
-  const office = readFileSync(new URL('../supabase/migrations/20260930130000_assignment_rls.sql', import.meta.url), 'utf8');
+  // The latest migration that replaces public.is_office() (Noam joined it on 1.11.2026).
+  const migDir = new URL('../supabase/migrations/', import.meta.url);
+  const officeFile = readdirSync(migDir).filter((f) => f.endsWith('.sql')).sort().reverse()
+    .find((f) => readFileSync(new URL(f, migDir), 'utf8').includes('create or replace function public.is_office()'));
+  const office = readFileSync(new URL(officeFile, migDir), 'utf8');
   assert.ok(office.includes(`s.person in (${OFFICE_PERSONS.map((p) => `'${p}'`).join(', ')})`), 'is_office() names the same people');
-  // The latest migration that sets staff_person_check allows every one of them.
+  // The latest migration that sets staff_person_check allows every one of them; or, for someone
+  // new, the file that waits for the owner's approval to widen it (supabase/pending/, Noam 1.11.2026).
   const dir = new URL('../supabase/migrations/', import.meta.url);
-  const last = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
-    .map((f) => readFileSync(new URL(f, dir), 'utf8')).filter((s) => /add constraint staff_person_check/.test(s)).at(-1);
+  const pending = new URL('../supabase/pending/', import.meta.url);
+  const last = [...readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((f) => new URL(f, dir)),
+    ...readdirSync(pending).filter((f) => f.endsWith('.sql')).sort().map((f) => new URL(f, pending))]
+    .map((u) => readFileSync(u, 'utf8')).filter((s) => /add constraint staff_person_check/.test(s)).at(-1);
   for (const p of PERSONS) assert.match(last, new RegExp(`'${p}'`), `${p} allowed by staff_person_check`);
 });
 

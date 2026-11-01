@@ -54,7 +54,7 @@ before(async () => {
 });
 
 test('the file: the newest, only adds, and runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), []);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261123100000_noam.sql']); // Noam (1.11.2026) after it
   assert.doesNotMatch(SQL, /\b(drop|delete|truncate)\b/i);
   await db.exec(migrationSql(FILE));
   await db.exec(migrationSql(FILE));

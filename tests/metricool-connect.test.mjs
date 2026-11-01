@@ -18,8 +18,9 @@ const mk = (id, fields = {}) => ({
 });
 const ids = (list) => list.map((c) => c.id);
 
-test('who has the card: Ofir (v11), Ilai and the owner, nobody else', () => {
-  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai']);
+test('who has the card: Ofir (v11), Ilai, Noam (1.11.2026) and the owner, nobody else', () => {
+  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai', 'noam']);
+  assert.equal(canConnect({ me: 'noam', scope: 'own', error: null }), true, 'Noam sets the pages up (6)');
   const viewer = (me, scope = 'office') => ({ me, scope, error: null });
   assert.equal(canConnect(viewer('ilai', 'own')), true);
   assert.equal(canConnect(viewer('ofir')), true);

@@ -20,7 +20,7 @@
 //                       Note JSON { choice: 'move' | 'reassign', days, editor, proposal }.
 //   p06.fixed.<network> Lior closed a broken login: fixed, or partly (Irit and Ofir
 //                       are told). Note JSON { partial, missing, access }.
-import { PROCESSES, PEOPLE, editorsOf } from './protocol.js';
+import { PROCESSES, PEOPLE, editorsOf, characterizerOf } from './protocol.js';
 import {
   addWorkingMinutes, officeMsBetween, IMPORT_NOTE, parseDate, SHIFT, fixDue, FIX_CUTOFF_HOUR,
 } from './protocol-logic.js';
@@ -142,7 +142,7 @@ export function ofirMeetings(clients, checksOf) {
   const out = [];
   for (const c of clients) {
     const at = parseDate(c.char_at);
-    if (!at || (c.characterizer && c.characterizer !== 'ofir')) continue;
+    if (!at || characterizerOf(c) !== 'ofir') continue;
     const cs = checksOf(c) || {};
     const done = MEETING_DONE_KEYS.map((k) => cs[k]).filter((x) => x?.state === 'done').map((x) => new Date(x.at)).filter((d) => d > at);
     const end = done.length ? new Date(Math.min(...done, at.getTime() + MEETING_MAX_HOURS * 36e5)) : new Date(at.getTime() + MEETING_HOURS * 36e5);
