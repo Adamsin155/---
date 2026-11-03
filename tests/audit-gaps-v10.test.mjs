@@ -708,52 +708,25 @@ test('7. "עילאי הכין לוגו חדש" is not ticked while the client\'s
 });
 
 // ── 8. Fixes that remained after the Zoom ───────────────────────────────────
-test('8. fixes after the Zoom (13): once Lior says they remained, the item is asked for, due at the end of the next business day, on the usual ladder; "אין תיקונים" closes it', () => {
+test('8. fixes after the Zoom (13) left in v12: the Zoom is one item, done or not; "נשארו תיקונים" opens nothing', () => {
   const p13 = PROCESSES.find((p) => p.id === 'p13');
-  assert.deepEqual(p13.due, { from: 'char', businessDays: 3, afterMark: [{ key: 'p13.left', businessDays: 1 }] });
-  assert.deepEqual([p13.items.find((i) => i.key === 'p13.fixes').optional, p13.items.find((i) => i.key === 'p13.fixes').neededIf], [true, 'p13.left']);
+  assert.deepEqual(p13.due, { from: 'char', businessDays: 3 });
+  assert.deepEqual(p13.items.filter((i) => !i.retired).map((i) => i.key), ['p13.zoom']);
+  assert.deepEqual(p13.items.filter((i) => i.retired).map((i) => i.key), ['p13.approved', 'p13.fixes']);
   const { w, c } = afterMeeting(); // the meeting: Monday 5.10
   marks(w, c, itemsOf('p07'), IL(2026, 10, 5, 14));
   marks(w, c, itemsOf('p07a'), IL(2026, 10, 5, 14));
   const lior = (now) => mine(w, c, 'lior', now).filter((k) => k.startsWith('p13.'));
-  // The Zoom took place and the client approved (Wednesday 7.10 11:00). Nobody answered about fixes: closed, as before.
-  marks(w, c, ['p13.zoom', 'p13.approved'], IL(2026, 10, 7, 11));
+  // The Zoom took place (Wednesday 7.10 11:00): 13 is complete.
+  mark(w, c, 'p13.zoom', IL(2026, 10, 7, 11));
   assert.deepEqual([proc(w, c, 'p13', IL(2026, 10, 7, 11, 5)).complete, lior(IL(2026, 10, 7, 11, 5))], [true, []]);
-  // "נשארו תיקונים" (11:10): the item is his, due Thursday 8.10 at 18:00.
+  // An old "נשארו תיקונים" changes nothing: no item, no deadline, nothing late.
   mark(w, c, 'p13.left', IL(2026, 10, 7, 11, 10));
   const s = proc(w, c, 'p13', IL(2026, 10, 7, 12));
-  assert.deepEqual([s.complete, hhmm(s.dueAt), s.status, lior(IL(2026, 10, 7, 12))], [false, '8.10 18:00', 'open', ['p13.fixes']]);
-  assert.equal(describeOfficeMark('p13.left', 'done', null), 'נשארו תיקונים אחרי הזום: נפתח פריט עם יעד');
-  // Not done by then: the usual ladder. Lior rings "באיחור" (Sunday 09:15, 15 office minutes past the deadline); it is not "the client's turn".
-  const late = lateAt(w, IL(2026, 10, 11, 9, 20)).find((x) => x.procId === 'p13');
-  assert.deepEqual([late.clientTurn, late.holders], [false, ['lior']]);
-  const rows = walk(w, IL(2026, 10, 8, 18), IL(2026, 10, 11, 9, 20)).filter((r) => ['lateOwn', 'late'].includes(r.rule) && /13 · /.test(r.title));
-  assert.deepEqual(rows.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['11.10 09:15 late.lior@lior', '11.10 09:15 late.ofir@ofir']);
-  // He marks the fixes done: the process is complete.
-  mark(w, c, 'p13.fixes', IL(2026, 10, 11, 10));
-  assert.equal(proc(w, c, 'p13', IL(2026, 10, 11, 10, 5)).complete, true);
-  // "אין תיקונים": p13.fixes is "לא נדרש", and nothing was ever asked.
-  const { w: w2, c: c2 } = afterMeeting();
-  marks(w2, c2, ['p13.zoom', 'p13.approved'], IL(2026, 10, 7, 11));
-  mark(w2, c2, 'p13.fixes', IL(2026, 10, 7, 11, 10), 'אין תיקונים אחרי הזום', 'na');
-  assert.deepEqual([proc(w2, c2, 'p13', IL(2026, 10, 8, 9)).complete, mine(w2, c2, 'lior', IL(2026, 10, 8, 9)).filter((k) => k.startsWith('p13.'))], [true, []]);
-  // Fixes remained and the client did not approve yet: the fixes are Lior's (his deadline), not the client's turn.
-  const { w: w3, c: c3 } = afterMeeting();
-  mark(w3, c3, 'p13.zoom', IL(2026, 10, 7, 11));
-  mark(w3, c3, 'p13.left', IL(2026, 10, 7, 11, 10));
-  const l3 = lateAt(w3, IL(2026, 10, 11, 9, 20)).find((x) => x.procId === 'p13');
-  assert.deepEqual([l3.clientTurn, l3.holders], [false, ['lior']]);
-  mark(w3, c3, 'p13.fixes', IL(2026, 10, 11, 10));
-  assert.equal(lateAt(w3, IL(2026, 10, 11, 11)).find((x) => x.procId === 'p13').clientTurn, true, 'fixed: it waits for the client\'s approval again');
-  // A second shoot round: its own marks.
-  const { w: w4, c: c4 } = afterMeeting();
-  c4.rounds = [{ n: 2, start_at: IL(2026, 11, 1, 10).toISOString(), shoot_at: IL(2026, 11, 15, 10).toISOString(), shoot_type: 'dms' }];
-  mark(w4, c4, 'r2.p13.left', IL(2026, 11, 4, 11));
-  const r2 = proc(w4, c4, 'r2-p13', IL(2026, 11, 4, 12));
-  assert.deepEqual([r2.proc.items.find((i) => i.key === 'r2.p13.fixes').optional, hhmm(r2.dueAt)], [false, '5.11 18:00']);
+  assert.deepEqual([s.complete, lior(IL(2026, 10, 7, 12))], [true, []]);
+  assert.equal(lateAt(w, IL(2026, 10, 11, 9, 20)).find((x) => x.procId === 'p13'), undefined);
 });
 
-// ── 9. Nirel's mandatory brief on a task given on the spot ──────────────────
 test('9. a task on the spot ("נודניק") for Nirel carries the four fields of her brief; for anyone else nothing changed', () => {
   assert.deepEqual(NAG_BRIEF.map(([k]) => k), BRIEF_MUST);
   assert.deepEqual(NAG_BRIEF.map(([, l]) => l), ['מה הבעיה המדויקת', 'מה בדיוק צריך לשנות', 'מה צריך להישאר כמו שהוא', 'מה התוצאה הרצויה']);

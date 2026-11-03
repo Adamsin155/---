@@ -38,11 +38,11 @@ test('new deal at 17:58 on Thursday: office clocks of 5, 5 and 10 minutes, due S
   assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-25T09:08:00+02:00')).map((x) => x[3]), ['expired', 'expired', 'expired']);
   assert.equal(clocks('irit', c, {}, '2026-10-25T23:30:00+02:00').length, 3);
   assert.equal(clocks('irit', c, {}, '2026-10-26T08:00:00+02:00').length, 0);
-  // Whose: Irit's; Lior has items in process 2 only; Ilai none. The owner sees each with its people.
-  assert.deepEqual(brief(clocks('lior', c, {}, '2026-10-22T17:59:00+03:00')).map((x) => x[1]), ['p02']);
+  // Whose: Irit's alone (Lior's items of 2 left in v12); Ilai none. The owner sees each with its people.
+  assert.equal(clocks('lior', c, {}, '2026-10-22T17:59:00+03:00').length, 0);
   assert.equal(clocks('ilai', c, {}, '2026-10-22T17:59:00+03:00').length, 0);
   const all = clocks(null, c, {}, '2026-10-22T17:59:00+03:00');
-  assert.deepEqual(all.map((x) => [x.proc.id, x.people]), [['p02', ['irit', 'lior']], ['p03', ['irit']], ['p01', ['irit']]]);
+  assert.deepEqual(all.map((x) => [x.proc.id, x.people]), [['p02', ['irit']], ['p03', ['irit']], ['p01', ['irit']]]);
 });
 
 test('the contract clock stops when the contract was sent; a finished or waiting process has no clock', () => {

@@ -500,17 +500,16 @@ test('a guarded mark is refused only when the system knows it is empty, in one s
   for (const p of PROCESSES) for (const i of p.items) if (i.guard) assert.ok(!/^p(22|24|25|26|27)\./.test(i.key), i.key);
 });
 
-test('a guarded item is never closed with "mark the whole process"', () => {
+test('a guarded item is never closed with "mark the whole process" (v12: the scripts are one link, taken through its form)', () => {
   const { w, c } = afterMeeting();
-  marks(w, c, itemsOf('p12a'), IL(2026, 10, 5, 15));
   const now = IL(2026, 10, 5, 16);
   const s = proc(w, c, 'p12', now);
-  const keys = bulkEligible(s, 'lior', c, w.checks[c.id], now).map((i) => i.key);
-  assert.deepEqual(keys, ['p12.scripts', 'p12.numbered']);
-  assert.ok(mine(w, c, 'lior', now).includes('p12.docs'), 'it is still his to tick, by itself');
+  assert.deepEqual(bulkEligible(s, 'lior', c, w.checks[c.id], now).map((i) => i.key), []);
+  assert.ok(mine(w, c, 'lior', now).includes('p12.link'), 'it is still his to do, by itself');
+  // The Gantt (29, guarded) as before: Ilai's "full" is never in a bulk.
+  assert.ok(!PROCESSES.find((p) => p.id === 'p29').items.filter((i) => i.guard).some((i) => bulkEligible(proc(w, c, 'p29', now), 'ilai', c, w.checks[c.id], now).map((x) => x.key).includes(i.key)));
 });
 
-// ── Nothing else moved ──────────────────────────────────────────────────────
 test('the daily follow-up keeps the client in "תוכן ואישור" until the shoot day, as the list of eight topics did: nobody\'s station moved', () => {
   const key = (c, w, now) => STATIONS[stationOf(c, stateOf(w, c, now), now)].key;
   for (const version of [5, 7, 8]) {
