@@ -445,11 +445,12 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
 await step('return for fixes: approving needs all eleven checks (six, and the five critical mistakes of protocol v10); two issues, due today 18:00, round 1', async () => {
   await ofir.click('#qa-list > li:nth-child(2) button');
   await ofir.waitForSelector('#dlg-qa[open]');
-  assert.equal(await ofir.locator('#qa-checks input').count(), 11);
-  await ofir.locator('#qa-checks input').first().check();
-  await ofir.waitForFunction(() => !document.querySelector('#qa-checks input').disabled);
+  // The eleven are lines to read, and one tick for all of them (3.11.2026).
+  assert.equal(await ofir.locator('#qa-checks li').count(), 11);
+  assert.equal(await ofir.locator('#qa-checks input').count(), 1);
   await ofir.click('#qa-approve');
-  assert.match(await ofir.locator('#qa-err').innerText(), /כל 11 הבדיקות \(חסרות 10\)/);
+  assert.match(await ofir.locator('#qa-err').innerText(), /עברתי על הכול, הכול תקין/);
+  assert.equal(await ofir.evaluate(() => document.activeElement.id), 'qa-all');
   await ofir.click('#qa-to-return');
   assert.equal(await ofir.locator('#qa-return-h').innerText(), 'החזרה לתיקון · סבב 1');
   assert.equal(await ofir.inputValue('#qa-due'), '2026-10-20T18:00');
@@ -497,7 +498,7 @@ await step('the re-check: back in the queue as check 2 with what was returned; a
   await v.locator('button').click();
   await ofir.waitForSelector('#dlg-qa[open]');
   assert.match(await ofir.locator('#qa-prev').innerText(), /מה הוחזר בסבב 1[^]*סרטון 3: הטלפון בסגיר שגוי/);
-  for (const box of await ofir.locator('#qa-checks input').all()) { await box.check(); await ofir.waitForFunction((el) => !el.disabled, await box.elementHandle()); }
+  await ofir.check('#qa-all');
   await ofir.click('#qa-approve');
   await toastHas(ofir, 'אושר. עירית מקבלת');
   assert.ok(checkOf(V, 'p25.approved'));

@@ -327,7 +327,7 @@ try {
     const o = await signedIn('ofir', db, { path: `qa.html#review-${GFX}-p07` });
     await o.page.waitForSelector('#dlg-qa[open]');
     assert.match(await text(o.page.locator('#qa-meta')), /9 הגרפיקות הראשונות · בדיקה ראשונה · נשארו 7 דק׳ · לאשר עד היום 10:07/);
-    assert.equal(await o.page.locator('#qa-checks input').count(), 7);
+    assert.equal(await o.page.locator('#qa-checks li').count(), 7);
     await shot(o.page.locator('#dlg-qa'), 'review-dialog-390');
     await o.page.click('#qa-to-return');
     assert.match(await text(o.page.locator('#qa-return-hint')), /הרשימה עוברת לעילאי מיד/);

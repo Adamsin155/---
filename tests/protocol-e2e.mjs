@@ -477,10 +477,13 @@ const accTask = db.client_tasks.at(-1);
 assert.deepEqual([accTask.owner, accTask.urgent], ['lior', true]);
 assert.match(accTask.title, /פייסבוק|Facebook/i);
 
-// Mark a whole process: process 3 has four items, all Irit's.
+// Mark a whole process: process 3 has four items, all Irit's: one "בוצע", the four folded under it (3.11.2026).
 await page.evaluate(() => { document.querySelector('#p03')?.closest('details').setAttribute('open', ''); });
 await page.waitForSelector('#p03-bulk');
-assert.match(await page.locator('#p03-bulk').innerText(), /סימון כל התהליך כבוצע \(4\)/);
+assert.equal(await page.locator('#p03-bulk').innerText(), 'בוצע');
+assert.match(await page.locator('#p03-bulk').getAttribute('aria-label'), /4 פריטים/);
+assert.equal(await page.locator('#p03 details.chk-fold > summary').innerText(), 'רשימת הבדיקה (4)');
+assert.equal(await page.locator('#p03 details.chk-fold').getAttribute('open'), null);
 await page.click('#p03-bulk');
 await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('סומנו 4 פריטים'));
 assert.equal(db.protocol_checks.filter((c) => c.client_id === created.id && c.item_key.startsWith('p03.')).length, 4);

@@ -261,8 +261,11 @@ await shot('01-my-work');
 
 // ── §1 bulk: 6 of Irit's items in process 2 of the fresh client, then undo ──
 const p2card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("פתיחת קבוצת WhatsApp")');
-assert.equal(await p2card.locator('.bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (6)'); // p02.deal and p02.team are Lior's; Shirel removed in v3
-assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'סימון 6 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
+// One button (3.11.2026): "בוצע" is the card's action, and the six it marks wait folded under it.
+assert.equal(await p2card.locator('.bulk-btn').innerText(), 'בוצע'); // p02.deal and p02.team are Lior's; Shirel removed in v3
+assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'בוצע: סימון 6 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
+assert.equal(await p2card.locator('details.chk-fold > summary').innerText(), 'רשימת הבדיקה (6)');
+assert.equal(await p2card.locator('details.chk-fold').getAttribute('open'), null);
 // A failed save marks nothing.
 failNextCheck = true;
 await p2card.locator('.bulk-btn').click();
@@ -278,7 +281,7 @@ await toastHas('הסימון של 6 הפריטים בוטל.');
 assert.deepEqual(db.protocol_checks.filter((c) => c.client_id === fresh.id).map((c) => c.item_key), ['p02.opened']);
 await page.waitForSelector('.wproc:has(.wclient:text("פיצה נאפולי")) .bulk-btn');
 // Process 3 has open items of Irit's, so it gets the button too.
-assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (3)'); // p03.scheduled waits for the characterizer and date
+assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').getAttribute('aria-label'), 'בוצע: סימון 3 פריטים כבוצעו בתהליך 3 · קביעת פגישת אפיון'); // p03.scheduled waits for the characterizer and date
 
 // ── §4 mark "waiting on the client" from my work ──
 const p3card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון")');

@@ -358,6 +358,7 @@ await step('Nadia starts with the logo "חסר": "למי לשלוח את הדי�
   await page.click(`${card}-go`);
   await page.waitForSelector('#dlg-start[open]');
   assert.equal(await page.locator('#start-to').isHidden(), true, 'nothing missing yet: no question');
+  await page.click('#start-some'); // one tick by default (3.11.2026): "משהו חסר?" opens the lines
   for (const i of [0, 1, 3]) await page.click(`label[for="start-${i}-yes"]`);
   await page.click('label[for="start-2-no"]'); // the logo
   await page.waitForSelector('#start-to:not([hidden])');
@@ -495,6 +496,7 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   await page.waitForSelector(`#${B_ID}-go`);
   await page.locator(`#${B_ID}-go`).tap();
   await page.waitForSelector('#dlg-start[open]');
+  await page.locator('#start-some').tap();
   for (const i of [0, 1, 3]) await page.locator(`label[for="start-${i}-yes"]`).tap();
   await page.locator('label[for="start-2-no"]').tap();
   await page.waitForSelector('#start-to:not([hidden])');

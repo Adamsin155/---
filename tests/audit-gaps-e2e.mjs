@@ -410,19 +410,20 @@ try {
     await shot(page, `6-editor-files-${width}`, c.locator('.ed-files'));
     await page.click(`#c-${EDIT}-go`);
     await page.waitForSelector('#dlg-ready[open]');
-    assert.equal(await page.locator('#ready-list .prod-check').count(), 10);
+    assert.equal(await page.locator('#ready-list li').count(), 10);
+    assert.equal(await page.locator('#dlg-ready input[type="checkbox"]').count(), 1, 'one tick (3.11.2026)');
     assert.equal(await text(page.locator('#ready-critical')), 'חמש הטעויות הקריטיות של העריכה');
-    const labels = await page.locator('#ready-list .prod-check').allInnerTexts();
+    const labels = await page.locator('#ready-list li').allInnerTexts();
     assert.deepEqual(labels.slice(5).map((s) => s.trim()), CRITICAL_MISTAKES.map(([, , l]) => l));
     await dialogFits(page, '#dlg-ready');
     await page.locator('#ready-critical').scrollIntoViewIfNeeded();
     await shot(page, `6-editor-ready-${width}`);
-    // Each is one tap, and all are required.
-    for (let i = 0; i < 9; i += 1) await page.click(`#ready-${i}`);
+    // All are read, and the one tick is required (3.11.2026); it marks every one of them.
     await page.fill('#ready-link', 'https://drive.google.com/drive/folders/noy');
     await page.click('#ready-submit');
-    assert.match(await text(page.locator('#ready-err')), /עוד לא סומן: ״הסרטונים יצאו רק בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים״/);
-    await page.click('#ready-9');
+    assert.match(await text(page.locator('#ready-err')), /עברתי על הכול, הכול תקין/);
+    for (const k of [...FIVE22, 'p24.notify']) assert.ok(!checkOf(db, EDIT, k), k);
+    await page.click('label[for="ready-all"]');
     await page.click('#ready-submit');
     await page.waitForSelector('#dlg-ready:not([open])', { state: 'attached' });
     for (const k of [...FIVE22, 'p22.edited', 'p24.notify']) assert.equal(checkOf(db, EDIT, k)?.state, 'done', k);
@@ -432,17 +433,17 @@ try {
   await both('7. Ofir\'s quality control: eleven checks, the five critical ones under their own line; one that fails is one tap in the return', async (width, db) => {
     const { page, ctx } = await signedIn('ofir', db, { path: `qa.html#review-${QA}-p25`, width, wait: '#dlg-qa[open]' });
     assert.equal(await text(page.locator('#qa-checks-legend')), '11 הבדיקות (סרטונים)');
-    assert.equal(await page.locator('#qa-checks input').count(), 11);
+    assert.equal(await page.locator('#qa-checks li').count(), 11);
+    assert.equal(await page.locator('#qa-checks input').count(), 1, 'one tick (3.11.2026)');
     assert.equal(await text(page.locator('#qa-critical')), 'חמש הטעויות הקריטיות של העריכה');
-    const labels = (await page.locator('#qa-checks label').allInnerTexts()).map((s) => s.trim());
+    const labels = (await page.locator('#qa-checks li').allInnerTexts()).map((s) => s.trim());
     assert.deepEqual(labels.slice(6), CRITICAL_MISTAKES.map(([, , , l]) => l));
     await dialogFits(page, '#dlg-qa');
     await page.locator('#qa-critical').scrollIntoViewIfNeeded();
     await shot(page, `7-ofir-qa-${width}`);
-    // Approval needs all eleven.
-    for (const i of [0, 1, 2, 3, 4, 5]) await page.locator('#qa-checks input').nth(i).check();
+    // Approval needs the one tick for all eleven.
     await page.click('#qa-approve');
-    assert.match(await text(page.locator('#qa-err')), /כדי לאשר צריך לסמן את כל 11 הבדיקות \(חסרות 5\)/);
+    assert.match(await text(page.locator('#qa-err')), /עברתי על הכול, הכול תקין/);
     // The sound fails: "החזרה לתיקון", one tap on the mistake, the video's number, send.
     await page.click('#qa-to-return');
     const chips = page.locator('#qa-mistakes .of-mistake');
@@ -466,19 +467,24 @@ try {
     await ctx.close();
   });
 
-  await both('8. Ilai: the final check is one card; "סימון הכול" ticks the 13, and then "העבודה שלי על הלקוח הושלמה"', async (width, db) => {
+  await both('8. Ilai: the final check is one card; one "בוצע" ticks the 13 (their list folded under it), and then "העבודה שלי על הלקוח הושלמה"', async (width, db) => {
     const { page, ctx } = await signedIn('ilai', db, { width });
     const c = card(page, FINAL, 'p29b');
     await c.waitFor();
     assert.match(await text(c), /אלון צמחים · רותי אלון.*29ב · בדיקה סופית של כל העבודה · 13 פריטים לסימון/);
     assert.match(await text(c.locator('.wc-when')), /מחר עד 18:00/);
     await shot(page, `8-ilai-card-${width}`, c);
-    await c.locator('.wc-open').click();
-    assert.equal(await c.locator('.wlist .witem').count(), 13);
+    // One button (3.11.2026): "בוצע" is the card's action, the 13 wait folded under it.
+    assert.equal(await c.locator('.wc-open').count(), 0);
     const all = c.locator('.bulk-btn');
-    assert.equal(await text(all), 'סימון הכול (13)');
-    await inside(page, all, 'סימון הכול');
-    if (width === 390) await tall(all, 'סימון הכול');
+    assert.equal(await text(all), 'בוצע');
+    assert.match(await all.getAttribute('aria-label'), /13 פריטים/);
+    assert.equal(await c.locator('details.chk-fold').getAttribute('open'), null);
+    assert.equal(await text(c.locator('details.chk-fold > summary')), 'רשימת הבדיקה (13)');
+    await c.locator('details.chk-fold > summary').click();
+    assert.equal(await c.locator('details.chk-fold .wlist .witem').count(), 13);
+    await inside(page, all, 'בוצע');
+    if (width === 390) await tall(all, 'בוצע');
     await noOverflow(page);
     await shot(page, `8-ilai-open-${width}`, c);
     await all.click();
