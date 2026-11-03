@@ -67,7 +67,8 @@ test('the files: the migration is the newest and refuses nothing, its writers bl
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
   assert.deepEqual([...sql.matchAll(/create\s+or\s+replace\s+function\s+([a-z_.]+)/gi)].map((m) => m[1]),
     ['public.staff_task_create_brief', 'public.is_office', 'private.task_gives_access', 'public.can_connect_metricool', 'public.can_edit_gantt', 'public.ofir_meetings', 'public.access_form_submit']);
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], [FILE, true]);
+  // Since 3.11.2026 the newest writers block is the folder's (20261124100000_p24_folder_editor.sql).
+  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261124100000_p24_folder_editor.sql', true]);
   const pending = readFileSync(PENDING, 'utf8');
   const taken = pending.replace(/--[^\n]*/g, '').match(/\b(drop|delete|truncate)\b[^\n]*/gi);
   const added = [...pending.matchAll(/add constraint ([a-z_]+)/g)].map((m) => m[1]);
