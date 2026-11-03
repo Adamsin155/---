@@ -231,6 +231,7 @@ async function cardB(engine, { width = 360, device = null, name }) {
   await page.locator(`#${C}-save`).click();
   await toastSays(page, /155 ₪ ליום/);
   assert.equal(checkOf(db, B, 'p30.live').note, '{"start":"2026-10-22","budget":155}');
+  if (!(await page.locator('#p30').count())) await page.locator('button.done-row', { hasText: '30' }).first().click(); // folded with the done ones
   await page.locator('#p30').scrollIntoViewIfNeeded();
   await shot(page.locator('#p30'), `card-campaign-saved-${name}`);
   await shot(page, `card-B-${name}`, { fullPage: true });
