@@ -389,11 +389,13 @@ test('the general 19:00 end of the sending hours does not hold these rings; afte
 
 test('Lior on a shoot day: "אופיר באיחור" goes to the owners at that moment; Lior hears after the shoot only if it is still open', () => {
   const { w, c } = afterMeeting();
-  // Another client is being shot today (Tuesday 6.10), and Eli marked "הגעתי": Lior is on the shoot.
+  // Another client is being shot today (Tuesday 6.10), and Lior turned the quiet mode on: he is on the shoot.
+  // (Until v12 Eli's "הגעתי" was enough; since Lior's shoot day left the protocol, only his own start is.)
   const s = client(w, { name: 'מצטלם', shoot_at: IL(2026, 10, 6, 10).toISOString(), char_at: IL(2026, 9, 20, 10).toISOString() });
   importTo(w, s, 'shoot');
   for (const id of ['p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21']) for (const i of PROCESSES.find((p) => p.id === id).items) delete w.checks[s.id][i.key];
   mark(w, s, 'p17b.arrived', IL(2026, 10, 6, 9, 30));
+  mark(w, s, 'p18.quiet', IL(2026, 10, 6, 9, 30));
   mark(w, c, 'p07.made', IL(2026, 10, 6, 11, 0));
   assert.equal(buildEnv({ ...w, now: IL(2026, 10, 6, 11, 15) }).liorShoot.active, true);
   const told = due(w, IL(2026, 10, 6, 11, 15)).filter((r) => r.rule === 'fast' && r.step === 'lior');
@@ -403,9 +405,9 @@ test('Lior on a shoot day: "אופיר באיחור" goes to the owners at that 
   assert.deepEqual([sent.person, sent.channel, sent.status], ['owner', 'push', 'sent']);
   // Ofir keeps getting his own rings meanwhile.
   assert.deepEqual(fastOf(due(w, IL(2026, 10, 6, 11, 25))).filter((x) => x.endsWith('@ofir')), ['again.1@ofir', 'late@ofir', 'now@ofir']);
-  // The shoot day is closed at 12:00 and the graphics are still not approved: Lior is told now.
+  // He takes the quiet mode off at 12:00 (nobody closes the day since v12) and the graphics are still not approved: Lior is told now.
   const log = told.map((r) => ({ key: r.key }));
-  marks(w, s, itemsOf('p19'), IL(2026, 10, 6, 12, 0));
+  delete w.checks[s.id]['p18.quiet'];
   const after = due(w, IL(2026, 10, 6, 12, 1), log).filter((r) => r.rule === 'fast' && r.step === 'lior');
   assert.deepEqual(after.map((r) => r.person), ['lior']);
   // Approved before the shoot ended: nothing more to anybody.
@@ -551,10 +553,10 @@ test('existing clients, case by case: what was sent or fully checked is not reop
   assert.equal(proc(f.w, f.c, 'p22a', now).complete, true);
   assert.deepEqual(fastOf(due(f.w, now)), []);
   // g. An assignment Lior had taken ("אני על זה") and not made yet: it is Ofir's now, on no ladder.
-  const g = shot(world(), { name: 'נלקח', protocol_version: 8 });
+  const g = shot(world(), { name: 'נלקח', protocol_version: 8, shoot_at: IL(2026, 10, 8, 10).toISOString() }); // (22א opens on the shoot day's evening since v12)
   closeDay(g.w, g.c, IL(2026, 10, 11, 9, 55));
   mark(g.w, g.c, 'p22a.claim', IL(2026, 10, 11, 9, 56), 'lior');
-  assert.deepEqual(mine(g.w, g.c, 'lior', now).filter((k) => k.startsWith('p22a.')), ['p22a.drive']);
+  assert.deepEqual(mine(g.w, g.c, 'lior', now).filter((k) => k.startsWith('p22a.')), []); // (his "the drive came back" left in v12)
   assert.ok(mine(g.w, g.c, 'ofir', now).includes('p22a.load'));
   assert.deepEqual(casesAt(g.w, now), []);
 });
@@ -623,7 +625,9 @@ test('performance: an assignment Lior took and closed before the change stays hi
   for (const k of ['p22a.drive', 'p22a.load', 'p22a.assigned', 'p22a.irit']) mark(w, c, k, IL(2026, 10, 5, 17, 5));
   const rep = performanceReport(w.clients, w.checks, { days: 30, now: IL(2026, 10, 11, 12) });
   const who = (p) => rep.people.find((x) => x.key === p)?.done || 0;
-  // 22א has no deadline since 30.10.2026, so it is not measured: what is left is Lior's shoot day (19).
+  // 22א has no deadline since 30.10.2026, so it is not measured; Lior's shoot day (19), which counted for
+  // him until v12, left the protocol: nothing of it is measured either.
   assert.equal(rep.processes.find((x) => x.key === 'p22a'), undefined);
-  assert.deepEqual([who('lior'), who('ofir')], [1, 0]);
+  assert.equal(rep.processes.find((x) => x.key === 'p19'), undefined);
+  assert.deepEqual([who('lior'), who('ofir')], [0, 0]);
 });

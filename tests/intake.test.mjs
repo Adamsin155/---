@@ -83,7 +83,7 @@ test('"the characterization ended": 4 required short fields, in plain Hebrew', (
   assert.deepEqual(endedChecks({ ...ok, has_logo: true }, { inVault: false }).map((x) => x.key), ['p05.access']);
 });
 
-test('"ended" starts the clocks of Ilai, Ofir (8) and Lior (10) at once, before the full form (decision 12)', () => {
+test('"ended" starts the clocks of Ilai and Ofir (8) at once, before the full form (decision 12); Lior\'s 10 left in v12', () => {
   const c = client({ char_at: IL(2026, 10, 6, 10).toISOString() });
   const base = imported('char');
   // The meeting ended at 11:20; only the tap, no form yet.
@@ -98,7 +98,7 @@ test('"ended" starts the clocks of Ilai, Ofir (8) and Lior (10) at once, before 
   const ilai = one(at, 'started', 'start', 'ilai');
   assert.match(ilai.body, /הכנת 9 גרפיקות ראשונות עד היום 13:20/);
   one(at, 'started', 'start', 'ofir');
-  one(at, 'started', 'start', 'lior');
+  none(at.filter((r) => r.person === 'lior'), 'started');
   // "האפיון הסתיים?" does not ring any more once it was tapped.
   none(due(world(c, checks), IL(2026, 10, 6, 12, 15)), 'char', 'end');
   // Without the tap, the old way still works: completing process 4 starts them.
@@ -387,12 +387,12 @@ test('the day-before check (15): 11:15 on the business day before; a Sunday shoo
   assert.equal(hhmm(checkAt(IL(2026, 10, 15, 11))), '14.10 11:15');
   assert.equal(hhmm(checkAt(IL(2026, 10, 18, 11))), '15.10 11:15'); // Sunday → Thursday
   assert.equal(hhmm(eveOf(IL(2026, 10, 18, 11))), '15.10 12:00');
-  // The reminder engine rings Irit at the same moment.
+  // The reminder engine no longer rings anybody for it: 15 (with Irit's check of it) left with Lior's
+  // shoot day in v12. The moments above stay for the client's message of the day before.
   const c = client({ shoot_at: IL(2026, 10, 18, 11).toISOString() });
   const checks = without(imported('shoot'), itemsOf('p15'));
   const w = world(c, checks);
-  none(due(w, IL(2026, 10, 15, 11, 14)), 'eve', '1115');
-  one(due(w, IL(2026, 10, 15, 11, 15)), 'eve', '1115', 'irit');
+  none(due(w, IL(2026, 10, 15, 11, 15)), 'eve');
 });
 
 test('the day-before check is prefilled: what the system knows is checked, Irit answers the rest, a failure goes to Lior', () => {

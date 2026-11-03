@@ -72,10 +72,10 @@ test('a case is fresh when its rule says so, or when its whole process is newer 
   assert.equal(freshCase({}, { proc: { items: [] } }), false);
   assert.equal(freshCase({}, {}), false); // task and cycle cases have no process
   assert.equal(freshCase({ fresh: () => true }, {}), true);
-  // Whole processes that came later: 12א and 22א (version 2), 17ב–19ב (version 4), 7ב and 23ב (version 6), 8ב (version 7), 5ב, 7א and the daily 14 (version 8), 29ב (version 10).
+  // Whole processes that came later: 22א (version 2), 17ב–19ב (version 4), 7ב and 23ב (version 6), 8ב (version 7), 5ב, 7א and the daily 14 (version 8), 29ב (version 10). (12א, version 2, left in v12.)
   const procs = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 1, created_at: '2026-09-01T07:00:00Z' });
   const whole = procs.filter((p) => freshCase({}, { proc: p })).map((p) => p.id);
-  assert.deepEqual(whole, ['p05b', 'p07a', 'p07b', 'p08b', 'p12a', 'p14', 'p17b', 'p18b', 'p19b', 'p22a', 'p23b', 'p29b']);
+  assert.deepEqual(whole, ['p05b', 'p07a', 'p07b', 'p08b', 'p14', 'p17b', 'p18b', 'p19b', 'p22a', 'p23b', 'p29b']);
   const v5 = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 5 });
   assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07a', 'p07b', 'p08b', 'p14', 'p23b', 'p29b']);
   // Only finalReady names its item; the rule list has no other `fresh`.
@@ -84,8 +84,10 @@ test('a case is fresh when its rule says so, or when its whole process is newer 
 
 test('the status page\'s approvals work for a client of any version and never mark an item the client started without', () => {
   // What approve_item / request_fix write (supabase/migrations/20260930170000_client_status.sql).
-  const APPROVE = ['p07.approved', 'p13.approved', 'p27.approved'];
-  const READY = ['p07.sent', 'p12.scripts', 'p12.docs', 'p23.sent', 'p26.sent'];
+  // (The scripts' approval, p13.approved, and what made them ready, p12.scripts and p12.docs, left the
+  // protocol in v12: the page may still write them, as history; they are asked of nobody.)
+  const APPROVE = ['p07.approved', 'p27.approved'];
+  const READY = ['p07.sent', 'p23.sent', 'p26.sent'];
   for (let v = 1; v <= LATEST; v += 1) {
     const procs = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: v, created_at: '2026-09-01T07:00:00Z' });
     const items = new Map(procs.flatMap((p) => p.items.map((i) => [i.key, i])));
@@ -93,8 +95,7 @@ test('the status page\'s approvals work for a client of any version and never ma
       assert.ok(items.has(k), `${k} in version ${v}`);
       assert.ok(!items.get(k).fresh, `${k} is not new for version ${v}`);
     }
-    // "Numbered" came with version 2: the database does not wait for it before (status_items).
-    assert.equal(!!items.get('p12.numbered').fresh, v < 2, `p12.numbered, version ${v}`);
+    for (const k of ['p13.approved', 'p12.scripts', 'p12.docs', 'p12.numbered']) assert.ok(!items.has(k), `${k} left in v12 (version ${v})`);
     // The videos' notes (a fix request) are optional: marking them never makes anything late or complete.
     assert.equal(items.get('p27.notes').optional, true);
     // p23.approved was the page's own mark on the rest of the graphics; since version 6 it is
