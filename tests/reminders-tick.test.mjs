@@ -143,7 +143,9 @@ test('first run on old data: nothing late is sent, it is recorded as stale', asy
   // every business morning (docs/ops.md, section 47). Nothing of the month before goes out.
   // Since 8.10.2026 (section 48) also ONE reminder of what she still holds late (today's 09:00
   // slot): on the first run after a deploy a person gets one such message, never one per item.
-  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title).sort(), ['עדיין באיחור: פיצה · 2 · פתיחת קבוצת WhatsApp', 'עוד אין מועד לפגישת האפיון: פיצה'].sort());
+  // (Until v12 Lior held 2 too and got his own "עדיין באיחור" about it; his items of 2 left the protocol.)
+  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title), ['עוד אין מועד לפגישת האפיון: פיצה']);
+  assert.deepEqual(sent.filter((s) => s.payload.title === '2 דברים באיחור אצלך').map((s) => s.endpoint), ['https://push.test/phone']);
   assert.ok(stats.stale >= 4);
   const today = (r) => r.key === 'meetingDate:c1:p03:d2026-10-05@irit';
   assert.ok(db.log.filter((r) => r.client_id === 'c1' && !today(r)).every((r) => r.status === 'suppressed' && r.reason === 'stale'));

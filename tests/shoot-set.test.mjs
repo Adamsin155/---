@@ -257,7 +257,7 @@ test('one shoot day, from the day it is set to its end: the list of what Eli get
   };
   at(IL(2026, 10, 12, 10)); // set
   mark('p16.brief', IL(2026, 10, 19, 16), JSON.stringify({ label: 'כונן 3', notes: '' }));
-  at(IL(2026, 10, 19, 17)); // the briefing, 17:00 the business day before
+  at(IL(2026, 10, 19, 17)); // (the briefing, 17:00 the business day before, left with 16 in v12)
   at(IL(2026, 10, 19, 20));
   at(IL(2026, 10, 20, 8, 30)); // the morning of the day: nothing of its own
   at(IL(2026, 10, 20, 9, 0)); // an hour before his arrival
@@ -265,11 +265,11 @@ test('one shoot day, from the day it is set to its end: the list of what Eli get
   at(IL(2026, 10, 20, 10, 45)); // 15 minutes before the influencers
   at(IL(2026, 10, 20, 16, 30)); // the expected end (5.5 hours)
   assert.deepEqual(got.map((g) => g.slice(0, 2)), [
-    ['shootSet.set', 'push'], ['briefing.eli', 'push'], ['shoot.eli2h', 'push'], ['shoot.eli15', 'push'], ['shoot.endEli', 'push'],
+    ['shootSet.set', 'push'], ['shoot.eli2h', 'push'], ['shoot.eli15', 'push'], ['shoot.endEli', 'push'],
   ]);
   const text = Object.fromEntries(got.map((g) => [g[0], `${g[2]} | ${g[3]}`]));
   assert.equal(text['shootSet.set'], 'נקבע יום צילום: מאפיית שי · ג׳ 20.10.2026 | ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · הנביאים 5, חיפה.');
-  assert.equal(text['briefing.eli'], 'תדריך לצילום מחר 11:00: מאפיית שי | ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · הנביאים 5, חיפה · כונן 3. ללחוץ "קיבלתי", לקרוא את התסריטים ולסמן "קראתי את התסריטים".');
+  assert.equal(text['briefing.eli'], undefined); // Lior's briefing (16) left the protocol in v12
   assert.equal(text['shoot.eli2h'], 'בעוד שעה ההגעה שלך לצילום: מאפיית שי | ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · הנביאים 5, חיפה.');
   assert.equal(text['shoot.eli15'], 'הבי־רול גמור? מאפיית שי | המשפיענים מגיעים בעוד 15 דקות. לענות כן או לא במסך יום הצילום.');
   assert.equal(text['shoot.endEli'], 'סיום יום הצילום: מאפיית שי | לסדר את הכונן ולמסור לליאור.');

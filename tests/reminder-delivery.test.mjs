@@ -284,7 +284,7 @@ test('lateness notes: not at night and not on Lior\'s shoot day; a digest of tha
   const w = office();
   w.clients[0].shoot_at = IL(2026, 10, 15, 11).toISOString();
   for (const k of Object.keys(w.checks.c1)) if (/^p1[79]b?\./.test(k)) delete w.checks.c1[k];
-  w.checks.c1['p17b.arrived'] = { state: 'done', at: IL(2026, 10, 15, 10, 5).toISOString(), note: null };
+  w.checks.c1['p18.quiet'] = { state: 'done', at: IL(2026, 10, 15, 10, 5).toISOString(), note: null }; // Lior's own start (v12)
   const before = lateNote('lior', IL(2026, 10, 15, 10));
   const env = envAt(IL(2026, 10, 15, 10, 30), w);
   assert.equal(env.liorShoot.active, true);
@@ -418,12 +418,13 @@ test('Lior\'s lists at 12:00 and 16:00 carry his queued escalations; none while 
   const shootWorld = office();
   shootWorld.clients[0].shoot_at = IL(2026, 10, 15, 11).toISOString();
   for (const k of Object.keys(shootWorld.checks.c1)) if (/^p1[79]b?\./.test(k)) delete shootWorld.checks.c1[k];
-  // The quiet mode is a recorded flag: Eli's "הגעתי" on the day starts it.
-  shootWorld.checks.c1['p17b.arrived'] = { state: 'done', at: IL(2026, 10, 15, 10, 5).toISOString(), note: null };
+  // The quiet mode is a recorded flag: Lior's own start on the day (v12; until then Eli's "הגעתי" too).
+  shootWorld.checks.c1['p18.quiet'] = { state: 'done', at: IL(2026, 10, 15, 10, 5).toISOString(), note: null };
   const held = [...log, row({ id: 77, person: 'lior', status: 'queued', channel: 'digest', level: 'ring', rule: 'deal', key: 'l2', reason: 'shoot_mode', title: 'עסקה חדשה בלי טיפול: בטא' })];
   const during = planDigests({ env: envAt(IL(2026, 10, 15, 12), shootWorld), log: held, active: new Set(['l1', 'l2']) });
   assert.deepEqual(during, []);
-  for (const k of importKeys('post').filter((x) => x.startsWith('p19.'))) shootWorld.checks.c1[k] = { state: 'done', at: IL(2026, 10, 15, 15).toISOString(), note: null };
+  // He turns it off (nobody closes the day since v12).
+  delete shootWorld.checks.c1['p18.quiet'];
   const after = planDigests({ env: envAt(IL(2026, 10, 15, 15, 30), shootWorld), log: held, active: new Set(['l1', 'l2']) });
   const summary = after.find((d) => d.kind === 'shoot');
   assert.equal(summary.title, 'סיכום אחרי יום הצילום');
@@ -507,8 +508,8 @@ test('Lior\'s shoot day never closed: no summary at midnight; the next morning\'
   const w = office();
   w.clients[0].shoot_at = IL(2026, 10, 14, 11).toISOString(); // Wednesday
   for (const k of Object.keys(w.checks.c1)) if (/^p1[79]b?\./.test(k)) delete w.checks.c1[k];
-  // The quiet mode is a recorded flag: Eli's "הגעתי" on the day starts it.
-  w.checks.c1['p17b.arrived'] = { state: 'done', at: IL(2026, 10, 14, 10, 5).toISOString(), note: null };
+  // The quiet mode is a recorded flag: Lior's own start on the day (v12; until then Eli's "הגעתי" too).
+  w.checks.c1['p18.quiet'] = { state: 'done', at: IL(2026, 10, 14, 10, 5).toISOString(), note: null };
   const held = [row({ id: 90, person: 'lior', status: 'queued', channel: 'digest', level: 'ring', rule: 'deal', key: 'h1', reason: 'shoot_mode', created_at: IL(2026, 10, 14, 12).toISOString(), title: 'עסקה חדשה בלי טיפול: בטא' })];
   assert.equal(buildEnv({ ...w, staff: STAFF, now: IL(2026, 10, 14, 23, 59) }).liorShoot.active, true);
   // 00:00: the shoot day is over, but it is the middle of the night.
@@ -517,8 +518,8 @@ test('Lior\'s shoot day never closed: no summary at midnight; the next morning\'
   const morning = planDigests({ env: envAt(IL(2026, 10, 15, 8, 30), w), log: held, active: new Set(['h1']) }).filter((d) => d.person === 'lior');
   assert.deepEqual(morning.map((d) => d.kind), ['morning']);
   assert.deepEqual(morning[0].include.map((r) => r.key), ['h1']);
-  // Closed at 21:00 on the shoot day itself: the summary goes out then (a shoot-day event).
-  for (const k of importKeys('post').filter((x) => x.startsWith('p19.'))) w.checks.c1[k] = { state: 'done', at: IL(2026, 10, 14, 21).toISOString(), note: null };
+  // Turned off at 21:00 on the shoot day itself: the summary goes out then (a shoot-day event).
+  delete w.checks.c1['p18.quiet'];
   assert.deepEqual(planDigests({ env: envAt(IL(2026, 10, 14, 21, 1), w), log: held, active: new Set(['h1']) }).map((d) => d.kind), ['shoot']);
 });
 
