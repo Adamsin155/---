@@ -1368,7 +1368,7 @@ function doneBox(x, items, idp = '') {
   d.addEventListener('toggle', () => { if (d.open) checksOpen.add(key); else checksOpen.delete(key); });
   return h('div', { class: 'wc-done cc-done' },
     h('button', {
-      type: 'button', class: 'btn btn-primary bulk-btn done-btn', id: btnId,
+      type: 'button', class: 'btn k-btn-navy bulk-btn done-btn', id: btnId,
       'aria-label': `בוצע: סימון ${items.length} פריטים כבוצעו בתהליך ${p.num} · ${p.title}`,
       onclick: () => markBulk(x, items, btnId),
     }, 'בוצע'),

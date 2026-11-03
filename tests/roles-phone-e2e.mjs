@@ -180,23 +180,25 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(db.protocol_checks.length, before + 1);
   assert.equal(fake.calls.at(-1).table, 'protocol_checks');
 
-  // A card of several items: the list opens with a tap, a mark keeps it open.
-  const openBtn = page.locator('#mine-list .wc-open').first();
-  const card = page.locator('#mine-list .wproc.wc', { has: page.locator('.wc-open') }).first();
-  const cardKey = await card.getAttribute('data-key');
+  // A card of several items (3.11.2026): one "בוצע", the rows folded under it in "רשימת
+  // הבדיקה"; a tap opens them, a mark keeps them open; "ממתין ללקוח" is in "פירוט".
+  const cardKey = await page.evaluate(() => [...document.querySelectorAll('#mine-list .wproc.wc')]
+    .find((c) => c.querySelectorAll('details.chk-fold .cbx').length >= 3)?.dataset.key);
+  assert.ok(cardKey, 'a card with a folded checklist of three or more');
   const sel = `#mine-list .wproc[data-key="${cardKey}"]`;
-  assert.equal(await openBtn.getAttribute('aria-expanded'), 'false');
-  assert.equal(await page.locator(`${sel} .wc-panel .cbx`).first().isVisible(), false);
-  await openBtn.click();
-  assert.equal(await page.getAttribute(`${sel} .wc-open`, 'aria-expanded'), 'true');
-  const boxes = await page.locator(`${sel} .wc-panel .cbx`).count();
-  assert.ok(boxes >= 2);
-  assert.ok(await page.locator(`${sel} .wc-panel .cbx`).first().isVisible());
+  assert.equal(await page.locator(`${sel} .wc-open`).count(), 0, 'no "הצגת הפריטים": "בוצע" is the action');
+  assert.ok((await page.locator(`${sel} .done-btn`).boundingBox()).height >= 44);
+  assert.equal(await page.locator(`${sel} details.chk-fold`).getAttribute('open'), null);
+  assert.equal(await page.locator(`${sel} .chk-fold .cbx`).first().isVisible(), false);
+  await page.locator(`${sel} details.chk-fold > summary`).click();
+  const boxes = await page.locator(`${sel} .chk-fold .cbx`).count();
+  assert.ok(await page.locator(`${sel} .chk-fold .cbx`).first().isVisible());
+  await page.locator(`${sel} .wc-more`).click();
   assert.ok(await page.locator(`${sel} .wc-panel button:has-text("ממתין ללקוח")`).isVisible(), '"ממתין ללקוח" is in the details');
-  await page.locator(`${sel} .wc-panel .cbx`).first().click();
-  await page.waitForFunction(([s, n]) => document.querySelectorAll(`${s} .wc-panel .cbx`).length === n - 1, [sel, boxes]);
-  assert.equal(await page.getAttribute(`${sel} .wc-open`, 'aria-expanded'), 'true', 'the list stayed open after a mark');
-  assert.ok(await page.locator(`${sel} .wc-panel .cbx`).first().isVisible());
+  await page.locator(`${sel} .chk-fold .cbx`).first().click();
+  await page.waitForFunction(([s, n]) => document.querySelectorAll(`${s} .chk-fold .cbx`).length === n - 1, [sel, boxes]);
+  assert.equal(await page.locator(`${sel} details.chk-fold`).getAttribute('open'), '', 'the list stayed open after a mark');
+  assert.ok(await page.locator(`${sel} .chk-fold .cbx`).first().isVisible());
   await shot(page, 'irit-02-card-open');
 
   // (The late group's "הצג עוד" is gone with its cards: a long "באיחור" is one line to the tab,

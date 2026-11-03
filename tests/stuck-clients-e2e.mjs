@@ -96,9 +96,10 @@ try {
     const box = await c.locator('.wneed button').boundingBox();
     assert.ok(box.height >= 44, `the button is ${box.height}px high`);
     // The three items the card shows are ticked; "the meeting was set" was never offered as a tick.
-    await c.locator('button.wc-open').click();
+    // Three of hers: one "בוצע" (3.11.2026); here they are ticked one by one from its fold.
+    await c.locator('details.chk-fold > summary').click();
     assert.equal(await c.locator('.cbx').count(), 3);
-    for (let i = 0; i < 3; i += 1) { await card(page, NEW).locator('.cbx').first().check(); await settle(page); }
+    for (let i = 0; i < 3; i += 1) { await card(page, NEW).locator('.cbx:visible').first().check(); await settle(page); }
     assert.deepEqual(db.protocol_checks.filter((r) => r.client_id === NEW && r.item_key.startsWith('p03.')).map((r) => r.item_key).sort(), ['p03.available', 'p03.calendar', 'p03.who']);
     assert.equal(await card(page, NEW).count(), 1, 'the card left the list with no meeting date');
     assert.equal(await card(page, NEW).locator('.cbx').count(), 0);

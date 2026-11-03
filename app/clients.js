@@ -741,7 +741,7 @@ const checksOpen = new Set(); // cards whose "רשימת הבדיקה" is open: 
 const oneButton = (g, bulk) => !!bulk && !isAccessCard(g);
 function doneButton(g, bulk) {
   return h('button', {
-    type: 'button', class: 'btn btn-primary bulk-btn done-btn',
+    type: 'button', class: 'btn k-btn-navy bulk-btn done-btn',
     'aria-label': `בוצע: סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
     onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
   }, 'בוצע');

@@ -232,7 +232,7 @@ await page.goto(`${BASE}clients.html`);
 await page.fill('#lg-email', USER.email);
 await page.fill('#lg-pass', 'correct-horse');
 await page.click('#lg-submit');
-await page.waitForSelector('#view-mine:not([hidden]) .witem');
+await page.waitForSelector('#view-mine:not([hidden]) .wproc'); // (rows may wait folded under "בוצע", 3.11.2026)
 assert.equal(await page.evaluate(() => window.__asked), 0, 'no permission request on load');
 
 // ── §10 auto-opened client: banner, short tag; cancelled client is gone ──
