@@ -252,17 +252,18 @@ test('a notice of delay: on the promised date, or a business day before it when 
 
   // The shoot day (ה4), for a client that started before v6: three business days from
   // the meeting on Monday 12.10 → Thursday 15.10. The scripts (ה5) have the same date;
-  // the content call was due Tuesday 13.10 and is late. (11 still open: not imported.)
+  // the content call (12א) left the protocol in v12, so on Wednesday the office is not behind:
+  // the notices follow the daily message. (11 still open: not imported.)
   const v5 = { ...base, protocol_version: 5 };
   const content = Object.fromEntries(Object.entries(imported(base, 'content')).filter(([k]) => !/^p11b?\./.test(k)));
   const wed = suggest(v5, content, [], '2026-10-14T10:00:00+03:00');
-  assert.deepEqual(kinds(wed), ['delay:p12', 'daily:daily.content', 'delay:p11']);
-  assert.equal(wed.options[0].vars['תאריך'], 'יום ה׳ 15.10');
+  assert.deepEqual(kinds(wed), ['daily:daily.content', 'delay:p11', 'delay:p12']);
+  assert.equal(wed.options.find((o) => o.ref === 'p12').vars['תאריך'], 'יום ה׳ 15.10');
   // Since v6 the shoot day is Irit's own target (the business day after the group): no notice to the client.
-  assert.deepEqual(kinds(suggest(base, content, [], '2026-10-14T10:00:00+03:00')), ['delay:p12', 'daily:daily.content']);
+  assert.deepEqual(kinds(suggest(base, content, [], '2026-10-14T10:00:00+03:00')), ['daily:daily.content', 'delay:p12']);
   // Everyone confirmed the date but the client: the date is theirs to approve.
   const oks = ['p11.influencers', 'p11.ok.influencers', 'p11.ok.lior', 'p11.ok.photographer'].reduce((a, k) => ({ ...a, ...item(k, '2026-10-13T12:00:00+03:00') }), {});
-  assert.deepEqual(kinds(suggest(v5, { ...content, ...oks }, [], '2026-10-14T10:00:00+03:00')), ['delay:p12', 'daily:daily.content']);
+  assert.deepEqual(kinds(suggest(v5, { ...content, ...oks }, [], '2026-10-14T10:00:00+03:00')), ['daily:daily.content', 'delay:p12']);
   // Without the photographer's confirmation, it is still ours.
   const { 'p11.ok.photographer': _, ...noPhotographer } = oks;
   assert.ok(suggest(v5, { ...content, ...noPhotographer }, [], '2026-10-14T10:00:00+03:00').options.some((o) => o.ref === 'p11'));
@@ -309,12 +310,13 @@ test('the daily message follows the client\'s station, also for an imported clie
     const checks = imported(ahead, st.key);
     assert.equal(stationOf(ahead, clientState(ahead, checks, at(now)), at(now)), i, st.key);
   });
-  // The shoot day itself is still the shoot station; once the day is closed, editing.
+  // The shoot day itself is still the shoot station; from its evening (22א opens at 18:00, v12:
+  // nobody closes the day), editing.
   const shot = { ...base, shoot_at: '2026-10-13T08:00:00+03:00' };
   const onTheDay = imported(shot, 'shoot');
   assert.equal(STATIONS[stationOf(shot, clientState(shot, onTheDay, at(now)), at(now))].key, 'shoot');
-  const closed = { ...onTheDay, ...done(shot, ['p19'], '2026-10-13T09:30:00+03:00') };
-  assert.equal(STATIONS[stationOf(shot, clientState(shot, closed, at(now)), at(now))].key, 'post');
+  const evening = at('2026-10-13T18:30:00+03:00');
+  assert.equal(STATIONS[stationOf(shot, clientState(shot, onTheDay, evening), evening)].key, 'post');
 
   const c = { ...base, shoot_at: '2026-10-06T11:00:00+03:00', char_at: '2026-09-29T10:00:00+03:00' };
   const post = suggest(c, imported(c, 'post'), [], now);
@@ -361,26 +363,28 @@ test('a promised date that already passed is never repeated: videos sent late le
   assert.equal(s.options[0].vars['תאריך'], undefined);
   assert.deepEqual(unfilledIn(messageText(s.options[0], T)), ['{תאריך}']);
   assert.equal(s.options[0].reason, 'הסרטונים נשלחו ללקוח היום. מועד הסגירה שהבטחנו (יום ג׳ 13.10) כבר עבר: כותבים מועד חדש');
-  // The shoot day closed in the card only after the promised date: the thanks too.
-  const thanks = { ...imported(c, 'shoot'), ...done(c, ['p19'], '2026-10-14T09:00:00+03:00') };
-  const t = suggest(c, thanks, [], '2026-10-14T11:00:00+03:00');
+  // (Until v12 a shoot day closed in the card after the promised date brought a late thanks without a
+  // date. Nobody closes the day now: the thanks is the business day after the shoot, 7.10, with its date.)
+  const t = suggest(c, imported(c, 'shoot'), [], '2026-10-07T11:00:00+03:00');
   assert.equal(t.options[0].key, 'thanks');
-  assert.deepEqual(unfilledIn(messageText(t.options[0], T)), ['{תאריך}']);
-  assert.match(t.options[0].reason, /^יום הצילום הסתיים\. מועד הסגירה שהבטחנו \(יום ג׳ 13\.10\) כבר עבר/);
+  assert.deepEqual(unfilledIn(messageText(t.options[0], T)), []);
+  assert.ok(!suggest(c, imported(c, 'shoot'), [], '2026-10-14T11:00:00+03:00').options.some((o) => o.key === 'thanks'));
 });
 
-test('the shoot day passed but is not closed in the card: no "the shoot day is coming"', () => {
+test('the shoot day passed: no "the shoot day is coming"; from its evening, editing (v12: nobody closes the day)', () => {
   const c = { ...base, shoot_at: '2026-10-13T11:00:00+03:00' };
   const checks = imported(c, 'shoot');
-  // On the day itself, the shoot station's message (and, since the station began the day
-  // before with the reminders of 15, the station-change message).
-  assert.deepEqual(kinds(suggest(c, checks, [], '2026-10-13T08:00:00+03:00')), ['milestone:station.shoot', 'daily:daily.shoot']);
-  // The next day, with process 19 still open: editing's message, and a word to close 19.
+  // On the day itself, the shoot station's message (until v12 the station began the day before, with
+  // the reminders of 15, and brought a station-change message too).
+  assert.deepEqual(kinds(suggest(c, checks, [], '2026-10-13T08:00:00+03:00')), ['daily:daily.shoot']);
+  // The next day: editing (22א opened at 18:00 of the shoot day), its station-change message and its
+  // daily message with the date promised.
   const s = suggest(c, checks, [], '2026-10-14T10:00:00+03:00');
-  assert.equal(STATIONS[s.station].key, 'shoot');
-  assert.deepEqual(kinds(s), ['milestone:station.shoot', 'daily:daily.post']);
-  assert.equal(messageText(s.options[1], T), 'היי דנה, הסרטונים שלכם בעריכה. נשלח לכם אותם לאישור, והכול יהיה סגור עד יום ג׳ 20.10.');
-  assert.match(s.options[1].reason, /יום הצילום היה אתמול ועוד לא נסגר בכרטיס \(תהליך 19\)/);
+  assert.equal(STATIONS[s.station].key, 'post');
+  assert.ok(!s.options.some((o) => /shoot/.test(o.key || '') && o.kind === 'daily'));
+  const daily = s.options.find((o) => o.kind === 'daily');
+  assert.equal(messageText(daily, T), 'היי דנה, הסרטונים שלכם בעריכה. נשלח לכם אותם לאישור, והכול יהיה סגור עד יום ג׳ 20.10.');
+  assert.doesNotMatch(daily.reason, /תהליך 19/);
   // A week and more later, past the promised date too: without a date.
   const late = suggest(c, checks, [], '2026-10-21T10:00:00+03:00');
   assert.deepEqual(kinds(late), ['daily:daily.post_nodate']);
