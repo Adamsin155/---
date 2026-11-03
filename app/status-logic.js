@@ -183,7 +183,7 @@ export function nextMilestones(data, now = new Date(), max = 3) {
     // v6: the shoot day is set by the end of the business day after the group was opened.
     const group = x.at('p02.opened');
     if (!shootAt && (group || charAt)) add('shootSet', 'קביעת יום הצילום', 'ה4', group ? addBusinessDays(group, 1) : addBusinessDays(charAt, 3));
-    if (charAt && !x.done('p13.approved') && !x.done('p19.all')) add('scripts', 'התסריטים ליום הצילום, לאישורך', 'ה5', addBusinessDays(charAt, 3));
+    if (charAt && !x.done('p13.approved') && !x.done('p13.zoom') && !x.done('p19.all')) add('scripts', 'התסריטים ליום הצילום, לאישורך', 'ה5', addBusinessDays(charAt, 3));
   }
   if (shootAt) add('shoot', r ? `יום הצילום (סבב ${r.n})` : 'יום הצילום', 'ה7', shootAt, true);
   if (shootAt && !x.done('p27.approved') && !x.done('p27.final')) add('videos', 'הסרטונים סגורים, כולל סבב תיקונים', 'ה8', promisedClosing(shootAt));

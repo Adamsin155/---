@@ -1101,7 +1101,7 @@ export const RULES = [
     },
     steps: [
       { id: 'lior', to: 'lior', level: 'ring', title: (i) => `קבוצה חדשה נפתחה: ${i.name}`, body: () => 'הודעת היכרות (עם עירית), בדיקת עסקה חריגה, והלקוח יודע מי מטפל בו.' },
-      { id: 'board', officeMinutes: 60, to: OWNER, level: 'board', overdue: true, when: (i) => !i.resolved('p02.intro'), title: (i) => `הודעת היכרות לא נשלחה שעה: ${i.name}`, body: () => 'באחריות ליאור ועירית.' },
+      { id: 'board', officeMinutes: 60, to: OWNER, level: 'board', overdue: true, when: (i) => !i.resolved('p02.intro'), title: (i) => `הודעת היכרות לא נשלחה שעה: ${i.name}`, body: () => 'באחריות עירית.' },
     ],
   },
 
@@ -1188,12 +1188,13 @@ export const RULES = [
     ],
   },
 
-  // 19ב: Eli may format the cards once his list is done and Lior confirmed the drive (quiet).
+  // 19ב: Eli may format the cards once his list is done (quiet). Until v12 it also waited for Lior's
+  // confirmation that the drive came back (p19.took), which left the protocol with the rest of 19.
   {
     id: 'cards', event: 'אפשר לפרמט כרטיסים', procs: ['p19b'],
     instances(env) {
-      return casesOf(env, 'p19b', (i) => i.s.complete && !!i.finishedAt('p19b') && !!i.doneAt('p19.took'))
-        .map((i) => ({ ...i, id: i.proc.id, label: briefingOf(i.checks, i.pre)?.label || noteOf(i.check('p17b.drive')), url: SHOOT_URL(i.cid), anchors: { event: new Date(Math.max(i.finishedAt('p19b'), i.doneAt('p19.took'))) } }));
+      return casesOf(env, 'p19b', (i) => i.s.complete && !!i.finishedAt('p19b'))
+        .map((i) => ({ ...i, id: i.proc.id, label: briefingOf(i.checks, i.pre)?.label || noteOf(i.check('p17b.drive')), url: SHOOT_URL(i.cid), anchors: { event: i.finishedAt('p19b') } }));
     },
     steps: [
       { id: 'eli', to: 'eli', level: 'quiet', title: (i) => `אפשר לפרמט את הכרטיסים של ${i.name}${i.label ? `, ${driveName(i.label)}` : ''}`, body: () => 'הכונן אצל ליאור והחומר נבדק.' },

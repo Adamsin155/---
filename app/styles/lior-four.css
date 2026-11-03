@@ -1,0 +1,30 @@
+/* Lior's three forms in the client card (protocol v12; docs/ops.md, section 92): the campaign's
+   details (30), the pre-shoot form (36, "11ג") and the scripts' Google Docs link (12). One small
+   box each, inside its process card: fields of 44px, 16px text (no zoom on iPhone), on a phone
+   one field per line. app/lior-four-ui.js draws them. */
+.lf-box { margin: 10px 0 12px; padding: 12px 14px; border: 1px solid var(--ds-line, var(--line)); border-radius: var(--ds-r-item, 12px); background: var(--ds-surface, var(--panel)); }
+.lf-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--ds-ink, var(--text)); }
+.lf-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; align-items: start; }
+.lf-field { margin: 0; min-width: 0; }
+.lf-field .input, .lf-box select.input { width: 100%; min-height: 44px; font-size: 16px; box-sizing: border-box; }
+.lf-field input[type='date'], .lf-field input[type='datetime-local'] { min-width: 0; }
+.lf-hint { margin: 4px 0 0; font-size: 13px; }
+.lf-fieldset { border: 0; margin: 10px 0; padding: 0; min-inline-size: 0; }
+.lf-fieldset legend { padding: 0; margin-bottom: 6px; font-size: 13.5px; font-weight: 500; color: var(--text-2); }
+.lf-radios { display: flex; flex-wrap: wrap; gap: 8px; }
+.lf-radio { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); font-weight: 600; cursor: pointer; }
+.lf-radio input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--accent); }
+.lf-radio:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.lf-err { margin: 8px 0 0; }
+.lf-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 10px; }
+.lf-acts .btn { min-height: 44px; }
+.lf-acts .btn-text, .lf-saved .btn-text { min-height: 44px; }
+.lf-saved { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.lf-saved-t { flex: 1 1 200px; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.lf-saved .plink { margin: 0; }
+@media (max-width: 560px) {
+  .lf-row { grid-template-columns: minmax(0, 1fr); }
+  .lf-acts .btn { flex: 1 1 auto; }
+}
+@media print { .lf-acts, .lf-saved .btn-text { display: none; } }
+.lf-box [hidden] { display: none !important; }

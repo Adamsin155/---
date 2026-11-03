@@ -10,7 +10,7 @@
 import { DELIVERABLES } from './protocol.js';
 import { TIERS, INFLUENCERS, PAID_ADDONS } from './catalog.js';
 import { emptySelection, reconcile, validateSelection } from './pricing.js';
-import { performanceReport } from './protocol-logic.js';
+import { performanceReport, shootHeld } from './protocol-logic.js';
 import { deliverablesPace, shootContexts } from './health.js';
 import { daysBetweenIL } from './tz.js';
 import { monthOf, cycleFrom, monthState } from './year-logic.js';
@@ -46,7 +46,7 @@ export function resultsSummary(client, state, checks = {}, { marks = {}, surveys
   }
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
   const shoots = shootContexts(client);
-  const held = shoots.filter((x) => byId.get(`${x.pid}p19`)?.complete).length;
+  const held = shoots.filter((x) => shootHeld(x, checks, now)).length; // v12: shootHeld (19 left the protocol)
   const planned = Math.max(Number(client.deliverables?.shoot_days) || 0, shoots.length);
   if (planned) lines.push({ key: 'shoots', label: 'ימי צילום', text: `${held} מתוך ${planned}`, warn: false });
   const since = Math.max(1, daysBetweenIL(new Date(client.deal_at || now), now) + 1);

@@ -7,14 +7,15 @@
 //
 // Where a shoot day lives (no table of its own): the first one is clients.shoot_at, and
 // every further one is an entry of clients.rounds, { n, shoot_at, … } (a shoot round,
-// app/protocol-logic.js roundContext). A shoot day TOOK PLACE when its process 19
-// ("סיום יום צילום": p19.*, or r<n>.p19.* for round n) is complete, exactly as the
-// contract summary counts "ימי צילום" (app/contract-summary.js). A client brought in
-// mid-way from the old CRM carries the same thing: its past shoot dates in shoot_at and
-// rounds[].shoot_at, and those p19 items checked with the note "ייבוא" (the import by
-// station does it for every station after "יום צילום").
+// app/protocol-logic.js roundContext). A shoot day TOOK PLACE (protocol v12, shootHeld in
+// app/protocol-logic.js) when its date is behind today, or a mark says so: an old closing of
+// process 19 ("סיום יום צילום", Lior's until v12; r<n>.p19.* for round n), Eli's handing over
+// of the drive, or an editor assigned. The contract summary counts "ימי צילום" the same way
+// (app/contract-summary.js). A client brought in mid-way from the old CRM carries its past
+// shoot dates in shoot_at and rounds[].shoot_at, and the p19 items checked with the note
+// "ייבוא" (the import by station does it for every station after "יום צילום").
 import { PEOPLE, editorNames, shootTypeName } from './protocol.js';
-import { clientState, parseDate, isImported, inLanding } from './protocol-logic.js';
+import { parseDate, inLanding, shootHeld } from './protocol-logic.js';
 import { shootContexts } from './health.js';
 import { sortRows, filterRows, dayText } from './manager-table.js';
 import { dayKeyIL, daysBetweenIL } from './tz.js';
@@ -30,10 +31,10 @@ const count = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number
 //   agreed   how many shoot days the contract grants (deliverables.shoot_days + photo_days)
 //   held     how many took place: the closed ones (also without a date), or the card's
 //            counter "נמסרו" when it is higher (deliverables.done.shoot_days), as the contract summary
-//   unclosed dates that passed while their shoot day was never closed (process 19 open)
+//   unclosed dates that passed while their shoot day was never closed: none since v12 (a passed
+//            date is a shoot that took place); a client in landing never had any
+// `state` is no longer read (v12); it stays in the signature for the callers.
 export function shootHistory(client, checks = {}, now = new Date(), state = null) {
-  const st = state || clientState(client, checks, now);
-  const byId = new Map(st.states.map((s) => [s.proc.id, s]));
   const today = dayKeyIL(now);
   const done = [];
   const unclosed = [];
@@ -41,12 +42,12 @@ export function shootHistory(client, checks = {}, now = new Date(), state = null
   let next = null;
   for (const x of shootContexts(client)) {
     const at = parseDate(x.ctx.shoot_at);
-    const p19 = byId.get(`${x.pid}p19`);
-    if (p19?.complete) {
-      // Its date is the shoot's own; closed with no date (or a date still ahead), the day
-      // it was closed on, unless the closing itself is imported history (no real moment).
-      const when = at && dayKeyIL(at) <= today ? at : isImported(p19.proc, checks) ? null : p19.completedAt || null;
-      if (when) done.push(when); else undated += 1;
+    // v12: a shoot day took place once its date is behind today, or a mark says so (shootHeld:
+    // an old closing of 19, Eli's handing over, an editor assigned). Nobody closes the day any
+    // more, so a passed date is never "not closed".
+    const held = shootHeld(x, checks, now);
+    if (held) {
+      if (held.at) done.push(held.at); else undated += 1;
     } else if (at && dayKeyIL(at) >= today) {
       if (!next || at < next) next = at;
     } else if (at && !inLanding(client)) unclosed.push(at); // in landing a past shoot day is not "not closed"
