@@ -417,6 +417,10 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
   const { page } = nirel;
   await signIn(page, `client.html?id=${N_ID}#p22`, 'nirel');
   const row = 'i-p22-check-logo';
+  // Her items of 22 are one "בוצע" (3.11.2026); their rows, with "לא התקבל", fold under it.
+  await page.waitForSelector('#p22 .done-btn');
+  assert.equal(await page.locator(`#${row}-notgot`).isVisible(), false, 'folded under "בוצע"');
+  await page.click('#p22 details.chk-fold > summary');
   await page.waitForSelector(`#${row}-notgot`);
   await loginGone(page);
   // Only the four start checks have it.
@@ -519,6 +523,10 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   page = await ctx2.newPage();
   page.on('pageerror', (e) => errors.push(`webkit: ${e}`));
   await signIn(page, `client.html?id=${B.id}#p22`, 'yariv');
+  // The row is in "רשימת הבדיקה" under "בוצע" (3.11.2026): a real tap opens it.
+  await page.waitForSelector('#p22 .done-btn');
+  assert.ok((await page.locator('#p22 .done-btn').boundingBox()).height >= 44);
+  await page.locator('#p22 details.chk-fold > summary').tap();
   await page.waitForSelector('#i-p22-check-logo-notgot');
   await loginGone(page);
   assert.equal(await page.locator('#i-p22-check-logo-notgot').innerText(), 'לשלוח שוב');

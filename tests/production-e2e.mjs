@@ -414,6 +414,11 @@ await step('(1) the drive arrived: the four lines and one tick; "משהו חסר
   await page.click('label[for="start-all"]');
   assert.equal(await page.locator('#start-submit').isDisabled(), true);
   await phone390(page, 'editor-start-one-tick-390');
+  if (OUT) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `${OUT}/editor-start-one-tick-1280.png` });
+    await page.setViewportSize({ width: 360, height: 780 });
+  }
   await page.click('#start-some');
   await page.waitForSelector('#start-detail:not([hidden])');
   assert.equal(await page.locator('#start-simple').isHidden(), true);
@@ -544,6 +549,14 @@ await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofi
   assert.equal(await text(page, '#ready-critical'), 'חמש הטעויות הקריטיות של העריכה');
   assert.match(await text(page, '#ready-list'), /Dropbox/);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ready-all');
+  assert.ok(await height(page, 'label[for="ready-all"]') >= 44);
+  assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
+  await phone390(page, 'editor-ready-one-tick-390');
+  if (OUT) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `${OUT}/editor-ready-one-tick-1280.png` });
+    await page.setViewportSize({ width: 360, height: 780 });
+  }
   await page.click('#ready-submit');
   assert.match(await text(page, '#ready-err'), /עברתי על הכול, הכול תקין/);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ready-all');

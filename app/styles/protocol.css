@@ -437,8 +437,7 @@ details.cal[open] > summary { text-decoration: underline; }
 }
 .chk-fold[open] > summary::before { transform: rotate(135deg) translate(-1px, 1px); }
 .chk-fold > summary:focus-visible { outline: 2px solid var(--ds-navy, var(--navy)); outline-offset: 2px; }
-.chk-fold > .wlist, .chk-fold > .items { margin-top: 4px; }
-@media (min-width: 761px) { .bulk-btn.done-btn { inline-size: auto; min-inline-size: 220px; justify-self: start; } }
+.chk-fold > .wlist, .chk-fold > .items { margin: 4px 0 0; padding: 0; list-style: none; }
 .plink { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 14px; min-height: 32px; }
 .plink::after { content: '↗'; font-size: 12px; }
 
