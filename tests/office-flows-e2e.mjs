@@ -894,7 +894,9 @@ await step('Thursday: the pass (Irit: עברתי, one tap for the rest, the day\
   assert.match(await o.locator('#ps-list .ps-age').first().innerText(), /(פתוח|באיחור|ממתין ללקוח) .*ימי עסקים|יום עסקים אחד|אין פעילות/);
   await shot(o, 'office-06a-pass-stuck');
   // (1) A written reason: a dot is not one.
-  const s1 = stuckIds.find((id) => kinds[id] !== 'own');
+  // (Not a row of the first group: that group's update to Lior is step (2), on its open rows.)
+  const firstGroupRows = groups[0] ? await o.locator(`#${groups[0]} .ps-row`).evaluateAll((els) => els.map((e) => e.id)) : [];
+  const s1 = stuckIds.find((id) => kinds[id] !== 'own' && !firstGroupRows.includes(id)) || stuckIds.find((id) => kinds[id] !== 'own');
   await o.click(`#${s1}-why-open`);
   await o.waitForSelector(`#${s1}-why-text`);
   assert.equal(await o.evaluate(() => document.activeElement.id), `${s1}-why-text`);
