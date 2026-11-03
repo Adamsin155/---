@@ -52,6 +52,9 @@ export const canBuildQuote = (v) => isOwnerView(v) || (known(v) && QUOTE_BUILDER
 // screen is her work (8.10.2026). Nobody else's side of them changed.
 export const NOT_ON_OFFICE_QUEUES = ['irit'];
 export const canSeeOfficeQueues = (v) => known(v) && v.scope === 'office' && !NOT_ON_OFFICE_QUEUES.includes(v.me);
+// "בקרה ושיוך": since 3.11.2026 Irit too (the owner: "עירית לא רואה אצלה את בקרה ושיוך").
+export const QA_EXTRA = ['irit'];
+export const canSeeQa = (v) => canSeeOfficeQueues(v) || (known(v) && v.scope === 'office' && QA_EXTRA.includes(v.me));
 export const canSeeTable =(v) => isOwnerView(v) || (known(v) && TABLE_VIEWERS.includes(v.me));
 // The shoot-day table (owner.html#shoots, app/shoot-table.js): read-only, no prices in it.
 export const canSeeShootTable = (v) => isOwnerView(v) || (known(v) && SHOOT_TABLE_VIEWERS.includes(v.me));

@@ -40,7 +40,7 @@ import { refreshQuestions } from './questions-ui.js';
 import { officeLinks, markFirstLanded, navLink } from './office-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { emptyItem, dress, dateLeaf, iconSquare } from './kit.js';
-import { canSeeOfficeQueues } from './manager-rules.js';
+import { canSeeQa } from './manager-rules.js';
 import { inputValueIL, fromInputIL, TZ } from './tz.js';
 import { mountWorkFiles, forgetFiles } from './files-ui.js';
 import { loadIntake } from './landing-data.js';
@@ -627,8 +627,8 @@ mountSession(async (staff) => {
   viewer = v;
   me = v.me;
   markFirstLanded();
-  // Lior's and Ofir's screens, and the owners': not Irit's (canSeeOfficeQueues, 8.10.2026).
-  if (!canSeeOfficeQueues(v)) { $('no-access').hidden = false; return; }
+  // Lior's and Ofir's screen, the owners', and since 3.11.2026 Irit's (canSeeQa).
+  if (!canSeeQa(v)) { $('no-access').hidden = false; return; }
   $('of-page').hidden = false;
   $('head-actions').prepend(...officeLinks(v, 'qa.html'));
   // "חוזים חריגים לאישור": Ofir's first screen.

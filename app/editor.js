@@ -120,8 +120,11 @@ async function load() {
 function allJobs() {
   return clients.flatMap((c) => P.editingCases(c, cs(c), me, stateOf(c)));
 }
+// What waits for the editor first, by its deadline; what already left them (with Ofir, the client or
+// Ilai) after it (the owner, 3.11.2026: "משימות שכבר עורך ביצע שירדו למטה").
+const withOthers = (j) => ['qa', 'client', 'ilai'].includes(j.st.key);
 const openJobs = () => allJobs().map((j) => ({ ...j, st: P.editorState(j, cs(j.client)) })).filter((j) => j.st.key !== 'done')
-  .sort((a, b) => (a.p24?.dueAt || Infinity) - (b.p24?.dueAt || Infinity));
+  .sort((a, b) => (withOthers(a) - withOthers(b)) || ((a.p24?.dueAt || Infinity) - (b.p24?.dueAt || Infinity)));
 
 // A block ended from the client card (its wait on 22 ended there): the waits it put
 // on 24 and 27 end too, and the report is cleared. (A report made while the editing goes
@@ -948,7 +951,8 @@ $('ready-form').addEventListener('submit', async (e) => {
   $('ready-submit').disabled = true;
   try {
     // The four checks of the start are true by now; the notice to Ofir goes last.
-    await markMany(job, [...P.START_CHECKS.map(([k]) => k), ...P.readyKeys(P.needsDropbox(job.client)).filter((k) => !['p24.notify', 'p24.drive'].includes(k))]);
+    // The folder (24) is the editor's since 3.11.2026: the link pasted here is that folder.
+    await markMany(job, [...P.START_CHECKS.map(([k]) => k), 'p24.folder', ...P.readyKeys(P.needsDropbox(job.client)).filter((k) => !['p24.notify', 'p24.drive', 'p24.folder'].includes(k))]);
     // "הכול בדרייב" carries the folder's link (written again when it changed).
     await markOne(job, 'p24.drive', link || null);
     await markOne(job, 'p24.notify', 'מוכן לבדיקה');

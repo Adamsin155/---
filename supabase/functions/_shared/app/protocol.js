@@ -358,7 +358,7 @@ export const NO_BULK = new Set(['p18', 'p19', 'p21', 'p25', 'p31']);
 // address it should look like (`hint`; null: any https address, with `placeholder`).
 export const LINKS = [
   { key: 'whatsapp', label: 'קבוצת WhatsApp', after: 'p02.opened', hint: 'chat.whatsapp.com' },
-  // The finished videos are in the client's Drive folder (Ofir opens it: p24.folder).
+  // The finished videos are in the client's Drive folder (the editor opens it: p24.folder).
   { key: 'drive', label: 'תיקיית הסרטונים ב־Drive', after: 'p24.folder', hint: 'drive.google.com' },
   { key: 'scripts', label: 'תסריטים (קישור לשיתוף)', after: 'p12.docs', hint: null, placeholder: 'הקישור לשיתוף מעמוד התסריטים' },
   // The Gantt is gantt.html; a sheet's link from before is still shown, never asked for.
@@ -1019,7 +1019,8 @@ export const PROCESSES = [
     sla: 'עד סוף יום העסקים השני מהשיוך ("מוכן לבדיקה")',
     start: { from: 'p22' }, due: { from: 'item:p22a.assigned', businessDays: 2 },
     items: [
-      { key: 'p24.folder', label: 'יש תיקייה מסודרת בדרייב עם שם הלקוח', owners: ['ofir'] },
+      // The editor's since 3.11.2026 (was Ofir's, with a task opened at the assignment).
+      { key: 'p24.folder', label: 'יש תיקייה מסודרת בדרייב עם שם הלקוח' },
       { key: 'p24.drive', label: 'כל הסרטונים הועלו לדרייב של הלקוח, וכל הקבצים נפתחים' },
       { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true },
       { key: 'p24.notify', label: 'העורך עדכן את אופיר שהלקוח מוכן לבקרה', noBulk: true },

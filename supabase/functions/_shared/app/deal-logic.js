@@ -107,13 +107,12 @@ export function validateDeal(form = {}) {
     if (!DEAL_DOC[form.doc_type]) errors.doc_type = 'בחרו מה להכין: חוזה או הצעת מחיר.';
     else row.doc_type = form.doc_type;
   }
-  // The company number and the business address (31.10.2026): required in an agreement, optional
-  // in a price offer.
+  // The company number (31.10.2026): required in an agreement, optional in a price offer. The business
+  // address is optional in both (the owner, 3.11.2026).
   const companyId = clean(form.company_id, LIMITS.company_id);
   const address = clean(form.business_address, LIMITS.business_address);
   if (companyId && !COMPANY_ID.test(companyId)) errors.company_id = 'מספר לא תקין. יש להזין ספרות בלבד.';
   if (form.doc_type === 'agreement' && !companyId) errors.company_id = 'בחוזה חובה למלא ח.פ / ע.מ.';
-  if (form.doc_type === 'agreement' && !address) errors.business_address = 'בחוזה חובה למלא את כתובת העסק.';
   if (companyId) row.company_id = companyId;
   if (address) row.business_address = address;
   if (form.kind === 'free') return validateFreeDeal(form, row, errors);

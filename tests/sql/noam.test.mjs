@@ -61,7 +61,7 @@ before(async () => {
 });
 
 test('the files: the migration is the newest and refuses nothing, its writers block is the app\'s; the pending file only widens; both run twice', async () => {
-  assert.equal(migrationFiles().at(-1), FILE);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261124100000_p24_folder_editor.sql']);
   const sql = migrationSql(FILE);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);

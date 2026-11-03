@@ -20,11 +20,11 @@ test('the button says both', () => {
   assert.deepEqual([submitText('agreement'), submitText('quote'), submitText(null)], ['לעירית ולאופיר להכנת חוזה', 'לעירית ולאופיר להכנת הצעת מחיר', 'לעירית ולאופיר']);
 });
 
-test('an agreement requires the company number and the address; a price offer does not', () => {
+test('an agreement requires the company number (the address is optional since 3.11.2026); a price offer neither', () => {
   const bad = validateDeal({ ...WORDS, doc_type: 'agreement' });
   assert.equal(bad.ok, false);
   assert.match(bad.errors.company_id, /חובה/);
-  assert.match(bad.errors.business_address, /חובה/);
+  assert.equal(bad.errors.business_address, undefined);
   const good = validateDeal({ ...WORDS, ...COMPANY, doc_type: 'agreement' });
   assert.equal(good.ok, true);
   assert.deepEqual([good.row.company_id, good.row.business_address], ['514729938', 'הרצל 1, תל אביב']);

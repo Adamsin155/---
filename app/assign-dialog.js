@@ -15,17 +15,16 @@
 // `a` is an item of awaitingEditor() (app/qa-logic.js), with `swap: { from, job }` for a swap and
 // `record: { from }` for an editor recorded without touching 22א's marks (the card only).
 import { PEOPLE, evenSplit, splitProblem, shootTypeName } from './protocol.js';
-import { setCheck, setChecksBulk, clearCheck, addTask, updateClient, setTaskDone, editor2Ready } from './protocol-data.js';
+import { setCheck, setChecksBulk, clearCheck, updateClient, setTaskDone, editor2Ready } from './protocol-data.js';
 import { $, fill, h, toast, errorText, formatWhen, formatStamp } from './protocol-ui.js';
 import {
-  editorLoad, loadText, dayText, preselected, reasonHint, eligibleEditors, jointFromSelection, reasonNote, folderTitle, folderDueOn,
+  editorLoad, loadText, dayText, preselected, reasonHint, eligibleEditors, jointFromSelection, reasonNote,
   swapClock, swapReasonNeeded, swapNote, suggestAssignment, SUGGESTED_TAG, CONTINUITY_TAG, editingChoices, editingShift, editingChoiceText,
 } from './qa-logic.js';
 import { AUTO_DRIVE_NOTE } from './auto-assign.js';
 import { REASON_KEY, SHIFT_KEY, shiftNote, todoText } from './office-marks.js';
 import { withEditor, swapEditor } from './decisions-logic.js';
 import { offerHandoff } from './handoff-ui.js';
-import { dayFromKeyIL, endOfDayIL } from './tz.js';
 import { recordNote } from './card-assign-logic.js';
 
 const roundText = (ctx) => (ctx?.round ? ` · סבב צילום ${ctx.round}` : '');
@@ -305,16 +304,8 @@ export function assignDialog(store) {
     if (reason) {
       rows[REASON_KEY(a.pre)] = await setCheck(c.id, REASON_KEY(a.pre), 'done', reasonNote({ editor, reason, preselected: preselected(a.ctx.shoot_type, joint), joint }));
     }
-    // Ofir's folder task (24), due at the end of editing day 1 (once: a swap opens none).
-    let folder = '';
-    const title = folderTitle(a.n);
-    if (rows[`${a.pre}p24.folder`]?.state !== 'done' && !store.tasks().some((t) => t.client_id === c.id && t.title === title && !t.done_at)) {
-      try {
-        const t = await addTask({ client_id: c.id, title, owner: 'ofir', due_on: folderDueOn(new Date()) });
-        store.setTasks([t, ...store.tasks()]);
-        folder = ` נפתחה לאופיר משימת תיקייה (24) עד ${formatWhen(endOfDayIL(dayFromKeyIL(t.due_on)))}.`;
-      } catch { folder = ' משימת התיקייה (24) לא נפתחה: לפתוח אותה בכרטיס.'; }
-    }
+    // Since 3.11.2026 the folder (24) is the editor's own item: no task for Ofir any more.
+    const folder = '';
     store.clearStates();
     return { client, folder };
   }
