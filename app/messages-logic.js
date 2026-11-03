@@ -25,7 +25,7 @@
 import { STATIONS, PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSolo, crewOf } from './protocol.js';
 import {
   clientState, isBusinessDay, addBusinessDays, businessDaysBetween, parseDate, roundsOf, roundContext,
-  isImported, IMPORT_NOTE,
+  isImported, IMPORT_NOTE, shootHeld,
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, weekdayIL, addDaysIL, startOfDayIL, daysBetweenIL, needsYear } from './tz.js';
 import { whatsappLink } from './quote-doc.js';
@@ -405,7 +405,10 @@ export function stationSince(client, state, checks, index, now) {
   for (const pid of scopes) {
     const list = state.states.filter((s) => (pid ? s.proc.id.startsWith(pid) : !isRoundState(s)));
     const inSt = list.filter((s) => STATION_OF.get(baseId(s.proc.id)) === index);
-    if (!inSt.length) continue;
+    // A round without this station's work leaves it to the client's own. The client's own station
+    // with no work of its own (since v12 "שוטף": the weekly call, 31, left) began when the one
+    // before it was finished.
+    if (!inSt.length && pid) continue;
     let first = Infinity;
     for (const s of inSt) {
       for (const i of s.proc.items) if (checks[i.key]) first = Math.min(first, +new Date(checks[i.key].at));
@@ -503,8 +506,8 @@ const MILESTONES = [
   {
     // From the business day after the shoot ("למחרת").
     key: 'thanks', station: 'shoot', fresh: 2,
-    at: (x) => {
-      const done = x.completed('p19');
+    at: (x, now) => {
+      const done = x.shot(now);
       const shoot = parseDate(x.ctx.shoot_at);
       return done && shoot ? later(done, startOfDayIL(addBusinessDays(shoot, 1))) : done;
     },
@@ -571,6 +574,8 @@ const PROMISES = [
   { proc: 'p30', what: 'העלאת הקמפיינים', chain: ['p30'] },
 ];
 
+// The marks that say a shoot took place (shootHeld), and the closing of the day before v12.
+const SHOT_MARKS = ['p19.all', 'p19.testimonial', 'p19.drive', 'p19.took', 'p19b.handed', 'p22a.assigned'];
 // The client and each extra shoot round, with helpers over its checks and states.
 function contextsOf(client, checks, state) {
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
@@ -587,6 +592,12 @@ function contextsOf(client, checks, state) {
       completed: (id) => {
         const s = st(id);
         return s && s.complete && s.completedAt && !isImported(s.proc, checks) ? s.completedAt : null;
+      },
+      // When the shoot took place, for real (v12: nobody closes the day, 19; shootHeld): its date once
+      // behind today, or the mark that says so. Imported history is not an event.
+      shot: (now) => {
+        if (SHOT_MARKS.some((k) => checks[`${pre}${k}`]?.note === IMPORT_NOTE)) return null;
+        return shootHeld({ pid, ctx }, checks, now)?.at || null;
       },
     };
   };

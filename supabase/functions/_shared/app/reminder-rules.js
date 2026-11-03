@@ -1092,16 +1092,16 @@ export const RULES = [
     ],
   },
 
-  // 2: the group was opened. Lior at once (the introduction, shared with Irit, an
-  // unusual deal, "the client knows who handles them"); the owner's screen after an office hour.
+  // 2: the group was opened. The owner's screen when the introduction (Irit's) was not sent within an
+  // office hour. Until v12 Lior was rung at once too (the introduction with Irit, an unusual deal,
+  // "the client knows who handles them"): his items of 2 left the protocol.
   {
     id: 'group', event: 'קבוצה נפתחה (2)', procs: ['p02'],
     instances(env) {
-      return casesOf(env, 'p02', (i) => !!i.doneAt('p02.opened') && openOf(i, 'lior').length > 0 && !i.s.wait)
+      return casesOf(env, 'p02', (i) => !!i.doneAt('p02.opened') && !i.resolved('p02.intro') && !i.s.wait)
         .map((i) => ({ ...i, id: 'p02', anchors: { event: i.doneAt('p02.opened') } }));
     },
     steps: [
-      { id: 'lior', to: 'lior', level: 'ring', title: (i) => `קבוצה חדשה נפתחה: ${i.name}`, body: () => 'הודעת היכרות (עם עירית), בדיקת עסקה חריגה, והלקוח יודע מי מטפל בו.' },
       { id: 'board', officeMinutes: 60, to: OWNER, level: 'board', overdue: true, when: (i) => !i.resolved('p02.intro'), title: (i) => `הודעת היכרות לא נשלחה שעה: ${i.name}`, body: () => 'באחריות עירית.' },
     ],
   },

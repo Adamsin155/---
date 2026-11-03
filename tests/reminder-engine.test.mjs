@@ -195,10 +195,12 @@ test('"the meeting ended" starts the clocks of 6–10: one message each, and 30 
   assert.equal(ilai.exempt, 'clock');
   assert.match(ilai.body, /הכנת 9 גרפיקות ראשונות עד היום 14:30 · פתיחת גאנט שנתי עד היום 12:35/);
   one(at, 'started', 'start', 'ofir');
-  one(at, 'started', 'start', 'lior');
+  // v12: Lior's Meta check (10) left the protocol: no clock of his starts here.
+  none(at.filter((r) => r.person === 'lior'), 'started');
   none(due(w, IL(2026, 10, 6, 13, 59)), 'started', 'pre30');
   const pre = due(w, IL(2026, 10, 6, 14));
-  for (const p of ['ilai', 'ofir', 'lior']) one(pre, 'started', 'pre30', p);
+  for (const p of ['ilai', 'ofir']) one(pre, 'started', 'pre30', p);
+  none(pre.filter((r) => r.person === 'lior'), 'started');
   // Ofir's highlights are done: no reminder for him.
   marks(w, c, itemsOf('p08'), IL(2026, 10, 6, 13));
   none(due(w, IL(2026, 10, 6, 14)).filter((r) => r.person === 'ofir'), 'started');
@@ -387,93 +389,51 @@ test('no client approval of the scripts (13): Lior and Irit 2 business days befo
   assert.equal(hhmm(one(due(w2, IL(2026, 10, 15, 10)), 'approval', 'owner').at), '15.10 10:00');
 });
 
-test('the day before the shoot on erev chag: the owner\'s 15:00 "shoot at risk" still rings (a shoot-day event)', () => {
-  // Shavuot is Friday 11.6.2027: the business day before a Sunday shoot is erev chag, closed at 13:00.
-  const w = world();
-  const c = client(w, { shoot_at: IL(2027, 6, 13, 11).toISOString(), contract_end: '2028-12-31' });
-  importTo(w, c, 'shoot');
-  const at = IL(2027, 6, 10, 15);
-  const owner = one(due(w, at), 'eve', '1500', 'owner');
-  const [r] = planDelivery({ reminders: [owner], now: at, log: [] });
-  assert.deepEqual([r.channel, r.status], ['push', 'sent']);
-});
-
-test('the day before the shoot (15): 10:30 Lior, 11:15 Irit, 12:00 Lior urgent, 15:00 the owner', () => {
-  const w = world();
-  const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString() });
-  importTo(w, c, 'shoot');
-  const r1030 = one(due(w, IL(2026, 10, 14, 10, 30)), 'eve', '1030', 'lior');
-  assert.equal(r1030.exempt, 'shoot');
-  assert.equal(r1030.shoot, true);
-  one(due(w, IL(2026, 10, 14, 11, 15)), 'eve', '1115', 'irit');
-  assert.equal(one(due(w, IL(2026, 10, 14, 12)), 'eve', '1200', 'lior').exempt, 'urgent');
-  none(due(w, IL(2026, 10, 14, 14, 59)), 'eve', '1500');
-  one(due(w, IL(2026, 10, 14, 15)), 'eve', '1500', 'owner');
-  // Reminders sent by 14:00: no owner alert at 15:00.
-  marks(w, c, ['p15.influencers', 'p15.client', 'p15.crew'], IL(2026, 10, 14, 14));
-  none(due(w, IL(2026, 10, 14, 15)), 'eve', '1500');
-  // A Sunday shoot: all of it on Thursday (decision 15).
-  const w2 = world();
-  const c2 = client(w2, { shoot_at: IL(2026, 10, 18, 11).toISOString() });
-  importTo(w2, c2, 'shoot');
-  assert.equal(hhmm(one(due(w2, IL(2026, 10, 15, 10, 30)), 'eve', '1030').at), '15.10 10:30');
-});
-
-test('photographer briefing (16): 17:00 Lior and Eli; 20:00 Lior if Eli did not get it', () => {
+test('v12: the day before the shoot (15) and the photographer\'s briefing (16) left with Lior\'s shoot day: nobody is rung for them', () => {
+  // The rules were Lior's 10:30 and 12:00, Irit's 11:15 check, the owner's 15:00 "shoot at risk", and
+  // the 17:00 / 20:00 briefing to Lior and Eli. Eli's own day (17ב–19ב) still rings him: the next test.
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), address: 'רחוב הים 3' });
   importTo(w, c, 'shoot');
-  const at17 = due(w, IL(2026, 10, 14, 17));
-  one(at17, 'briefing', 'lior', 'lior');
-  // Eli gets the briefing once Lior sent it (with the drive label), not an empty one.
-  none(at17, 'briefing', 'eli');
+  for (const t of [IL(2026, 10, 14, 10, 30), IL(2026, 10, 14, 11, 15), IL(2026, 10, 14, 12), IL(2026, 10, 14, 15), IL(2026, 10, 14, 17), IL(2026, 10, 14, 20)]) {
+    const at = due(w, t);
+    none(at, 'eve');
+    none(at, 'briefing');
+  }
+  // Lior's old marks of the eve change nothing either.
   mark(w, c, 'p16.brief', IL(2026, 10, 14, 17, 20), JSON.stringify({ label: 'כונן 3', notes: '' }));
-  none(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'lior');
-  const eli = one(due(w, IL(2026, 10, 14, 17, 20)), 'briefing', 'eli', 'eli');
-  assert.equal(eli.body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · רחוב הים 3 · כונן 3. ללחוץ "קיבלתי", לקרוא את התסריטים ולסמן "קראתי את התסריטים".');
-  assert.doesNotMatch(eli.body, /סוללות/); // the gear list is on Eli's page only
-  assert.equal(eli.url, `shoot.html?id=${c.id}`);
-  // Sent earlier in the day: it reaches Eli at 17:00.
-  mark(w, c, 'p16.brief', IL(2026, 10, 14, 12), JSON.stringify({ label: 'A' }));
-  none(due(w, IL(2026, 10, 14, 16, 59)), 'briefing', 'eli');
-  assert.equal(hhmm(one(due(w, IL(2026, 10, 14, 17)), 'briefing', 'eli').at), '14.10 17:00');
-  const r20 = one(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000', 'lior');
-  assert.equal(r20.shoot, true);
-  assert.equal(r20.title, `אלי עוד לא אישר את התדריך: ${c.name}`);
-  // He pressed "קיבלתי" and did not tick "קראתי את התסריטים" (protocol v10): the same line says so.
-  mark(w, c, 'p16.photographer', IL(2026, 10, 14, 17, 30));
-  const read = one(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000', 'lior');
-  assert.deepEqual([read.title, read.body], [`אלי עוד לא סימן שקרא את התסריטים: ${c.name}`, 'אלי אישר את התדריך, ועוד לא סימן "קראתי את התסריטים".']);
-  mark(w, c, 'p16.read', IL(2026, 10, 14, 18));
-  none(due(w, IL(2026, 10, 14, 20)), 'briefing', '2000');
-  // No ring of its own to Eli about it: only the briefing's.
-  assert.deepEqual(due(w, IL(2026, 10, 14, 20)).filter((r) => r.person === 'eli' && r.rule === 'briefing').map((r) => r.step), ['eli']);
+  none(due(w, IL(2026, 10, 14, 17, 20)), 'briefing');
+  // On erev chag the same: the business day before a Sunday shoot (Shavuot, Friday 11.6.2027).
+  const w2 = world();
+  const c2 = client(w2, { shoot_at: IL(2027, 6, 13, 11).toISOString(), contract_end: '2028-12-31' });
+  importTo(w2, c2, 'shoot');
+  none(due(w2, IL(2027, 6, 10, 15)), 'eve');
 });
 
-test('shoot day: Eli 2 hours and 15 minutes before; Lior if Eli did not arrive; time management; the end', () => {
+test('shoot day: Eli 2 hours and 15 minutes before, his end of the day; Lior if Eli did not arrive (v12: no time management of Lior\'s)', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), shoot_type: 'dms' });
   importTo(w, c, 'shoot');
   none(due(w, IL(2026, 10, 14, 20)), 'shoot');
   one(due(w, IL(2026, 10, 15, 9)), 'shoot', 'eli2h', 'eli');
   one(due(w, IL(2026, 10, 15, 10, 45)), 'shoot', 'eli15', 'eli');
+  // Eli's own process (17ב) unchanged: his manager hears when he did not mark his arrival.
   one(due(w, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived', 'lior');
-  one(due(w, IL(2026, 10, 15, 11, 30)), 'shoot', 'begin', 'lior');
-  one(due(w, IL(2026, 10, 15, 15)), 'shoot', 'progress', 'lior');
+  // Lior's managing of the day (18–21) left the protocol in v12: no "begin", "progress" or end of his.
+  none(due(w, IL(2026, 10, 15, 11, 30)), 'shoot', 'begin');
+  none(due(w, IL(2026, 10, 15, 15)), 'shoot', 'progress');
   const end = due(w, IL(2026, 10, 15, 16, 30));
-  one(end, 'shoot', 'endLior', 'lior');
+  none(end, 'shoot', 'endLior');
   one(end, 'shoot', 'endEli', 'eli');
   mark(w, c, 'p17b.arrived', IL(2026, 10, 15, 10));
   none(due(w, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived');
-  marks(w, c, itemsOf('p19'), IL(2026, 10, 15, 16));
-  none(due(w, IL(2026, 10, 15, 16, 30)), 'shoot', 'endLior');
-  // Natali: "an hour left" after two hours, the end after three.
+  // Natali: Eli's end after three hours; nothing of Lior's ("an hour left", the end).
   const w2 = world();
   const c2 = client(w2, { shoot_at: IL(2026, 10, 15, 11).toISOString(), shoot_type: 'natali' });
   importTo(w2, c2, 'shoot');
-  one(due(w2, IL(2026, 10, 15, 13)), 'shoot', 'hourLeft', 'lior');
-  none(due(w2, IL(2026, 10, 15, 13)), 'shoot', 'begin');
-  one(due(w2, IL(2026, 10, 15, 14)), 'shoot', 'endLior', 'lior');
+  none(due(w2, IL(2026, 10, 15, 13)), 'shoot', 'hourLeft');
+  none(due(w2, IL(2026, 10, 15, 14)), 'shoot', 'endLior');
+  one(due(w2, IL(2026, 10, 15, 14)), 'shoot', 'endEli', 'eli');
 });
 
 test('assign an editor (22א): Ofir alone, no clock and no ring per client (30.10.2026); the old rule is gone', () => {
@@ -593,21 +553,15 @@ test('scheduling and Gantt (28–29): two hours for Ilai with 30 minutes before,
   none(due(w, IL(2026, 10, 25, 11, 55)), 'publish', 'gantt');
 });
 
-test('weekly call (31): Sunday and Wednesday digest, Thursday 12:00 ring, 18:00 missed on the owner\'s screen', () => {
+test('weekly call (31) left the protocol in v12: no digest, no Thursday ring, nothing on the owner\'s screen', () => {
   const w = world();
   const c = client(w, { name: 'לקוח שוטף' });
   importTo(w, c, 'ongoing');
   marks(w, c, itemsOf('p30'), IL(2026, 9, 20, 10));
-  assert.equal(one(due(w, IL(2026, 10, 4, 8, 30)), 'weekly', 'sun', 'lior').level, 'digest');
-  one(due(w, IL(2026, 10, 7, 8, 30)), 'weekly', 'wed', 'lior');
-  none(due(w, IL(2026, 10, 8, 11, 59)), 'weekly', 'thu');
-  one(due(w, IL(2026, 10, 8, 12)), 'weekly', 'thu', 'lior');
-  assert.equal(one(due(w, IL(2026, 10, 8, 18)), 'weekly', 'missed', 'owner').level, 'board');
-  // A call recorded this week ends it; last week's does not count.
-  mark(w, c, 'p31.call', IL(2026, 10, 1, 12));
-  one(due(w, IL(2026, 10, 8, 12)), 'weekly', 'thu');
+  for (const t of [IL(2026, 10, 4, 8, 30), IL(2026, 10, 7, 8, 30), IL(2026, 10, 8, 12), IL(2026, 10, 8, 18)]) none(due(w, t), 'weekly');
   mark(w, c, 'p31.call', IL(2026, 10, 7, 12));
   none(due(w, IL(2026, 10, 8, 18)), 'weekly');
+  none(due(w, IL(2026, 10, 8, 10)), 'callFollowup');
 });
 
 test('daily messages, daily control (32) and the clients review (33)', () => {
@@ -690,11 +644,15 @@ test('decision 8: on Lior\'s shoot day his exceptions go to Ofir', () => {
   const other = client(w, { name: 'אחר' });
   importTo(w, other, 'ongoing');
   w.tasks.push({ id: 't9', client_id: other.id, title: 'לקוח כועס', owner: 'lior', source: 'escalation', urgent: true, created_at: IL(2026, 10, 15, 12).toISOString() });
-  // The quiet mode is a recorded flag: not before Eli marks "הגעתי".
+  // The quiet mode is a recorded flag. Since v12 (Lior's shoot day left the protocol) only Lior's own
+  // start makes it: Eli's "הגעתי" no longer does.
   assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 12) }).liorShoot.active, false);
   assert.equal(one(due(w, IL(2026, 10, 15, 12)), 'urgent', 'now').person, 'lior');
   mark(w, shoot, 'p17b.arrived', IL(2026, 10, 15, 10, 5));
-  // A mark from another day (imported, or a moved shoot) does not start it.
+  assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 12) }).liorShoot.active, false);
+  assert.equal(one(due(w, IL(2026, 10, 15, 12)), 'urgent', 'now').person, 'lior');
+  mark(w, shoot, 'p18.quiet', IL(2026, 10, 15, 10, 5));
+  // Not before the moment it was made.
   assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 10) }).liorShoot.active, false);
   const env = buildEnv({ ...w, now: IL(2026, 10, 15, 12) });
   assert.equal(env.liorShoot.active, true);
@@ -716,14 +674,17 @@ test('decision 8: on Lior\'s shoot day his exceptions go to Ofir', () => {
   mark(w, shoot, 'p19.took', IL(2026, 10, 15, 15, 10));
   assert.equal(buildEnv({ ...w, now: IL(2026, 10, 15, 15, 30) }).liorShoot.active, false);
   assert.equal(one(due(w, IL(2026, 10, 15, 16)), 'urgent', 'now').person, 'lior');
-  // Lior can start it himself (p18.quiet) when Eli has not marked yet; the day closed (19) ends it.
+  // Lior starts it himself (p18.quiet) when Eli has not marked yet. Since v12 nobody closes the day
+  // (19): it ends when he takes it off, or with the day.
   const w2 = world();
   const s2 = client(w2, { shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w2, s2, 'shoot');
   mark(w2, s2, 'p18.quiet', IL(2026, 10, 15, 9, 50));
   assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 15, 9, 55) }).liorShoot.active, true);
-  marks(w2, s2, itemsOf('p19'), IL(2026, 10, 15, 15));
-  assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 15, 15, 1) }).liorShoot.active, false);
+  assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 15, 23, 50) }).liorShoot.active, true);
+  assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 16, 0, 5) }).liorShoot.active, false);
+  delete w2.checks[s2.id]['p18.quiet'];
+  assert.equal(buildEnv({ ...w2, now: IL(2026, 10, 15, 12) }).liorShoot.active, false);
 });
 
 test('exception to Lior (not urgent): his list at once, the owner\'s screen after a business day', () => {
@@ -796,8 +757,10 @@ test('lateness (3.10.2026): every late item to Ofir and Lior, quietly, once per 
   marks(w, c, itemsOf('p04'), IL(2026, 10, 6, 12));
   none(due(w, IL(2026, 10, 6, 14, 14)).filter((r) => /:p0[78]@|:p10@/.test(r.key)), 'late'); // not in the minute the deadline passes
   const at = due(w, IL(2026, 10, 6, 14, 16));
+  // (Lior's own Meta check, 10, left the protocol in v12: it is late for nobody.)
+  assert.ok(!at.some((r) => r.key.includes(':p10@')));
   for (const who of ['ofir', 'lior']) {
-    for (const proc of ['p07', 'p08', 'p10']) { // Ilai's, Ofir's own and Lior's own
+    for (const proc of ['p07', 'p08']) { // Ilai's and Ofir's own
       const r = pick(at, 'late', who).find((x) => x.key.includes(`:${proc}@`));
       assert.ok(r, `${proc} late: ${who}`);
       assert.equal(r.level, 'quiet');
@@ -849,7 +812,7 @@ test('cancelled and ended clients get no reminders; imported history starts no l
   marks(w2, c, itemsOf('p30'), IL(2026, 9, 1, 9), IMPORT_NOTE);
   // The monthly cycle (stage 5, rules month*) is this month's work, not imported history.
   const list = candidates(buildEnv({ ...w2, now: IL(2026, 10, 7, 11) })).filter((r) => r.clientId === c.id && !r.rule.startsWith('month'));
-  assert.deepEqual([...new Set(list.map((r) => r.rule))].sort(), ['weekly']);
+  assert.deepEqual([...new Set(list.map((r) => r.rule))].sort(), []); // (the weekly call, 31, left in v12)
 });
 
 test('contract sent, not signed (1): Irit quietly after 4 office hours, Lior\'s list after a business day', () => {
@@ -863,15 +826,14 @@ test('contract sent, not signed (1): Irit quietly after 4 office hours, Lior\'s 
   none(due(w, IL(2026, 10, 6, 10)), 'contract');
 });
 
-test('group opened (2): Lior at once; the owner\'s screen if the introduction was not sent within an office hour', () => {
+test('group opened (2): the owner\'s screen if the introduction (Irit\'s) was not sent within an office hour; v12: no ring to Lior', () => {
   const w = world();
   const c = client(w, { deal_at: IL(2026, 10, 5, 9).toISOString() });
   mark(w, c, 'p02.opened', IL(2026, 10, 5, 10));
-  assert.equal(one(due(w, IL(2026, 10, 5, 10)), 'group', 'lior', 'lior').level, 'ring');
-  one(due(w, IL(2026, 10, 5, 11)), 'group', 'board', 'owner');
+  none(due(w, IL(2026, 10, 5, 10)), 'group', 'lior');
+  const board = one(due(w, IL(2026, 10, 5, 11)), 'group', 'board', 'owner');
+  assert.equal(board.body, 'באחריות עירית.');
   mark(w, c, 'p02.intro', IL(2026, 10, 5, 10, 30));
-  none(due(w, IL(2026, 10, 5, 11)), 'group', 'board');
-  marks(w, c, ['p02.deal', 'p02.team'], IL(2026, 10, 5, 10, 40));
   none(due(w, IL(2026, 10, 5, 11)), 'group');
 });
 
@@ -887,53 +849,48 @@ test('access not in the vault 30 minutes after the meeting (Irit, quiet); a new 
   none(due(w, IL(2026, 10, 6, 13)), 'vault', 'irit');
 });
 
-test('Natali (11ב): Lior quietly once the date is set; three business days before, Lior and Irit ring and the owner\'s screen', () => {
+test('Natali (11ב) left the protocol in v12 with Lior\'s shoot day: no ring to Lior, Irit or the owner', () => {
   const w = world();
   const c = client(w, { shoot_type: 'natali', shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'content');
-  for (const k of [...itemsOf('p11'), ...itemsOf('p11b')]) delete w.checks[c.id][k];
+  for (const k of itemsOf('p11')) delete w.checks[c.id][k];
   marks(w, c, itemsOf('p11'), IL(2026, 10, 11, 10));
-  assert.equal(one(due(w, IL(2026, 10, 11, 10)), 'natali', 'lior', 'lior').level, 'quiet');
-  const red = due(w, IL(2026, 10, 12, 10));
-  assert.equal(one(red, 'natali', 'redlior', 'lior').exempt, 'urgent');
-  one(red, 'natali', 'redirit', 'irit');
-  one(red, 'natali', 'board', 'owner');
-  marks(w, c, itemsOf('p11b'), IL(2026, 10, 12, 9));
+  none(due(w, IL(2026, 10, 11, 10)), 'natali');
   none(due(w, IL(2026, 10, 12, 10)), 'natali');
 });
 
-test('focus call (12א) the next business day; shoot blockers (14) every morning and Lior two days before', () => {
+test('focus call (12א) left in v12; shoot blockers (14) every morning and Lior two days before', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'shoot');
-  for (const k of [...itemsOf('p12a'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]) delete w.checks[c.id][k];
-  assert.equal(one(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall', 'next', 'lior').level, 'digest');
-  // The blockers are computed (shoot-prep.js): the focus call is late, an employee's delay.
+  for (const k of [...itemsOf('p08'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]) delete w.checks[c.id][k];
+  none(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall');
+  // The blockers are computed (shoot-prep.js): the Highlights (8) are late, an employee's delay.
   const mon = one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');
   assert.match(mon.title, /חוסמי יום צילום: .* · חוסם אחד/);
-  assert.match(mon.body, /באיחור: 12א · שיחת דגשים לתוכן/);
+  assert.match(mon.body, /באיחור: 8 · הכנת Highlights/);
   assert.equal(mon.url, `prep.html?id=${c.id}`);
   one(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior', 'lior');
   // Reported to Lior from Irit's list: it is his exception now, no second ring.
-  w.tasks.push({ id: 'b1', client_id: c.id, title: 'חוסם ליום הצילום: באיחור', owner: 'lior', source: 'escalation', urgent: true, brief: { blocker: 'delays:p12a' }, created_at: IL(2026, 10, 13, 9).toISOString() });
+  w.tasks.push({ id: 'b1', client_id: c.id, title: 'חוסם ליום הצילום: באיחור', owner: 'lior', source: 'escalation', urgent: true, brief: { blocker: 'delays:p08' }, created_at: IL(2026, 10, 13, 9).toISOString() });
   none(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior');
   w.tasks.length = 0;
   // Nothing blocks any more (the open p14 items alone are not blockers): no line.
-  marks(w, c, itemsOf('p12a'), IL(2026, 10, 12, 9));
+  marks(w, c, itemsOf('p08'), IL(2026, 10, 12, 9));
   none(due(w, IL(2026, 10, 13, 8, 30)), 'blockers');
   none(due(w, IL(2026, 10, 13, 10)), 'blockers');
 });
 
-test('after the shoot: not closed → Lior next morning and the owner; the cards; the rest of the graphics', () => {
+test('after the shoot: the rest of the graphics; the cards once Eli handed the drive (v12: nobody closes the day, no "not closed")', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'post');
   for (const k of Object.keys(w.checks[c.id])) if (/^p(19b?|23)\./.test(k)) delete w.checks[c.id][k];
   const sun = due(w, IL(2026, 10, 18, 8, 30));
-  one(sun, 'shootOpen', 'lior', 'lior');
-  one(sun, 'shootOpen', 'board', 'owner');
+  none(sun, 'shootOpen');
   one(sun, 'graphicsRestStart', 'next', 'ilai');
-  marks(w, c, [...itemsOf('p19b'), 'p19.took'], IL(2026, 10, 15, 17));
+  // Eli's list done: he may format the cards (until v12 it waited for Lior's "הכונן חזר", p19.took).
+  marks(w, c, itemsOf('p19b'), IL(2026, 10, 15, 17));
   assert.equal(one(due(w, IL(2026, 10, 15, 17)), 'cards', 'eli', 'eli').level, 'quiet');
 });
 
@@ -949,7 +906,7 @@ test('editing paused: Ofir quietly and Lior\'s list; still paused next morning, 
   one(due(w, IL(2026, 10, 19, 8, 30)), 'paused', 'morning', 'lior');
 });
 
-test('client notes by day 4 (Irit), campaign the next business day and Tuesday\'s campaign check (Lior), call follow-up (Irit)', () => {
+test('client notes by day 4 (Irit), campaign the next business day and Tuesday\'s campaign check (Lior); no call follow-up since v12', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nadia' });
   importTo(w, c, 'post');
@@ -965,8 +922,9 @@ test('client notes by day 4 (Irit), campaign the next business day and Tuesday\'
   marks(w2, d, itemsOf('p30'), IL(2026, 9, 1, 9), IMPORT_NOTE);
   assert.equal(one(due(w2, IL(2026, 10, 6, 8, 30)), 'campaignCheck', 'tue', 'lior').body, 'שוטף');
   none(due(w2, IL(2026, 10, 7, 8, 30)), 'campaignCheck');
+  // The weekly call (31) left in v12: a call recorded anyway opens no follow-up for Irit.
   mark(w2, d, 'p31.call', IL(2026, 10, 7, 12));
-  one(due(w2, IL(2026, 10, 7, 12)), 'callFollowup', 'irit', 'irit');
+  none(due(w2, IL(2026, 10, 7, 12)), 'callFollowup');
 });
 
 test('ending (35): Lior\'s digest the day before, a ring on the last day; late closing reaches Ofir and Lior', () => {

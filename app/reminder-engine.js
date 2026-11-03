@@ -98,7 +98,7 @@ export function buildEnv({
 const ofirMeetings = (env) => meetingsOf(env.clients, env.checksOf);
 
 // Lior on a shoot (decision 8 and "מצב שקט"), a flag recorded in the checks: from
-// Eli's "הגעתי" (p17b.arrived; or Lior's own start, p18.quiet) until the drive is
+// Lior's own start (p18.quiet; until v12 Eli's "הגעתי" too) until the drive is
 // back and confirmed by both (p19b.handed and p19.took), the day is closed (19) or
 // the day ends (app/production.js quietWindow). Meanwhile his exceptions go to Ofir
 // and his other rings wait for one summary after it.

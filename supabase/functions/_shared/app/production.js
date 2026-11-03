@@ -680,22 +680,23 @@ export function afterCloseText(checks, pre = '', ctx = null) {
 // What closing the day marks (with the testimonial and the handoff already marked).
 export const CLOSE_KEYS = ['p18.order', 'p18.all', 'p19.all', 'p19.drive'];
 
-// Lior's quiet mode on a shoot (decision 8, "מצב שקט"): from Eli's "הגעתי" (or
-// Lior's own start, p18.quiet) until the drive is back and confirmed by both, the
-// day is closed (19), or the day ends. Only marks made on the shoot day count.
+// Lior's quiet mode on a shoot (decision 8, "מצב שקט"): from Lior's own start (p18.quiet, the shoot
+// page) until the drive is back and confirmed by both, the day is closed (19), or the day ends. Only
+// marks made on the shoot day count. Until protocol v12 Eli's "הגעתי" (p17b.arrived) started it too:
+// since Lior's shoot day left the protocol (the owner, 3.11.2026), he is not assumed to be at a shoot.
 export function quietWindow(sc, checks, p19CompletedAt = null) {
   const day = dayKeyIL(sc.shootAt);
   const onDay = (k) => {
     const c = checks?.[sc.pre + k];
     return c && c.state === 'done' && c.note !== IMPORT_NOTE && dayKeyIL(new Date(c.at)) === day ? new Date(c.at) : null;
   };
-  const starts = [onDay('p17b.arrived'), onDay('p18.quiet')].filter(Boolean);
+  const starts = [onDay('p18.quiet')].filter(Boolean);
   if (!starts.length) return null;
   const from = new Date(Math.min(...starts));
   const h = handoffOf(checks, sc.pre, { eli: sc.eli !== false });
   const ends = [endOfDayIL(sc.shootAt), h.done ? h.at : null, p19CompletedAt].filter(Boolean);
   const to = new Date(Math.min(...ends));
-  return to > from ? { from, to, by: onDay('p17b.arrived') ? 'eli' : 'lior' } : null;
+  return to > from ? { from, to, by: 'lior' } : null;
 }
 
 // ── History lines for the marks above (client card) ──
