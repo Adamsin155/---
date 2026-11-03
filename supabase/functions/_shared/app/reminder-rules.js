@@ -319,6 +319,9 @@ export const lateRungOf = (procId, client) => {
 // "never" is 99: due today, not late by 99 days).
 const lateGap = (gap) => gap >= 3 && gap < 99;
 
+// The characterization meeting is over: "האפיון הסתיים" was pressed, or the whole form was sent
+// (p04.saved, closed by the complete form; the owner, 3.11.2026: "הוא לחץ שבוצע").
+const charOver = (i) => i.resolved(CHAR_ENDED) || i.resolved('p04.saved');
 export const RULES = [
   // 1–3: a new deal. Irit at once; again at 5 office minutes if the group (with its
   // members) or the meeting date is missing, and at 10 if the contract is (the
@@ -368,8 +371,9 @@ export const RULES = [
     steps: [
       { id: 'eve', from: 'meeting', prevBusinessDays: 1, at: '18:30', to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => `אפיון ${whenText(i.anchors.meeting, env.now)}: ${i.name}`, body: (i) => [i.client.address, i.client.business].filter(Boolean).join(' · ') || 'הכתובת והטלפון בכרטיס הלקוח.' },
       { id: 'hour', from: 'meeting', minutes: -60, to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => (sentOnTime(i.anchors.meeting, env.now, 60) ? `בעוד שעה אפיון: ${i.name}` : `האפיון מתחיל ${inTimeWords(i.anchors.meeting, env.now)}: ${i.name}`), body: (i) => [i.client.address, 'ניווט וטלפון בכרטיס.'].filter(Boolean).join(' · ') },
-      { id: 'end', from: 'end', minutes: 15, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved(CHAR_ENDED) && openOf(i, i.who).length > 0, title: (i) => `האפיון הסתיים? ${i.name}`, body: () => 'עברו 15 דקות מסוף הפגישה המתוכנן. ללחוץ "האפיון הסתיים" עם ארבעת השדות.' },
-      { id: 'irit', from: 'end', minutes: 45, to: 'irit', level: 'quiet', when: (i) => !i.resolved(CHAR_ENDED) && openOf(i, i.who).length > 0, title: (i) => `האפיון לא סומן: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא סימן/ה שהאפיון הסתיים.` },
+      // A full form sent is the end of the meeting too (the owner, 3.11.2026): nobody asks then.
+      { id: 'end', from: 'end', minutes: 15, to: (i) => i.who, level: 'ring', when: (i) => !charOver(i) && openOf(i, i.who).length > 0, title: (i) => `האפיון הסתיים? ${i.name}`, body: () => 'עברו 15 דקות מסוף הפגישה המתוכנן. ללחוץ "האפיון הסתיים" עם ארבעת השדות.' },
+      { id: 'irit', from: 'end', minutes: 45, to: 'irit', level: 'quiet', when: (i) => !charOver(i) && openOf(i, i.who).length > 0, title: (i) => `האפיון לא סומן: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא סימן/ה שהאפיון הסתיים.` },
     ],
   },
 

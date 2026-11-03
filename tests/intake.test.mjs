@@ -104,6 +104,10 @@ test('"ended" starts the clocks of Ilai, Ofir (8) and Lior (10) at once, before 
   // Without the tap, the old way still works: completing process 4 starts them.
   none(due(world(c, base), IL(2026, 10, 6, 11, 20)), 'started');
   one(due(world(c, base), IL(2026, 10, 6, 12, 15)), 'char', 'end', 'ofir');
+  // The whole form sent (p04.saved) without the tap: nobody asks either (the owner, 3.11.2026).
+  const sent = { ...base, 'p04.saved': { state: 'done', at: IL(2026, 10, 6, 11, 50).toISOString() } };
+  none(due(world(c, sent), IL(2026, 10, 6, 12, 15)), 'char', 'end');
+  none(due(world(c, sent), IL(2026, 10, 6, 12, 45)), 'char', 'irit');
 });
 
 // Process 6 is Ofir's since 28.10.2026 (the owner; it was Ilai's).
