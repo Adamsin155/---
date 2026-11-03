@@ -824,7 +824,7 @@ test('12. sending the Gantt (29): Irit\'s 30 office minutes start when Ilai mark
 
 // ── Version 10 as data ──────────────────────────────────────────────────────
 test('version 10: the history records every new item, the deadlines it changed, and nothing of it is asked of a client in landing', () => {
-  assert.equal(PROTOCOL_VERSION, 11); // 11 since 21.10.2026 (tests/protocol-2110.test.mjs)
+  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (tests/protocol-2110.test.mjs)
   const v10 = PROTOCOL_HISTORY.find((v) => v.version === 10);
   assert.equal(v10.version, 10);
   assert.equal(v10.items.length, 24);

@@ -62,7 +62,7 @@ test('8ב in the protocol: right after 8, Ofir\'s, in "אפיון", one new key,
   assert.equal(onOfficeTime(p.due), true, '30 office minutes');
   const char = STATIONS.find((s) => s.key === 'char').procs;
   assert.equal(char[char.indexOf('p08') + 1], 'p08b');
-  assert.equal(PROTOCOL_VERSION, 11); // 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
+  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
   assert.equal(itemSince('p08b.posted'), 7);
   assert.deepEqual(PROTOCOL_HISTORY.find((v) => v.version === 7).items, ['p08b.posted']);
 });

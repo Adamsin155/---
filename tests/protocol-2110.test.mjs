@@ -106,8 +106,8 @@ test('1. who: the employee who marked the wait; the owner\'s mark goes to the pr
 });
 
 test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, right after he took the accesses; Ilai no longer has it", () => {
-  assert.equal(PROTOCOL_VERSION, 11);
-  const v11 = PROTOCOL_HISTORY.at(-1);
+  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things)
+  const v11 = PROTOCOL_HISTORY.find((v) => v.version === 11);
   assert.equal(v11.version, 11);
   assert.equal(v11.items, undefined, 'nothing added: the same key, another owner');
   assert.match(v11.changes.join(' '), /אופיר.*Metricool/);

@@ -169,5 +169,5 @@ test('the migration as the deploy tool reads it: nothing is removed, and it can 
 });
 
 test('the protocol did not change: the card is not a protocol item', () => {
-  assert.equal(PROTOCOL_VERSION, 11); // 11 since 21.10.2026 (Ofir connects to Metricool: an item's owner, not this card); this feature itself did not move it
+  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool: an item's owner, not this card); this feature itself did not move it
 });

@@ -61,14 +61,14 @@ before(async () => {
 });
 
 test('the files: the migration is the newest and refuses nothing, its writers block is the app\'s; the pending file only widens; both run twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql', '20261126100000_lior_four.sql']);
   const sql = migrationSql(FILE);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|trigger|index|type)/gi), null);
   assert.deepEqual([...sql.matchAll(/create\s+or\s+replace\s+function\s+([a-z_.]+)/gi)].map((m) => m[1]),
     ['public.staff_task_create_brief', 'public.is_office', 'private.task_gives_access', 'public.can_connect_metricool', 'public.can_edit_gantt', 'public.ofir_meetings', 'public.access_form_submit']);
   // Since 3.11.2026 the newest writers block is the folder's (20261124100000_p24_folder_editor.sql).
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261124100000_p24_folder_editor.sql', true]);
+  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261126100000_lior_four.sql', true]); // since 3.11.2026 (Lior's four things); 20261124100000_p24_folder_editor.sql before
   const pending = readFileSync(PENDING, 'utf8');
   const taken = pending.replace(/--[^\n]*/g, '').match(/\b(drop|delete|truncate)\b[^\n]*/gi);
   const added = [...pending.matchAll(/add constraint ([a-z_]+)/g)].map((m) => m[1]);

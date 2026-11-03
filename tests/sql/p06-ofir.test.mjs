@@ -57,7 +57,7 @@ before(async () => {
 
 test('the file: the newest but three, none of the refused words, every UPDATE with a WHERE, nothing created, and the writers block the app generates', () => {
   // After it Niro and "הצל", the old documents in full and the monthly shoot day (28.10.2026).
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql', '20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112100000_new_influencers.sql', '20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql', '20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql', '20261126100000_lior_four.sql']);
   const sql = migrationSql(FILE);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
@@ -65,7 +65,7 @@ test('the file: the newest but three, none of the refused words, every UPDATE wi
   // Only the form's submission is replaced; no permission is granted or taken but its own.
   assert.deepEqual([...sql.matchAll(/create\s+or\s+replace\s+function\s+([a-z_.]+)/gi)].map((m) => m[1]), ['public.access_form_submit']);
   // Its block was the app's until Noam (1.11.2026): the newest block is 20261123100000_noam.sql's now.
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261123100000_noam.sql', true]);
+  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261126100000_lior_four.sql', true]); // since 3.11.2026 (Lior's four things); 20261124100000_p24_folder_editor.sql and 20261123100000_noam.sql before
 });
 
 test('who writes process 6: the office (Ofir among them), Ilai no more; the rest of Ilai\'s as before', async () => {
