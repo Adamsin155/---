@@ -604,9 +604,19 @@ function haveProblem(have, raw, of) {
 const startDlg = dialog('dlg-start');
 let target = null;
 // The lines in START_CHECKS order: { key (the check), k (what it reports), i, answer }.
+// One tick (3.11.2026): "עברתי על הכול, הכול תקין" answers all four "יש"; "משהו חסר?" opens
+// the "יש" / "חסר" of each line (startDetail), as before.
+let startDetail = false;
 const startLines = () => P.START_CHECKS.map(([key], i) => ({
-  key, k: P.missingKeyOf(key), i, answer: document.querySelector(`input[name="start-a-${i}"]:checked`)?.value || null,
+  key, k: P.missingKeyOf(key), i,
+  answer: startDetail ? document.querySelector(`input[name="start-a-${i}"]:checked`)?.value || null : $('start-all').checked ? 'yes' : null,
 }));
+function showStartDetail(on) {
+  startDetail = on;
+  $('start-simple').hidden = on;
+  $('start-detail').hidden = !on;
+  $('start-some').setAttribute('aria-expanded', String(on));
+}
 function openStart(job) {
   target = job;
   $('start-ctx').textContent = jobName(job);
@@ -614,9 +624,13 @@ function openStart(job) {
   const of = partOf(job);
   // What is known already: a check done is "יש"; what a report or a block names is "חסר".
   const open = job.st?.blocked || job.st?.report || null;
+  $('start-nologo-s')?.remove();
+  const answers = P.START_CHECKS.map(([key]) => (c[job.pre + key]?.state === 'done' ? 'yes' : open?.what.includes(P.missingKeyOf(key)) ? 'no' : null));
+  fill($('start-lines'), ...P.START_CHECKS.map(([, label]) => h('li', {}, label)));
+  $('start-all').checked = answers.every((a) => a === 'yes');
   fill($('start-list'), ...P.START_CHECKS.map(([key, label], i) => {
     const k = P.missingKeyOf(key);
-    const answer = c[job.pre + key]?.state === 'done' ? 'yes' : open?.what.includes(k) ? 'no' : null;
+    const answer = answers[i];
     const id = `start-${i}`;
     return h('div', { class: `ed-q${answer === 'no' ? ' is-no' : ''}`, id, role: 'radiogroup', 'aria-labelledby': `${id}-l` },
       h('span', { class: 'ed-q-l', id: `${id}-l` }, label),
@@ -627,12 +641,23 @@ function openStart(job) {
   fillTo('start', open?.to);
   if (!P.sheetOf(job.client, chars[job.client.id], logos[job.client.id]).hasLogo) {
     $('start-list').append(h('p', { class: 'hint', id: 'start-nologo' }, 'אין לוגו בתיק הלקוח. אם הוא לא אצלך: ״חסר״ בשורת הלוגו.'));
+    $('start-lines').after(h('p', { class: 'hint', id: 'start-nologo-s' }, 'אין לוגו בתיק הלקוח. אם הוא לא אצלך: ״משהו חסר?״.'));
   }
+  // Something already named missing (a report, a block) opens on the lines, with it marked.
+  showStartDetail(answers.includes('no'));
   showErr('start-err', '');
   startAnswered();
   startDlg.showModal();
-  $('start-0-yes').focus();
+  (startDetail ? $('start-0-yes') : $('start-all')).focus();
 }
+$('start-all').addEventListener('change', () => { showErr('start-err', ''); startAnswered(); });
+$('start-some').addEventListener('click', () => {
+  // What the one tick said stays: each line "יש" until one is turned to "חסר".
+  if ($('start-all').checked) for (let i = 0; i < P.START_CHECKS.length; i += 1) $(`start-${i}-yes`).checked = true;
+  showStartDetail(true);
+  startAnswered();
+  $('start-0-no').focus();
+});
 // The button opens once every line is answered; the line under it says what happens.
 function startAnswered() {
   const lines = startLines();
@@ -640,7 +665,8 @@ function startAnswered() {
   // Whom to tell, once something is "חסר".
   $('start-to').hidden = !lines.some((l) => l.answer === 'no');
   $('start-submit').disabled = !all;
-  $('start-hint').textContent = all ? 'מה שמסומן ״חסר״ יירשם כחסר, והעריכה ממשיכה.' : 'עונים ״יש״ או ״חסר״ בכל שורה.';
+  $('start-hint').textContent = !startDetail ? (all ? '' : 'מסמנים ״עברתי על הכול, הכול תקין״, או ״משהו חסר?״.')
+    : all ? 'מה שמסומן ״חסר״ יירשם כחסר, והעריכה ממשיכה.' : 'עונים ״יש״ או ״חסר״ בכל שורה.';
   return lines;
 }
 $('start-to').addEventListener('change', () => startAnswered());
@@ -926,20 +952,25 @@ function openReady(job) {
   $('ready-link-hint').textContent = gate.count ? `${gate.count === 1 ? 'סרטון אחד הועלה למערכת' : `${gate.count} סרטונים הועלו למערכת`}: אפשר גם בלי קישור.` : 'התיקייה של הלקוח בדרייב, עם כל הסרטונים הסופיים.';
   showErr('ready-link-err', '');
   // The five critical mistakes come under their own line (protocol v10).
-  fill($('ready-list'), ...readyList.flatMap(([, l, group], i) => [
-    group === 'critical' && readyList[i - 1]?.[2] !== 'critical' ? h('p', { class: 'prod-sub', id: 'ready-critical' }, CRITICAL_TITLE) : null,
-    checkRow(`ready-${i}`, l)]));
+  // What to check, as lines (3.11.2026), and one tick under them for all of them.
+  const plain = readyList.filter(([, , group]) => group !== 'critical');
+  const critical = readyList.filter(([, , group]) => group === 'critical');
+  fill($('ready-list'),
+    h('ul', { class: 'ed-lines', id: 'ready-lines' }, ...plain.map(([, l]) => h('li', {}, l))),
+    critical.length ? h('p', { class: 'prod-sub', id: 'ready-critical' }, CRITICAL_TITLE) : null,
+    critical.length ? h('ul', { class: 'ed-lines', id: 'ready-crit-lines' }, ...critical.map(([, l]) => h('li', {}, l))) : null);
+  $('ready-all').checked = false;
   showErr('ready-err', '');
   readyDlg.showModal();
-  $('ready-0').focus();
+  $('ready-all').focus();
 }
+$('ready-all').addEventListener('change', () => { if ($('ready-all').checked) showErr('ready-err', ''); });
 $('ready-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const job = target;
-  const open = readyList.filter((_, i) => !$(`ready-${i}`).checked);
-  if (open.length) {
-    showErr('ready-err', `עוד לא סומן: ${open.map(([, l]) => `״${l}״`).join(', ')}.`);
-    $(`ready-${readyList.indexOf(open[0])}`).focus();
+  if (!$('ready-all').checked) {
+    showErr('ready-err', 'עוברים על הרשימה ומסמנים ״עברתי על הכול, הכול תקין״.');
+    $('ready-all').focus();
     return;
   }
   // The hand-off stands on the Drive link, or on a video uploaded here.

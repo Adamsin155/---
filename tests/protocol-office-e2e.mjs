@@ -232,7 +232,7 @@ await page.goto(`${BASE}clients.html`);
 await page.fill('#lg-email', USER.email);
 await page.fill('#lg-pass', 'correct-horse');
 await page.click('#lg-submit');
-await page.waitForSelector('#view-mine:not([hidden]) .witem');
+await page.waitForSelector('#view-mine:not([hidden]) .wproc'); // (rows may wait folded under "בוצע", 3.11.2026)
 assert.equal(await page.evaluate(() => window.__asked), 0, 'no permission request on load');
 
 // ── §10 auto-opened client: banner, short tag; cancelled client is gone ──
@@ -261,8 +261,11 @@ await shot('01-my-work');
 
 // ── §1 bulk: 6 of Irit's items in process 2 of the fresh client, then undo ──
 const p2card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("פתיחת קבוצת WhatsApp")');
-assert.equal(await p2card.locator('.bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (6)'); // p02.deal and p02.team are Lior's; Shirel removed in v3
-assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'סימון 6 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
+// One button (3.11.2026): "בוצע" is the card's action, and the six it marks wait folded under it.
+assert.equal(await p2card.locator('.bulk-btn').innerText(), 'בוצע'); // p02.deal and p02.team are Lior's; Shirel removed in v3
+assert.equal(await p2card.locator('.bulk-btn').getAttribute('aria-label'), 'בוצע: סימון 6 פריטים כבוצעו בתהליך 2 · פתיחת קבוצת WhatsApp');
+assert.equal(await p2card.locator('details.chk-fold > summary').innerText(), 'רשימת הבדיקה (6)');
+assert.equal(await p2card.locator('details.chk-fold').getAttribute('open'), null);
 // A failed save marks nothing.
 failNextCheck = true;
 await p2card.locator('.bulk-btn').click();
@@ -278,7 +281,7 @@ await toastHas('הסימון של 6 הפריטים בוטל.');
 assert.deepEqual(db.protocol_checks.filter((c) => c.client_id === fresh.id).map((c) => c.item_key), ['p02.opened']);
 await page.waitForSelector('.wproc:has(.wclient:text("פיצה נאפולי")) .bulk-btn');
 // Process 3 has open items of Irit's, so it gets the button too.
-assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').innerText(), 'סימון כל הפריטים שלי כבוצעו (3)'); // p03.scheduled waits for the characterizer and date
+assert.equal(await page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון") .bulk-btn').getAttribute('aria-label'), 'בוצע: סימון 3 פריטים כבוצעו בתהליך 3 · קביעת פגישת אפיון'); // p03.scheduled waits for the characterizer and date
 
 // ── §4 mark "waiting on the client" from my work ──
 const p3card = page.locator('.wproc:has(.wclient:text("פיצה נאפולי")):has-text("קביעת פגישת אפיון")');
@@ -459,7 +462,7 @@ assert.doesNotMatch(team, /מאפיית כהן/);
 await shot('03-control');
 // The review card left Irit's list once marked.
 await page.click('#tab-mine');
-await page.waitForSelector('.witem');
+await page.waitForSelector('#mine-list .wproc'); // (rows may wait folded under "בוצע", 3.11.2026)
 assert.doesNotMatch(await page.locator('#mine-list').innerText(), /בקרה יומית · תהליך 32/);
 
 // ── §8 performance: Irit sees the team table ──
@@ -509,7 +512,7 @@ await page.click('#btn-notify');
 await page.waitForSelector('.notify-row:has-text("התראות על איחורים ועל לקוח שלא ענה פעילות בדפדפן הזה.")');
 assert.equal(await page.evaluate(() => window.__asked), 1);
 await page.reload();
-await page.waitForSelector('.witem');
+await page.waitForSelector('#mine-list .wproc'); // (rows may wait folded under "בוצע", 3.11.2026)
 assert.equal(await page.evaluate(() => window.__notes.length), 0, 'no notification on first load');
 // A client arrives whose process 1 is due in two minutes; the tab goes to the background.
 const soon = client({ name: 'גלידה בנמל', deal_at: new Date(Date.now() + skew).toISOString() });
@@ -853,6 +856,8 @@ assert.equal(await page.isHidden('#access'), true); // the vault is not his in t
 assert.equal(await page.isHidden('#history'), true);
 // Nothing of process 6 is his, not even a line of it (the check and the pages are Ofir's since 28.10.2026).
 assert.equal(await page.locator('#p06, #i-p06-verified, #i-p06-name').count(), 0);
+// (His items of 9 may be one "בוצע" since 3.11.2026: the row is in the fold under it.)
+if (await page.locator('#p09 details.chk-fold:not([open]) > summary').count()) await page.click('#p09 details.chk-fold > summary');
 await page.check('#i-p09-file');
 await page.waitForFunction(() => document.querySelector('#i-p09-file')?.closest('.item').classList.contains('is-done') && !document.querySelector('.is-busy'));
 assert.ok(db.protocol_checks.some((c) => c.client_id === seeded.id && c.item_key === 'p09.file'));
@@ -863,9 +868,9 @@ const mobIlai = await ctx.newPage();
 watch(mobIlai);
 await mobIlai.setViewportSize({ width: 360, height: 780 });
 await mobIlai.goto(`${BASE}clients.html`);
-await mobIlai.waitForSelector('#view-mine:not([hidden]) .witem');
+await mobIlai.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.ok(await noHScroll(mobIlai), 'Ilai\'s list scrolls sideways at 360px');
-assert.ok(await mobIlai.locator('.witem').first().evaluate((el) => el.getBoundingClientRect().height) >= 44);
+assert.ok(await mobIlai.locator('#mine-list .witem:visible, #mine-list .done-btn').first().evaluate((el) => el.getBoundingClientRect().height) >= 44);
 await shot('18-mobile-ilai-mine', mobIlai);
 await mobIlai.goto(`${BASE}client.html?id=${seeded.id}`);
 await mobIlai.waitForSelector('#p07', { state: 'attached' });

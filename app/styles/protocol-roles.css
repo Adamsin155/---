@@ -64,7 +64,7 @@ html[data-scope='own'] .topbar nav a[href='quotes.html'] { display: none; }
 .pc .wc-title, .pc-full .wtitle { font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--ds-ink); overflow-wrap: anywhere; }
 .pc .wc-title .wc-sub { font-size: 13.5px; font-weight: 400; color: var(--ds-muted); }
 /* A single item is named by its own row below: the process is its context line. */
-.wc.pc:has(> .wlist) .wc-title, .wc.pc:has(> .wlink) .wc-title { font-size: 14px; font-weight: 500; color: var(--ds-ink-2); }
+.wc.pc:has(> .wlist:not(.wc-rest)) .wc-title, .wc.pc:has(> .wlink) .wc-title { font-size: 14px; font-weight: 500; color: var(--ds-ink-2); }
 .pc .wc-when { justify-self: start; margin-inline-start: 0; }
 /* Words that only repeat the leaf beside them: kept for whoever does not see it. */
 .pc .is-echo { position: absolute; inline-size: 1px; block-size: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

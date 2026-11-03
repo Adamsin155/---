@@ -260,6 +260,19 @@ dialog.ed-dlg .ed-q-more .field > label { font-size: 14px; font-weight: 500; }
 .ed-mq { display: grid; border-radius: var(--ds-r-ctl); background: var(--panel); min-inline-size: 0; }
 dialog.ed-dlg .ed-mq .prod-check { background: transparent; }
 .ed-mq .ed-q-more { padding: 0 12px 10px; }
+/* One tick (the owner, 3.11.2026): in the start and "מוכן לבדיקה" dialogs what to check is a list
+   to read, a dot per line, and one checkbox under it: "עברתי על הכול, הכול תקין". */
+.ed-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-inline-size: 0; }
+.ed-lines > li { position: relative; padding-inline-start: 18px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.ed-lines > li::before {
+  content: ''; position: absolute; inset-inline-start: 4px; inset-block-start: .62em; inline-size: 6px; block-size: 6px;
+  border-radius: 50%; background: var(--ds-navy, currentColor);
+}
+#ready-list { display: grid; gap: 6px; min-inline-size: 0; }
+#ready-list .prod-sub { margin: 6px 0 0; }
+dialog.ed-dlg .prod-check.ed-all { margin-top: 6px; font-weight: 700; border: 1.5px solid var(--line); }
+dialog.ed-dlg .prod-check.ed-all:has(.cbx:checked) { border-color: var(--ok); background: var(--ok-soft); }
+.ed-some { justify-self: start; min-height: 44px; }
 /* "למי לשלוח את הדיווח?" (29.10.2026): three big chips, עירית / ליאור / אופיר, one chosen. */
 .ed-to { border: 0; margin: 10px 0 0; padding: 0; min-inline-size: 0; }
 .ed-to legend { font-weight: 600; font-size: 15px; margin-bottom: 6px; padding: 0; }

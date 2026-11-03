@@ -202,7 +202,9 @@ const page = await newPage();
 await step('checking the access item in "המשימות שלי" offers "לשלוח לאופיר" with a ready message', async () => {
   await signIn(page, 'clients.html#mine', IRIT.email); // Irit took the accesses; process 6 is Ofir's
   const cbx = `#w-${ron.id}-p05_access`;
-  await page.waitForSelector(cbx);
+  await page.waitForSelector(cbx, { state: 'attached' });
+  // Under "בוצע", in its folded checklist (3.11.2026): a tap opens it.
+  if (!(await page.locator(cbx).isVisible())) await page.locator(`#mine-list li[data-key="${ron.id}:p05"] details.chk-fold > summary`).click();
   assert.equal(await page.locator('#handoff').isHidden(), true, 'nothing offered before a check');
   await page.click(cbx);
   await toastHas(page, 'סומן כבוצע');
@@ -247,7 +249,7 @@ await step('Ofir took the accesses himself (he characterized): no message to him
   await signIn(ofirPage, 'clients.html#mine'); // Ofir's first screen is qa.html; his list is one link away
   const cbx = `#w-${own.id}-p05_access`;
   await ofirPage.waitForSelector(cbx, { state: 'attached' });
-  if (!(await ofirPage.locator(cbx).isVisible())) await ofirPage.locator(`#mine-list li[data-key="${own.id}:p05"] button.wc-open`).click();
+  if (!(await ofirPage.locator(cbx).isVisible())) await ofirPage.locator(`#mine-list li[data-key="${own.id}:p05"] details.chk-fold > summary, #mine-list li[data-key="${own.id}:p05"] button.wc-open`).first().click();
   await ofirPage.click(cbx);
   await toastHas(ofirPage, 'סומן כבוצע');
   await ofirPage.waitForTimeout(600);
