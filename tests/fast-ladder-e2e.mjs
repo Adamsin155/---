@@ -150,7 +150,9 @@ try {
       for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) assert.equal(checkOf(db, SHOT, k)?.state, 'done', k);
       assert.equal(JSON.parse(checkOf(db, SHOT, 'p22a.shift').note).days, 5 - Number(days[0]));
       assert.equal(checkOf(db, SHOT, 'p22a.drive')?.note, 'נסגר לבד: ליאור אישר בסגירת יום הצילום שהכונן חזר');
-      assert.ok(db.client_tasks.some((t) => t.client_id === SHOT && t.owner === 'ofir' && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)));
+      // The folder (24) is the editor's since 3.11.2026: qa.html's assignment opens no task for Ofir.
+      assert.equal(db.client_tasks.filter((t) => t.client_id === SHOT && t.title.startsWith('פתיחת תיקייה מסודרת בדרייב לעריכה (24)')).length, 0, 'no folder task');
+      assert.doesNotMatch(await text(page.locator('#toast')), /משימת תיקייה/);
       assert.equal(await page.locator(`#assign-list [data-key="${SHOT}:p22a"]`).count(), 0);
       await ctx.close();
       // Back on his list: no clock and no card of the assignment.
@@ -232,13 +234,14 @@ try {
       await row.locator('.as-go').click();
       await page.waitForFunction(() => /שויך לאנה/.test(document.getElementById('toast')?.textContent || ''));
       await settle(page);
-      assert.match(await text(page.locator('#toast')), /נועם פרץ שויך לאנה\. נפתחה לאופיר משימת תיקייה \(24\)/);
+      assert.match(await text(page.locator('#toast')), /נועם פרץ שויך לאנה\./);
+      assert.doesNotMatch(await text(page.locator('#toast')), /משימת תיקייה/);
       assert.equal(db.clients.find((c) => c.id === SHOT).editor, 'anna');
       for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) assert.equal(checkOf(db, SHOT, k)?.state, 'done', k);
       assert.equal(checkOf(db, SHOT, 'p22a.assigned').by_email, emailOf('ofir'));
       assert.equal(checkOf(db, SHOT, 'p22a.drive')?.note, 'נסגר לבד: ליאור אישר בסגירת יום הצילום שהכונן חזר');
       assert.equal(checkOf(db, SHOT, 'p22a.reason'), null, 'the suggested editor needs no written reason');
-      assert.equal(db.client_tasks.filter((t) => t.client_id === SHOT && t.owner === 'ofir' && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)).length, 1);
+      assert.equal(db.client_tasks.filter((t) => t.client_id === SHOT && t.title.startsWith('פתיחת תיקייה מסודרת בדרייב לעריכה (24)')).length, 0, 'no folder task (3.11.2026)');
       // The same hand-off offer as the dialog's: a ready WhatsApp to the editor.
       await page.waitForSelector('#handoff:not([hidden])');
       assert.match(await text(page.locator('#handoff')), /עורך שויך · אנה/);
@@ -257,14 +260,15 @@ try {
     });
   }
 
-  await step('Irit has no way to assign: qa.html is closed to her, with no card and no button', async () => {
+  // Since 3.11.2026 (the owner) "בקרה ושיוך" opens for Irit too: the page is there, and opening it changes nothing.
+  await step('Irit opens qa.html (since 3.11.2026): the page, and nothing written by opening it', async () => {
     const { page, ctx, db } = await signedIn('irit', office());
     await page.goto(`${BASE}qa.html#assign-${SHOT}`);
-    await page.waitForSelector('#no-access:not([hidden])');
+    await page.waitForSelector('#of-page:not([hidden])');
     await settle(page);
-    assert.equal(await page.locator('#of-page').isHidden(), true);
-    assert.equal(await page.locator('#assign-list button, .as-go, .as-sug, [id^="as-open-"]').count(), 0);
-    assert.equal(await page.locator('#dlg-assign[open]').count(), 0);
+    assert.equal(await page.locator('#no-access').isHidden(), true);
+    // The link opens the assignment dialog, as for Ofir; opening writes nothing.
+    assert.equal(await page.locator('#dlg-assign[open]').count(), 1);
     untouched(db);
     await ctx.close();
   });

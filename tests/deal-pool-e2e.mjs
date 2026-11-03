@@ -2,10 +2,11 @@
 // of Supabase whose deal_take is first-wins, as public.deal_take
 // (supabase/migrations/20261122100000_deal_pool.sql):
 //   - Stav on an iPhone 13 (WebKit) and on Chromium at 360px: real typing and deleting, key by key, in
-//     the company number, the address and the discount; an agreement needs the two, a price offer
-//     does not; "הנחה חריגה" lifts the discount limit.
-//   - The builder, the same two engines: the agreement refuses without them and puts the cursor there;
-//     the address reaches create-quote, the document and the client's page.
+//     the company number, the address and the discount; an agreement needs the number, a price offer
+//     does not; the address is optional in both (the owner, 3.11.2026): no star, no error, an agreement
+//     without it goes through; "הנחה חריגה" lifts the discount limit.
+//   - The builder, the same two engines: the agreement refuses without the number and puts the cursor
+//     there, never for the address; the address reaches create-quote, the document and the client's page.
 //   - Irit and Ofir, each on their own device (the two phones and 1280): both see "אני לוקח"; Ofir takes
 //     it; the builder opens prefilled; Irit sees "אופיר לקח" with no buttons; her stale press gets the
 //     toast and goes nowhere; Stav reads "ממתין לחוזה · אצל אופיר"; the owner hands it over.
@@ -22,6 +23,9 @@ import { validateSelection, normalizeSelection, buildQuoteModel } from '../app/p
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const OUT = process.argv[2] || null;
 if (OUT) mkdirSync(OUT, { recursive: true });
+// Screenshots of the builder's client fields on each engine (optional): SHOTS_DIR=...
+const SHOTS = process.env.SHOTS_DIR || null;
+if (SHOTS) mkdirSync(SHOTS, { recursive: true });
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 // Monday 5.10.2026, 10:00 in Jerusalem: an office day.
 const NOW = new Date('2026-10-05T07:00:00Z');
@@ -95,11 +99,11 @@ function createQuote(body, me, json) {
   if (!me) return json(401, { error: 'not signed in' });
   let selection;
   try { validateSelection(body.selection); selection = normalizeSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
-  // As the function: an agreement needs the name, the company number and the address.
+  // As the function: an agreement needs the name and the company number (the address is optional
+  // since 3.11.2026).
   if (selection.docType !== 'quote') {
     if (!body.client?.name?.trim()) return json(400, { error: 'client name required' });
     if (!body.client?.companyId?.trim()) return json(400, { error: 'client company id required' });
-    if (!body.client?.address?.trim()) return json(400, { error: 'client address required' });
   }
   const model = buildQuoteModel(selection, body.client);
   const q = {
@@ -258,19 +262,19 @@ async function stavForm(engine) {
   const sent = () => inserted().length;
   const start = sent();
 
-  await step(`${L}: Stav, an agreement without the company number and the address: both say so, nothing is sent`, async () => {
+  await step(`${L}: Stav, an agreement without the company number and the address: the number says so, the address does not; nothing is sent`, async () => {
     await stav.fill('#d-business', 'פיצה רון');
     await stav.fill('#d-contact', 'רון כהן');
     await stav.fill('#d-phone', '050-7654321');
     assert.equal(await stav.locator('#d-company_id-req').isVisible(), false, 'no star before the choice');
     await stav.check('#d-doc-agreement');
     assert.equal(await stav.locator('#d-company_id-req').isVisible(), true);
-    assert.equal(await stav.locator('#d-business_address-req').isVisible(), true);
+    assert.equal(await stav.locator('#d-business_address-req').count(), 0, 'no star on the address');
     assert.equal(await stav.locator('#d-submit').innerText(), 'לעירית ולאופיר להכנת חוזה');
     await stav.fill('#d-text', 'סיכום קצר');
     await stav.click('#d-submit');
     assert.match(await stav.locator('#d-company_id-err').innerText(), /בחוזה חובה למלא ח\.פ/);
-    assert.match(await stav.locator('#d-business_address-err').innerText(), /בחוזה חובה למלא את כתובת העסק/);
+    assert.equal(await stav.locator('#d-business_address-err').isVisible(), false, 'no error on the address');
     assert.equal(sent(), start, 'nothing sent');
     await stav.fill('#d-text', '');
   });
@@ -326,7 +330,7 @@ async function stavForm(engine) {
     await stav.fill('#d-phone', '050-1234567');
     await stav.check('#d-doc-quote');
     assert.equal(await stav.locator('#d-company_id-req').isVisible(), false);
-    assert.equal(await stav.locator('#d-business_address-req').isVisible(), false);
+    assert.equal(await stav.locator('#d-business_address-req').count(), 0);
     await stav.locator('#d-text').fill('בלי משפיען 4,900 בחודש');
     await stav.click('#d-submit');
     await stav.waitForFunction(() => document.querySelectorAll('#deal-list .deal-item').length === 2);
@@ -351,6 +355,26 @@ async function stavForm(engine) {
     const row = inserted().at(-1);
     assert.deepEqual([row.company_id, row.business_address], ['51-4729938', 'התעשייה 4, חולון']);
   });
+
+  await step(`${L}: an agreement with the number and without the address goes through (the address typed and deleted key by key: no error)`, async () => {
+    await stav.fill('#d-business', 'נגריית עמית');
+    await stav.fill('#d-contact', 'עמית');
+    await stav.fill('#d-phone', '050-3334444');
+    await stav.check('#d-doc-agreement');
+    await typeAndCorrect(stav, '#d-company_id', COMPANY, 2);
+    await typeAndCorrect(stav, '#d-business_address', ADDRESS, 3);
+    for (let n = ADDRESS.length; n > 0; n -= 1) await stav.keyboard.press('Backspace');
+    assert.equal(await stav.inputValue('#d-business_address'), '', 'emptied key by key');
+    assert.equal(await stav.locator('#d-business_address-err').isVisible(), false, 'no error when empty');
+    await stav.locator('#d-text').fill('3,000 בחודש');
+    await stav.click('#d-submit');
+    await stav.waitForFunction(() => document.querySelectorAll('#deal-list .deal-item').length === 4);
+    assert.equal(await stav.locator('#d-business_address-err').isVisible(), false);
+    const row = inserted().at(-1);
+    assert.equal(row.doc_type, 'agreement');
+    assert.equal(row.company_id, COMPANY);
+    assert.equal('business_address' in row, false, 'no address sent');
+  });
   await stav.context().close();
 }
 
@@ -360,23 +384,43 @@ async function builderFields(engine) {
   const irit = await newPage(engine);
   await signIn(irit, 'irit', MINE, MINE_READY);
 
-  await step(`${L}: the builder, an agreement: refuses without the number, then without the address, with the cursor in the field; nothing is created`, async () => {
+  await step(`${L}: the builder, an agreement: refuses without the number, with the cursor in the field, never for the address; nothing is created`, async () => {
     await freshBuilder(irit, 'agreement');
     const n = created().length;
     await irit.locator('#c-name').fill('רון כהן');
     assert.equal(await irit.locator('#c-companyid-req').isVisible(), true, 'the star');
-    assert.equal(await irit.locator('#c-address-req').isVisible(), true, 'the star');
+    assert.equal(await irit.locator('#c-address-req').count(), 0, 'no star on the address');
     await irit.locator('#btn-link').click();
     assert.match(await irit.locator('#c-companyid-err').innerText(), /בחוזה חובה למלא ח\.פ/);
     await settled(irit, 'c-companyid');
-    assert.equal(await irit.locator('#c-address-err').isVisible(), true);
-    await typeAndCorrect(irit, '#c-companyid', COMPANY, 3);
-    await irit.locator('#btn-link').click();
-    assert.equal(await irit.locator('#c-companyid-err').isVisible(), false);
-    assert.match(await irit.locator('#c-address-err').innerText(), /בחוזה חובה למלא את כתובת העסק/);
-    await settled(irit, 'c-address');
+    assert.equal(await irit.locator('#c-address-err').isVisible(), false, 'no error on the empty address');
     assert.equal(created().length, n, 'nothing created');
     assert.equal(await irit.locator('#dlg-share').isVisible(), false);
+    await typeAndCorrect(irit, '#c-companyid', COMPANY, 3);
+    assert.equal(await irit.locator('#c-companyid-err').isVisible(), false);
+  });
+
+  await step(`${L}: the builder, an agreement with the number and without the address (typed and deleted key by key) goes through`, async () => {
+    await typeAndCorrect(irit, '#c-address', ADDRESS, 3);
+    for (let n = ADDRESS.length; n > 0; n -= 1) await irit.keyboard.press('Backspace');
+    assert.equal(await irit.inputValue('#c-address'), '', 'emptied key by key');
+    assert.equal(await irit.locator('#c-address-err').isVisible(), false, 'no error when empty');
+    await irit.locator('#btn-preview').click();
+    await irit.locator('#dlg-preview[open]').waitFor();
+    await irit.locator('#dlg-preview .close').click();
+    assert.equal(await irit.locator('#c-address-err').isVisible(), false);
+    const n = created().length;
+    await irit.locator('#btn-link').click();
+    await irit.locator('#dlg-share[open]').waitFor();
+    assert.equal(created().length, n + 1, 'the link is made');
+    assert.deepEqual([created().at(-1).client.companyId, created().at(-1).client.address], [COMPANY, '']);
+    assert.equal(await irit.locator('#c-address-err').isVisible(), false);
+    await irit.locator('#dlg-share .close').click();
+    if (SHOTS) {
+      await irit.locator('#c-name').scrollIntoViewIfNeeded();
+      await irit.locator('#c-name').evaluate((el) => el.closest('fieldset, section, .card, form')?.scrollIntoView({ block: 'start' }));
+      await irit.screenshot({ path: `${SHOTS}/builder-client-fields-${L}.png` });
+    }
   });
 
   await step(`${L}: real typing and deleting in the address: exact; the preview and create-quote carry it, and so does the client's page`, async () => {
@@ -409,7 +453,7 @@ async function builderFields(engine) {
   await step(`${L}: the builder, a price offer: passes without them`, async () => {
     await freshBuilder(irit, 'quote');
     assert.equal(await irit.locator('#c-companyid-req').isVisible(), false);
-    assert.equal(await irit.locator('#c-address-req').isVisible(), false);
+    assert.equal(await irit.locator('#c-address-req').count(), 0);
     const n = created().length;
     await irit.locator('#btn-link').click();
     await irit.locator('#dlg-share[open]').waitFor();

@@ -6,8 +6,10 @@
 //    the editors, Eli and the field sales the page answers "אין לך גישה לעמוד הזה" with the
 //    way back to their own screen, shows no package and no price, and asks the server
 //    for nothing; whoever is not signed in still gets the builder, as before;
-//  - "החלטות" (decisions.html) and "בקרה ושיוך" (qa.html) refuse Irit, by their address
-//    too; her own screens still open; Lior, Ofir and the owners get in as before;
+//  - "החלטות" (decisions.html) refuses Irit, by its address too; "בקרה ושיוך" (qa.html) is hers
+//    since 3.11.2026 (docs/ops.md, section 89): in her menu (on a phone under "עוד" when the bar
+//    is full) and the page opens; her own screens still open; Lior, Ofir and the owners get in
+//    as before;
 //  - "קליטת לקוחות קיימים" (landing.html) refuses the field sales, and the owners' line is
 //    shown to the owners only;
 //  - "לקוחות שלא מחוברים ל־Metricool" is not on the owners' personal "המשימות שלי"; Ilai
@@ -207,9 +209,9 @@ await step('a member of staff who signs in from the builder\'s own dialog and is
 });
 
 // ── 3. "החלטות" and "בקרה ושיוך" ───────────
-await step('decisions.html and qa.html refuse Irit, by their address too: no list and no button', async () => {
+await step('decisions.html refuses Irit, by its address too: no list and no button', async () => {
   const { page, ctx, calls } = await signedIn('irit');
-  for (const [path, inner] of [['decisions.html', '#dc-page'], ['qa.html', '#of-page'], ['qa.html#assign-c0000000-0000-4000-8000-000000000015', '#of-page']]) {
+  for (const [path, inner] of [['decisions.html', '#dc-page']]) {
     await page.goto(`${BASE}${path}`);
     await page.waitForSelector('#no-access:not([hidden])');
     await settle(page);
@@ -219,10 +221,36 @@ await step('decisions.html and qa.html refuse Irit, by their address too: no lis
     assert.equal(await page.locator('main').locator('text=שיוך עורך').locator('visible=true').count(), 0, path);
     assert.equal(await page.locator('dialog[open]').count(), 0, path);
     assert.equal(await page.getAttribute('#no-access a', 'href'), 'clients.html#mine', path);
-    // Neither screen is in her menu, in either profile.
-    assert.equal(await page.locator('#side-decisions, #side-qa').count(), 0, path);
+    // "החלטות" is not in her menu.
+    assert.equal(await page.locator('#side-decisions').count(), 0, path);
   }
   assert.deepEqual(calls, [], 'nothing was written');
+  await ctx.close();
+});
+
+// Since 3.11.2026 (the owner: "עירית לא רואה אצלה את בקרה ושיוך").
+await step('"בקרה ושיוך" is in Irit\'s menu (web, and on a phone in the bar or under "עוד") and qa.html opens for her, by its address too', async () => {
+  for (const viewport of [WIDE, NARROW]) {
+    const { page, ctx } = await signedIn('irit', { viewport });
+    const what = `irit at ${viewport.width}px`;
+    assert.ok((await menu(page)).includes('בקרה ושיוך'), `${what}: ${await menu(page)}`);
+    assert.equal(await page.locator('#side-qa').count(), 1, what);
+    assert.equal(await page.locator('#side-decisions').count(), 0, what);
+    if (viewport === NARROW && !(await page.locator('#side-qa').isVisible())) {
+      await page.click('#side-more');
+      await page.locator('#side-qa').waitFor({ state: 'visible' });
+    }
+    await page.click('#side-qa');
+    await page.waitForURL(/qa\.html/);
+    await page.waitForSelector('#of-page:not([hidden])');
+    await settle(page);
+    assert.equal(await visible(page, '#no-access'), false, what);
+    await ctx.close();
+  }
+  const { page, ctx } = await signedIn('irit');
+  await page.goto(`${BASE}qa.html#assign-c0000000-0000-4000-8000-000000000015`);
+  await page.waitForSelector('#of-page:not([hidden])');
+  assert.equal(await visible(page, '#no-access'), false, 'by its address');
   await ctx.close();
 });
 

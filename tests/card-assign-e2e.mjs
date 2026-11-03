@@ -6,7 +6,7 @@
 //      shows her, 22א's mark and every deadline stay, the reason mark says who recorded it, no
 //      folder task, and the WhatsApp to Nadia is offered;
 //   2  the same card on a client whose 22א is open: the dialog is qa.html's first assignment
-//      (the suggestion chosen, the folder task, Lior's drive item closed), and the ring
+//      (the suggestion chosen, no folder task since 3.11.2026, Lior's drive item closed), and the ring
 //      "לקוח חדש בעריכה אצלך" is due for the editor;
 //   3  Irit and Lior see the button and Irit records an editor; Ilai sees no button;
 //      "שינוי" beside an editor written;
@@ -187,8 +187,10 @@ try {
       assert.equal(db.clients.find((c) => c.id === SHOT).editor, 'anna');
       for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) assert.equal(checkOf(db, SHOT, k)?.state, 'done', k);
       assert.equal(checkOf(db, SHOT, 'p22a.drive')?.note, 'נסגר לבד: ליאור אישר בסגירת יום הצילום שהכונן חזר');
-      assert.ok(db.client_tasks.some((t) => t.client_id === SHOT && t.owner === 'ofir' && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)));
-      assert.match(await text(page.locator('#toast')), /נועם פרץ שויך לאנה\. נפתחה לאופיר משימת תיקייה \(24\)/);
+      // The folder (24) is the editor's since 3.11.2026: no task for Ofir.
+      assert.equal(db.client_tasks.some((t) => t.client_id === SHOT && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)), false, 'no folder task');
+      assert.match(await text(page.locator('#toast')), /נועם פרץ שויך לאנה\./);
+      assert.doesNotMatch(await text(page.locator('#toast')), /משימת תיקייה/);
       assert.match(await text(editorFact(page)), /^עורך אנה ?שינוי$/);
       // The editor's ring is due now, as after qa.html's assignment.
       const rung = ringsAt(db, new Date(NOW.getTime() + 60e3)).filter((r) => r.rule === 'editing' && r.step === 'assigned' && r.clientId === SHOT);
