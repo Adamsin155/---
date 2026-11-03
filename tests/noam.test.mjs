@@ -68,9 +68,9 @@ test('the owners: the client\'s characterizer has 4, 6, 8 and 8ב, and 5 when he
   // Lior runs a meeting only when nobody else can: the meeting and the logins are his; the pages and the Highlights stay Ofir's.
   assert.deepEqual(ownersOf(liors, 'p04').filter((p) => p !== 'irit'), ['lior']);
   assert.deepEqual([ownersOf(liors, 'p06'), ownersOf(liors, 'p08'), ownersOf(liors, 'p08b')], [['ofir'], ['ofir'], ['ofir']]);
-  // Lior keeps the broken logins of every client.
+  // The broken logins (p06.recovered) were Lior's; they left the protocol in v12 (to nobody).
   const p06 = applicableProcesses(noams).find((p) => p.id === 'p06');
-  assert.deepEqual(p06.items.find((i) => i.key === 'p06.recovered').owners, ['lior']);
+  assert.equal(p06.items.find((i) => i.key === 'p06.recovered'), undefined);
   // Nothing else moved: the graphics' checks are Ofir's for Noam's client too.
   const p07 = applicableProcesses(noams).find((p) => p.id === 'p07');
   assert.deepEqual(p07.items.find((i) => i.key === 'p07.ofir').owners, ['ofir']);

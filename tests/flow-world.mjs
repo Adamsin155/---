@@ -21,7 +21,9 @@ const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers
 
 // What each queue holds in this world (the suites count against these).
 export const COUNTS = {
-  assign: { clock: 4, landing: 3 },   // with a clock: the new one, and three of the roles world that were never assigned
+  // with a clock: the new one, three of the roles world that were never assigned, and (v12: 22א opens on the
+  // evening of the shoot day, nobody closes it) סער ספורט, shot yesterday
+  assign: { clock: 5, landing: 3 },
   qa: { clock: 1, landing: 1 },
   paused: 1, broken: 1, changes: 1, urgentBack: 1,
   messages: { clock: 22, landing: 6 }, // every open client: nobody was written to today

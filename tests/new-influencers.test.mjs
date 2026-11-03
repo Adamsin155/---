@@ -148,15 +148,13 @@ test('a client of Niro or "הצל" has Natali\'s processes, every word in the ri
     const c = { id: 'c1', name: 'קפה', status: 'active', shoot_type: inf, shoot_at: IL(2026, 11, 20, 11).toISOString(), deal_at: IL(2026, 11, 1, 10).toISOString(), rounds: [{ n: 2, shoot_type: inf, shoot_at: IL(2026, 12, 20, 11).toISOString() }] };
     const procs = applicableProcesses(c);
     const ids = procs.map((p) => p.id);
-    for (const id of ['p11b', 'p20', 'r2-p11b', 'r2-p20']) assert.ok(ids.includes(id), `${inf} ${id}`);
-    assert.ok(!ids.includes('p21'));
-    const p15 = procs.find((p) => p.id === 'p15').items.map((i) => i.key);
-    assert.ok(p15.includes('p15.natali.makeup') && p15.includes('p15.natali.ride'));
-    assert.equal(procs.find((p) => p.id === 'p20').due.hours, 3);
+    // Lior's shoot day (11ב, 15, 20) left the protocol in v12, for every star.
+    for (const id of ['p11b', 'p20', 'r2-p11b', 'r2-p20', 'p15', 'p21']) assert.ok(!ids.includes(id), `${inf} ${id}`);
     const all = JSON.stringify(procs.map(({ title, sla, what, rule, ownerNote, items, guidance }) => ({ title, sla, what, rule, ownerNote, items: items.map((i) => i.label), guidance: guidance?.[inf] })));
     assert.ok(!all.includes('נטלי'), `${inf}: ${all.match(/[^"]{0,40}נטלי[^"]{0,40}/)?.[0]}`);
-    assert.ok(all.includes(`מאפרת תואמה, מגיעה לבית של ${starShort(inf)} שעתיים לפני הצילום`));
-    assert.ok(all.includes(`ניהול יום צילום עם ${INFLUENCERS[inf].name}`));
+    // What left still says the day's influencer, for the history of its marks.
+    assert.ok(starProcess(PROCESSES.find((p) => p.id === 'p11b'), inf).items.some((i) => i.label === `מאפרת תואמה, מגיעה לבית של ${starShort(inf)} שעתיים לפני הצילום`));
+    assert.equal(starProcess(PROCESSES.find((p) => p.id === 'p20'), inf).title, `ניהול יום צילום עם ${INFLUENCERS[inf].name}`);
     assert.ok(procs.find((p) => p.id === 'p12').guidance[inf].startsWith(`יום עם ${starShort(inf)}:`));
   }
 });
@@ -194,7 +192,7 @@ test('the shoot-day screens and texts name the day\'s influencer', () => {
   assert.ok(dayBeforeText(JSON.stringify({ ok: [], failed: ['natali'] }), 'natali').includes('של נטלי'));
 });
 
-test('the reminders: 11ב and the three-hour day for Niro, in his name', () => {
+test('the reminders: 11ב left with Lior\'s shoot day in v12, for Niro too: nothing rings for it', () => {
   const staff = [{ email: 'owner@x', person: null }, ...['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli'].map((p) => ({ email: `${p}@x`, person: p }))];
   const w = { clients: [], checks: {}, tasks: [], access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [], staff };
   const c = { id: 'c1', name: 'קפה', status: 'active', shoot_type: 'niro', characterizer: 'ofir', has_logo: true, rounds: [], contract_end: '2027-12-31',
@@ -206,11 +204,10 @@ test('the reminders: 11ב and the three-hour day for Niro, in his name', () => {
   for (const k of p11b) delete checks[k];
   for (const k of PROCESSES.find((p) => p.id === 'p11').items.filter((i) => !i.optional).map((i) => i.key)) checks[k] = { client_id: 'c1', item_key: k, state: 'done', at: IL(2026, 10, 11, 10).toISOString(), by_email: 'x@x' };
   const quiet = computeReminders({ ...w, now: IL(2026, 10, 11, 10), log: [] }).filter((r) => r.rule === 'natali');
-  assert.equal(quiet.length, 1);
-  assert.match(`${quiet[0].title} ${quiet[0].body}`, /של נירו/);
+  assert.equal(quiet.length, 0);
   const red = computeReminders({ ...w, now: IL(2026, 10, 12, 10), log: [] }).filter((r) => r.rule === 'natali');
-  assert.ok(red.length >= 3);
-  for (const r of [...quiet, ...red]) assert.ok(!`${r.title} ${r.body}`.includes('נטלי'), r.title);
+  assert.equal(red.length, 0);
+  for (const r of computeReminders({ ...w, now: IL(2026, 10, 12, 10), log: [] })) assert.ok(!`${r.title} ${r.body}`.includes('נטלי'), r.title);
 });
 
 test('the forms: every shoot type is offered where the shoot type is chosen by hand', () => {

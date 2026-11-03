@@ -78,14 +78,14 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   // 5: the access is taken by the characterizer and Irit; the 30 minutes of 6 start from it, and
   // 6 is Ofir's since 28.10.2026 (Ilai waited here until then): he holds 5 already, so nobody waits.
   assert.deepEqual([by('5').holders.sort(), by('5').waiters], [['irit', 'ofir'], []]);
-  // 8 and 10 are their owner's alone: nobody waits inside the protocol.
-  assert.deepEqual([by('8').holders, by('10').holders], [['ofir'], ['lior']]);
+  // 8 is its owner's alone: nobody waits inside the protocol. (10, Lior's Meta check, left in v12.)
+  assert.deepEqual([by('8').holders, by('10')], [['ofir'], undefined]);
   assert.equal(hhmm(by('7').lateAt), '5.10 14:15'); // the deadline and the grace
   // Ofir and Lior are told of their own late process by the note every late process sends them
   // (rule `late`), not a second time: one line each in their batch, never the same item twice.
   const at1415 = due(w, IL(2026, 10, 5, 14, 15));
   const told = (p, num) => at1415.filter((r) => r.person === p && /^late(Own)?$/.test(r.rule) && new RegExp(` ${num} · `).test(r.title)).map((r) => `${r.rule}.${r.step}`);
-  assert.deepEqual([told('ofir', '8'), told('lior', '10'), told('ilai', '7'), told('ofir', '7')], [['late.ofir'], ['late.lior'], ['lateOwn.own'], ['late.ofir']]);
+  assert.deepEqual([told('ofir', '8'), told('lior', '10'), told('ilai', '7'), told('ofir', '7')], [['late.ofir'], [], ['lateOwn.own'], ['late.ofir']]);
   assert.equal(LATE_LADDER.graceMinutes, 15);
   // Ilai delivered a day late. The check is Ofir's alone, and it has its own clock from the
   // moment the graphics reach him (protocol v9: ten minutes on his fast ladder), so 7 is not late now.
@@ -477,25 +477,26 @@ test('the 19:00 table: a row per employee with what is late, what was for today 
   w.tasks.push({ id: 't2', client_id: c.id, title: 'להתקשר ללקוח', owner: 'irit', due_on: '2026-10-06', created_at: IL(2026, 10, 5, 10).toISOString() });
   const now = IL(2026, 10, 6, 19);
   const sum = summaryOf(buildEnv({ ...w, now }));
+  // (Lior had a row until v12: his Meta check, 10, late, and the focus call, 12א, for today. Both left.)
   assert.deepEqual(sum.rows.map((r) => [r.person, r.late, r.today, r.longest]), [
-    ['irit', 2, 1, '3 ימי עסקים'], ['ofir', 2, 0, 'יום עסקים'], ['ilai', 2, 0, 'יום עסקים'], ['lior', 1, 1, 'יום עסקים'],
+    ['irit', 2, 1, '3 ימי עסקים'], ['ofir', 2, 0, 'יום עסקים'], ['ilai', 2, 0, 'יום עסקים'],
   ]);
   // An item two people hold (5: Ofir and Irit) counts for each of them and once in the totals.
-  assert.deepEqual([sum.totals.late, sum.totals.today, sum.totals.people, sum.totals.longest], [6, 2, 4, '3 ימי עסקים']);
+  assert.deepEqual([sum.totals.late, sum.totals.today, sum.totals.people, sum.totals.longest], [5, 1, 3, '3 ימי עסקים']);
   assert.equal(sum.items[0].what, 'לשלוח חשבונית');
-  assert.deepEqual(sum.items.map((x) => x.kind), ['late', 'late', 'late', 'late', 'late', 'late', 'today', 'today']);
+  assert.deepEqual(sum.items.map((x) => x.kind), ['late', 'late', 'late', 'late', 'late', 'today']);
   assert.deepEqual(sum.items.filter((x) => x.kind === 'late').map((x) => +x.dueAt), sum.items.filter((x) => x.kind === 'late').map((x) => +x.dueAt).sort((a, b) => a - b));
   // The push says the numbers by itself.
-  assert.equal(headline(sum), 'היום: 6 באיחור אצל 4 עובדים, 2 מהיום לא בוצעו');
+  assert.equal(headline(sum), 'היום: 5 באיחור אצל 3 עובדים, אחד מהיום לא בוצע');
   assert.deepEqual(pushLines(sum).slice(1), [
-    'עירית: 2 באיחור (הארוך: 3 ימי עסקים), אחד מהיום לא בוצע', 'אופיר: 2 באיחור (הארוך: יום עסקים)', 'עילאי: 2 באיחור (הארוך: יום עסקים)', 'ליאור: 1 באיחור (הארוך: יום עסקים), אחד מהיום לא בוצע',
+    'עירית: 2 באיחור (הארוך: 3 ימי עסקים), אחד מהיום לא בוצע', 'אופיר: 2 באיחור (הארוך: יום עסקים)', 'עילאי: 2 באיחור (הארוך: יום עסקים)',
   ]);
   // The page computes the same from what it loaded (no engine, no env): the same numbers.
   const page = daySummary({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => clientState(x, w.checks[x.id] || {}, now), tasks: w.tasks, now });
   assert.deepEqual([page.rows, page.totals], [sum.rows, sum.totals]);
   // The WhatsApp text of the same day is ready for when the channel is connected; nothing sends it now.
   const wa = waText(sum, { link: 'https://example.test/owner.html#eod' });
-  assert.match(wa, /^סיכום היום\nהיום: 6 באיחור אצל 4 עובדים, 2 מהיום לא בוצעו\n\nעירית: 2 באיחור/);
+  assert.match(wa, /^סיכום היום\nהיום: 5 באיחור אצל 3 עובדים, אחד מהיום לא בוצע\n\nעירית: 2 באיחור/);
   assert.match(wa, /• אלפא · לשלוח חשבונית · עירית · באיחור 3 ימי עסקים/);
   // No money anywhere in it.
   assert.doesNotMatch(JSON.stringify(sum) + wa + pushLines(sum).join(' '), /₪|מחיר|agorot|monthly/);

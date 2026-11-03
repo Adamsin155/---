@@ -206,15 +206,14 @@ test('preselection: Nirel for Natali; another editor needs a reason; a joint day
   assert.equal(jointFromSelection(null), false);
 });
 
-test('waiting for an editor: the client\'s shoot and a round\'s, once the shoot day is closed', () => {
+test('waiting for an editor: from the evening of the shoot day (v12: nobody closes it)', () => {
   const w = world();
-  const now = IL(2026, 10, 19, 10);
   const c = client(w, { shoot_at: IL(2026, 10, 18, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });
-  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19b', 'p21']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
-  assert.equal(awaitingEditor({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks }).length, 0);
-  marks(w, c, itemsOf('p19'), IL(2026, 10, 18, 16));
-  const list = awaitingEditor({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks });
-  assert.deepEqual(list.map((x) => [x.pre, x.n]), [['', null]]);
+  for (const id of ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p11', 'p12', 'p13', 'p14', 'p36', 'p17b', 'p18b', 'p19b']) marks(w, c, itemsOf(id), IL(2026, 10, 18, 9), IMPORT_NOTE);
+  const waiting = (now) => awaitingEditor({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks });
+  assert.equal(waiting(IL(2026, 10, 18, 17, 59)).length, 0);
+  assert.deepEqual(waiting(IL(2026, 10, 18, 18)).map((x) => [x.pre, x.n]), [['', null]]);
+  assert.deepEqual(waiting(IL(2026, 10, 19, 10)).map((x) => [x.pre, x.n]), [['', null]]);
 });
 
 test('editor load: "יום X מתוך 3", 4 once the videos are with Ofir; paused jobs; tasks; Ofir\'s proposal', () => {

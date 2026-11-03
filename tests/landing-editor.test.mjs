@@ -74,8 +74,8 @@ test('the block: a client in landing at editing, 22א ready and not really marke
   assert.deepEqual(editorSlots(client(), { ...imported(), 'p22a.assigned': { state: 'done', at: IMPORTED } }, {}, NOW), []);
   // A shoot round of Natali's: its own slot, its own keys and list.
   const r = client({ rounds: [{ n: 2, shoot_type: 'natali', shoot_at: '2026-10-08T06:00:00Z', editor: null }] });
-  const rk = { ...imported(), 'p22a.assigned': { state: 'done', note: IMPORT_NOTE, at: IMPORTED }, 'p22a.load': { state: 'done', note: IMPORT_NOTE, at: IMPORTED },
-    ...Object.fromEntries(clientState(r, imported(), NOW).states.find((s) => s.proc.id === 'r2-p19').proc.items.map((i) => [i.key, { state: 'done', note: IMPORT_NOTE, at: IMPORTED }])) };
+  // (Its shoot day is behind it: 22א opens on the shoot day's evening since v12; until then the round's 19 closed it.)
+  const rk = { ...imported(), 'p22a.assigned': { state: 'done', note: IMPORT_NOTE, at: IMPORTED }, 'p22a.load': { state: 'done', note: IMPORT_NOTE, at: IMPORTED } };
   const rs = editorSlots(r, rk, {}, NOW);
   assert.deepEqual(rs.map((s) => [s.n, s.pre, s.procId, s.editors.includes('nirel')]), [[2, 'r2.', 'r2-p22a', true]]);
   assert.equal(editorSlots({ ...r, rounds: [{ ...r.rounds[0], editor: 'nirel' }] }, rk, setMarks('done', 'r2.'), NOW)[0].editor, 'nirel');
