@@ -243,6 +243,14 @@ details.ps-sum { min-width: 0; }
 #dlg-assign .wrow .wlabel { min-width: 0; }
 #dlg-qa .of-checks > div { display: grid; gap: 6px; }
 #dlg-qa .of-checks .wrow { padding: 6px 12px; border-radius: var(--ds-r-sm); background: var(--ds-ground); cursor: pointer; }
+/* One tick (3.11.2026): the checks as lines to read, a dot per line, and "עברתי על הכול, הכול תקין" under them. */
+#dlg-qa .of-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-inline-size: 0; }
+#dlg-qa .of-lines > li { position: relative; padding-inline-start: 18px; line-height: 1.45; overflow-wrap: anywhere; }
+#dlg-qa .of-lines > li::before {
+  content: ''; position: absolute; inset-inline-start: 4px; inset-block-start: .62em; inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--ds-navy);
+}
+#dlg-qa .of-checks .wrow.of-all { margin-top: 6px; font-weight: 700; border: 1.5px solid var(--line); }
+#dlg-qa .of-checks .wrow.of-all:has(.cbx:checked) { border-color: var(--ok); background: var(--ok-soft); }
 #dlg-qa .of-prev { padding: 4px 12px 10px; border-radius: var(--ds-r-item); background: var(--ds-amber-soft); }
 #dlg-qa .of-prev > summary { color: var(--ds-ink); font-weight: 600; }
 #dlg-task .dlg-body { display: grid; gap: 12px; }
