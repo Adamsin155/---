@@ -885,15 +885,15 @@ export function suggestFor(client, checks = {}, messages = [], now = new Date(),
 
 // The daily message of the station. A promised date that already passed is
 // never repeated to the client: editing then gets the message without a date.
-// A shoot day that is behind the client but not closed in the card (process 19)
-// no longer gets "the shoot day is coming".
+// A shoot day that is behind the client no longer gets "the shoot day is coming" (until v12 it
+// said that the day was not closed in the card, process 19).
 function dailyOption(station, ctx, now) {
   let key = STATIONS[station].key;
   let reason = `הודעה יומית · תחנה: ${STATIONS[station].title}`;
   const shoot = parseDate(ctx.shoot_at);
   if (key === 'shoot' && shoot && daysBetweenIL(shoot, now) >= 1) {
     key = 'post';
-    reason += `. יום הצילום היה ${relDay(shoot, now)} ועוד לא נסגר בכרטיס (תהליך 19)`;
+    reason += `. יום הצילום היה ${relDay(shoot, now)}`;
   }
   const vars = {};
   if (key === 'post') {

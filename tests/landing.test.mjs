@@ -42,8 +42,9 @@ const TEAM = Object.keys(PEOPLE).filter((p) => p !== 'editor' && !PEOPLE[p].sale
 test('before landing existed, an imported client was weeks late on the day it arrived', () => {
   const c = base();
   const s = clientState(c, imported('shoot'), NOW);
-  assert.ok(s.overdue >= 5, `overdue ${s.overdue}`);
-  assert.ok(openItemsFor('lior', c, imported('shoot'), s, NOW).some((x) => x.status === 'overdue'));
+  // (Lior's shoot day left the protocol in v12: Eli's 17ב–19ב and Ilai's graphics are what is late.)
+  assert.ok(s.overdue >= 4, `overdue ${s.overdue}`);
+  assert.ok(openItemsFor('eli', c, imported('shoot'), s, NOW).some((x) => x.status === 'overdue'));
 });
 
 test('in landing: no deadline, nothing late, nobody has it in a list, a clock or a count', () => {
@@ -79,9 +80,8 @@ test('in landing: the weekly call, the monthly cycle, the QA hour, hand-overs an
   const c = base({ landing: true });
   const checks = imported('ongoing');
   const s = clientState(c, checks, NOW);
-  const p31 = s.states.find((x) => x.proc.id === 'p31');
-  assert.equal(p31.ready, false);
-  assert.equal(p31.status, 'waiting');
+  // The weekly call (31) left the protocol in v12: nothing to ask, in landing or after it.
+  assert.equal(s.states.find((x) => x.proc.id === 'p31'), undefined);
   assert.equal(cycleFrom(c, s), null);
   assert.deepEqual(openMonthItems(null, c, s, checks, {}, NOW), []);
   assert.equal(yearOf(c, s, checks, {}, NOW).months.reduce((n, m) => n + m.late, 0), 0);
@@ -94,10 +94,9 @@ test('in landing: the weekly call, the monthly cycle, the QA hour, hand-overs an
   for (const j of editorLoad({ clients: [c], stateOf: () => sp, checks: { c1: post }, now: NOW }).nadia.jobs) assert.equal(j.landing, true);
   assert.deepEqual(handoffsFor(c, post, 'p24.notify', { now: NOW }), []);
   const noEditor = base({ landing: true, editor: null });
-  const shot = { ...imported('shoot'), 'p19.done': { state: 'done', at: '2026-10-19T07:00:00Z' } };
-  const closed = Object.fromEntries(clientState(noEditor, shot, NOW).states.find((x) => x.proc.id === 'p19').proc.items.map((i) => [i.key, { state: 'done', at: '2026-10-19T07:00:00Z' }]));
+  // Eli handed the drive (since v12 nobody closes the day): nothing is put on Ofir's ten-minute clock (protocol v9).
+  const closed = Object.fromEntries(clientState(noEditor, imported('shoot'), NOW).states.find((x) => x.proc.id === 'p19b').proc.items.map((i) => [i.key, { state: 'done', at: '2026-10-19T07:00:00Z' }]));
   const all = { ...imported('shoot'), ...closed };
-  // A shoot day closed on a client in landing: nothing is put on Ofir's ten-minute clock (protocol v9).
   assert.deepEqual(fastCases({ clients: [noEditor], stateOf: (x) => clientState(x, all, NOW), checksOf: () => all }), []);
 });
 
@@ -105,7 +104,9 @@ test('taking in: each person sees only their own items, and the answers are kept
   const c = base({ landing: true });
   const checks = imported('shoot');
   const by = Object.fromEntries(TEAM.map((p) => [p, intakeItems(p, c, checks, {}, NOW)]));
-  assert.ok(by.lior.length > 0 && by.irit.length >= 0);
+  // (Lior has nothing to take in on a client past the shoot since v12: his shoot day left the protocol.)
+  assert.ok(by.ofir.length > 0 && by.irit.length >= 0);
+  assert.deepEqual(by.lior, []);
   for (const p of TEAM) {
     for (const i of by[p]) {
       const owners = i.proc.items.find((x) => x.key === i.key).owners;
@@ -128,10 +129,10 @@ test('taking in: each person sees only their own items, and the answers are kept
   assert.deepEqual(intakeItems('lior', base(), checks, {}, NOW), []);
 
   // An answer stays in the list with its choice, and counts as history only through withIntake.
-  const key = by.lior[0].key;
-  const marks = { [key]: { choice: 'done', person: 'lior', at: NOW.toISOString(), by_email: 'lior@x' } };
-  assert.equal(intakeItems('lior', c, checks, marks, NOW).find((i) => i.key === key).choice, 'done');
-  assert.deepEqual(withIntake(checks, marks)[key], { state: 'done', note: IMPORT_NOTE, at: NOW.toISOString(), by_email: 'lior@x', staged: true });
+  const key = by.ofir.find((i) => !i.assumed).key;
+  const marks = { [key]: { choice: 'done', person: 'ofir', at: NOW.toISOString(), by_email: 'ofir@x' } };
+  assert.equal(intakeItems('ofir', c, checks, marks, NOW).find((i) => i.key === key).choice, 'done');
+  assert.deepEqual(withIntake(checks, marks)[key], { state: 'done', note: IMPORT_NOTE, at: NOW.toISOString(), by_email: 'ofir@x', staged: true });
   assert.equal(withIntake(checks, { [key]: { choice: 'open' } })[key], undefined);
   assert.equal(withIntake({ [key]: { state: 'done', at: 'x' } }, { [key]: { choice: 'na' } })[key].at, 'x', 'a real mark wins');
   assert.equal(withIntake(checks, { [key]: { choice: 'na', at: 'y' } })[key].state, 'na');
@@ -145,16 +146,19 @@ test('the proposal: what is behind the evident station is proposed as done, show
   const ev = evidentStation(c, checks, NOW);
   assert.equal(STATIONS[ev.index].key, 'post');
   assert.match(ev.why, /יום הצילום כבר היה \(20\.6\)/);
-  const p = proposalFor('lior', c, checks, {}, NOW);
+  // (Lior's shoot day, 15–21, was the example until v12. Ofir: the Highlights are behind the client,
+  // the editor's assignment and the graphics' check are still ahead.)
+  const p = proposalFor('ofir', c, checks, {}, NOW);
   assert.ok(p.done.length > 0);
-  assert.ok(p.done.every((k) => /^p(15|16|17|18|19|20|21)\./.test(k)), p.done.join());
-  assert.ok(p.open.every((k) => !/^p(15|16|17|18|19)\./.test(k)));
-  // Nothing was applied: every item is still unanswered.
-  assert.ok(intakeItems('lior', c, checks, {}, NOW).every((i) => i.choice === null));
+  assert.ok(p.done.every((k) => /^p08b?\./.test(k)), p.done.join());
+  assert.ok(p.open.every((k) => /^p2[23]a?\./.test(k)), p.open.join());
+  assert.equal(proposalFor('lior', c, checks, {}, NOW), null);
+  // Nothing was applied: every item that is not asked again is still unanswered.
+  assert.ok(intakeItems('ofir', c, checks, {}, NOW).every((i) => i.choice === null || i.assumed));
   // No sign beyond the import's guess: no proposal.
   const future = base({ landing: true, shoot_at: '2026-11-20T06:00:00Z' });
   assert.equal(evidentStation(future, checks, NOW).why, null);
-  assert.equal(proposalFor('lior', future, checks, {}, NOW), null);
+  assert.equal(proposalFor('ofir', future, checks, {}, NOW), null);
   // Real work marked in a later station is a sign too.
   const worked = { ...imported('char'), 'p12.written': { state: 'done', at: '2026-10-10T07:00:00Z' } };
   const key = Object.keys(clientState(base(), {}, NOW).states.find((x) => x.proc.id === 'p12').proc.items.reduce((o, i) => ({ ...o, [i.key]: 1 }), {}))[0];
@@ -168,33 +172,34 @@ test('who still has to go over a client, the line of each person, and what stays
   const other = base({ id: 'c2', business: 'מוסך', landing: true, shoot_at: '2026-11-20T06:00:00Z' });
   const fresh = base({ id: 'c3', business: 'חדש' }); // signed today: never in landing
   const checksBy = { c1: imported('shoot'), c2: imported('content'), c3: {} };
+  // (Lior was the example until v12; his shoot day left the protocol, and he has nothing to take in here.)
   const waiting = waitingPeople(c, checksBy.c1, {}, {}, NOW);
-  assert.ok(waiting.includes('lior'));
+  assert.ok(waiting.includes('ofir') && !waiting.includes('lior'));
   assert.ok(waiting.every((p) => intakeItems(p, c, checksBy.c1, {}, NOW).length > 0));
-  const list = intakeFor('lior', [c, other, fresh], checksBy, {}, {}, NOW);
+  const list = intakeFor('ofir', [c, other, fresh], checksBy, {}, {}, NOW);
   assert.deepEqual(list.map((x) => x.client.id).sort(), ['c1', 'c2']);
   assert.equal(intakeLeft(list), 2);
-  // Lior finished c1 and left one item open.
-  const items = intakeItems('lior', c, checksBy.c1, {}, NOW);
-  const marks = { c1: Object.fromEntries(items.map((i, n) => [i.key, { choice: n === 0 ? 'open' : 'done', person: 'lior', at: NOW.toISOString() }])) };
-  const done = { c1: { lior: { done: true } } };
-  const after = intakeFor('lior', [c, other, fresh], checksBy, marks, done, NOW);
+  // Ofir finished c1 and left one item open.
+  const items = intakeItems('ofir', c, checksBy.c1, {}, NOW);
+  const marks = { c1: Object.fromEntries(items.map((i, n) => [i.key, { choice: n === 0 ? 'open' : 'done', person: 'ofir', at: NOW.toISOString() }])) };
+  const done = { c1: { ofir: { done: true } } };
+  const after = intakeFor('ofir', [c, other, fresh], checksBy, marks, done, NOW);
   assert.equal(intakeLeft(after), 1);
   assert.equal(after.at(-1).client.id, 'c1', 'finished clients go last');
-  assert.ok(!waitingPeople(c, checksBy.c1, marks.c1, done.c1, NOW).includes('lior'));
-  const quiet = quietWork('lior', [c, other, fresh], checksBy, marks, done, NOW);
-  // What he left open, and what his answers opened next (the shoot day done: the hand-over to editing).
+  assert.ok(!waitingPeople(c, checksBy.c1, marks.c1, done.c1, NOW).includes('ofir'));
+  const quiet = quietWork('ofir', [c, other, fresh], checksBy, marks, done, NOW);
+  // What he left open, and what his answers opened next.
   assert.deepEqual(quiet.map((x) => x.client.id), ['c1']);
   assert.ok(quiet[0].items.some((i) => i.key === items[0].key));
   assert.ok(quiet[0].items.every((i) => i.choice !== 'done' && i.choice !== 'na'));
   assert.ok(quiet[0].items.filter((i) => i.key !== items[0].key).every((i) => !items.some((x) => x.key === i.key)));
   // Taking "I finished" back: the client is in the line again.
-  assert.equal(intakeLeft(intakeFor('lior', [c], checksBy, marks, { c1: { lior: { done: false } } }, NOW)), 1);
+  assert.equal(intakeLeft(intakeFor('ofir', [c], checksBy, marks, { c1: { ofir: { done: false } } }, NOW)), 1);
 
   const b = landingBoard([c, other, fresh], checksBy, marks, done, NOW);
   assert.equal(b.total, 2);
-  const lior = b.people.find((r) => r.key === 'lior');
-  assert.deepEqual([lior.total, lior.finished, lior.left.map((x) => x.id)], [2, 1, ['c2']]);
+  const ofir = b.people.find((r) => r.key === 'ofir');
+  assert.deepEqual([ofir.total, ofir.finished, ofir.left.map((x) => x.id)], [2, 1, ['c2']]);
   assert.deepEqual(b.soon.map((x) => x.id), []);
   // Everyone finished c1: it is ready for the one tap.
   const everyone = { c1: Object.fromEntries(TEAM.map((p) => [p, { done: true }])) };
@@ -304,18 +309,8 @@ test('spreading: forty first weekly calls fall four a day over ten working days,
   assert.equal(days.size, SPREAD_DAYS);
   assert.deepEqual([...new Set(days.values())], [4]);
   assert.ok([...days.keys()].sort().at(-1) <= dayKeyIL(addBusinessDays(new Date(landed), SPREAD_DAYS)));
-  // On the day of the activation no call is asked for; each comes up on its own day.
-  const due = (now) => clients.filter((c) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p31').status === 'due').length;
-  assert.equal(due(new Date(landed)), 0);
-  assert.equal(due(new Date('2026-10-21T08:00:00Z')), 4);
-  assert.equal(due(new Date('2026-10-22T08:00:00Z')), 8);
-  assert.equal(due(new Date('2026-11-05T08:00:00Z')), 40);
-  // A call recorded since the activation: done for its week, and due again seven days later.
-  const c = clients[9];
-  const called = { ...checks, 'p31.call': { state: 'done', at: '2026-10-21T09:00:00Z' } };
-  const p31 = (now) => clientState(c, called, now).states.find((s) => s.proc.id === 'p31');
-  assert.equal(p31(new Date('2026-10-22T08:00:00Z')).status, 'done');
-  assert.equal(p31(new Date('2026-10-29T08:00:00Z')).status, 'due');
+  // (The weekly call, 31, which this spread its first calls of, left the protocol in v12: the spread
+  // itself stays, for any recurring work that comes back.)
   // No slot (a client activated before the column existed): the next business day.
   assert.equal(dayKeyIL(spreadStart(base({ landing: false, landed_at: landed }))), '2026-10-21');
   // The monthly cycle starts the month after the activation, on the client's own month day.
