@@ -423,6 +423,22 @@ details.cal[open] > summary { text-decoration: underline; }
 .wait-btn { font-size: 12.5px; min-height: 32px; }
 .proc.s-client { border-color: var(--warn-line); }
 .bulk-btn { margin-top: 8px; min-height: 44px; font-weight: 500; }
+/* "בוצע" (3.11.2026): one big button for the items closed together, their rows folded under it. */
+.wc-done { display: grid; gap: 6px; margin-top: 8px; min-width: 0; }
+.bulk-btn.done-btn { margin-top: 0; inline-size: 100%; min-height: 48px; font-size: 16px; font-weight: 700; justify-content: center; }
+.chk-fold > summary {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; border-radius: var(--ds-r-sm, var(--radius-sm));
+  color: var(--ds-ink-2, var(--text-2)); font-size: 14px; font-weight: 600; cursor: pointer; list-style: none;
+}
+.chk-fold > summary::-webkit-details-marker { display: none; }
+.chk-fold > summary::before {
+  content: ''; flex: none; inline-size: 7px; block-size: 7px; border: solid currentColor; border-width: 0 0 2px 2px;
+  transform: rotate(-45deg) translate(1px, -1px); transition: transform .15s;
+}
+.chk-fold[open] > summary::before { transform: rotate(135deg) translate(-1px, 1px); }
+.chk-fold > summary:focus-visible { outline: 2px solid var(--ds-navy, var(--navy)); outline-offset: 2px; }
+.chk-fold > .wlist, .chk-fold > .items { margin-top: 4px; }
+@media (min-width: 761px) { .bulk-btn.done-btn { inline-size: auto; min-inline-size: 220px; justify-self: start; } }
 .plink { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 14px; min-height: 32px; }
 .plink::after { content: '↗'; font-size: 12px; }
 

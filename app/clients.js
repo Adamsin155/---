@@ -731,6 +731,34 @@ function bulkFor(g) {
   return { items, whole: items.length === open.length };
 }
 
+// ── One button, "בוצע" (the owner, 3.11.2026: "יש אלף סעיפים לרשום כן כן כן") ──
+// Where `me` may close several items of a process at once (bulkFor), that is the card's
+// main action: one big "בוצע" that marks exactly those items (the same keys as the old
+// "סימון כל התהליך"). Their rows wait under it in a closed "רשימת הבדיקה (N)", still there
+// to tick one by one. What the button does not mark (a guard, a link, a date, a choice,
+// a wait, somebody else's confirmation) stays in sight as before.
+const checksOpen = new Set(); // cards whose "רשימת הבדיקה" is open: kept across rebuilds
+const oneButton = (g, bulk) => !!bulk && !isAccessCard(g);
+function doneButton(g, bulk) {
+  return h('button', {
+    type: 'button', class: 'btn btn-primary bulk-btn done-btn',
+    'aria-label': `בוצע: סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
+    onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
+  }, 'בוצע');
+}
+function doneBox(g, bulk, rows) {
+  const d = h('details', { class: 'chk-fold', open: checksOpen.has(g.key) },
+    h('summary', {}, `רשימת הבדיקה (${rows.length})`),
+    h('ul', { class: 'wlist' }, ...rows.map((e) => rowOf(e))));
+  d.addEventListener('toggle', () => { if (d.open) checksOpen.add(g.key); else checksOpen.delete(g.key); });
+  return h('div', { class: 'wc-done' }, doneButton(g, bulk), rows.length ? d : null);
+}
+// The entries of a card split by the button: [what it marks, what stays a row of its own].
+function splitByBulk(bulk, entries) {
+  const keys = new Set(bulk.items.map((i) => i.key));
+  return [entries.filter((e) => !e.task && keys.has(e.item.key)), entries.filter((e) => e.task || !keys.has(e.item.key))];
+}
+
 function focusGroupAt(index) {
   const cards = [...document.querySelectorAll('#mine-list .wproc')];
   const card = cards[Math.min(index, cards.length - 1)];
@@ -1247,26 +1275,29 @@ function compactCard(g, person) {
   const what = g.task ? g.task.title : procTitle(g);
   const sub = g.task ? [isEscalation(g.task) ? null : 'משימה', TASK_SOURCES[g.task.source]].filter(Boolean).join(' · ') : one || !n ? '' : n === 1 ? 'פריט אחד לסימון' : `${n} פריטים לסימון`;
   const rows = () => (one ? h('ul', { class: 'wlist' }, ...ticks.map((e) => rowOf(e))) : listOf(g, ticks));
-  // The one action: "התחלתי" on an urgent task; the form the process is worked in; the
-  // single item's own check; or the list of items, which opens here.
-  const listIsAction = !needsStart && !shortcut && !one && n > 0;
-  const single = !needsStart && !shortcut && one;
-  if (shortcut) shortcut.classList.add('wc-go');
+  // "בוצע" (3.11.2026): the button is the action, its items fold under it, the rest stay rows.
+  const done = oneButton(g, bulk) && !needsStart;
+  const [bulkTicks, restTicks] = done ? splitByBulk(bulk, ticks) : [[], ticks];
+  // The one action: "התחלתי" on an urgent task; "בוצע" for the items closed together; the
+  // form the process is worked in; the single item's own check; or the list of items, which opens here.
+  const listIsAction = !done && !needsStart && !shortcut && !one && n > 0;
+  const single = !done && !needsStart && !shortcut && one;
+  if (shortcut && !done) shortcut.classList.add('wc-go');
   const extras = [
     g.dueAt ? h('p', { class: 'wc-due num' }, `יעד: ${formatWhen(g.dueAt)}`) : null,
     !person ? peopleChips(owners) : null,
     claimControl(g, person),
     g.task ? taskMeta(g.task) : null,
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
-    bulk || canWait ? h('div', { class: 'wproc-acts' },
-      bulk ? h('button', {
+    (bulk && !done) || canWait ? h('div', { class: 'wproc-acts' },
+      bulk && !done ? h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost bulk-btn',
         'aria-label': `סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
         onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
       }, g.proc.bulkWord ? `${g.proc.bulkWord} (${bulk.items.length})` : bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
-    single || !n ? null : rows(),
+    done || single || !n ? null : rows(),
   ].filter(Boolean);
   const open = openCards.has(g.key);
   const panel = extras.length ? h('div', { class: 'wc-panel', id: panelId, hidden: !open }, ...extras) : null;
@@ -1301,6 +1332,8 @@ function compactCard(g, person) {
     zoomFixesLine(g), // 13: were fixes left after the Zoom?
     link, // the link this step sends to the client, with its "סיימתי" in the same row
     start, // "התחלתי", or when it was pressed
+    done ? doneBox(g, bulk, bulkTicks) : null, // "בוצע", and its checklist folded under it
+    done && restTicks.length ? h('ul', { class: 'wlist wc-rest' }, ...restTicks.map((e) => rowOf(e))) : null,
     shortcut,
     single && !link ? rows() : null,
     listIsAction ? toggle(`הצגת הפריטים (${n})`, 'btn btn-sm wc-go wc-open') : null,
@@ -1314,6 +1347,8 @@ function groupCard(g, person) {
   const href = clientUrl(g.client.id, g.proc ? `#${g.proc.id}` : '#tasks');
   const owners = g.task ? [g.task.owner] : [...new Set(g.entries.flatMap((e) => e.item.owners))];
   const bulk = bulkFor(g);
+  const done = oneButton(g, bulk);
+  const [bulkTicks, restTicks] = done ? splitByBulk(bulk, checkable(g)) : [[], checkable(g)];
   const waitId = `wl-${g.key}`.replace(/[^\w-]/g, '_');
   // 'own' roles mark a wait only where the client is part of their work (approvals, corrections).
   const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
@@ -1339,15 +1374,16 @@ function groupCard(g, person) {
     linkLine(g),
     shortcutOf(g),
     g.status === 'client' ? waitLine(g.wait, waitId) : null,
+    done ? doneBox(g, bulk, bulkTicks) : null,
     bulk || canWait ? h('div', { class: 'wproc-acts' },
-      bulk ? h('button', {
+      bulk && !done ? h('button', {
         type: 'button', class: 'btn btn-sm btn-ghost bulk-btn',
         'aria-label': `סימון ${bulk.items.length} פריטים כבוצעו בתהליך ${procLabel(g.proc)}`,
         onclick: (ev) => bulkMark(g, bulk, ev.currentTarget),
       }, g.proc.bulkWord ? `${g.proc.bulkWord} (${bulk.items.length})` : bulk.whole ? `סימון כל התהליך כבוצע (${bulk.items.length})` : `סימון כל הפריטים שלי כבוצעו (${bulk.items.length})`) : null,
       canWait && g.status !== 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => openWait(g) }, 'ממתין ללקוח') : null,
       canWait && g.status === 'client' ? h('button', { type: 'button', class: 'btn-text', onclick: () => endWait(g) }, 'סיום המתנה') : null) : null,
-    listOf(g, checkable(g)));
+    done && !restTicks.length ? null : listOf(g, restTicks));
 }
 
 // ── One card per client (Ofir; the owner, 20.10.2026) ──

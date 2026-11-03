@@ -1347,32 +1347,58 @@ function pauseLine(x) {
     h('button', { type: 'button', class: 'btn-text', onclick: () => resumeEditing(x) }, 'חזרה לעריכה'));
 }
 
-function bulkButton(x) {
+// ── One button, "בוצע" (the owner, 3.11.2026: "יש אלף סעיפים לרשום כן כן כן") ──
+// The items `me` may close together in a process (bulkEligible) are one big "בוצע", which
+// marks exactly those keys (as "סימון כל התהליך" did). Their rows wait under it, folded in
+// "רשימת הבדיקה (N)", to tick one by one. Everything else stays a row of its own. Only the
+// viewer's own items: the office looking at somebody else's sees the rows as before.
+const checksOpen = new Set(); // folds opened: kept while the card is drawn again
+function bulkItemsOf(x) {
+  if (!me || printing || x.complete) return [];
   const items = bulkEligible(x, me, client, checks);
-  if (items.length < 2) return null;
-  const open = x.proc.items.filter((i) => !i.optional && !isResolved(i, checks[i.key]));
-  const all = items.length === open.length;
-  const label = all ? `סימון כל התהליך כבוצע (${items.length})` : `סימון כל הפריטים שלי כבוצעו (${items.length})`;
-  return h('button', {
-    type: 'button', class: 'btn btn-sm btn-ghost bulk-btn', id: `${x.proc.id}-bulk`,
-    'aria-label': `סימון ${items.length} פריטים כבוצעו בתהליך ${x.proc.num} · ${x.proc.title}`,
-    onclick: () => markBulk(x, items),
-  }, label);
+  return items.length < 2 ? [] : items;
+}
+function doneBox(x, items, idp = '') {
+  const p = x.proc;
+  const key = `${idp}${p.id}`;
+  const btnId = `${idp}${p.id}-bulk`;
+  const d = h('details', { class: 'chk-fold', open: checksOpen.has(key) },
+    h('summary', {}, `רשימת הבדיקה (${items.length})`),
+    h('ul', { class: 'items' }, ...items.map((i) => itemRow(p, i, idp))));
+  d.addEventListener('toggle', () => { if (d.open) checksOpen.add(key); else checksOpen.delete(key); });
+  return h('div', { class: 'wc-done cc-done' },
+    h('button', {
+      type: 'button', class: 'btn btn-primary bulk-btn done-btn', id: btnId,
+      'aria-label': `בוצע: סימון ${items.length} פריטים כבוצעו בתהליך ${p.num} · ${p.title}`,
+      onclick: () => markBulk(x, items, btnId),
+    }, 'בוצע'),
+    d);
+}
+// The rows of `items` with the button's own items out of them: [the box or null, the rest].
+function withDone(x, items, idp = '') {
+  const bulk = bulkItemsOf(x).filter((i) => items.includes(i));
+  if (bulk.length < 2) return [null, items];
+  return [doneBox(x, bulk, idp), items.filter((i) => !bulk.includes(i))];
+}
+// "בוצע" with its folded checklist, then the rows it does not mark.
+function doneAndRows(x, items, idp = '') {
+  const [box, rest] = withDone(x, items, idp);
+  return [box, box && !rest.length ? null : h('ul', { class: 'items' }, ...itemRows(x, rest, idp))];
 }
 
-async function markBulk(x, items) {
+async function markBulk(x, items, focusId = `${x.proc.id}-bulk`) {
   const keys = items.map((i) => i.key);
   const prev = Object.fromEntries(keys.map((k) => [k, checks[k]]));
   const note = 'בסימון כל התהליך';
   for (const k of keys) { pending.add(k); checks[k] = { state: 'done', note, at: new Date().toISOString(), by_email: myEmail }; }
-  renderKeepingFocus(`${x.proc.id}-bulk`);
+  renderKeepingFocus(focusId);
   try {
     const rows = await setChecksBulk(id, keys, 'done', note);
     for (const r of rows) checks[r.item_key] = r;
   } catch (err) {
     for (const k of keys) { if (prev[k]) checks[k] = prev[k]; else delete checks[k]; }
     for (const k of keys) pending.delete(k);
-    renderKeepingFocus(`${x.proc.id}-bulk`);
+    renderKeepingFocus(focusId);
     toast(`הסימון לא נשמר ולכן בוטל. אף פריט לא סומן. ${errorText(err)}`);
     return;
   }
@@ -1396,7 +1422,7 @@ async function markBulk(x, items) {
       try {
         await clearChecksBulk(id, keys);
         for (const k of keys) { delete checks[k]; dropHandoff(k); }
-        renderKeepingFocus(`${x.proc.id}-bulk`);
+        renderKeepingFocus(focusId);
         loadHistory();
         toast(`הסימון של ${keys.length} הפריטים בוטל.`);
       } catch (err) {
@@ -1489,11 +1515,10 @@ function procCard(x, now, s) {
       ...guidance.map((g) => h('p', { class: 'proc-guide' }, g)),
       p.rule ? h('p', { class: 'proc-rule' }, h('strong', {}, 'חובה: '), p.rule) : null,
       notYet ? waitFold(`${p.id}:all`, waitWords(items.length, ['ייפתחו כשהתהליך יתחיל', dueText(x, now) || 'ממתין לשלבים קודמים בפרוטוקול'].join(' · ')), items.map((i) => itemRow(p, i)))
-        : h('ul', { class: 'items' }, ...itemRows(x, items)),
+        : doneAndRows(x, items),
       handoffs,
       hidden.length ? h('p', { class: 'others-note' },
         `ועוד ${hidden.length === 1 ? 'פריט אחד' : `${hidden.length} פריטים`} בתהליך הזה אצל ${names([...new Set(hidden.flatMap((i) => i.owners))].filter((o) => o !== me))}.`) : null,
-      notYet ? null : bulkButton(x),
     ],
   );
 }
@@ -1586,7 +1611,7 @@ function myProc(x, items, now) {
     claimLine(x),
     link || go ? h('div', { class: 'mn-acts' }, go,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${LINKS.find((l) => l.key === PROC_LINK[pid]).label}`) : null) : null,
-    h('ul', { class: 'items' }, ...itemRows(x, items, 'mn-')));
+    doneAndRows(x, items, 'mn-'));
 }
 
 // The raw material and the chosen take per script, as written on the shoot day (protocol v10;
