@@ -60,7 +60,7 @@ test('red: a critical item more than 2 business days late; yellow up to 2; one n
   assert.equal(health(base, checks, '2026-10-20T10:00:00+03:00').color, 'red');
   // A shared process belongs to whoever took it; the rest to the owner of its first open item.
   const h = health(base, { ...checks, ...done(base, ['p11'], '2026-10-13T10:00:00+03:00') }, '2026-10-20T10:00:00+03:00');
-  assert.equal(find(h, null, 'p12a').who, 'lior');
+  assert.equal(find(h, null, 'p12').who, 'lior'); // 12א left with v12: the scripts (12) are next
   // The daily follow-up until the shoot (14) is asked once a day and is never late (protocol v8).
   assert.equal(find(health({ ...base, shoot_at: '2026-10-14T10:00:00+03:00' }, checks, '2026-10-20T10:00:00+03:00'), null, 'p14'), undefined);
   assert.equal(find(health({ ...base, shoot_at: '2026-10-27T10:00:00+02:00' }, checks, '2026-10-20T10:00:00+03:00'), null, 'p14'), undefined);
@@ -83,29 +83,30 @@ test('waiting on the client is never late: yellow only after 2 business days, an
 
 test('red: the shoot day at risk (no approved scripts a business day before; reminders not sent by 15:00) and its preparation', () => {
   const c = { ...base, shoot_at: '2026-10-21T11:00:00+03:00' };
-  const checks = { ...onboarded(c), ...done(c, ['p11', 'p12a', 'p12'], '2026-10-14T10:00:00+03:00'), ...item('p13.zoom', '2026-10-15T10:00:00+03:00') };
+  // v12: the scripts are one Google Docs link (12) and the Zoom one item (13): the shoot is at risk a
+  // business day before it while the Zoom did not take place (the client's approval, p13.approved,
+  // left with it; an old one still counts). The day-before reminders (15) and 11ב left with Lior's shoot day.
+  const checks = { ...onboarded(c), ...done(c, ['p11', 'p12'], '2026-10-14T10:00:00+03:00') };
   assert.equal(find(health(c, checks, '2026-10-15T10:00:00+03:00'), 'shoot-risk'), undefined); // 4 business days ahead
   // Monday, 2 business days before Wednesday: not yet (section 3: "יום עסקים לפני הצילום").
   assert.equal(find(health(c, checks, '2026-10-19T17:00:00+03:00'), 'shoot-risk'), undefined);
   const h = health(c, checks, '2026-10-20T08:00:00+03:00'); // Tuesday: the business day before
   const r = find(h, 'shoot-risk', 'p13');
   assert.deepEqual([r.color, r.who, r.text], ['red', 'lior', 'צילום בסיכון']);
-  assert.match(r.what, /^אין אישור לקוח על התסריטים, הצילום מחר$/);
+  assert.match(r.what, /^שיחת הזום על התסריטים לא התקיימה, הצילום מחר$/);
   assert.equal(h.color, 'red');
-  const approved = { ...checks, ...item('p13.approved', '2026-10-16T10:00:00+03:00') };
+  const approved = { ...checks, ...item('p13.zoom', '2026-10-16T10:00:00+03:00') };
   assert.equal(find(health(c, approved, '2026-10-20T08:00:00+03:00'), 'shoot-risk'), undefined);
-  // Approval marked "not relevant" (no scripts for this shoot): not at risk either.
-  const na = { ...checks, 'p13.approved': { state: 'na', at: '2026-10-16T10:00:00+03:00', note: null, by_email: 'lior@x.test' } };
+  // The Zoom marked "not relevant" (no scripts for this shoot), or an approval from before v12: not at risk either.
+  const na = { ...checks, 'p13.zoom': { state: 'na', at: '2026-10-16T10:00:00+03:00', note: null, by_email: 'lior@x.test' } };
   assert.equal(find(health(c, na, '2026-10-20T08:00:00+03:00'), 'shoot-risk', 'p13'), undefined);
-  // The day before (Tuesday) at 15:00 the reminders (15) are still open.
-  const eve = health(c, approved, '2026-10-20T15:30:00+03:00');
-  assert.match(find(eve, 'shoot-risk', 'p15').what, /^התזכורות של יום לפני לא נשלחו, הצילום מחר$/);
-  assert.equal(find(health(c, approved, '2026-10-20T14:30:00+03:00'), 'shoot-risk', 'p15'), undefined);
-  // Natali: make-up and ride (11ב) 3 business days before: red, its own reason, not "צילום בסיכון".
+  assert.equal(find(health(c, { ...checks, ...item('p13.approved', '2026-10-16T10:00:00+03:00') }, '2026-10-20T08:00:00+03:00'), 'shoot-risk', 'p13'), undefined);
+  // The day before at 15:30: no "reminders not sent" (15 left the protocol).
+  assert.equal(find(health(c, approved, '2026-10-20T15:30:00+03:00'), 'shoot-risk'), undefined);
+  // Natali: nothing of 11ב any more (make-up and ride left with Lior's shoot day).
   const n = { ...c, shoot_type: 'natali' };
   const nChecks = { ...approved, ...done(n, ['p11'], '2026-10-14T10:00:00+03:00') };
-  const prep = find(health(n, nChecks, '2026-10-18T10:00:00+03:00'), 'shoot-prep', 'p11b');
-  assert.deepEqual([prep.color, prep.who, prep.text], ['red', 'lior', 'הכנת יום הצילום לא הושלמה']);
+  assert.equal(find(health(n, nChecks, '2026-10-18T10:00:00+03:00'), 'shoot-prep'), undefined);
   assert.equal(find(health(n, nChecks, '2026-10-18T10:00:00+03:00'), 'shoot-risk'), undefined);
   // An extra shoot round is watched the same way, named by its round.
   const r2 = { ...c, rounds: [{ n: 2, shoot_type: 'dms', shoot_at: '2026-11-04T11:00:00+02:00', start_at: '2026-10-25T10:00:00+02:00' }] };
@@ -172,19 +173,19 @@ test('red: deliverables behind the promised pace, never for what the client hold
 });
 
 test('yellow: due tomorrow and not started (not what cannot start yet, not what waits on the client)', () => {
-  // The content call (12א) is due Tuesday; on Monday afternoon nobody started it.
+  // The scripts (12, since v12 one Google Docs link) are due Wednesday; on Tuesday afternoon nobody started them.
   const checks = { ...done(base, JOIN, '2026-10-11T09:03:00+03:00'), ...done(base, CHAR, '2026-10-12T12:00:00+03:00') };
-  const h = health(base, checks, '2026-10-12T15:00:00+03:00');
-  const r = find(h, 'due-soon', 'p12a');
+  const h = health(base, checks, '2026-10-13T15:00:00+03:00');
+  const r = find(h, 'due-soon', 'p12');
   assert.deepEqual([r.color, r.who, r.text], ['yellow', 'lior', 'מועד מחר ועוד לא התחילו']);
   assert.equal(h.color, 'yellow');
-  // Started (one item checked): fine.
-  assert.equal(find(health(base, { ...checks, ...item('p12a.read', '2026-10-12T14:00:00+03:00') }, '2026-10-12T15:00:00+03:00'), 'due-soon', 'p12a'), undefined);
-  // Shoot-day processes due tomorrow start with the shoot itself: not "not started".
-  const c = { ...base, shoot_at: '2026-10-13T11:00:00+03:00' };
-  assert.equal(find(health(c, checks, '2026-10-12T15:00:00+03:00'), 'due-soon', 'p17'), undefined);
+  // Done (the link saved): fine.
+  assert.equal(find(health(base, { ...checks, ...item('p12.link', '2026-10-13T14:00:00+03:00') }, '2026-10-13T15:00:00+03:00'), 'due-soon', 'p12'), undefined);
+  // Shoot-day processes due tomorrow (Eli's, since v12) start with the shoot itself: not "not started".
+  const c = { ...base, shoot_at: '2026-10-14T11:00:00+03:00' };
+  assert.equal(find(health(c, checks, '2026-10-13T15:00:00+03:00'), 'due-soon', 'p17b'), undefined);
   // Due today and still not started: still yellow (it does not turn green on its own day).
-  const today = find(health(base, checks, '2026-10-13T16:00:00+03:00'), 'due-soon', 'p12a');
+  const today = find(health(base, checks, '2026-10-14T16:00:00+03:00'), 'due-soon', 'p12');
   assert.deepEqual([today.color, today.text], ['yellow', 'מועד היום ועוד לא התחילו']);
   // "Tomorrow" is the next business day: on Thursday, what is due on Sunday.
   const sun = { ...base, char_at: '2026-10-13T10:00:00+03:00' }; // 11 is due 3 business days on: Sunday 18.10
@@ -286,15 +287,16 @@ test('the station: where, how long, what next and by whom, the month, the pace a
   assert.equal(s.month.text, 'חודש 1 מתוך 12');
   assert.equal(+s.lastContact, +at('2026-10-12T16:00:00+03:00'));
   assert.equal(s.waiting, false);
-  assert.deepEqual([s.current.who, s.current.procId], ['lior', 'p12a']);
+  assert.deepEqual([s.current.who, s.current.procId], ['lior', 'p12']); // 12א left with v12
   // A shoot day not set yet: the milestone has no date, and must be set by process 11's deadline.
   // Since protocol v8 process 11 cannot be closed without a date, so this is only a history
   // that was brought in (the note "ייבוא") with no date typed.
   const later = at('2026-10-16T10:00:00+03:00');
   const history = Object.fromEntries(Object.entries(done(c, ['p11'], '2026-10-14T10:00:00+03:00')).map(([k, v]) => [k, { ...v, note: 'ייבוא' }]));
-  const withScripts = { ...checks, ...history, ...done(c, ['p12a', 'p12', 'p13'], '2026-10-14T10:00:00+03:00') };
+  const withScripts = { ...checks, ...history, ...done(c, ['p12', 'p13'], '2026-10-14T10:00:00+03:00') };
   const n = station(c, clientState(c, withScripts, later), { checks: withScripts, now: later }).next;
-  assert.deepEqual([n.what, n.when, n.who], ['יום הצילום', null, 'lior']);
+  // v12: nobody closes the shoot day; Irit sets it (11), so the milestone is said as hers.
+  assert.deepEqual([n.what, n.when, n.who], ['יום הצילום', null, 'irit']);
   assert.equal(+n.mustSetBy, +at('2026-10-15T18:00:00+03:00'));
   assert.deepEqual(contractMonth({ deal_at: '2026-10-11T09:00:00+03:00', contract_end: '2027-10-11' }, at('2026-12-20T10:00:00+02:00')), { n: 3, of: 12, text: 'חודש 3 מתוך 12' });
 });
@@ -314,9 +316,10 @@ test('the timeline: done with who and when (automatic marked), now, and planned 
   assert.ok(isAutoCheck({ by_email: 'system' }) && !isAutoCheck({ by_email: 'lior@x.test', note: null }));
   // Only the setter's own deadline is claimed: with no meeting date yet, the shoot day
   // is "not set" without a date (it does not have to be set on the deal's day).
-  const p19 = tl.planned.find((x) => x.procId === 'p19');
-  assert.deepEqual([p19.when, p19.mustSetBy], [null, null]);
-  for (const id of ['p19', 'p22', 'p27', 'p30']) assert.equal(tl.planned.find((x) => x.procId === id)?.mustSetBy ?? null, null, id);
+  // (19, the closing of the day, left with v12: Eli's 17ב stands for the shoot day here.)
+  const p17b = tl.planned.find((x) => x.procId === 'p17b');
+  assert.deepEqual([p17b.when, p17b.mustSetBy], [null, null]);
+  for (const id of ['p17b', 'p22', 'p27', 'p30']) assert.equal(tl.planned.find((x) => x.procId === id)?.mustSetBy ?? null, null, id);
 });
 
 test('stuck in a station longer than its norm (not while waiting for a date that is set, nor on the client)', () => {
@@ -441,24 +444,20 @@ test('screen 4: open, late, this week, on time, median vs norm, editor load vs c
   assert.deepEqual([irit.na, irit.moves, irit.load], [0, 1, null]);
 });
 
-test('the weekly call is due by Thursday of the week after the last one; the board of the week', () => {
+test('the weekly call (31) left the protocol in v12: nothing is due or late; the board of the week', () => {
   const c = { ...base, shoot_at: '2026-10-14T10:00:00+03:00' };
-  const all = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21', 'p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30'];
+  const all = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p11', 'p12', 'p13', 'p14', 'p36', 'p17b', 'p18b', 'p19b', 'p22a', 'p22', 'p23', 'p24', 'p25', 'p26', 'p27', 'p28', 'p29', 'p30'];
   const checks = { ...done(c, JOIN, '2026-10-11T09:03:00+03:00'), ...done(c, all, '2026-10-20T10:00:00+03:00') };
   const s = clientState(c, checks, at('2026-10-21T10:00:00+03:00')).states.find((x) => x.proc.id === 'p31');
-  // Campaigns up on Tuesday 20.10: the first call is due by Thursday of the following week.
-  assert.equal(+weeklyCallDue(s, checks), +at('2026-10-29T18:00:00+02:00'));
-  const called = { ...checks, ...item('p31.call', '2026-10-28T12:00:00+02:00') };
-  assert.equal(+weeklyCallDue(s, called), +at('2026-11-05T18:00:00+02:00'));
-  // Late after that Thursday, red from the third business day.
-  const late = find(health(c, checks, '2026-11-02T10:00:00+02:00'), null, 'p31');
-  assert.deepEqual([late.color, late.who], ['yellow', 'lior']);
-  assert.equal(find(health(c, checks, '2026-11-04T10:00:00+02:00'), null, 'p31').color, 'red');
+  assert.equal(s, undefined);
+  assert.equal(weeklyCallDue(s, checks), null);
+  assert.equal(find(health(c, checks, '2026-11-02T10:00:00+02:00'), null, 'p31'), undefined);
+  assert.equal(find(health(c, checks, '2026-11-04T10:00:00+02:00'), null, 'p31'), undefined);
   // The board: the meeting, the shoot, the videos closing, the campaign and the renewal.
   const d = { ...base, id: 'c2', char_at: '2026-10-13T10:00:00+03:00', shoot_at: '2026-10-15T11:00:00+03:00', contract_end: '2026-11-05' };
   const ev = upcomingEvents([d], (x) => clientState(x, {}, at('2026-10-12T10:00:00+03:00')), at('2026-10-12T10:00:00+03:00'), 30);
   assert.deepEqual(ev.map((e) => e.kind), ['char', 'shoot', 'delivery', 'renewal']);
-  assert.deepEqual(ev.map((e) => e.who), ['ofir', 'lior', 'ofir', 'lior']);
+  assert.deepEqual(ev.map((e) => e.who), ['ofir', 'irit', 'ofir', 'lior']); // v12: the shoot day is Irit's (she sets it)
   assert.equal(upcomingEvents([d], (x) => clientState(x, {}, at('2026-10-12T10:00:00+03:00')), at('2026-10-12T10:00:00+03:00'), 7).length, 2); // the videos close on 22.10, beyond the week
 });
 
@@ -511,14 +510,15 @@ test('27: the editor\'s time ends at the final versions (p27.final), not at Ilai
 
 // The owner's page review of 20.10.2026: "הבא: שיוך עורך · ליאור" was wrong. Assigning the
 // editor is Ofir's alone; while the drive is not back the next step is Lior's, named as his.
-test('the next step at 22א: Lior returns the drive, then Ofir assigns the editor', () => {
+test('the next step at 22א: Ofir assigns the editor, from the evening of the shoot day (v12: no drive of Lior\'s before it)', () => {
   const c = { ...base, shoot_at: '2026-10-14T10:00:00+03:00' };
-  const upTo = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
+  const upTo = ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p11', 'p12', 'p13', 'p14', 'p36', 'p17b', 'p18b', 'p19b'];
   const checks = { ...done(c, JOIN, '2026-10-11T09:03:00+03:00'), ...done(c, upTo, '2026-10-14T16:00:00+03:00') };
   const now = at('2026-10-15T10:00:00+03:00');
   const next = (ch) => station(c, clientState(c, ch, now), { checks: ch, now }).next;
   const before = next(checks);
-  assert.deepEqual([before.procId, before.what, before.who], ['p22a', 'החזרת הכונן לשיוך עורך', 'lior']);
+  assert.deepEqual([before.procId, before.what, before.who], ['p22a', 'שיוך עורך', 'ofir']);
+  // An old "ליאור החזיר את הכונן" changes nothing.
   const back = { ...checks, ...item('p22a.drive', '2026-10-15T09:00:00+03:00', null, 'lior@x.test') };
   const after = next(back);
   assert.deepEqual([after.procId, after.what, after.who], ['p22a', 'שיוך עורך', 'ofir']);

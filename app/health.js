@@ -374,7 +374,9 @@ export function clientHealth(client, state, extras = {}) {
     // the owner on it): no client approval of the scripts a business day before
     // the shoot, or the day-before reminders not sent by 15:00.
     const risk = (s, whom, what, code = 'shoot-risk', text = 'צילום בסיכון') => add('red', code, { who: whom, text, what: `${what}, הצילום ${whenWords(shoot, now)}${round}`, procId: s?.proc.id || `${x.pid}p19`, days: 0, since: shoot });
-    if (ahead <= 1 && !isResolvedKey(checks, `${x.pre}p13.approved`)) risk(st('p13'), 'lior', 'אין אישור לקוח על התסריטים');
+    // v12: the Zoom (13) is one item, and the client's approval (p13.approved) left with the rest;
+    // an approval from before still counts. The day-before reminders (15) left with Lior's shoot day.
+    if (ahead <= 1 && !isResolvedKey(checks, `${x.pre}p13.approved`) && !isResolvedKey(checks, `${x.pre}p13.zoom`)) risk(st('p13'), 'lior', 'שיחת הזום על התסריטים לא התקיימה');
     if (now >= atTimeIL(prevBusinessDay(shoot), 15) && st('p15') && !st('p15').complete) risk(st('p15'), 'lior', 'התזכורות של יום לפני לא נשלחו');
     // The shoot day's own preparation not closed close to it: red too (a default
     // waiting for the office's decision, docs/protocols/README.md), but not the alert.

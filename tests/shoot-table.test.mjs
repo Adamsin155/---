@@ -31,20 +31,24 @@ const P19 = ['p19.all', 'p19.testimonial', 'p19.drive', 'p19.took'];
 const imported = (stationKey, pre = '') => mark(importKeys(stationKey).map((k) => pre + k), '2026-10-06T09:00:00+03:00', 'ייבוא');
 const hist = (c, checks = {}, now = NOW) => shootHistory(c, checks, now);
 
-test('a shoot day took place when its process 19 is closed; its date is the shoot day\'s own', () => {
+test('a shoot day took place once its date is behind today (v12: nobody closes it); its date is the shoot day\'s own', () => {
   const c = mk('a', { shoot_at: '2026-10-05T10:00:00+03:00' });
-  // The date passed and nobody closed the day: not held, and said so.
-  const open = hist(c);
-  assert.deepEqual([open.done.length, open.last, open.next, open.held, open.agreed], [0, null, null, 0, 3]);
-  assert.deepEqual(open.unclosed.map(iso), [iso(at('2026-10-05T10:00:00+03:00'))]);
-  // Three of the four items: still open.
-  assert.equal(hist(c, mark(P19.slice(0, 3), '2026-10-05T14:00:00+03:00')).held, 0);
-  const closed = hist(c, mark(P19, '2026-10-05T14:00:00+03:00'));
-  assert.deepEqual(closed.done.map(iso), [iso(at('2026-10-05T10:00:00+03:00'))]);
-  assert.deepEqual([iso(closed.last), closed.next, closed.held, closed.unclosed.length], [iso(at('2026-10-05T10:00:00+03:00')), null, 1, 0]);
-  // "לא רלוונטי" on an item closes the process as "בוצע" does.
-  const na = { ...mark(P19.slice(0, 3), '2026-10-05T14:00:00+03:00'), 'p19.took': { state: 'na', note: null, at: '2026-10-05T14:00:00+03:00', by_email: 'lior@x.test' } };
-  assert.equal(hist(c, na).held, 1);
+  // The date passed: held, whatever was marked (Lior's closing, 19, left the protocol in v12).
+  const passed = hist(c);
+  assert.deepEqual(passed.done.map(iso), [iso(at('2026-10-05T10:00:00+03:00'))]);
+  assert.deepEqual([iso(passed.last), passed.next, passed.held, passed.agreed, passed.unclosed.length], [iso(at('2026-10-05T10:00:00+03:00')), null, 1, 3, 0]);
+  assert.equal(hist(c, mark(P19.slice(0, 3), '2026-10-05T14:00:00+03:00')).held, 1);
+  assert.equal(hist(c, mark(P19, '2026-10-05T14:00:00+03:00')).held, 1);
+  // A date still ahead: not yet, unless a mark says it took place (an old closing of 19, Eli's
+  // handing over of the drive, an editor assigned): then the day of that mark.
+  const ahead = mk('a', { shoot_at: '2026-10-28T10:00:00+03:00' });
+  assert.deepEqual([hist(ahead).held, iso(hist(ahead).next)], [0, iso(at('2026-10-28T10:00:00+03:00'))]);
+  for (const k of ['p19.took', 'p19b.handed', 'p22a.assigned']) {
+    const h = hist(ahead, mark([k], '2026-10-19T14:00:00+03:00'));
+    assert.deepEqual([h.held, iso(h.last), h.next], [1, iso(at('2026-10-19T14:00:00+03:00')), null], k);
+  }
+  // "לא רלוונטי" says so as "בוצע" does.
+  assert.equal(hist(ahead, { 'p19b.handed': { state: 'na', note: null, at: '2026-10-19T14:00:00+03:00', by_email: 'eli@x.test' } }).held, 1);
 });
 
 test('the next shoot day: the nearest one set from today on that is not closed; today\'s is still ahead', () => {
@@ -55,8 +59,9 @@ test('the next shoot day: the nearest one set from today on that is not closed; 
   const today = mk('a', { shoot_at: '2026-10-20T08:00:00+03:00' });
   const evening = hist(today, {}, at('2026-10-20T21:00:00+03:00'));
   assert.deepEqual([iso(evening.next), evening.unclosed.length], [iso(at('2026-10-20T08:00:00+03:00')), 0]);
-  // The day after, still open: passed and not closed.
-  assert.deepEqual(hist(today, {}, at('2026-10-21T00:30:00+03:00')).unclosed.map(iso), [iso(at('2026-10-20T08:00:00+03:00'))]);
+  // The day after: it took place (v12: a passed date is never "not closed").
+  const after = hist(today, {}, at('2026-10-21T00:30:00+03:00'));
+  assert.deepEqual([after.done.map(iso), after.unclosed.length, after.next], [[iso(at('2026-10-20T08:00:00+03:00'))], 0, null]);
   // Two rounds ahead: the nearer one.
   const two = mk('a', {
     shoot_at: '2026-09-01T10:00:00+03:00',
@@ -137,7 +142,7 @@ const world = () => {
     [mk('tal', { name: 'טל', business: 'טל פרחים' }), imported('ongoing')],
     // Never shot: the deal of 1.9, a shoot set for 28.10.
     [mk('dan', { name: 'דן', business: 'דן נדל״ן', deal_at: '2026-09-01T09:00:00+03:00', shoot_at: '2026-10-28T10:00:00+03:00' }), imported('content')],
-    // Never shot: the older deal, of 1.8; its shoot date passed and was never closed.
+    // The older deal, of 1.8; its shoot date (12.10) passed: shot (v12), though nobody closed the day.
     [mk('noa', { name: 'נועה', business: '', deal_at: '2026-08-01T09:00:00+03:00', shoot_at: '2026-10-12T10:00:00+03:00', deliverables: {} }), {}],
   ];
   return list.map(([c, checks]) => shootRow(entryOf(c, checks), { checks: { [c.id]: checks }, now: NOW }));
@@ -148,12 +153,12 @@ test('the default order: the oldest last shoot first, shot-without-a-date after 
   const rows = world();
   assert.deepEqual(DEFAULT_SORT, { key: 'last', dir: 'asc' });
   const groups = shootGroups(rows);
-  assert.deepEqual(ids(groups), [['shot', ['avi', 'gal', 'ron', 'tal']], ['never', ['noa', 'dan']]]);
+  assert.deepEqual(ids(groups), [['shot', ['avi', 'gal', 'ron', 'noa', 'tal']], ['never', ['dan']]]);
   assert.deepEqual(groups.map((g) => g.title), ['', NEVER_TITLE]);
   // The other way round (a second click): the latest shoot first; "טרם צולמו" stays below, as it was.
-  assert.deepEqual(ids(shootGroups(rows, 'last', 'desc')), [['shot', ['ron', 'gal', 'avi', 'tal']], ['never', ['noa', 'dan']]]);
+  assert.deepEqual(ids(shootGroups(rows, 'last', 'desc')), [['shot', ['noa', 'ron', 'gal', 'avi', 'tal']], ['never', ['dan']]]);
   // Nobody was shot, or everybody: one group, no empty one.
-  assert.deepEqual(ids(shootGroups(rows.filter((r) => r.group === 'never'))), [['never', ['noa', 'dan']]]);
+  assert.deepEqual(ids(shootGroups(rows.filter((r) => r.group === 'never'))), [['never', ['dan']]]);
   assert.deepEqual(shootGroups([]), []);
   // The order does not depend on the order the clients arrived in.
   assert.deepEqual(ids(shootGroups([...rows].reverse())), ids(groups));
@@ -168,7 +173,7 @@ test('a row: the client, who comes to the shoot, the last and the next shoot day
   assert.deepEqual([by.tal.group, by.tal.last, by.tal.held], ['shot', null, 1]);
   assert.deepEqual([by.dan.group, heldText(by.dan), dayText(by.dan.next), by.dan.unclosed], ['never', '0 מתוך 3', '28.10.26', null]);
   // No business name: the contact's name is the row's name. No quantities entered: no "out of".
-  assert.deepEqual([by.noa.name, by.noa.contact, heldText(by.noa), dayText(by.noa.unclosed), by.noa.next], ['נועה', '', '', '12.10.26', null]);
+  assert.deepEqual([by.noa.name, by.noa.contact, heldText(by.noa), by.noa.unclosed, dayText(by.noa.last), by.noa.next], ['נועה', '', '1', null, '12.10.26', null]);
   assert.deepEqual(SHOOT_COLUMNS.map((c) => c.key), ['name', 'type', 'last', 'held', 'next', 'station', 'editor']);
 });
 
@@ -185,7 +190,7 @@ test('sorting by a header: one list, empty values last either way; the search by
   assert.deepEqual(searchRows(rows, ' רון ').map((r) => r.id), ['ron']);
   assert.equal(searchRows(rows, '').length, 6);
   assert.equal(searchRows(rows, 'אין כזה').length, 0);
-  assert.equal(countText(rows), '6 לקוחות · 4 צולמו · 2 טרם צולמו');
+  assert.equal(countText(rows), '6 לקוחות · 5 צולמו · 1 טרם צולמו');
   assert.equal(countText(searchRows(rows, 'קפה')), 'לקוח אחד · 1 צולמו · 0 טרם צולמו');
 });
 

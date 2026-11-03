@@ -663,6 +663,23 @@ function shootBehind(round, checks) {
   const pre = round ? round.replace(/-$/, '.') : '';
   return SHOOT_BEHIND.some((k) => ['done', 'na'].includes(checks[`${pre}${k}`]?.state));
 }
+// Whether a shoot day took place (v12: nobody closes the day any more; until then, Lior's 19 did),
+// for one shoot of shootContexts (app/health.js): { pid: '' | 'r2-', ctx }. Null: not (yet). Else
+// { at }: its date when that is behind today; when only the marks say so (an old closing of 19,
+// Eli's handing over, an editor assigned), the moment of the first of them, or null when that is
+// imported history (no real moment). A shoot set for today is still ahead until a mark says so.
+export function shootHeld(x, checks = {}, now = new Date()) {
+  const at = parseDate(x?.ctx?.shoot_at);
+  const today = dayKeyIL(now);
+  if (at && dayKeyIL(at) < today) return { at };
+  if (!shootBehind(x?.pid || '', checks)) return null;
+  if (at && dayKeyIL(at) <= today) return { at };
+  const pre = x?.pid ? x.pid.replace(/-$/, '.') : '';
+  const marks = SHOOT_BEHIND.map((k) => checks[`${pre}${k}`]).filter((c) => c && ['done', 'na'].includes(c.state));
+  if (marks.some((c) => c.note === IMPORT_NOTE)) return { at: null };
+  const first = marks.map((c) => new Date(c.at)).filter((d) => !Number.isNaN(d.getTime())).sort((a, b) => a - b)[0];
+  return { at: first || null };
+}
 function afterImport(proc, procs, checks) {
   if (isImported(proc, checks)) return true;
   const from = proc.start?.from || proc.due?.from;

@@ -845,7 +845,7 @@ export const PROCESSES = [
     // before it existed (the migration's history).
     id: 'p36', round: true, num: '11ג', phase: 'prep', title: 'טופס מקדים ליום צילום', owners: ['lior'],
     sla: 'לפני יום הצילום',
-    start: { from: 'group' },
+    start: { from: 'charEnd' }, // after the characterization, as the scripts and the Zoom
     what: 'ממלאים בכרטיס הלקוח: תאריך ושעה, כתובת, מי מצלם (אלי, אלא אם נבחר אחר), ואם יש משפיענים: אילו. הפרטים נשמרים ביום הצילום של הלקוח.',
     items: [
       { key: 'p36.form', label: 'הטופס המקדים מולא: מועד, כתובת, צלם ומשפיענים', form: 'preShoot', passedIf: 'p22a.assigned' },
