@@ -38,7 +38,8 @@ const soloEliel = base({ shoot_type: null, deliverables: { videos: 4, shoot_days
 const keysOf = (c) => new Set(applicableProcesses(c).flatMap((p) => p.items.map((i) => i.key)));
 const idsOf = (c) => new Set(applicableProcesses(c).map((p) => p.id));
 const itemOf = (c, key) => applicableProcesses(c).flatMap((p) => p.items).find((i) => i.key === key);
-const INFLUENCER_ONLY = ['p11.influencers', 'p11.ok.influencers', 'p15.influencers', 'p16.early', 'p17.broll', 'p17b.broll'];
+// (p15.influencers, p16.early and p17.broll were Lior's, and left with his shoot day in v12.)
+const INFLUENCER_ONLY = ['p11.influencers', 'p11.ok.influencers', 'p17b.broll'];
 
 // ── What the choice means ─────────────────
 test('the crew: a solo shoot has a photographer and no shoot type; a shoot type always wins', () => {
@@ -61,32 +62,30 @@ test('a day without influencers: the influencers\' items do not apply, and nothi
   const inf = keysOf(withInf);
   const eli = keysOf(soloEli);
   for (const k of INFLUENCER_ONLY) assert.ok(inf.has(k), `${k} on a day with influencers`);
-  // (21 is the Denis, Michel and Semion day's own management.)
-  assert.deepEqual([...inf].filter((k) => !eli.has(k) && !k.startsWith('p21.')).sort(), [...INFLUENCER_ONLY].sort());
+  assert.deepEqual([...inf].filter((k) => !eli.has(k)).sort(), [...INFLUENCER_ONLY].sort());
   assert.deepEqual([...eli].filter((k) => !inf.has(k)), []);
   // Eli films: his processes are there; Eliel films: they are not, and nothing else goes.
   for (const id of ['p17b', 'p18b', 'p19b']) assert.ok(idsOf(soloEli).has(id) && idsOf(withInf).has(id), id);
   const eliel = keysOf(soloEliel);
   for (const id of ['p17b', 'p18b', 'p19b']) assert.ok(!idsOf(soloEliel).has(id), id);
   assert.deepEqual([...eli].filter((k) => !eliel.has(k)).every((k) => /^p1[789]b\./.test(k)), true);
-  // Natali's own processes stay hers (11ב, 20).
-  assert.ok(idsOf(base({ shoot_type: 'natali' })).has('p11b'));
+  // Natali's own processes (11ב, 20) were Lior's and left with his shoot day in v12.
+  assert.ok(!idsOf(base({ shoot_type: 'natali' })).has('p11b') && !idsOf(base({ shoot_type: 'natali' })).has('p20'));
   assert.ok(!idsOf(soloEliel).has('p11b') && !idsOf(soloEliel).has('p20') && !idsOf(soloEliel).has('p21'));
 });
 
-test('the testimonial is not required on a day without influencers; the words follow the day', () => {
-  assert.ok(!itemOf(withInf, 'p19.testimonial').optional);
-  assert.match(itemOf(withInf, 'p19.testimonial').label, /עם המשפיענים \(חובה\)/);
-  assert.equal(itemOf(soloEli, 'p19.testimonial').optional, true);
-  assert.match(itemOf(soloEli, 'p19.testimonial').label, /לא חובה/);
+test('the words follow the day (v12: the closing of the day, 19, with its testimonial, left with Lior\'s shoot day)', () => {
   assert.equal(itemOf(soloEli, 'p17b.arrived').label, 'הגעתי בשעת הצילום');
+  assert.equal(itemOf(withInf, 'p17b.arrived').label, 'הגעתי שעה לפני המשפיענים');
   assert.equal(itemOf(soloEliel, 'p11.ok.photographer').label, 'הצלם (אליאל) אישר');
-  assert.match(itemOf(soloEliel, 'p19.took').label, /אליאל/);
-  assert.equal(itemOf(withInf, 'p19.took').label, 'הכונן חזר לליאור מהצלם');
-  // The raw protocol (the history's labels, the writers' table) is the same item.
-  const raw = PROCESSES.find((p) => p.id === 'p19').items.find((i) => i.key === 'p19.testimonial');
-  assert.ok(!raw.optional);
-  assert.equal(itemOf(soloEli, 'p19.testimonial').owners.join(), 'lior');
+  for (const c of [withInf, soloEli, soloEliel]) {
+    assert.equal(itemOf(c, 'p19.testimonial'), undefined);
+    assert.equal(itemOf(c, 'p19.took'), undefined);
+  }
+  // The raw protocol keeps them, retired, for the history's labels.
+  const raw = PROCESSES.find((p) => p.id === 'p19');
+  assert.equal(raw.retired, 12);
+  assert.ok(raw.items.some((i) => i.key === 'p19.testimonial'));
 });
 
 test('"with whom" is answered by the crew: the shoot phases and the calendar item are not held for a type', () => {
@@ -111,7 +110,7 @@ test('rounds: a round without influencers keeps its own crew; a round with a typ
   assert.deepEqual([r2.shoot_type, crewOf(r2)], [null, 'eliel']);
   assert.deepEqual([r3.shoot_type, crewOf(r3)], ['dms', null]);
   const ids = idsOf(c);
-  assert.ok(ids.has('p11b') && ids.has('p17b'), 'the client\'s own Natali day');
+  assert.ok(!ids.has('p11b') && ids.has('p17b'), 'the client\'s own Natali day (11ב left in v12)');
   assert.ok(!ids.has('r2-p17b') && !ids.has('r2-p11b') && ids.has('r3-p17b'));
   const keys = keysOf(c);
   assert.ok(!keys.has('r2.p11.ok.influencers') && keys.has('r3.p11.ok.influencers') && keys.has('p11.ok.influencers'));
@@ -121,14 +120,13 @@ test('rounds: a round without influencers keeps its own crew; a round with a typ
   assert.deepEqual([old.shoot_type, crewOf(old), hasShootType(old)], [null, null, false]);
 });
 
-test('closing a day without influencers: Lior\'s items and the drive; no testimonial', () => {
+test('closing the day (19) left the protocol in v12: nobody closes a day, with or without influencers', () => {
   const now = IL(2026, 10, 15, 15);
   const marks = { 'p18.order': done(now), 'p18.all': done(now), 'p19.all': done(now), 'p19.drive': done(now), 'p19.took': done(now) };
-  const p19 = (c, checks) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p19');
-  assert.equal(p19(soloEliel, marks).complete, true);
-  assert.equal(p19(soloEli, marks).complete, true);
-  assert.equal(p19(withInf, marks).complete, false, 'with influencers the testimonial is required');
-  assert.equal(p19(withInf, { ...marks, 'p19.testimonial': done(now) }).complete, true);
+  for (const c of [soloEliel, soloEli, withInf]) {
+    const st = clientState(c, marks, now).states;
+    assert.ok(!st.some((x) => ['p18', 'p19'].includes(x.proc.id)));
+  }
 });
 
 // ── The forms ─────────────────────────────
@@ -301,14 +299,9 @@ const pick = (list, rule, step) => list.filter((r) => r.rule === rule && (!step 
 const one = (list, rule, step) => { const x = pick(list, rule, step); assert.equal(x.length, 1, `${rule}.${step}: ${JSON.stringify(list.map((r) => r.key))}`); return x[0]; };
 const none = (list, rule, step) => assert.equal(pick(list, rule, step).length, 0, `${rule}.${step || ''} should not be due`);
 
-test('the shoot day\'s reminders: Eliel\'s day rings only Lior at its end; Eli\'s solo day is timed to the shoot\'s own time', () => {
+test('the shoot day\'s reminders: Eliel\'s day rings nobody (v12: Lior\'s end of the day left); Eli\'s solo day is timed to the shoot\'s own time', () => {
   const eliel = world(soloEliel);
-  for (const t of [IL(2026, 10, 15, 9), IL(2026, 10, 15, 10, 45), IL(2026, 10, 15, 11, 15)]) {
-    for (const step of ['eli2h', 'eli15', 'arrived', 'begin', 'progress']) none(due(eliel, t), 'shoot', step);
-  }
-  const end = one(due(eliel, IL(2026, 10, 15, 14)), 'shoot', 'endLior');
-  assert.deepEqual([end.person, end.body], ['lior', 'כל הסרטונים של היום, והכונן אצלך.']);
-  none(due(eliel, IL(2026, 10, 15, 14)), 'shoot', 'endEli');
+  for (const t of [IL(2026, 10, 15, 9), IL(2026, 10, 15, 10, 45), IL(2026, 10, 15, 11, 15), IL(2026, 10, 15, 14)]) none(due(eliel, t), 'shoot');
 
   const eli = world(soloEli);
   none(due(eli, IL(2026, 10, 15, 9)), 'shoot', 'eli2h');
@@ -324,16 +317,11 @@ test('the shoot day\'s reminders: Eliel\'s day rings only Lior at its end; Eli\'
   one(due(world(withInf), IL(2026, 10, 15, 10, 45)), 'shoot', 'eli15');
 });
 
-test('the briefing to Eli and the day before: not on Eliel\'s day; no influencers to remind', () => {
-  const eve = IL(2026, 10, 14, 17);
-  none(due(world(soloEliel), eve), 'briefing');
-  one(due(world(soloEli), eve), 'briefing', 'lior');
-  one(due(world(withInf), eve), 'briefing', 'lior');
-  // 10:30 the day before: the client and the crew were reminded; on a day without influencers that is all.
-  const sent = (c) => { const w = world(c); w.cs['p15.client'] = done(IL(2026, 10, 14, 9)); w.cs['p15.crew'] = done(IL(2026, 10, 14, 9)); return w; };
-  none(due(sent(soloEliel), IL(2026, 10, 14, 10, 30)), 'eve', '1030');
-  one(due(sent(withInf), IL(2026, 10, 14, 10, 30)), 'eve', '1030');
-  assert.match(one(due(world(soloEliel), IL(2026, 10, 14, 10, 30)), 'eve', '1030').body, /ללקוח ולצוות \(יום בלי משפיענים\)/);
+test('the briefing to Eli (16) and the day before (15) left with Lior\'s shoot day in v12: on no day', () => {
+  for (const c of [soloEliel, soloEli, withInf]) {
+    none(due(world(c), IL(2026, 10, 14, 17)), 'briefing');
+    none(due(world(c), IL(2026, 10, 14, 10, 30)), 'eve');
+  }
 });
 
 test('Eli hears of his shoot days, not of Eliel\'s; a day that passes to Eliel is told to him as off', () => {

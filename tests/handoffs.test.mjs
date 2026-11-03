@@ -47,7 +47,8 @@ test('every handoff point uses real protocol keys, and its record fits the datab
     }
   }
   // The points of the plan's reminder matrix, in protocol order.
-  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p07.ofir', 'p19', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p29.filled']);
+  // (19, the closing of the shoot day, left with protocol v12: 22א opens on the evening of the shoot day.)
+  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p07.ofir', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p29.filled']);
 });
 
 test('who is next at each point', () => {
@@ -66,14 +67,11 @@ test('who is next at each point', () => {
   assert.deepEqual(next('p25.approved'), ['irit', 'lior']);
   assert.deepEqual(next('p27.final'), ['ilai']);
   assert.deepEqual(next('p29.filled'), ['irit']);
-  // The shoot day is done when process 19 is complete: Ofir assigns the editor. Since
-  // protocol v9 the assignment is his alone: an old "אני על זה" of Lior's changes nothing.
+  // Until v12 the closing of the shoot day (19) handed the client to Ofir's assignment. Nobody closes
+  // the day now: an old mark of it offers nothing.
   const p19 = all('p19', when);
-  assert.deepEqual(people(offer(c, p19, 'p19.took', now)), ['ofir']);
-  assert.deepEqual(people(offer(c, p19, 'p19.all', now)), ['ofir'], 'whichever item completed it');
-  assert.deepEqual(people(offer(c, { ...p19, 'p22a.claim': done(when, 'lior') }, 'p19.took', now)), ['ofir']);
-  const { 'p19.drive': _, ...partial } = p19;
-  assert.deepEqual(offer(c, partial, 'p19.took', now), [], 'not before the whole day is closed');
+  assert.deepEqual(offer(c, p19, 'p19.took', now), []);
+  assert.deepEqual(offer(c, p19, 'p19.all', now), []);
 });
 
 test('the assigned editor: Natali\'s (Nirel), the DMS team\'s, and a second shoot round\'s own', () => {
@@ -125,10 +123,6 @@ test('both editing deadlines go to the editor, counted in business days from the
 
 test('due times: none on the assignment, the fast ladder\'s ten minutes, office hours, right away, already late, or the protocol\'s words', () => {
   const c = client();
-  // A Thursday evening shoot closed at 19:00: Ofir assigns, with no deadline (30.10.2026).
-  const [s] = offer(c, all('p19', '2026-10-08T19:00:00+03:00'), 'p19.took', '2026-10-08T19:01:00+03:00');
-  assert.match(msg(s, '2026-10-08T19:01:00+03:00'), /^היי אופיר,\nיום הצילום של מספרת רון הסתיים\. צריך לשייך עורך ולהעביר אליו את הכונן\.\n.*#p22a$/);
-  assert.doesNotMatch(msg(s, '2026-10-08T19:01:00+03:00'), /יעד/);
   // Ofir checks the rest of the graphics within the same ten minutes.
   const [g] = offer(c, { 'p23.made': done('2026-10-29T10:00:00+02:00') }, 'p23.made', '2026-10-29T10:00:00+02:00');
   assert.match(msg(g, '2026-10-29T10:00:00+02:00'), /\nיעד: היום 10:10\n/);
@@ -193,11 +187,8 @@ test('the card\'s "העברות" line: what went to whom, and whether WhatsApp w
   assert.deepEqual(line(checks, 'p06'), []);
   const sent = { ...checks, 'p05.handoff.ofir': done('2026-10-20T11:02:00+03:00') };
   assert.equal(line(sent, 'p05')[0].sent.at, '2026-10-20T11:02:00+03:00');
-  // A process trigger shows once the process is complete.
-  assert.deepEqual(line(all('p19', '2026-10-08T19:00:00+03:00', ['p19.all', 'p19.testimonial']), 'p19'), []);
-  const p19 = line(all('p19', '2026-10-08T19:00:00+03:00'), 'p19');
-  assert.deepEqual(people(p19), ['ofir']);
-  assert.match(p19[0].triggerKey, /^p19\./);
+  // (The one process trigger, 19's closing of the shoot day, left with v12: no card shows it.)
+  assert.equal(clientState(c, all('p19', '2026-10-08T19:00:00+03:00'), now).states.find((x) => x.proc.id === 'p19'), undefined);
   assert.equal(describeMark('p05.handoff.ofir'), 'גישות התקבלו ← אופיר');
   // A record from before 28.10.2026, when the accesses went to Ilai, keeps its words.
   assert.equal(describeMark('p05.handoff.ilai'), 'גישות התקבלו ← עילאי');
@@ -209,14 +200,11 @@ test('the card\'s "העברות" line: what went to whom, and whether WhatsApp w
 test('the record names whom WhatsApp was opened for: the editor by name; an old record of Lior\'s 22א keeps his name', () => {
   const c = client({ shoot_type: 'natali', editor: 'nirel' });
   const when = '2026-10-08T19:00:00+03:00';
-  const byLior = { ...all('p19', when), 'p22a.claim': done(when, 'lior') };
-  const [o] = offer(c, byLior, 'p19.took', '2026-10-08T19:01:00+03:00');
-  // Protocol v9: Ofir assigns, whoever took it before. The key stays the neutral one it
-  // was, and a record written when Lior had taken the assignment still names him.
-  assert.deepEqual([o.person, o.name, o.markKey], ['ofir', 'אופיר', 'p19.handoff.assigner']);
-  assert.equal(describeMark(o.markKey, 'lior'), 'יום הצילום הסתיים ← ליאור');
-  assert.equal(describeMark(o.markKey, 'ofir'), 'יום הצילום הסתיים ← אופיר');
-  assert.equal(describeMark(o.markKey), 'יום הצילום הסתיים ← אופיר');
+  // The closing of the shoot day (19) left with v12, and its hand-off with it; its old records keep
+  // their words, and one written when Lior had taken the assignment still names him.
+  assert.equal(describeMark('p19.handoff.assigner', 'lior'), 'יום הצילום הסתיים ← ליאור');
+  assert.equal(describeMark('p19.handoff.assigner', 'ofir'), 'יום הצילום הסתיים ← אופיר');
+  assert.equal(describeMark('p19.handoff.assigner'), 'יום הצילום הסתיים ← אופיר');
   // The record of the hand-off that is gone (the first graphics to Irit's check) keeps its words.
   assert.equal(describeMark('p07.handoff.irit'), '9 גרפיקות מוכנות לבדיקה ← עירית');
   assert.equal(describeMark('p07.handoff.ofir'), '9 גרפיקות מוכנות לבדיקה ← אופיר');
@@ -279,12 +267,7 @@ test('an offer stands while its check does', () => {
   assert.equal(stillStands(o, c, {}), false);
   assert.equal(stillStands(o, { ...c, status: 'cancelled' }, checks), false);
   assert.equal(stillStands(o, c, null), false);
-  // A process trigger: while the process is complete (any of its items unchecked: no).
-  const p19 = all('p19', when);
-  const [s] = offer(c, p19, 'p19.took', when);
-  assert.equal(stillStands(s, c, p19, at(when)), true);
-  const { 'p19.all': _, ...partial } = p19;
-  assert.equal(stillStands(s, c, partial, at(when)), false);
+  // (The one process trigger, 19's closing of the shoot day, left with v12.)
 });
 
 test('wa.me links: straight to the number when known, otherwise WhatsApp asks whom to send to', () => {
