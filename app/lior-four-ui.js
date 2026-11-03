@@ -10,6 +10,17 @@ import {
 } from './lior-four.js';
 
 const drafts = new Map(); // form id -> { field: value }
+// A date as said in Israel, whatever order the browser's own date field shows: "יום ה׳ 22.10.2026"
+// (and "· 11:00" with a time). '' while empty or not a date.
+const DAYS = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+export function dateSaid(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/.exec(String(value || ''));
+  if (!m) return '';
+  const day = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay();
+  return `יום ${DAYS[day]} ${+m[3]}.${+m[2]}.${m[1]}${m[4] ? ` · ${m[4]}:${m[5]}` : ''}`;
+}
+const said = (id, name, value) => h('p', { class: 'hint lf-hint lf-said', id: `${id}-${name}-said`, 'aria-live': 'polite' }, dateSaid(value));
+const saySoon = (id, name, value) => { const el = document.getElementById(`${id}-${name}-said`); if (el) el.textContent = dateSaid(value); };
 const editing = new Set(); // form ids opened for a change after they were saved
 const safe = (s) => String(s).replace(/[^\w-]/g, '-');
 const draftOf = (id, initial) => ({ ...initial, ...(drafts.get(id) || {}) });
@@ -30,7 +41,7 @@ function showError(id, problem) {
 }
 const errLine = (id) => h('p', { class: 'err lf-err', id: `${id}-err`, role: 'alert', hidden: true });
 const field = (id, name, label, input, hint = null) => h('div', { class: 'field lf-field' },
-  h('label', { for: `${id}-${name}` }, label), input, hint ? h('p', { class: 'hint lf-hint' }, hint) : null);
+  h('label', { for: `${id}-${name}` }, label), input, hint instanceof Node ? hint : hint ? h('p', { class: 'hint lf-hint' }, hint) : null);
 // A saved form, in one line, with "עריכה" (only for who may change it).
 function savedLine(id, words, canEdit, redraw) {
   return h('div', { class: 'lf-saved' },
@@ -76,9 +87,10 @@ export function campaignBox({ key, check, canEdit, onSave, redraw }) {
     h('h4', { class: 'lf-title' }, 'פרטי הקמפיין'),
     h('div', { class: 'lf-row' },
       field(id, 'start', 'תאריך ההתחלה', h('input', {
-        class: 'input', id: `${id}-start`, type: 'date', dir: 'ltr', value: v.start, required: true,
-        oninput: (e) => keep(id, 'start', e.currentTarget.value),
-      })),
+        class: 'input', id: `${id}-start`, type: 'date', lang: 'he-IL', dir: 'ltr', value: v.start, required: true,
+        oninput: (e) => { keep(id, 'start', e.currentTarget.value); saySoon(id, 'start', e.currentTarget.value); },
+        onchange: (e) => saySoon(id, 'start', e.currentTarget.value),
+      }), said(id, 'start', v.start)),
       field(id, 'budget', 'תקציב יומי (₪)', h('input', {
         class: 'input', id: `${id}-budget`, type: 'text', inputmode: 'numeric', dir: 'ltr', autocomplete: 'off', maxlength: String(String(BUDGET_MAX).length + 2),
         placeholder: 'למשל 150', value: v.budget, required: true,
@@ -175,7 +187,7 @@ export function preShootBox({ client, round, key, done, canEdit, onSave, redraw 
   box.append(
     h('h4', { class: 'lf-title' }, 'טופס מקדים ליום צילום'),
     h('div', { class: 'lf-row' },
-      field(id, 'at', 'תאריך ושעה', h('input', { class: 'input', id: `${id}-at`, type: 'datetime-local', dir: 'ltr', value: v.at, oninput: (e) => keep(id, 'at', e.currentTarget.value) })),
+      field(id, 'at', 'תאריך ושעה', h('input', { class: 'input', id: `${id}-at`, type: 'datetime-local', lang: 'he-IL', dir: 'ltr', value: v.at, oninput: (e) => { keep(id, 'at', e.currentTarget.value); saySoon(id, 'at', e.currentTarget.value); }, onchange: (e) => saySoon(id, 'at', e.currentTarget.value) }), said(id, 'at', v.at)),
       field(id, 'address', 'כתובת', h('input', { class: 'input', id: `${id}-address`, type: 'text', autocomplete: 'off', maxlength: '300', value: v.address, oninput: (e) => keep(id, 'address', e.currentTarget.value) }))),
     h('fieldset', { class: 'lf-fieldset' },
       h('legend', {}, 'יש משפיענים ביום הצילום?'),

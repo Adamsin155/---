@@ -449,8 +449,8 @@ try {
     const c = card(page, SCRIPTS, 'p12');
     await c.waitFor({ state: 'attached' });
     await showAll(page);
-    if (!await c.locator('.cbx').first().isVisible()) await c.locator('[aria-controls]').first().click();
-    await c.locator('.cbx').first().click(); // (not check(): the tick does not stay, it leads to the card)
+    assert.equal(await c.locator('.cbx').count(), 0, 'no tick: the link in the card is the one way');
+    await c.locator('a.ik-go').click(); // "קובץ התסריטים"
     await page.waitForURL(/client\.html\?id=.*#p12$/);
     await page.waitForSelector('#p12 .lf-scripts');
     assert.equal(checkOf(db, SCRIPTS, 'p12.link'), null, 'nothing is marked on the way');

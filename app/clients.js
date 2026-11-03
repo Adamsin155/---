@@ -822,7 +822,10 @@ async function bulkUndo(c, keys, g) {
 // (updateClient). Saving also marks "the meeting was set", which is what was just done.
 const MEET_FIELDS = ['characterizer', 'char_at'];
 const gapOf = (g) => g.entries.find((e) => e.fields) || null;
-const checkable = (g) => g.entries.filter((e) => !e.fields);
+// v12: Lior's forms (the campaign, the pre-shoot form, the scripts' link) are not ticked: saving the
+// form in the client card marks them, and the card's one button leads there (app/intake-ui.js).
+const checkable = (g) => g.entries.filter((e) => !e.fields && !e.item?.form);
+const isFormCard = (g) => !g.task && g.entries.some((e) => e.item?.form);
 // Process 11 (protocol v8): the same shape for the shoot day. A second shoot round's
 // date is set in the client card, where the rounds are.
 const SHOOT_FIELDS = ['shoot_type', 'shoot_at'];
@@ -1270,7 +1273,7 @@ function compactCard(g, person) {
   const safe = g.key.replace(/[^\w-]/g, '_');
   const waitId = `wl-${safe}`;
   const panelId = `wd-${safe}`;
-  const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
+  const canWait = !g.task && !g.proc.recurring && !isFormCard(g) && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
   // An entry that waits for a detail of the client is not a tick: it is the line above the items.
   const ticks = checkable(g);
   const need = needLine(g);
@@ -1359,7 +1362,7 @@ function groupCard(g, person) {
   const [bulkTicks, restTicks] = done ? splitByBulk(bulk, checkable(g)) : [[], checkable(g)];
   const waitId = `wl-${g.key}`.replace(/[^\w-]/g, '_');
   // 'own' roles mark a wait only where the client is part of their work (approvals, corrections).
-  const canWait = !g.task && !g.proc.recurring && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
+  const canWait = !g.task && !g.proc.recurring && !isFormCard(g) && (scope === 'office' || CLIENT_PROCS.has(baseId(g.proc)));
   // The whole card of the full list: the same head as the short one (the leaf, who, what,
   // the state), and under it everything the short card folds.
   return h('li', { class: `wproc k-pc pc pc-full${g.late ? ' k-pc-late' : ''} s-${shownStatus(g)}${g.urgent || g.escalation ? ' is-urgent' : ''}`, 'data-key': g.key },

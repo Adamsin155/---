@@ -1564,7 +1564,8 @@ function procCard(x, now, s) {
   const pkgQty = PKG_QTY[pid] ? client.deliverables?.[PKG_QTY[pid]] : null;
   const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
   // 'own' roles mark a wait only where the client is part of their work.
-  const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
+  // (Lior's forms, 12/30/36, wait on nobody: no "ממתין ללקוח" on them.)
+  const canWait = !x.complete && !p.recurring && !LIOR_FORMS[pid] && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   // Handoffs out of this process: who the work went to, and a WhatsApp button.
   const handoffs = printing ? null : handoffLine({ client, checks: () => checks, state: s, x, me, canTeam: canTeam(), onSent: afterHandoff });
   // Not started yet ("ממתין ל…", "טרם התחיל"): its items are one line, opened on a tap,
@@ -1643,6 +1644,8 @@ function itemRows(x, items, idp = '') {
   let placed = false;
   let topicsPlaced = false;
   for (const i of items) {
+    // v12: an item that is a form of its own has no row: the form above is the one way, and saving it marks it.
+    if (i.form && !printing) continue;
     if (topics.includes(i)) {
       if (topicsPlaced) continue;
       topicsPlaced = true;
@@ -1702,6 +1705,8 @@ function myProc(x, items, now) {
         h('span', { class: 'pnum num' }, p.num), h('span', {}, `${p.ctx?.round ? `סבב ${p.ctx.round} · ` : ''}${p.title}`)),
       statusBadge(x.status, x.dueAt, now)),
     claimLine(x),
+    // Lior's forms: the one way is the form in the process's card.
+    !go && items.some((i) => i.form) ? h('div', { class: 'mn-acts' }, h('a', { class: 'btn btn-sm ik-go', href: `#${p.id}`, onclick: (e) => { e.preventDefault(); goTo(p.id); } }, 'למילוי')) : null,
     link || go ? h('div', { class: 'mn-acts' }, go,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${LINKS.find((l) => l.key === PROC_LINK[pid]).label}`) : null) : null,
     doneAndRows(x, items, 'mn-'));

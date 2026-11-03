@@ -103,9 +103,15 @@ async function campaignTick(engine) {
   const db = office();
   const { page, ctx } = await signedIn(db, { path: 'clients.html#mine', width: 360, engine });
   const card = page.locator(`#mine-list .wproc[data-key="${B}:p30"]`);
-  const tick = card.locator('.cbx').first();
-  if (!(await tick.isVisible())) await card.locator('button[aria-expanded]').first().click();
-  await tick.click();
+  // One way only: no tick of its own, no "ממתין ללקוח"; the card's one button leads to the form.
+  for (const k of [`${B}:p30`, `${A}:p12`, `${A}:p36`]) {
+    const c = page.locator(`#mine-list .wproc[data-key="${k}"]`);
+    assert.equal(await c.locator('.cbx').count(), 0, `no tick on ${k}`);
+    assert.equal(await c.locator('.wait-btn, [id^="wl-"]').count(), 0, `no wait on ${k}`);
+  }
+  const go = card.locator('a.ik-go');
+  assert.equal(await go.innerText(), 'פרטי הקמפיין');
+  await go.click();
   await page.waitForURL(/client\.html\?id=.*#p30$/);
   await page.waitForSelector('#p30 .lf-campaign');
   assert.equal(checkOf(db, B, 'p30.live'), null, 'nothing was marked on the way');
@@ -122,6 +128,10 @@ async function cardA(engine, { width = 360, device = null, name, solo = false })
   await tall(url);
   await tall(page.locator(`#${S}-save`));
   await noOverflow(page);
+  for (const pid of ['p12', 'p36']) {
+    assert.equal(await page.locator(`#${pid} .items .item`).count(), 0, `no item row in ${pid}: the form is the one way`);
+    assert.equal(await page.locator(`#${pid} .wait-btn`).count(), 0, `no "ממתין ללקוח" on ${pid}`);
+  }
   await shot(page.locator('#p12'), `card-scripts-empty-${name}`);
   // A Drive link, typed key by key: refused, in one sentence, the field marked.
   await type(url, 'https://drive.google.com/x');
@@ -158,6 +168,7 @@ async function cardA(engine, { width = 360, device = null, name, solo = false })
   await addr.scrollIntoViewIfNeeded();
   for (const sel of [`#${P}-at`, `#${P}-address`, `#${P}-save`, `label[for="${P}-inf-yes"]`]) await tall(page.locator(sel));
   assert.equal(await page.locator(`#${P}-at`).inputValue(), '2026-10-28T11:00');
+  assert.equal(await text(page.locator(`#${P}-at-said`)), 'יום ד׳ 28.10.2026 · 11:00');
   assert.equal(await page.locator(`#${P}-photographer`).inputValue(), 'eli', 'Eli by default');
   await shot(page.locator('#p36'), `card-preshoot-empty-${name}`);
   // Saving with nothing chosen: the first missing thing, in words.
@@ -208,7 +219,10 @@ async function cardB(engine, { width = 360, device = null, name }) {
   await shot(page.locator('#p30'), `card-campaign-empty-${name}`);
   await page.locator(`#${C}-save`).click();
   assert.match(await text(page.locator(`#${C}-err`)), /חסר תאריך ההתחלה/);
+  assert.equal(await page.locator('#p30 .items .item').count(), 0, 'no item row in 30: the form is the one way');
+  assert.equal(await page.locator('#p30 .wait-btn').count(), 0);
   await page.fill(`#${C}-start`, '2026-10-22');
+  assert.equal(await text(page.locator(`#${C}-start-said`)), 'יום ה׳ 22.10.2026');
   await page.locator(`#${C}-save`).click();
   assert.match(await text(page.locator(`#${C}-err`)), /חסר התקציב היומי/);
   assert.equal(await budget.getAttribute('aria-invalid'), 'true');
