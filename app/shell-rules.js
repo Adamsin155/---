@@ -60,7 +60,7 @@ export function officeScreens(viewer) {
   const ok = known(viewer);
   const owner = ok && !me && viewer.scope === 'office';
   return [
-    ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || owner],
+    ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || me === 'irit' || owner],
     ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'irit' || me === 'ofir' || owner, 'מעבר'],
     ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
     ['insights', 'insights.html', 'תובנות', seesInsights(viewer)],
@@ -165,7 +165,8 @@ export const PERSONAL = {
   // Irit: her tasks, a client, her pass over the clients (26.10.2026), her part before a
   // shoot day and the clients' requests, the daily messages to clients, the calendar she
   // invites from (15.10.2026), and building and following a contract.
-  irit: ['mine', 'clients', 'pass', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
+  // "בקרה ושיוך" since 3.11.2026 (the owner).
+  irit: ['mine', 'clients', 'qa', 'pass', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
 // Screens a person may open that are not in their menu (the page review of Ofir, Lior and

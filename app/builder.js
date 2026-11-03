@@ -386,7 +386,7 @@ function renderDocType() {
   });
   // A price offer needs no client details (the owner, 29.10.2026); an agreement needs the name.
   $('c-name').required = signable;
-  for (const id of ['c-companyid', 'c-address']) {
+  for (const id of ['c-companyid']) {
     $(id).required = signable;
     $(`${id}-req`).hidden = !signable;
   }
@@ -928,7 +928,8 @@ function validateClient() {
   const emailOk = !email.value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
   const cidMissing = signable && !cid.value.trim();
   const cidOk = !cidMissing && (!cid.value.trim() || /^[0-9][0-9-]{3,18}$/.test(cid.value.trim()));
-  const addressOk = address.value.trim().length > 0 || !signable;
+  // The address is optional (the owner, 3.11.2026).
+  const addressOk = true;
   cid.setAttribute('aria-invalid', String(!cidOk));
   $('c-companyid-err').textContent = cidMissing ? 'בחוזה חובה למלא ח.פ / ע.מ.' : 'מספר לא תקין. יש להזין ספרות בלבד.';
   $('c-companyid-err').hidden = cidOk;

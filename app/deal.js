@@ -50,7 +50,7 @@ function showKind() {
   $('d-to-package').hidden = !free;
   for (const el of document.querySelectorAll('.deal-builtin')) el.hidden = !chosen || free;
   $('d-submit').textContent = SUBMIT_TEXT();
-  for (const f of ['company_id', 'business_address']) $(`d-${f}-req`).hidden = docType() !== 'agreement';
+  $('d-company_id-req').hidden = docType() !== 'agreement';
 }
 // "הנחה חריגה": the limit goes away (the logic checks it against the package's price).
 function showSpecial() {
