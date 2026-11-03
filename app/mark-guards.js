@@ -30,6 +30,7 @@ const ITEMS = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, i])));
 const baseKey = (key) => String(key || '').replace(/^r\d+\./, '');
 export const roundOfKey = (key) => Number(/^r(\d+)\./.exec(String(key || ''))?.[1] || 1);
 export const guardOf = (key) => ITEMS.get(baseKey(key))?.guard || null;
+export const formOf = (key) => ITEMS.get(baseKey(key))?.form || null;
 
 // The one sentence each refusal says.
 export const REFUSALS = {
@@ -93,6 +94,10 @@ export async function guardFacts(guard, clientId, key) {
 // What a screen asks before it writes `key` as done: null, { refuse }, or { via: 'call' }.
 // (graphicsCount is asked where the files are, with the numbers that page already has.)
 export async function checkMark(clientId, key) {
+  // v12: an item that is a form of its own (`form` in app/protocol.js: the campaign's details, the
+  // pre-shoot form, the scripts' link) is taken through that form, in the client card.
+  const form = formOf(key);
+  if (form) return { via: 'form', form };
   const guard = guardOf(key);
   if (!guard || guard === 'graphicsCount') return null;
   if (guard === 'callSummary') return { via: 'call' };

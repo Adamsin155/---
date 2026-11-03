@@ -96,10 +96,31 @@
 // artist and the ride (11ב, 15), the three-hour day (20), Nirel preselected and seeing the
 // client, the same advice for the scripts. Natali's words name the day's own influencer
 // (starWords; applied to every process of the client in app/protocol-logic.js). Keys unchanged.
+// v12 (the owner's decision of 3.11.2026; docs/ops.md, section 92): Lior's work is four things only.
+//   - The campaign (30): one item, p30.live ("הקמפיין עלה"), with the campaign's start date and its
+//     daily budget on the item's note as JSON (`form: 'campaign'`; app/lior-four.js). p30.picked left.
+//   - A pre-shoot form (new process 36, shown as "11ג"; the database's keys take no letter past ב):
+//     the date and time, the address, who films and the influencers, written to the shoot's own
+//     fields. Its item p36.form closes when the form is saved whole.
+//   - The scripts (12): one Google Docs link with all of them (clients.links.scripts_doc). Saving it
+//     closes the new item p12.link by itself. The scripts page stays for whoever uses it; nothing
+//     waits on it (p12.scripts, p12.numbered, p12.docs left).
+//   - The Zoom (13): one item, p13.zoom (p13.approved and p13.fixes left, and with them the mark
+//     p13.left and its clock).
+//   - Left Lior, and moved to nobody (`retired: 12`): his items of 2 (p02.deal, p02.team; the intro
+//     message is Irit's alone), 6 (p06.recovered), 10, 11ב, 12א, 31, the whole shoot day (15–21) and
+//     22א's "ליאור החזיר את הכונן". A retired process or item is kept here only for the history of
+//     its marks: it applies to no client, whatever version it started under (applicableProcesses),
+//     so it is in no list, rings nobody and is never late. Irit's work is unchanged (11, 14); Eli's
+//     17ב/18ב/19ב are unchanged, and 22א now opens on the evening of the shoot day itself (it waited
+//     for Lior's closing of the day, 19).
+//   Kept: 34 and 35. The new items are for every client (`always` in app/protocol-versions.js).
 
 import { INFLUENCERS, STARS } from './catalog.js';
 
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
+// The version that retired a process or an item (`retired`): what is retired applies to nobody.
+export const isRetired = (entry) => Number.isInteger(entry?.retired) && entry.retired <= PROTOCOL_VERSION;
 
 // The five critical mistakes of editing, in the order and the words of the editors' written
 // protocol ("נקודות חשובות: טעויות קריטיות", docs/protocols/editors.md and nirel.md):
@@ -360,6 +381,9 @@ export const LINKS = [
   // The finished videos are in the client's Drive folder (the editor opens it: p24.folder).
   { key: 'drive', label: 'תיקיית הסרטונים ב־Drive', after: 'p24.folder', hint: 'drive.google.com' },
   { key: 'scripts', label: 'תסריטים (קישור לשיתוף)', after: 'p12.docs', hint: null, placeholder: 'הקישור לשיתוף מעמוד התסריטים' },
+  // v12: one Google Docs file with all the scripts. Saving it closes p12.link (app/lior-four.js);
+  // `strict`: an address of another site is refused, not only warned about.
+  { key: 'scripts_doc', label: 'קובץ התסריטים (Google Docs)', after: null, hint: 'docs.google.com', strict: true },
   // The Gantt is gantt.html; a sheet's link from before is still shown, never asked for.
   { key: 'gantt', label: 'גאנט ישן בגיליון (לא חובה)', after: null, hint: 'docs.google.com' },
   { key: 'dropbox', label: 'Dropbox', after: 'p24.dropbox', hint: 'dropbox.com' },
@@ -468,7 +492,7 @@ export const PHASES = [
 //   הצטרפות      onboarding 1–3 (the deal, the WhatsApp group, setting the meeting)
 //                and, since v6, 11 and 11ב (the shoot day is set right after the group)
 //   אפיון        onboarding 4–6 (the meeting, access with 5ב, the pages) + parallel 7, 7א, 7ב, 8, 8ב, 9, 10
-//   תוכן ואישור  prep (12א, 12, 13, 14)
+//   תוכן ואישור  prep (12א, 12, 13, 14, and since v12 36, Lior's pre-shoot form, "11ג")
 //   יום צילום    eve (15, 16) + shoot (17–21, with 17ב, 18ב, 19ב)
 //   עריכה ובקרה  post (22א, 22, 23, 23ב, 24, 25, 26, 27)
 //   פרסום        publish (28, 29, 30)
@@ -478,7 +502,7 @@ export const PHASES = [
 export const STATIONS = [
   { key: 'join', title: 'הצטרפות', procs: ['p01', 'p02', 'p03', 'p11', 'p11b'] },
   { key: 'char', title: 'אפיון', procs: ['p04', 'p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10'] },
-  { key: 'content', title: 'תוכן ואישור', procs: ['p12a', 'p12', 'p13', 'p14'] },
+  { key: 'content', title: 'תוכן ואישור', procs: ['p12a', 'p12', 'p13', 'p14', 'p36'] },
   { key: 'shoot', title: 'יום צילום', procs: ['p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21'] },
   { key: 'post', title: 'עריכה ובקרה', procs: ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27'] },
   { key: 'publish', title: 'פרסום', procs: ['p28', 'p29', 'p29b', 'p30'] },
@@ -511,9 +535,10 @@ export const PROCESSES = [
       { key: 'p02.m.ofir', label: 'אופיר בקבוצה' },
       { key: 'p02.m.ilai', label: 'עילאי בקבוצה' },
       { key: 'p02.m.client', label: 'הלקוח בקבוצה' },
-      { key: 'p02.intro', label: 'נשלחה הודעת היכרות מטעם ליאור ועירית', owners: ['irit', 'lior'] },
-      { key: 'p02.deal', label: 'ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי', owners: ['lior'] },
-      { key: 'p02.team', label: 'ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו', owners: ['lior'] },
+      // v12: Irit's alone (it was Irit's and Lior's).
+      { key: 'p02.intro', label: 'נשלחה הודעת היכרות מטעם ליאור ועירית', owners: ['irit'] },
+      { key: 'p02.deal', label: 'ליאור בדק שאין בעסקה או בחבילה משהו חריג שדורש טיפול ניהולי', owners: ['lior'], retired: 12 },
+      { key: 'p02.team', label: 'ליאור וידא שהלקוח יודע מי הגורמים שמטפלים בו', owners: ['lior'], retired: 12 },
     ],
   },
   {
@@ -551,7 +576,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p11b', round: true, num: '11ב', phase: 'onboarding', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'],
+    id: 'p11b', round: true, num: '11ב', phase: 'onboarding', title: 'יום צילום עם נטלי: מאפרת והסעה', owners: ['lior'], retired: 12,
     sla: 'מיד לאחר שנסגר תאריך יום הצילום עם נטלי',
     when: isStar, start: { from: 'p11' }, due: { from: 'p11' },
     what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
@@ -587,7 +612,7 @@ export const PROCESSES = [
   },
   {
     id: 'p05', num: '5', phase: 'onboarding', title: 'לקיחת גישות לרשתות', owners: accessOwners,
-    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. גישה שלא עובדת: משימה לליאור. אין רשתות: משימה למבצע האפיון (נעם או אופיר) לפתוח.',
+    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. אין רשתות: משימה למבצע האפיון (נעם או אופיר) לפתוח.',
     sla: 'מיד במהלך או מיד לאחר פגישת האפיון',
     start: { from: 'char' }, due: { from: 'charEnd' },
     what: 'מקבלים מהלקוח גישה לכל הרשתות הרלוונטיות ולוקחים גם את חומרי המותג.',
@@ -635,7 +660,7 @@ export const PROCESSES = [
     what: 'בודקים שכל שם משתמש וסיסמה עובדים. גישה לא תקינה: מתקשרים ללקוח ומאפסים או משחזרים איתו. אין עמודים: פותחים עמודים חדשים באותו חלון זמן.',
     items: [
       { key: 'p06.verified', label: 'כל שמות המשתמש והסיסמאות נבדקו ועובדים' },
-      { key: 'p06.recovered', label: 'גישות לא תקינות אופסו או שוחזרו עם הלקוח והוכנסו לכספת', owners: ['lior'], optional: true },
+      { key: 'p06.recovered', label: 'גישות לא תקינות אופסו או שוחזרו עם הלקוח והוכנסו לכספת', owners: ['lior'], optional: true, retired: 12 },
       { key: 'p06.newpages', label: 'נפתחו רשתות חדשות (אם לא היו) והגישות הוכנסו לכספת', optional: true },
       { key: 'p06.name', label: 'שם העמוד סודר' },
       { key: 'p06.bio', label: 'Bio נכתב או תוקן' },
@@ -726,7 +751,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p10', num: '10', phase: 'parallel', title: 'סידור Meta ומנהל מודעות', owners: ['lior'],
+    id: 'p10', num: '10', phase: 'parallel', title: 'סידור Meta ומנהל מודעות', owners: ['lior'], retired: 12,
     sla: 'עד שעתיים לאחר האפיון',
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
     what: 'ליאור בודק שקיימת תשתית פרסום תקינה ב־Meta. אם אין, מקים ומסדר מנהל מודעות במלואו.',
@@ -738,7 +763,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p12a', round: true, num: '12א', phase: 'prep', title: 'שיחת דגשים לתוכן', owners: ['lior'],
+    id: 'p12a', round: true, num: '12א', phase: 'prep', title: 'שיחת דגשים לתוכן', owners: ['lior'], retired: 12,
     sla: 'יום עסקים אחד לאחר פגישת האפיון',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 1 },
     what: 'ליאור עובר לעומק על האפיון ומתקשר ללקוח לשיחת דגשים, כדי לדעת בדיוק אילו מסרים נכנסים לתוכן של יום הצילום.',
@@ -755,15 +780,19 @@ export const PROCESSES = [
     id: 'p12', round: true, num: '12', phase: 'prep', title: 'כתיבת התסריטים ליום הצילום', owners: ['lior'],
     sla: 'עד סוף יום העסקים השני מפגישת האפיון, כדי שהזום ייכנס ביום השלישי',
     start: { from: 'charEnd' }, due: { from: 'char', businessDays: 2 }, // decision 14
-    what: 'ליאור מכין תסריטים לפי החבילה (תסריט לכל סרטון), האפיון, שיחת הדגשים, העסק, קהל היעד והמשפיענים שמגיעים ליום הצילום.',
+    what: 'ליאור כותב את כל התסריטים בקובץ Google Docs אחד ומדביק את הקישור בכרטיס הלקוח (״קובץ התסריטים״). ברגע שהקישור נשמר, הפריט נסגר לבד.',
     guidance: {
       natali: 'יום עם נטלי: הפניות ברורות לצופה, ראיונות עם הלקוח, סרטוני הסברה, היכרות עם העסק והמקום, הצגת השירותים, מיני־סצנות ותוכן מקצועי ומדויק. מסודר, ברור ומניע לפעולה; פחות קומדיה מוגזמת.',
       dms: 'יום עם דניס, מישל וסמיון: סרטונים מצחיקים, רעיונות משוגעים, תוכן ויראלי, סצנות באנרגיה גבוהה וסיטואציות, וגם הסברה, היכרות וראיונות. גם תוכן מצחיק חייב להיות קשור לעסק ולמסר שהלקוח רוצה להעביר.',
     },
     items: [
-      { key: 'p12.scripts', label: 'התסריטים הוכנו לפי החבילה (תסריט לכל סרטון), הדגשים והמשפיענים', requires: ['p12a.call'] },
-      { key: 'p12.numbered', label: 'לכל סרטון מספר ברור, כדי לסמן אותו ביום הצילום' },
-      { key: 'p12.docs', label: 'התסריטים מסודרים בעמוד התסריטים במערכת, לפי סדר הצילום', guard: 'scripts' },
+      { key: 'p12.scripts', label: 'התסריטים הוכנו לפי החבילה (תסריט לכל סרטון), הדגשים והמשפיענים', requires: ['p12a.call'], retired: 12 },
+      { key: 'p12.numbered', label: 'לכל סרטון מספר ברור, כדי לסמן אותו ביום הצילום', retired: 12 },
+      { key: 'p12.docs', label: 'התסריטים מסודרים בעמוד התסריטים במערכת, לפי סדר הצילום', guard: 'scripts', retired: 12 },
+      // v12: the one item. It closes by itself once the link is saved (app/lior-four.js; the database
+      // too, 20261126100000_lior_four.sql); "סיימתי" without a saved link points at the field.
+      // Not asked where the scripts were already on the scripts page before it existed (`passedIf`).
+      { key: 'p12.link', label: 'הקישור לקובץ התסריטים (Google Docs) נשמר בכרטיס הלקוח', form: 'scriptsDoc', passedIf: 'p12.docs' },
     ],
   },
   {
@@ -772,13 +801,14 @@ export const PROCESSES = [
     // v10: fixes that remained after the Zoom are a real item once Lior says so (the mark
     // p13.left, 'done': "נשארו תיקונים"; 'na': "אין תיקונים"), due at the end of the next
     // business day after he said it (Lior's written protocol, step 7).
-    start: { from: 'p12' }, due: { from: 'char', businessDays: 3, afterMark: [{ key: 'p13.left', businessDays: 1 }] },
-    what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. תיקונים שנשארו: ליאור, עד יום עסקים אחד, והגרסה הסופית היא זו שבעמוד התסריטים במערכת.',
+    // v12: one item, done or not. The fixes after it (p13.left, p13.fixes) left with p13.approved.
+    start: { from: 'p12' }, due: { from: 'char', businessDays: 3 },
+    what: 'שיחת Zoom מוקלטת: עוברים על התסריטים, מסבירים את הרעיונות, מקבלים הערות ומשנים ניסוחים, עד שיש אישור ברור. הגרסה הסופית היא זו שבקובץ התסריטים.',
     rule: 'לא מגיעים ליום צילום עם תוכן שלא עבר אישור לקוח.',
     items: [
       { key: 'p13.zoom', label: 'התקיימה שיחת Zoom מוקלטת' },
-      { key: 'p13.approved', label: 'הלקוח אישר את התסריטים', requires: ['p13.zoom'], noBulk: true },
-      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו בעמוד התסריטים (עד יום עסקים אחד)', optional: true, neededIf: 'p13.left' },
+      { key: 'p13.approved', label: 'הלקוח אישר את התסריטים', requires: ['p13.zoom'], noBulk: true, retired: 12 },
+      { key: 'p13.fixes', label: 'תיקונים שנשארו אחרי הזום בוצעו ועודכנו בעמוד התסריטים (עד יום עסקים אחד)', optional: true, neededIf: 'p13.left', retired: 12 },
     ],
   },
   {
@@ -805,7 +835,23 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['lior'],
+    // v12 (the owner, 3.11.2026): Lior's form before a shoot day, in the client card. Its id is 36
+    // because the database's item keys take no letter past ב; it is shown as 11ג. The form writes
+    // the shoot's own fields (shoot_at, the address, the shoot type, or the photographer of a day
+    // without influencers; a round's entry for a round: app/lior-four.js preShootPatch) and closes
+    // its one item when they are all there. No deadline: it is on Lior's list until it is filled,
+    // and it is history once an editor was assigned (`passedIf`), as for a shoot that took place
+    // before it existed (the migration's history).
+    id: 'p36', round: true, num: '11ג', phase: 'prep', title: 'טופס מקדים ליום צילום', owners: ['lior'],
+    sla: 'לפני יום הצילום',
+    start: { from: 'group' },
+    what: 'ממלאים בכרטיס הלקוח: תאריך ושעה, כתובת, מי מצלם (אלי, אלא אם נבחר אחר), ואם יש משפיענים: אילו. הפרטים נשמרים ביום הצילום של הלקוח.',
+    items: [
+      { key: 'p36.form', label: 'הטופס המקדים מולא: מועד, כתובת, צלם ומשפיענים', form: 'preShoot', passedIf: 'p22a.assigned' },
+    ],
+  },
+  {
+    id: 'p15', round: true, num: '15', phase: 'eve', title: 'תזכורת לצוות וללקוח', owners: ['lior'], retired: 12,
     ownerNote: 'ליאור שולח את התזכורות; עירית בודקת באותה שעה שזה בוצע, ומעדכנת את ליאור מיד אם יש בעיה.',
     sla: 'יום לפני הצילום, בסביבות 11:00',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', prevBusinessDay: true, at: '11:00' },
@@ -823,7 +869,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p16', round: true, num: '16', phase: 'eve', title: 'תדרוך הצלם והכנת יום הצילום', owners: ['lior'],
+    id: 'p16', round: true, num: '16', phase: 'eve', title: 'תדרוך הצלם והכנת יום הצילום', owners: ['lior'], retired: 12,
     sla: 'בערב שלפני יום הצילום',
     start: { from: 'shoot', prevBusinessDay: true, at: '00:00' }, due: { from: 'shoot', days: 0, at: '00:00' },
     items: [
@@ -836,7 +882,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p17', round: true, num: '17', phase: 'shoot', title: 'הגעה מוקדמת והכנת המקום', owners: ['lior'],
+    id: 'p17', round: true, num: '17', phase: 'shoot', title: 'הגעה מוקדמת והכנת המקום', owners: ['lior'], retired: 12,
     ownerNote: 'ליאור והצלם. מנהל יום הצילום: ליאור בלבד.',
     sla: 'שעה לפני הגעת המשפיענים',
     start: { from: 'shoot', hours: -1 }, due: { from: 'shoot' },
@@ -869,7 +915,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p18', round: true, num: '18', phase: 'shoot', title: 'ניהול יום הצילום והתסריטים', owners: ['lior'],
+    id: 'p18', round: true, num: '18', phase: 'shoot', title: 'ניהול יום הצילום והתסריטים', owners: ['lior'], retired: 12,
     sla: 'לאורך כל יום הצילום',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
     what: 'ליאור מנהל את סדר היום ומחזיק את התסריטים: מסביר מה מצלמים, שומר על המסר, מקדם את הצוות בזמן ופותר בעיות. כל סרטון שצולם מסומן במונה של יום הצילום במערכת.',
@@ -893,7 +939,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p19', round: true, num: '19', phase: 'shoot', title: 'סיום יום צילום', owners: ['lior'],
+    id: 'p19', round: true, num: '19', phase: 'shoot', title: 'סיום יום צילום', owners: ['lior'], retired: 12,
     sla: 'מיד בסיום הצילום ולפני שהצוות עוזב',
     start: { from: 'shoot' }, due: { from: 'shoot', days: 0, at: '23:59' },
     rule: 'ליאור לא עוזב יום צילום בלי הכונן, בלי סרטון המלצה ובלי בדיקה שכל החומרים בכונן.',
@@ -923,7 +969,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p20', round: true, num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior'],
+    id: 'p20', round: true, num: '20', phase: 'shoot', title: 'ניהול יום צילום עם נטלי דדון', owners: ['lior'], retired: 12,
     sla: 'צילום בפועל עד 3 שעות',
     when: isStar, start: { from: 'shoot' }, due: { from: 'shoot', hours: 3 },
     what: 'יום ממוקד לפי התסריטים שאושרו: הפניות לצופה, ראיון עם הלקוח, הסברה, היכרות עם העסק והמקום, הצגת שירותים ומיני־סצנות. מסר ברור, מקצועי ומניע לפעולה, לא קומדיה מוגזמת.',
@@ -933,7 +979,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p21', round: true, num: '21', phase: 'shoot', title: 'ניהול יום צילום עם דניס, מישל וסמיון', owners: ['lior'],
+    id: 'p21', round: true, num: '21', phase: 'shoot', title: 'ניהול יום צילום עם דניס, מישל וסמיון', owners: ['lior'], retired: 12,
     sla: 'צילום בפועל כ־5 שעות, אחרי עד חצי שעה התארגנות',
     when: isDms, start: { from: 'shoot' }, due: { from: 'shoot', minutes: 330 },
     what: 'עם ההגעה: עד חצי שעה להתרענן, לאכול, להתארגן ולקבל תדרוך. רוב התוכן מצחיק, משוגע, אנרגטי וויראלי, ובנוסף הסברה, היכרות עם העסק והשירותים וראיונות עם הלקוח.',
@@ -950,11 +996,12 @@ export const PROCESSES = [
     sla: 'בלי זמן קצוב: בכל יום עבודה ב־12:00 אופיר מקבל כמה לקוחות מחכים לשיוך',
     // Ofir alone assigns (v9). No clock on the assignment since 30.10.2026 (the owner): he also
     // chooses the editing time in the dialog, and hears at 12:00 (the rule `assign12`).
-    start: { from: 'p19' },
-    what: 'ליאור מחזיר את הכונן. אופיר בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
+    // v12: from the evening of the shoot day itself (it waited for Lior's closing of the day, 19, which left).
+    start: { from: 'shoot', days: 0, at: '18:00' },
+    what: 'אחרי יום הצילום אופיר בודק את עומס העורכים (מי פנוי, מי מחזיק הרבה לקוחות, אילו משימות פתוחות, מי יעמוד בזמן) ומשייך את הלקוח. מכאן מתחילה ספירת זמני העריכה.',
     needs: ['editor'],
     items: [
-      { key: 'p22a.drive', label: 'ליאור החזיר את הכונן', owners: ['lior'] },
+      { key: 'p22a.drive', label: 'ליאור החזיר את הכונן', owners: ['lior'], retired: 12 },
       { key: 'p22a.load', label: 'נבדק עומס העורכים: נדיה, יריב, אנה (וניראל, ביום צילום של נטלי)' },
       { key: 'p22a.assigned', label: 'הלקוח שויך לעורך והכונן הועבר אליו', requiresFields: ['editor'] },
       { key: 'p22a.irit', label: 'עירית וידאה שהלקוח הועבר לעורך, מי העורך, ומתי מתחילה ומסתיימת העריכה', owners: ['irit'], requires: ['p22a.assigned'] },
@@ -1106,12 +1153,13 @@ export const PROCESSES = [
     sla: 'עד יום עסקים אחד מרגע קבלת הסרטונים המוכנים',
     start: { from: 'p25' }, due: { from: 'p25', businessDays: 1 },
     items: [
-      { key: 'p30.picked', label: 'נבחרו הסרטונים המתאימים ביותר' },
-      { key: 'p30.live', label: 'הוקמו קמפיינים לפי המטרות, השירותים, קהל היעד, התקציב וסוג הפניות הרצוי' },
+      { key: 'p30.picked', label: 'נבחרו הסרטונים המתאימים ביותר', retired: 12 },
+      // v12: the one item, with the campaign's start date and daily budget on its note (`form`).
+      { key: 'p30.live', label: 'הקמפיין עלה', form: 'campaign' },
     ],
   },
   {
-    id: 'p31', num: '31', phase: 'ongoing', title: 'שיחת לקוח שבועית', owners: ['lior'],
+    id: 'p31', num: '31', phase: 'ongoing', title: 'שיחת לקוח שבועית', owners: ['lior'], retired: 12,
     sla: 'פעם בשבוע, בימי רביעי או חמישי',
     recurring: 'weekly', start: { from: 'p30' },
     what: 'עוברים עם הלקוח על קמפיינים, לידים, תוצאות, סרטונים, תכנים שעלו, תכנים עתידיים, בעיות, דברים שצריך לשפר ובקשות חדשות. הכול מתועד בסיכום השיחה; כל משימה נפתחת עם אחראי ברור. לאורך התקופה ליאור בודק גם ביצועים, לידים, הודעות, עלויות, קריאייטיבים וצורך באופטימיזציה. עירית בודקת אחרי השיחה שלכל משימה יש אחראי.',

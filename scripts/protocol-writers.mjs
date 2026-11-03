@@ -30,7 +30,7 @@
 //   node scripts/protocol-writers.mjs --check  exit 1 when the latest migration's block differs
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { PROCESSES, EDITORS, SCOPE } from '../app/protocol.js';
+import { PROCESSES, EDITORS, SCOPE, isRetired } from '../app/protocol.js';
 import { QA_KINDS } from '../app/office-marks.js';
 import { BLOCKS } from '../app/production.js';
 
@@ -80,7 +80,9 @@ export function writerRows() {
     { key: '@office', proc: null, round: false, persons: OFFICE_WRITERS },
     { key: '@editors', proc: null, round: false, persons: [...EDITORS].sort() },
   ];
-  for (const p of PROCESSES) {
+  // A retired process or item (v12) applies to nobody: no row of its own (its old marks were
+  // Lior's or Irit's, the office's, in any case). Eli's marks on the briefing stay (EXTRA_MARKS).
+  for (const p of PROCESSES.filter((x) => !isRetired(x)).map((x) => ({ ...x, items: x.items.filter((i) => !isRetired(i)) }))) {
     const round = !!p.round;
     for (const i of p.items) rows.push({ key: i.key, proc: p.id, round, persons: tokens(i.owners || p.owners) });
     if (Array.isArray(p.owners) && p.owners.length > 1) rows.push({ key: `${p.id}.@claim`, proc: p.id, round, persons: tokens(p.owners) });

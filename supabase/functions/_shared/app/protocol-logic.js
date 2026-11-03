@@ -4,7 +4,7 @@
 // can also run in an edge function.
 // Every date is computed in Israel time (tz.js), whatever the zone of the device
 // or the server: office hours, business days, "today" and the day before a shoot.
-import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf, starProcess } from './protocol.js';
+import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf, starProcess, isRetired } from './protocol.js';
 import { SPECS, TERM_MONTHS, PACKAGES, PAID_ADDONS } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
 import { adjustForVersion, laterDue } from './protocol-versions.js';
@@ -220,7 +220,10 @@ export const stagesOf = (spec) => (!spec?.afterMark ? [] : Array.isArray(spec.af
 export const isDaily = (proc) => proc?.recurring === 'daily';
 
 export const ownersOf = (entry, client) => (typeof entry.owners === 'function' ? entry.owners(client) : entry.owners || []);
-const applies = (entry, client) => !entry.when || entry.when(client);
+// A process or item a protocol version retired (`retired`, v12: Lior's work that left) applies
+// to no client, whatever version it started under: it is in no list, rings nobody and is never
+// late. Its marks stay in the history.
+const applies = (entry, client) => !isRetired(entry) && (!entry.when || entry.when(client));
 
 // The processes and items that apply to this client, with owners resolved.
 // Extra shoot rounds (client.rounds) repeat the round processes under their own
@@ -533,6 +536,8 @@ export function fieldGap(proc, client, checks = {}, procs = [], now = new Date()
     const round = /^(r\d+-)/.exec(proc.id)?.[1] || '';
     const next = item.setHere.unless && procs.find((p) => p.id === `${round}${item.setHere.unless}`);
     if (next && (isImported(next, checks) || completedAt(next, checks, now) || (next.id === 'p04' && charEndedAt(checks)))) continue;
+    // 19 left the protocol in v12: the shoot day is behind the client by its marks (shootBehind).
+    if (!next && item.setHere.unless === 'p19' && shootBehind(round, checks)) continue;
     return { item, fields };
   }
   return null;
@@ -639,7 +644,7 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
   if (!person || p.recurring || NO_BULK.has(p.id.replace(/^r\d+-/, '')) || state.complete) return [];
   if (state.claim && state.claim.person !== person) return [];
   // An item the system looks into before taking it (`guard`) is pressed by itself.
-  return p.items.filter((i) => !i.optional && !i.noBulk && !i.guard && i.owners.includes(person)
+  return p.items.filter((i) => !i.optional && !i.noBulk && !i.guard && !i.form && i.owners.includes(person)
     && !isResolved(i, checks[i.key], now) && !blockers(i, p.ctx || client, checks));
 }
 
@@ -650,6 +655,14 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
 // to was done before this system knew of it. It stays in the card as "לא חובה" and is in
 // nobody's list; a client that is still working through that step gets it as usual.
 const ANCHOR_PROC = { deal: 'p01', group: 'p02', char: 'p04', charEnd: 'p04', shoot: 'p19' };
+// The shoot day is behind the client (or that round) by its marks, without a date to say so:
+// Lior's closing of the day (19, retired in v12: its old marks still say it), Eli's handing over
+// of the drive (19ב), or an editor already assigned (22א). `round`: 'r2-' or ''.
+const SHOOT_BEHIND = ['p19.all', 'p19.drive', 'p19.took', 'p19b.handed', 'p22a.assigned'];
+function shootBehind(round, checks) {
+  const pre = round ? round.replace(/-$/, '.') : '';
+  return SHOOT_BEHIND.some((k) => ['done', 'na'].includes(checks[`${pre}${k}`]?.state));
+}
 function afterImport(proc, procs, checks) {
   if (isImported(proc, checks)) return true;
   const from = proc.start?.from || proc.due?.from;
@@ -750,7 +763,8 @@ export function clientState(client, checks = {}, now = new Date()) {
     const round = /^(r\d+-)/.exec(s.proc.id)?.[1] || '';
     const closing = ANCHOR_PROC[s.proc.until] ? states.find((x) => x.proc.id === `${round}${ANCHOR_PROC[s.proc.until]}`) : null;
     s.over = (!!end && dayKeyIL(now) >= dayKeyIL(end)) || isImported(s.proc, checks)
-      || !!(closing && (closing.complete || isImported(closing.proc, checks)));
+      || !!(closing && (closing.complete || isImported(closing.proc, checks)))
+      || (s.proc.until === 'shoot' && shootBehind(round, checks));
     s.holds = !!(s.startAt && s.startAt <= now) && !s.over;
   }
   // Current phase: the first one that still has open work.

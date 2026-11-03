@@ -645,6 +645,14 @@ async function toggleEntry(e, input) {
       if (folder) try { (checks[e.client.id] ||= {})[folder] = await setCheck(e.client.id, folder, 'done'); states.delete(e.client.id); } catch { /* the item stays for the card */ }
     } else {
       const verdict = await checkMark(e.client.id, e.item.key);
+      // v12: Lior's forms (the campaign's details, the pre-shoot form, the scripts' link) are filled
+      // in the client card, in the card of that process; the tick leads there.
+      if (verdict?.via === 'form') {
+        input.checked = false;
+        input.disabled = false;
+        location.href = clientUrl(e.client.id, `#${e.proc?.id || ''}`);
+        return;
+      }
       if (verdict?.refuse) {
         input.checked = false;
         input.disabled = false;

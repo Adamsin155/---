@@ -12,6 +12,8 @@
 //    the shoot day to right after the group) keeps the start and due it started under.
 //  - an item a version added for every client, whatever it started under (`always`: v9,
 //    Ofir's approval of the first graphics), is an item like any other: it can be late.
+//  - a process or an item a version took out of the protocol (`retired`: v12, Lior's work that
+//    left; `retired: 12` on it in protocol.js) applies to no client at all, of any version.
 // Nothing else changes for it: what needs what, who owns it and completion are as
 // in the current protocol.
 //
@@ -181,6 +183,25 @@ export const PROTOCOL_HISTORY = [
       p22: { from: 'item:p22a.assigned', businessDays: 3 },
       p24: { from: 'item:p22a.assigned', businessDays: 3 },
     },
+  },
+  {
+    version: 12, date: '2026-11-03', title: 'העבודה של ליאור: ארבעה דברים בלבד',
+    changes: [
+      'הקמפיין (30): פריט אחד, ״הקמפיין עלה״, עם תאריך ההתחלה והתקציב היומי (₪).',
+      'נוסף 11ג: טופס מקדים ליום צילום בכרטיס הלקוח (מועד, כתובת, מי מצלם, משפיענים). הוא כותב לפרטי יום הצילום, והפריט נסגר כשהטופס מלא.',
+      'התסריטים (12): קישור אחד לקובץ Google Docs עם כל התסריטים. כשהקישור נשמר בכרטיס, הפריט נסגר לבד. עמוד התסריטים נשאר למי שמשתמש בו, ושום דבר לא מחכה לו.',
+      'הזום (13): פריט אחד, בוצע או לא.',
+      'ירדו מליאור, ולא עברו לאף אחד: הפריטים שלו ב־2, 6 ו־10, 11ב, 12א, 31, כל יום הצילום (15–21) ו״ליאור החזיר את הכונן״ ב־22א. גם התזכורות והאיחורים שלהם. 22א נפתח בערב של יום הצילום.',
+    ],
+    // The owner wants it for the current clients too, so nothing here is gated by the version:
+    // the new items are asked of every client (`always`, as in v9), unless the client is already
+    // past them (`passedIf` in app/protocol.js, and the history 20261126100000_lior_four.sql
+    // writes); what left is `retired` in app/protocol.js and applies to nobody. No `due` either.
+    always: ['p36.form', 'p12.link'],
+    retired: [
+      'p02.deal', 'p02.team', 'p06.recovered', 'p10', 'p11b', 'p12a', 'p12.scripts', 'p12.numbered', 'p12.docs',
+      'p13.approved', 'p13.fixes', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22a.drive', 'p30.picked', 'p31',
+    ],
   },
 ];
 
