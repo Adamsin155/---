@@ -186,7 +186,15 @@
       </div>
       <div class="dlg-body">
         <p class="muted" id="start-ctx"></p>
-        <fieldset class="prod-checks ed-qs">
+        <!-- One tick for the four (the owner, 3.11.2026): what to check is read as lines; "משהו חסר?"
+             opens the old "יש" / "חסר" per line, for a report that lets the editing go on. -->
+        <fieldset class="prod-checks ed-qs" id="start-simple">
+          <legend>לפני שמתחילים: לבדוק בכונן</legend>
+          <ul class="ed-lines" id="start-lines"></ul>
+          <label class="prod-check ed-all" for="start-all"><input type="checkbox" id="start-all" class="cbx"><span>עברתי על הכול, הכול תקין</span></label>
+          <button type="button" class="btn-text ed-some" id="start-some" aria-controls="start-detail" aria-expanded="false">משהו חסר?</button>
+        </fieldset>
+        <fieldset class="prod-checks ed-qs" id="start-detail" hidden>
           <legend>לפני שמתחילים: יש או חסר?</legend>
           <div id="start-list"></div>
         </fieldset>
@@ -241,9 +249,11 @@
       </div>
       <div class="dlg-body">
         <p class="muted" id="ready-ctx"></p>
+        <!-- What to check, as lines, and one tick for all of them (the owner, 3.11.2026). -->
         <fieldset class="prod-checks">
           <legend>בדיקה עצמית לפני שאופיר רואה</legend>
           <div id="ready-list"></div>
+          <label class="prod-check ed-all" for="ready-all"><input type="checkbox" id="ready-all" class="cbx" aria-describedby="ready-err"><span>עברתי על הכול, הכול תקין</span></label>
         </fieldset>
         <!-- The finished videos stay in the client's Google Drive: the folder's link goes with the hand-off. -->
         <div class="field">
