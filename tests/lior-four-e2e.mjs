@@ -73,8 +73,8 @@ const checkOf = (db, id, key) => db.protocol_checks.find((r) => r.client_id === 
 const noOverflow = async (page) => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'the page scrolls sideways');
 const tall = async (loc) => assert.ok((await loc.boundingBox()).height >= 44, 'a 44px target');
 // Real typing: one key at a time, as a phone's keyboard sends them.
-const type = async (loc, value) => { await loc.click(); await loc.pressSequentially(value, { delay: 15 }); };
-const backspace = async (loc, n) => { for (let i = 0; i < n; i += 1) await loc.press('Backspace'); };
+const type = async (loc, value) => { await loc.click(); await loc.press('End'); await loc.pressSequentially(value, { delay: 15 }); };
+const backspace = async (loc, n) => { await loc.click(); await loc.press('End'); for (let i = 0; i < n; i += 1) await loc.press('Backspace'); };
 const toastSays = (page, re) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector('#toast')?.textContent || ''), re.source);
 
 let passed = 0;
@@ -86,11 +86,12 @@ async function step(name, fn) {
 async function mine(engine, { width = 360, device = null, name }) {
   const db = office();
   const { page, ctx } = await signedIn(db, { path: 'clients.html#mine', width, device, engine });
-  const keys = await page.$$eval('#mine-list .wproc', (xs) => xs.map((x) => x.getAttribute('data-key')));
+  const keys = (await page.$$eval('#mine-list .wproc[data-key]', (xs) => xs.map((x) => x.getAttribute('data-key')))).filter((k) => /:(r\d+-)?p\d/.test(k));
   const procs = keys.map((k) => k.split(':').at(-1));
   for (const want of [`${A}:p12`, `${A}:p36`, `${B}:p30`]) assert.ok(keys.includes(want), `${want} in ${keys.join()}`);
   for (const p of procs) assert.ok(['p12', 'p13', 'p36', 'p30', 'p34', 'p35'].includes(p), `nothing else of Lior's: ${p}`);
-  assert.match(await text(page.locator(`#mine-list .wproc[data-key="${A}:p36"]`)), /טופס מקדים ליום צילום/);
+  await shot(page, `mine-lior-${name}`, { fullPage: true });
+  assert.match(await page.locator(`#mine-list .wproc[data-key="${A}:p36"]`).textContent(), /טופס מקדים ליום צילום/);
   await noOverflow(page);
   await shot(page, `mine-lior-${name}`, { fullPage: true });
   await ctx.close();
@@ -141,7 +142,11 @@ async function cardA(engine, { width = 360, device = null, name, solo = false })
   assert.equal(db.clients.find((c) => c.id === A).links.scripts_doc, DOC);
   const c12 = checkOf(db, A, 'p12.link');
   assert.deepEqual([c12?.state, c12?.note], ['done', SCRIPTS_AUTO_NOTE]);
-  // The card: 12 done, the link to open the file, "החלפת הקישור".
+  // The card: 12 is done, so it folds with the done ones ("1 תהליכים הושלמו (12)"); opened, it keeps
+  // its one line: the link to open the file, and "החלפת הקישור".
+  assert.equal(await page.locator('#p12').count(), 0, '12 folded away with the done ones');
+  await page.locator('button.done-row', { hasText: '(12' }).click();
+  await page.waitForSelector('#p12 .lf-scripts');
   assert.match(await text(page.locator('#p12 .lf-scripts')), /פתיחת קובץ התסריטים/);
   assert.equal(await page.locator(`#${S}-open`).getAttribute('href'), DOC);
   await page.locator('#p12').scrollIntoViewIfNeeded();
@@ -222,6 +227,7 @@ async function cardB(engine, { width = 360, device = null, name }) {
   assert.equal(await page.locator(`#${C}-budget`).inputValue(), '150');
   await backspace(page.locator(`#${C}-budget`), 1);
   await type(page.locator(`#${C}-budget`), '5');
+  assert.equal(await page.locator(`#${C}-budget`).inputValue(), '155');
   await page.locator(`#${C}-save`).click();
   await toastSays(page, /155 ₪ ליום/);
   assert.equal(checkOf(db, B, 'p30.live').note, '{"start":"2026-10-22","budget":155}');

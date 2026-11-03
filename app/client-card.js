@@ -1563,6 +1563,8 @@ function procCard(x, now, s) {
           onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); redrawPhases(`${p.id}-items`); },
         }, compact ? 'הצגת הפריטים' : 'הסתרת הפריטים') : null,
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
+    // A closed card of Lior's forms keeps its one line (the file's link, the campaign, the shoot's details).
+    compact && !printing ? liorBox(x) : null,
     compact ? handoffs : null,
     compact ? null : [
       waitLine(x),
