@@ -310,19 +310,20 @@ test('shoot-day lock: the testimonial, the full quantity and the drive back, con
   assert.equal(P.handoffOf({ 'r2.p19b.handed': done(IL(2026, 10, 15, 16)) }, 'r2.').eli !== null, true);
 });
 
-test('quiet mode: from Eli\'s "הגעתי" (or Lior\'s start) until the handoff confirmed by both; marks of another day do not count', () => {
+test('quiet mode: from Lior\'s own start (v12: Eli\'s "הגעתי" no longer starts it) until the handoff confirmed by both; marks of another day do not count', () => {
   const [sc] = P.shootCases(shootClient());
   assert.equal(P.quietWindow(sc, {}), null);
-  const c = { 'p17b.arrived': done(IL(2026, 10, 15, 9, 58)) };
+  // Since Lior's shoot day left the protocol (v12) he is not assumed to be at a shoot Eli arrived at.
+  assert.equal(P.quietWindow(sc, { 'p17b.arrived': done(IL(2026, 10, 15, 9, 58)) }), null);
+  const c = { 'p18.quiet': done(IL(2026, 10, 15, 9, 58)) };
   let w = P.quietWindow(sc, c);
-  assert.deepEqual([hhmm(w.from), hhmm(w.to), w.by], ['15.10 09:58', '15.10 23:59', 'eli']);
+  assert.deepEqual([hhmm(w.from), hhmm(w.to), w.by], ['15.10 09:58', '15.10 23:59', 'lior']);
   c['p19b.handed'] = done(IL(2026, 10, 15, 16));
   c['p19.took'] = done(IL(2026, 10, 15, 16, 10));
   w = P.quietWindow(sc, c);
   assert.equal(hhmm(w.to), '15.10 16:10');
-  assert.equal(P.quietWindow(sc, { 'p17b.arrived': done(IL(2026, 10, 14, 10)) }), null);
-  assert.equal(P.quietWindow(sc, { 'p17b.arrived': { ...done(IL(2026, 10, 15, 10)), note: IMPORT_NOTE } }), null);
-  assert.equal(P.quietWindow(sc, { 'p18.quiet': done(IL(2026, 10, 15, 9, 30)) }).by, 'lior');
+  assert.equal(P.quietWindow(sc, { 'p18.quiet': done(IL(2026, 10, 14, 10)) }), null);
+  assert.equal(P.quietWindow(sc, { 'p18.quiet': { ...done(IL(2026, 10, 15, 10)), note: IMPORT_NOTE } }), null);
 });
 
 test('written notes only: imported history and whole-process marks are not Eli\'s notes or a drive label', () => {

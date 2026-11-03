@@ -1450,6 +1450,8 @@ function liorBox(x) {
   const key = keyFor(form === 'campaign' ? CAMPAIGN_KEY : PRESHOOT_KEY, round);
   const item = p.items.find((i) => i.key === key);
   if (!item) return null;
+  // The campaign's fields wait for the videos (30 starts with Ofir's approval, 25).
+  if (form === 'campaign' && !x.ready && !x.complete) return null;
   if (form === 'campaign') return campaignBox({ key, check: checks[key], canEdit, redraw, onSave: (note) => saveCampaign(key, note) });
   return preShootBox({ client, round, key, done: isResolved(item, checks[key]), canEdit, redraw, onSave: (v) => savePreShoot(round, key, v) });
 }
