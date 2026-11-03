@@ -138,22 +138,49 @@ test('v3 client, v4 items: the photographer\'s processes are never late for it, 
   const open = openItemsFor('eli', c3, checks, s3, now);
   assert.ok(open.some((e) => e.item.key === 'p19b.handed'));
   assert.ok(open.every((e) => e.status !== 'overdue'));
-  // Lior's own process of the same day (19, from version 1) is late as before.
-  assert.equal(proc(s3, 'p19').status, 'overdue');
+  // Lior's own process of the same day (19, from version 1) left the protocol in v12, for every version.
+  assert.equal(proc(s3, 'p19'), undefined);
 });
 
 test('a process late on items the client started with stays late, whatever was added later', () => {
-  const shoot = IL(2026, 10, 20, 10);
-  const checks = imported('shoot', IL(2026, 10, 19, 12));
-  const c1 = client({ protocol_version: 1, shoot_at: shoot.toISOString() });
-  const now = IL(2026, 10, 21, 12);
-  // Process 19: p19.all is from version 2 (fresh for a v1 client), p19.testimonial from version 1.
+  // Process 5 (the accesses): p05.access and the brand files are from version 1, p05.vault from
+  // version 2 and p05.allnets from version 8 (fresh for a v1 client). (It was 19 until v12.)
+  const checks = imported('join', IL(2026, 10, 11, 12));
+  const c1 = client({ protocol_version: 1 });
+  const now = IL(2026, 10, 13, 12);
   const s = stateOf(c1, checks, now);
-  assert.equal(proc(s, 'p19').status, 'overdue');
-  const done = { ...checks, ...Object.fromEntries(['p19.testimonial', 'p19.drive', 'p19.took'].map((k) => [k, { state: 'done', at: now.toISOString() }])) };
+  assert.equal(proc(s, 'p05').status, 'overdue');
+  const done = { ...checks, ...Object.fromEntries(['p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos'].map((k) => [k, { state: 'done', at: now.toISOString() }])) };
   const s2 = stateOf(c1, done, now);
-  assert.equal(proc(s2, 'p19').status === 'overdue', false, 'only p19.all (version 2) is open');
-  assert.equal(proc(s2, 'p19').complete, false);
+  assert.equal(proc(s2, 'p05').status === 'overdue', false, 'only p05.vault (version 2) and p05.allnets (version 8) are open');
+  assert.equal(proc(s2, 'p05').complete, false);
+});
+
+test('v12 (Lior\'s four things): what left applies to no client of any version; the new items are every client\'s, not "new in the protocol"', () => {
+  const v12 = PROTOCOL_HISTORY.find((v) => v.version === 12);
+  assert.deepEqual(v12.always, ['p36.form', 'p12.link']);
+  assert.equal(v12.items, undefined);
+  assert.equal(v12.due, undefined);
+  const byId = new Map(PROCESSES.map((p) => [p.id, p]));
+  const byKey = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, i])));
+  for (const k of v12.retired) assert.equal((byId.get(k) || byKey.get(k))?.retired, 12, k);
+  const shoot = IL(2026, 10, 20, 10);
+  for (const v of [1, 3, 4, 8, 11, 12]) {
+    const c = client({ protocol_version: v, shoot_at: shoot.toISOString(), shoot_type: 'natali' });
+    const procs = applicableProcesses(c);
+    const ids = new Set(procs.map((p) => p.id));
+    const keys = new Set(procs.flatMap((p) => p.items.map((i) => i.key)));
+    for (const k of v12.retired) assert.ok(!ids.has(k) && !keys.has(k), `v${v} ${k}`);
+    for (const k of v12.always) {
+      const item = procs.flatMap((p) => p.items).find((i) => i.key === k);
+      assert.ok(item, `v${v} ${k}`);
+      assert.equal(item.fresh, undefined, `v${v} ${k} is not "new in the protocol"`);
+    }
+    // Lior's open work on a client of any version: only the four things (and 34/35 when they come).
+    const s = stateOf(c, {}, IL(2026, 10, 22, 10));
+    const procsOfLior = new Set(openItemsFor('lior', c, {}, s, IL(2026, 10, 22, 10)).map((e) => e.proc.id));
+    for (const id of procsOfLior) assert.ok(['p12', 'p13', 'p36', 'p30', 'p34', 'p35'].includes(id), `v${v} ${id}`);
+  }
 });
 
 test('v1 client: editing is due 5 business days from the shoot as it started, even before an editor is assigned (22א came in v2)', () => {

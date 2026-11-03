@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { PROCESSES, PEOPLE, PHASES } from '../app/protocol.js';
 import {
   addBusinessDays, applicableProcesses, clientState, openItemsFor, resolveTime, missingFields,
-  blockers, bucketOf, businessDaysBetween, addWorkingMinutes, phasesFor, WAIT, upcomingFor, involves, itemsOf,
+  blockers, bucketOf, businessDaysBetween, addWorkingMinutes, phasesFor, WAIT, upcomingFor, involves, itemsOf, isResolved,
 } from '../app/protocol-logic.js';
 import { dayKeyIL as day, weekdayIL } from '../app/tz.js';
 
@@ -75,16 +75,19 @@ test('sequence rules: send only after the review, calendar only with shoot detai
   for (const p of ['irit', 'lior']) assert.ok(!openItemsFor(p, c, made, clientState(c, made, now), now).some((x) => x.item.key.startsWith('p07.')), `the review is Ofir's alone: ${p}`);
 });
 
-test('22א is Ofir\'s alone (protocol v9): Lior keeps only "the drive came back", and an old "אני על זה" of his changes nothing', () => {
-  // Process 22א (assigning the editor) belonged to Ofir or Lior until protocol v9.
+test('22א is Ofir\'s alone (protocol v9), and opens on the evening of the shoot day (v12: Lior has no item in it), and an old "אני על זה" of his changes nothing', () => {
+  // Process 22א (assigning the editor) belonged to Ofir or Lior until protocol v9; Lior kept "the
+  // drive came back" until v12, and the process waited for his closing of the day (19).
   const c = { ...base, id: 'c', char_at: '2026-10-01T08:00:00+03:00', shoot_type: 'dms', shoot_at: '2026-10-05T10:00:00+03:00' };
-  const done = { state: 'done', at: '2026-10-05T16:00:00+03:00' };
-  const p19 = applicableProcesses(c).find((p) => p.id === 'p19');
-  const checks = Object.fromEntries(p19.items.map((i) => [i.key, done]));
-  const now = at('2026-10-05T17:00:00+03:00');
+  const checks = {};
+  const now = at('2026-10-05T18:30:00+03:00');
+  const st = clientState(c, checks, now);
+  assert.equal(iso(st.states.find((x) => x.proc.id === 'p22a').startAt), iso(at('2026-10-05T18:00:00+03:00')));
+  assert.equal(st.states.find((x) => x.proc.id === 'p22a').ready, true);
+  assert.equal(clientState(c, checks, at('2026-10-05T17:00:00+03:00')).states.find((x) => x.proc.id === 'p22a').ready, false);
   const before = (p) => openItemsFor(p, c, checks, clientState(c, checks, now), now).map((x) => x.item.key);
   assert.ok(before('ofir').includes('p22a.load') && !before('lior').includes('p22a.load'));
-  assert.deepEqual(before('lior').filter((k) => k.startsWith('p22a.')), ['p22a.drive']); // his own item stays
+  assert.deepEqual(before('lior').filter((k) => k.startsWith('p22a.')), []); // v12: "ליאור החזיר את הכונן" left
   // A claim Lior made before the change (the mark is still there) does not take the assignment from Ofir.
   checks['p22a.claim'] = { state: 'done', note: 'lior', at: '2026-10-05T16:30:00+03:00' };
   const s = clientState(c, checks, now);
@@ -92,7 +95,7 @@ test('22א is Ofir\'s alone (protocol v9): Lior keeps only "the drive came back"
   const keys = (p) => openItemsFor(p, c, checks, s, now).map((x) => x.item.key);
   assert.ok(keys('ofir').includes('p22a.load'));
   assert.ok(!keys('lior').includes('p22a.load'));
-  assert.ok(keys('lior').includes('p22a.drive'));
+  assert.ok(!keys('lior').includes('p22a.drive'));
 });
 
 test('my-work buckets and business-day lateness', () => {
@@ -107,17 +110,17 @@ test('my-work buckets and business-day lateness', () => {
   assert.equal(businessDaysBetween(at('2026-10-01T10:00:00+03:00'), at('2026-10-04T10:00:00+03:00')), 1);
 });
 
-test('shoot type decides which shoot-day processes apply', () => {
+test('shoot type decides which shoot-day processes apply (v12: none of Lior\'s, whatever the type; Eli\'s as before)', () => {
   const ids = (c) => applicableProcesses(c).map((p) => p.id);
-  const n = ids({ ...base, shoot_type: 'natali' });
-  assert.ok(n.includes('p11b') && n.includes('p20') && !n.includes('p21'));
-  const d = ids({ ...base, shoot_type: 'dms' });
-  assert.ok(d.includes('p21') && !d.includes('p11b') && !d.includes('p20'));
-  const none = ids({ ...base });
-  assert.ok(!none.includes('p20') && !none.includes('p21'));
-  const natKeys = keysOf(applicableProcesses({ ...base, shoot_type: 'natali' }));
-  assert.ok(natKeys.includes('p15.natali.makeup'));
-  assert.ok(!keysOf(applicableProcesses({ ...base, shoot_type: 'dms' })).includes('p15.natali.makeup'));
+  // Lior's shoot day (11ב, 15–21) left the protocol in v12, for every type and every version.
+  for (const type of ['natali', 'niro', 'hatzel', 'dms', undefined]) {
+    const list = ids({ ...base, shoot_type: type });
+    for (const gone of ['p11b', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21']) assert.ok(!list.includes(gone), `${type} ${gone}`);
+    for (const eli of ['p17b', 'p18b', 'p19b']) assert.ok(list.includes(eli), `${type} ${eli}`);
+    assert.ok(list.includes('p36'), 'the pre-shoot form, for every shoot');
+  }
+  for (const v of [1, 5, 11, 12]) assert.ok(!ids({ ...base, shoot_type: 'natali', protocol_version: v }).includes('p11b'), `version ${v}`);
+  assert.ok(!keysOf(applicableProcesses({ ...base, shoot_type: 'natali' })).includes('p15.natali.makeup'));
   assert.deepEqual(missingFields(PROCESSES.find((p) => p.id === 'p11'), base), ['shoot_type', 'shoot_at']);
 });
 
@@ -128,8 +131,8 @@ test('characterizer decides who takes the network access; no logo adds a logo ta
   assert.deepEqual(p5({ characterizer: 'lior' }).owners, ['lior']);
   assert.deepEqual(p5({ characterizer: 'noam' }).owners, ['noam']); // Noam (1.11.2026)
   const p6 = applicableProcesses({}).find((p) => p.id === 'p06');
-  assert.deepEqual(p6.items.find((i) => i.key === 'p06.recovered').owners, ['lior']);
-  // The whole of 6 is Ofir's since 28.10.2026 (the owner), new networks too; Lior keeps the broken logins.
+  assert.equal(p6.items.find((i) => i.key === 'p06.recovered'), undefined); // v12: the broken logins left Lior, to nobody
+  // The whole of 6 is Ofir's since 28.10.2026 (the owner), new networks too.
   // Since 1.11.2026 the client's characterizer's (Noam when none was set; Ofir when Lior ran it).
   assert.deepEqual(p6.items.find((i) => i.key === 'p06.newpages').owners, ['noam']);
   assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p06').items.find((i) => i.key === 'p06.newpages').owners, ['ofir']);
@@ -158,12 +161,11 @@ test('due dates follow the protocol anchors', () => {
   assert.equal(iso(due('p07')), iso(at('2026-10-01T14:00:00+03:00'))); // 2h after the meeting's window
   assert.equal(day(due('p12')), '2026-10-05'); // end of business day 2 (decision 14)
   assert.equal(day(due('p13')), '2026-10-06'); // the Zoom on day 3
-  assert.equal(iso(due('p15')), iso(at('2026-10-06T11:00:00+03:00')));
-  assert.equal(iso(due('p16')), iso(at('2026-10-07T00:00:00+03:00')));
-  // A Sunday shoot: the reminder goes out on Thursday, the previous business day.
-  const sun = { ...c, shoot_at: '2026-10-11T10:00:00+03:00' };
-  const sp = applicableProcesses(sun);
-  assert.equal(iso(resolveTime(sp.find((p) => p.id === 'p15').due, sun, sp, {})), iso(at('2026-10-08T11:00:00+03:00')));
+  // v12: 15 and 16 (the eve of the shoot) left with Lior's shoot day; 22א opens at 18:00 of the shoot day.
+  assert.equal(procs.find((p) => p.id === 'p15'), undefined);
+  assert.equal(iso(resolveTime(procs.find((p) => p.id === 'p22a').start, c, procs, {})), iso(at('2026-10-07T18:00:00+03:00')));
+  // Eli's day keeps its hour before the influencers.
+  assert.equal(iso(resolveTime(procs.find((p) => p.id === 'p17b').start, c, procs, {})), iso(at('2026-10-07T09:00:00+03:00')));
   assert.equal(due('p22'), null); // editing counts from the editor assignment, not the shoot
   // Assigned on Wednesday: videos with Ofir by Sunday (2 business days, protocol v11), client closed by Tuesday (4).
   const assigned = { 'p22a.assigned': { state: 'done', at: '2026-10-07T15:00:00+03:00' } };
@@ -212,16 +214,17 @@ test('status: overdue only for unfinished work past its due date', () => {
   const p1 = PROCESSES.find((p) => p.id === 'p01').items.map((i) => i.key);
   const fin = clientState(c, done(p1, '2026-10-01T11:00:00+03:00'), at('2026-10-01T12:00:00+03:00'));
   assert.equal(fin.states.find((x) => x.proc.id === 'p01').status, 'done');
-  // Shoot not scheduled: shoot-day processes wait instead of showing late.
-  assert.equal(late.states.find((x) => x.proc.id === 'p17').status, 'waiting');
+  // Shoot not scheduled: shoot-day processes (Eli's, since v12) wait instead of showing late.
+  assert.equal(late.states.find((x) => x.proc.id === 'p17b').status, 'waiting');
 });
 
 test('not relevant resolves a required item; optional items never block', () => {
   const c = { ...base };
-  const p10 = Object.fromEntries(PROCESSES.find((p) => p.id === 'p10').items.filter((i) => !i.optional)
-    .map((i) => [i.key, { state: i.key === 'p10.ready' ? 'na' : 'done', at: '2026-10-01T10:00:00+03:00' }]));
-  const s = clientState(c, p10, at('2026-10-01T10:30:00+03:00'));
-  assert.equal(s.states.find((x) => x.proc.id === 'p10').complete, true);
+  // (Process 10, Lior's Meta check, until v12; 9, the Gantt's frame, since.)
+  const p09 = Object.fromEntries(PROCESSES.find((p) => p.id === 'p09').items.filter((i) => !i.optional)
+    .map((i) => [i.key, { state: i.key === 'p09.c.time' ? 'na' : 'done', at: '2026-10-01T10:00:00+03:00' }]));
+  const s = clientState(c, p09, at('2026-10-01T10:30:00+03:00'));
+  assert.equal(s.states.find((x) => x.proc.id === 'p09').complete, true);
 });
 
 test('open items per person follow owners and readiness', () => {
@@ -247,20 +250,23 @@ test('renewal talk opens at the 60-day mark and is late 14 days after it (protoc
   assert.equal(p34('2026-11-16T10:00:00+02:00').status, 'overdue');
 });
 
-test('a not-relevant weekly call is not a call', () => {
+test('the weekly call (31) left the protocol in v12: no process, whatever was marked and whatever the version', () => {
   const c = { ...base };
-  const s = clientState(c, { 'p31.call': { state: 'na', at: '2026-10-01T10:00:00+03:00' } }, at('2026-10-02T10:00:00+03:00'));
-  assert.equal(s.states.find((x) => x.proc.id === 'p31').status, 'due');
+  for (const v of [1, 10, 11, 12]) {
+    for (const checks of [{}, { 'p31.call': { state: 'na', at: '2026-10-01T10:00:00+03:00' } }, { 'p31.call': { state: 'done', at: '2026-10-01T10:00:00+03:00' } }]) {
+      const s = clientState({ ...c, protocol_version: v }, checks, at('2026-10-09T10:00:00+03:00'));
+      assert.equal(s.states.find((x) => x.proc.id === 'p31'), undefined);
+      assert.ok(!openItemsFor('lior', c, checks, s, at('2026-10-09T10:00:00+03:00')).some((x) => x.item.key === 'p31.call'));
+    }
+  }
 });
 
-test('weekly call is due again seven days after the last one', () => {
-  const c = { ...base };
-  const checks = { 'p31.call': { state: 'done', at: '2026-10-01T10:00:00+03:00' } };
-  // Force the process ready by having it touched.
-  const s1 = clientState(c, checks, at('2026-10-05T10:00:00+03:00'));
-  assert.equal(s1.states.find((x) => x.proc.id === 'p31').status, 'done');
-  const s2 = clientState(c, checks, at('2026-10-09T10:00:00+03:00'));
-  assert.equal(s2.states.find((x) => x.proc.id === 'p31').status, 'due');
+test('a weekly item is due again seven days after the last one (the rule, kept without a process of its own)', () => {
+  const item = { key: 'x.call', recurring: 'weekly' };
+  assert.equal(isResolved(item, { state: 'na', at: '2026-10-01T10:00:00+03:00' }, at('2026-10-02T10:00:00+03:00')), false);
+  const check = { state: 'done', at: '2026-10-01T10:00:00+03:00' };
+  assert.equal(isResolved(item, check, at('2026-10-05T10:00:00+03:00')), true);
+  assert.equal(isResolved(item, check, at('2026-10-09T10:00:00+03:00')), false);
 });
 
 test('renewal and ending processes', () => {
@@ -274,8 +280,10 @@ test('an extra shoot round repeats the shoot processes with their own keys and d
     rounds: [{ n: 2, start_at: '2027-03-01T09:00:00+02:00', shoot_at: '2027-03-10T10:00:00+02:00', shoot_type: 'natali' }] };
   const procs = applicableProcesses(c);
   const r2 = procs.filter((p) => p.phase === 'round-2');
-  assert.ok(r2.some((p) => p.id === 'r2-p11b'), 'Natali round gets 11b even in a DMS client');
-  assert.ok(!r2.some((p) => p.id === 'r2-p21'));
+  // v12: Lior's shoot day left (11ב, 21, …): a Natali round has Eli's steps and the pre-shoot form.
+  assert.ok(!r2.some((p) => p.id === 'r2-p11b' || p.id === 'r2-p21' || p.id === 'r2-p19'));
+  assert.ok(r2.some((p) => p.id === 'r2-p17b') && r2.some((p) => p.id === 'r2-p36'));
+  assert.deepEqual(r2.find((p) => p.id === 'r2-p36').items.map((i) => i.key), ['r2.p36.form']);
   assert.ok(!r2.some((p) => p.id === 'r2-p04' || p.id === 'r2-p23'));
   assert.ok(r2.every((p) => p.items.every((i) => i.key.startsWith('r2.'))));
   assert.deepEqual(r2.find((p) => p.id === 'r2-p26').items.find((i) => i.key === 'r2.p26.sent').requires, ['r2.p25.approved']);
@@ -473,11 +481,11 @@ test('role views: coming shoot days, "my clients", items of a taken shared proce
   const ilaiKeys = st.states.filter((s) => s.ready || s.startAt).flatMap((s) => itemsOf('ilai', s)).filter((i) => !i.optional).map((i) => i.key);
   const allDone = done(ilaiKeys, '2026-10-02T10:00:00+03:00');
   assert.equal(involves('ilai', c, allDone, clientState(c, allDone, now), now), false);
-  // 22א is Ofir's alone (protocol v9): the assignment is his whatever was claimed before, and Lior's is the drive.
+  // 22א is Ofir's alone (protocol v9): the assignment is his whatever was claimed before; Lior has nothing in it (v12).
   const p22a = (checks) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p22a');
   assert.deepEqual(itemsOf('ofir', p22a({})).map((i) => i.key), ['p22a.load', 'p22a.assigned']);
   const claimed = { 'p22a.claim': { state: 'done', note: 'lior', at: '2026-10-02T10:00:00+03:00' } };
   assert.deepEqual(itemsOf('ofir', p22a(claimed)).map((i) => i.key), ['p22a.load', 'p22a.assigned']);
-  assert.deepEqual(itemsOf('lior', p22a(claimed)).map((i) => i.key), ['p22a.drive']);
+  assert.deepEqual(itemsOf('lior', p22a(claimed)).map((i) => i.key), []);
   assert.deepEqual(itemsOf(null, p22a({})), []);
 });
