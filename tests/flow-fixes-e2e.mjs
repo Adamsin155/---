@@ -444,38 +444,21 @@ try {
     await ctx.close();
   });
 
-  await step('7: the scripts mark waits for a script on the scripts page; the weekly call\'s row leads to its dialog, which asks for the summary', async () => {
+  await step('7: (v12) the scripts are one Google Docs link: the tick leads to its field in the card; no weekly call row (31 left)', async () => {
     const { page, ctx, db } = await signedIn('lior', office());
     const c = card(page, SCRIPTS, 'p12');
     await c.waitFor({ state: 'attached' });
     await showAll(page);
-    await tick(c);
-    await settle(page);
-    assert.match(await toastText(page), /^עוד אין תסריט בעמוד התסריטים\./);
+    if (!await c.locator('.cbx').first().isVisible()) await c.locator('[aria-controls]').first().click();
+    await c.locator('.cbx').first().click(); // (not check(): the tick does not stay, it leads to the card)
+    await page.waitForURL(/client\.html\?id=.*#p12$/);
+    await page.waitForSelector('#p12 .lf-scripts');
+    assert.equal(checkOf(db, SCRIPTS, 'p12.link'), null, 'nothing is marked on the way');
     assert.equal(checkOf(db, SCRIPTS, 'p12.docs'), null);
-    await shot(page, 'lior-scripts-refused');
-    db.client_scripts.push({ client_id: SCRIPTS, round: 1, n: 1, content: 'פתיח', version: 1 });
-    await tick(card(page, SCRIPTS, 'p12'));
-    await settle(page);
-    assert.equal(checkOf(db, SCRIPTS, 'p12.docs')?.state, 'done');
-    // The weekly call: no pill that closes it with nothing written; one way, to its dialog.
+    await page.goto(`${BASE}clients.html#mine`);
+    await page.waitForSelector('#view-mine:not([hidden])');
     await showAll(page);
-    const call = card(page, ONGOING, 'p31');
-    assert.equal(await call.locator('.cbx').count(), 0);
-    const go = call.locator('a.wcall');
-    assert.match(await text(go), /^תיעוד שיחה/);
-    await shot(call, 'lior-weekly-call-row');
-    await go.click();
-    await page.waitForSelector('#dlg-call[open]');
-    await page.click('#call-submit');
-    assert.match(await text(page.locator('#call-err')), /לא נכתב דבר בסיכום/);
-    assert.equal(checkOf(db, ONGOING, 'p31.call'), null);
-    await shot(page.locator('#dlg-call'), 'lior-weekly-call-dialog');
-    // One line of summary: saved, and the call is marked.
-    await page.fill('#call-topic-campaigns', 'הקמפיין רץ, 12 פניות השבוע');
-    await page.click('#call-submit');
-    await page.waitForFunction(() => !document.querySelector('#dlg-call[open]'));
-    assert.match(JSON.parse(checkOf(db, ONGOING, 'p31.call').note).topics.campaigns, /12 פניות/);
+    assert.equal(await card(page, ONGOING, 'p31').count(), 0);
     await ctx.close();
   });
 

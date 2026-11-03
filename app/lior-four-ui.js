@@ -13,7 +13,12 @@ const drafts = new Map(); // form id -> { field: value }
 const editing = new Set(); // form ids opened for a change after they were saved
 const safe = (s) => String(s).replace(/[^\w-]/g, '-');
 const draftOf = (id, initial) => ({ ...initial, ...(drafts.get(id) || {}) });
-const keep = (id, field, value) => drafts.set(id, { ...(drafts.get(id) || {}), [field]: value });
+// Kept as typed; a sentence about a missing field goes once the person types again.
+const keep = (id, field, value) => {
+  drafts.set(id, { ...(drafts.get(id) || {}), [field]: value });
+  const err = document.getElementById(`${id}-err`);
+  if (err && !err.hidden) showError(id, null);
+};
 export const forgetDraft = (id) => { drafts.delete(id); editing.delete(id); };
 
 function showError(id, problem) {
