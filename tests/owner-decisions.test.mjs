@@ -171,14 +171,15 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
   // Monday 19:00: the task (due Thursday 1.10) is days late, and the clocks of the meeting a few hours
   // (the old summary waited 24 hours before it said so).
   const mon = at(IL(2026, 10, 5, 19));
-  assert.equal(headline(mon), 'היום: 6 באיחור אצל 4 עובדים, כל מה שהיה להיום בוצע');
-  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['irit', 2, '2 ימי עסקים'], ['ofir', 2, '6 שעות'], ['ilai', 2, '6 שעות'], ['lior', 1, '4 שעות']]);
-  // Tuesday: a day later, and Lior's focus call (12א) was for today and is still open.
+  // (Until v12 Lior had a row too: his Meta check, 10, late, and on Tuesday the focus call, 12א. Both left.)
+  assert.equal(headline(mon), 'היום: 5 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
+  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['irit', 2, '2 ימי עסקים'], ['ofir', 2, '6 שעות'], ['ilai', 2, '6 שעות']]);
+  // Tuesday: a day later.
   const tue = at(IL(2026, 10, 6, 19));
-  assert.equal(headline(tue), 'היום: 6 באיחור אצל 4 עובדים, אחד מהיום לא בוצע');
+  assert.equal(headline(tue), 'היום: 5 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
   assert.deepEqual(tue.items.map((x) => `${x.kind}:${x.what}:${x.who}`), [
     'late:לשלוח חשבונית:irit', 'late:5 · לקיחת גישות לרשתות:ofir,irit', 'late:9 · פתיחת גאנט שנתי:ilai', 'late:7 · הכנת 9 גרפיקות ראשונות:ilai',
-    'late:8 · הכנת Highlights:ofir', 'late:10 · סידור Meta ומנהל מודעות:lior', 'today:12א · שיחת דגשים לתוכן:lior',
+    'late:8 · הכנת Highlights:ofir',
   ]);
   // One message at 19:00 with the numbers in it, none at 18:00.
   const env = buildEnv({ ...w, now: IL(2026, 10, 6, 19) });
@@ -245,11 +246,14 @@ test('the suggestion in Ofir\'s dialog (it was the automatic assignment): Natali
   }
   const dms = shotClient(w, { name: 'דמס' });
   const nat = shotClient(w, { name: 'נטלי', shoot_type: 'natali' });
-  const now = IL(2026, 10, 18, 17, 1);
-  assert.deepEqual(waitingOf(w, now), [], 'the day is not closed yet');
-  assert.deepEqual(ladderOf(w, now), []);
+  // Before the evening of the shoot day nobody waits (v12: 22א opens at 18:00 of the shoot day; until
+  // then Lior's closing of the day, 19, opened it). An old closing changes nothing.
+  assert.deepEqual(waitingOf(w, IL(2026, 10, 18, 17, 1)), [], 'the shoot day is not over yet');
   closeDay(w, dms);
   closeDay(w, nat);
+  assert.deepEqual(waitingOf(w, IL(2026, 10, 18, 17, 1)), []);
+  const now = IL(2026, 10, 18, 18, 1);
+  assert.deepEqual(ladderOf(w, now), []);
   // Both wait for Ofir, with no clock (30.10.2026); no editor was written anywhere.
   assert.deepEqual(waitingOf(w, now).map((a) => a.client.name).sort(), ['דמס', 'נטלי']);
   assert.deepEqual(ladderOf(w, now), []);
@@ -411,15 +415,13 @@ test('the shoot day closed and the editor assigned by Ofir: 22א is whole; while
   assert.equal(w.checks[c.id]['p22a.drive'].note, AUTO_DRIVE_NOTE);
   assert.equal(clientState(c, w.checks[c.id], now).states.find((x) => x.proc.id === 'p22a').complete, true);
   for (const t of [now, IL(2026, 10, 18, 16, 31), IL(2026, 10, 18, 17, 30), IL(2026, 10, 19, 9, 30), IL(2026, 10, 19, 12)]) assert.deepEqual(lateOf(t), [], hhmm(t));
-  // A drive Lior never confirmed (the day closed from the card) is not closed for him: it stays his item.
+  // A drive Lior never confirmed: since v12 "ליאור החזיר את הכונן" is no item of anybody's, so the
+  // assignment alone makes 22א whole.
   const w2 = world();
   const d = shotClient(w2);
-  marks(w2, d, itemsOf('p19').filter((k) => k !== 'p19.took'), IL(2026, 10, 18, 16));
-  mark(w2, d, 'p19.took', IL(2026, 10, 18, 16), 'לא רלוונטי');
-  w2.checks[d.id]['p19.took'].state = 'na';
   assignAs(w2, d, 'anna', now);
   assert.equal(w2.checks[d.id]['p22a.drive'], undefined);
-  assert.equal(clientState(d, w2.checks[d.id], now).states.find((x) => x.proc.id === 'p22a').complete, false);
+  assert.equal(clientState(d, w2.checks[d.id], now).states.find((x) => x.proc.id === 'p22a').complete, true);
   // Nobody assigns: it is never late (no clock since 30.10.2026), and neither the ladder nor the rule `late` says anything.
   const w3 = world();
   const e = shotClient(w3);

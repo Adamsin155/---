@@ -35,11 +35,11 @@ test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; not
   const p06 = st.states.find((s) => s.proc.id === 'p06');
   const by = Object.fromEntries(p06.proc.items.map((i) => [i.key, i.owners]));
   for (const k of [...ACCESS_KEYS, ...PAGE_KEYS]) assert.deepEqual(by[k], ['ofir'], k);
-  assert.deepEqual(by['p06.recovered'], ['lior']);
+  assert.equal(by['p06.recovered'], undefined); // Lior's broken logins left the protocol in v12 (to nobody)
   assert.ok(!Object.values(by).flat().includes('ilai'));
   // Who owns an item is not a protocol version (app/protocol-versions.js): still 11, no new entry.
   assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things); this change did not move it
-  assert.equal(PROTOCOL_HISTORY.at(-1).version, 11);
+  assert.equal(PROTOCOL_HISTORY.at(-1).version, 12); // (v12: Lior's four things, 3.11.2026)
   // A new network to open is Ofir's to say: 5's own note says so.
   assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה למבצע האפיון \(נעם או אופיר\) לפתוח/);
 });

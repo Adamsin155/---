@@ -69,7 +69,8 @@ test('identical deadlines under UTC, New York and Jerusalem', () => {
   const procs = applicableProcesses(c);
   const due = (id) => iso(resolveTime(procs.find((p) => p.id === id).due, c, procs, checks, at(nows[0])));
   assert.equal(due('p01'), iso(at('2026-10-25T09:08:00+02:00'))); // Thursday 17:58 + 10 office minutes (the contract)
-  assert.equal(due('p15'), iso(at('2026-10-29T11:00:00+02:00'))); // Sunday shoot: Thursday 11:00
+  // (15, Lior's reminders the day before, left in v12: Eli's arrival, an hour before the shoot, instead.)
+  assert.equal(iso(resolveTime(procs.find((p) => p.id === 'p17b').start, c, procs, checks, at(nows[0]))), iso(new Date(at(c.shoot_at).getTime() - 36e5)));
   assert.equal(due('p12'), iso(at('2026-10-27T18:00:00+02:00'))); // 2 business days from Sunday night (decision 14)
   assert.deepEqual(runs[0].weeks, ['2026-10-18', '2026-10-25', '2026-10-25', '2026-11-01']);
   assert.equal(runs[0].late, 6); // Thursday night to the Sunday a week later: 6 business days
@@ -81,21 +82,20 @@ test('winter time (Sunday 25.10.2026): business days, office minutes and "at 11:
   assert.equal(iso(addBusinessDays(at('2026-10-22T10:00:00+03:00'), 2)), '2026-10-26T16:00:00.000Z');
   // Office minutes over the weekend and the clock change: Thursday 17:58 + 5 min = Sunday 09:03 (+02:00).
   assert.equal(iso(addWorkingMinutes(at('2026-10-22T17:58:00+03:00'), 5)), '2026-10-25T07:03:00.000Z');
-  // The day before a Tuesday 27.10 shoot is Monday 26.10: the reminder is due at 11:00 winter time.
+  // A Tuesday 27.10 shoot in winter time. (15, Lior's day-before reminders, left in v12.)
   const c = { ...base, deal_at: '2026-10-20T09:00:00+03:00', shoot_type: 'dms', shoot_at: '2026-10-27T10:00:00+02:00' };
   const procs = applicableProcesses(c);
-  const p15 = procs.find((p) => p.id === 'p15');
-  assert.equal(iso(resolveTime(p15.due, c, procs, {})), '2026-10-26T09:00:00.000Z');
-  assert.equal(iso(resolveTime(p15.start, c, procs, {})), '2026-10-25T22:00:00.000Z'); // 00:00 on the 26th
-  // A Monday 26.10 shoot: the day before is the Sunday of the change itself.
+  // 22א opens at 18:00 of the shoot day, winter time.
+  assert.equal(iso(resolveTime(procs.find((p) => p.id === 'p22a').start, c, procs, {})), '2026-10-27T16:00:00.000Z');
+  // A Monday 26.10 shoot (the day after the change): Eli arrives an hour before.
   const m = { ...c, shoot_at: '2026-10-26T10:00:00+02:00' };
   const mp = applicableProcesses(m);
-  assert.equal(iso(resolveTime(mp.find((p) => p.id === 'p15').due, m, mp, {})), '2026-10-25T09:00:00.000Z');
-  // Shoot-day processes on the real clock: due "by the end of the shoot day" in winter time.
-  assert.equal(iso(resolveTime(procs.find((p) => p.id === 'p19').due, c, procs, {})), iso(at('2026-10-27T23:59:59+02:00')));
-  // "Today" at 00:30 on the 26th in Israel is the 26th, although it is the 25th in UTC.
-  const s = clientState(c, {}, at('2026-10-26T00:30:00+02:00'));
-  assert.equal(s.states.find((x) => x.proc.id === 'p15').status, 'today');
+  assert.equal(iso(resolveTime(mp.find((p) => p.id === 'p17b').start, m, mp, {})), '2026-10-26T07:00:00.000Z');
+  // Shoot-day processes on the real clock: due "by the end of the shoot day" in winter time (Eli's 19ב).
+  assert.equal(iso(resolveTime(procs.find((p) => p.id === 'p19b').due, c, procs, {})), iso(at('2026-10-27T23:59:59+02:00')));
+  // "Today" at 00:30 on the 27th in Israel is the 27th, although it is the 26th in UTC.
+  const s = clientState(c, {}, at('2026-10-27T00:30:00+02:00'));
+  assert.equal(s.states.find((x) => x.proc.id === 'p19b').status, 'today');
 });
 
 test('erev chag: a business day until 13:00; Chol HaMoed is a normal day', () => {
