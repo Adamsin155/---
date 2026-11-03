@@ -397,12 +397,33 @@ async function phone390(page, name, top = null) {
   await page.setViewportSize({ width: 360, height: 780 });
 }
 const materialTasks = () => db.client_tasks.filter((t) => t.client_id === A.id && t.title.startsWith('להשלים חומר:'));
-await step('(1) the drive arrived: "יש" / "חסר" on each line; any mix starts the editing; "חסר" goes to Irit with its words and the clock runs', async () => {
+await step('(1) the drive arrived: the four lines and one tick; "משהו חסר?" opens "יש" / "חסר" on each line; any mix starts the editing; "חסר" goes to Irit with its words and the clock runs', async () => {
   const { page } = nadia;
   await page.click(`#${A_ID}-go`);
   await page.waitForSelector('#dlg-start[open]');
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'start-0-yes');
+  // One tick (3.11.2026): the four are lines to read, and "עברתי על הכול, הכול תקין" under them.
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'start-all');
+  assert.equal(await page.locator('#start-lines li').count(), 4);
+  assert.equal(await page.locator('#start-simple input[type="checkbox"]').count(), 1);
+  assert.equal(await page.locator('#start-detail').isHidden(), true);
   assert.equal(await page.locator('#start-submit').isDisabled(), true);
+  assert.equal(await text(page, '#start-hint'), 'מסמנים ״עברתי על הכול, הכול תקין״, או ״משהו חסר?״.');
+  assert.ok(await height(page, 'label[for="start-all"]') >= 44);
+  await page.click('label[for="start-all"]');
+  assert.equal(await page.locator('#start-submit').isDisabled(), false);
+  await page.click('label[for="start-all"]');
+  assert.equal(await page.locator('#start-submit').isDisabled(), true);
+  await phone390(page, 'editor-start-one-tick-390');
+  if (OUT) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `${OUT}/editor-start-one-tick-1280.png` });
+    await page.setViewportSize({ width: 360, height: 780 });
+  }
+  await page.click('#start-some');
+  await page.waitForSelector('#start-detail:not([hidden])');
+  assert.equal(await page.locator('#start-simple').isHidden(), true);
+  assert.equal(await page.getAttribute('#start-some', 'aria-expanded'), 'true');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'start-0-no');
   assert.equal(await text(page, '#start-hint'), 'עונים ״יש״ או ״חסר״ בכל שורה.');
   assert.equal(await page.locator('#start-list .ed-q').count(), 4);
   // Two buttons per line, each big enough for a thumb.
@@ -521,13 +542,26 @@ await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofi
   const { page } = nadia;
   await page.click(`#${A_ID}-go`);
   await page.waitForSelector('#dlg-ready[open]');
-  assert.equal(await page.locator('#ready-list .prod-check').count(), 11); // six (with Dropbox), and the five critical mistakes (protocol v10)
+  // One tick (3.11.2026): the eleven are lines to read, and one checkbox for all of them.
+  assert.equal(await page.locator('#ready-list li').count(), 11); // six (with Dropbox), and the five critical mistakes (protocol v10)
+  assert.equal(await page.locator('#ready-list input').count(), 0);
+  assert.equal(await page.locator('#dlg-ready input[type="checkbox"]').count(), 1);
   assert.equal(await text(page, '#ready-critical'), 'חמש הטעויות הקריטיות של העריכה');
   assert.match(await text(page, '#ready-list'), /Dropbox/);
-  await page.click('#ready-0');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ready-all');
+  assert.ok(await height(page, 'label[for="ready-all"]') >= 44);
+  assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
+  await phone390(page, 'editor-ready-one-tick-390');
+  if (OUT) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.screenshot({ path: `${OUT}/editor-ready-one-tick-1280.png` });
+    await page.setViewportSize({ width: 360, height: 780 });
+  }
   await page.click('#ready-submit');
-  assert.match(await text(page, '#ready-err'), /עוד לא סומן/);
-  for (const i of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) await page.click(`#ready-${i}`);
+  assert.match(await text(page, '#ready-err'), /עברתי על הכול, הכול תקין/);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'ready-all');
+  assert.equal(checkOf(A, 'p24.notify'), null, 'nothing is marked without the tick');
+  await page.click('label[for="ready-all"]');
   await page.click('#ready-submit');
   await toastHas(page, 'נשלח לאופיר');
   for (const k of ['p22.edited', 'p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p22.self.sound', 'p22.self.exposure', 'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.drive', 'p24.dropbox', 'p24.notify']) assert.ok(checkOf(A, k), k);
@@ -624,7 +658,7 @@ await step('Nirel: an urgent brief while editing asks to pause, prefilled; the p
   const nc = 'c-cccccccc-0000-4000-8000-000000000003';
   // Start the editing first (all four checks).
   await page.click(`#${nc}-go`);
-  for (const i of [0, 1, 2, 3]) await page.click(`label[for="start-${i}-yes"]`);
+  await page.click('label[for="start-all"]');
   await page.click('#start-submit');
   await toastHas(page, 'התחלת');
   const t = db.client_tasks[0];
@@ -811,8 +845,10 @@ await step('the editor gets the uploaded logo FILE through a signed link; with n
   assert.equal(await yariv.page.locator(`${cardB}-logo`).count(), 0);
   await yariv.page.click(`${cardB}-go`);
   await yariv.page.waitForSelector('#dlg-start[open]');
-  assert.match(await text(yariv.page, '#start-nologo'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״חסר״ בשורת הלוגו\./);
+  assert.match(await text(yariv.page, '#start-nologo-s'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״משהו חסר\?״\./);
   assert.ok(await noHScroll(yariv.page));
+  await yariv.page.click('#start-some');
+  assert.match(await text(yariv.page, '#start-nologo'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״חסר״ בשורת הלוגו\./);
   // "אי אפשר להתחיל בכלל": "מה חסר?" without what is "יש", the "חסר" ticked with its words, and
   // only the stop (no upload to report before there are videos).
   await yariv.page.click('label[for="start-0-yes"]');

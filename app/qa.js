@@ -12,7 +12,7 @@
 import { PEOPLE, EDITORS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, shootTypeName } from './protocol.js';
 import { clientState, clientLabel, roundsOf, roundContext } from './protocol-logic.js';
 import {
-  loadClients, loadChecks, loadTasks, setCheck, clearCheck, clearChecksBulk, loadDirectory,
+  loadClients, loadChecks, loadTasks, setCheck, setChecksBulk, clearCheck, clearChecksBulk, loadDirectory,
 } from './protocol-data.js';
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, mountSession, directory, viewerOf, officeMinutes, landingTag,
@@ -430,29 +430,18 @@ function renderChecks() {
   const itemOf = (key) => x.proc.items.find((i) => i.key === `${x.pre}${key}`);
   const asked = k.checks.filter((key) => !itemOf(key)?.history);
   $('qa-checks-legend').textContent = `${asked.length} הבדיקות (${k.title})`;
-  fill($('qa-checks'), ...asked.flatMap((key, n) => {
-    const full = `${x.pre}${key}`;
-    const id = `qa-c-${key.replace(/\W/g, '_')}`;
-    const critical = !!itemOf(key)?.mistake;
-    return [
-      critical && !itemOf(asked[n - 1])?.mistake ? h('p', { class: 'of-sub of-critical', id: 'qa-critical' }, CRITICAL_TITLE) : null,
-      h('label', { class: 'wrow', for: id },
-        h('input', { type: 'checkbox', class: 'cbx', id, checked: cs[full]?.state === 'done', onchange: (e) => toggleCheck(full, e.currentTarget) }),
-        h('span', { class: 'wlabel' }, labelOf(key)))];
-  }));
-}
-async function toggleCheck(key, input) {
-  const c = qaItem.client;
-  input.disabled = true;
-  try {
-    if (input.checked) (checks[c.id] ||= {})[key] = await setCheck(c.id, key, 'done');
-    else { await clearCheck(c.id, key); delete checks[c.id][key]; }
-  } catch (err) {
-    input.checked = !input.checked;
-    toast(`הסימון לא נשמר. ${errorText(err)}`);
-  }
-  input.disabled = false;
-  input.focus();
+  // What to check is a list to read, and one tick under it (the owner, 3.11.2026: "יש אלף
+  // סעיפים לרשום כן כן כן"). "אישור" marks every check of the list, the same keys as before.
+  const plain = asked.filter((key) => !itemOf(key)?.mistake);
+  const critical = asked.filter((key) => itemOf(key)?.mistake);
+  const line = (key) => h('li', { class: cs[`${x.pre}${key}`]?.state === 'done' ? 'is-done' : null }, labelOf(key));
+  fill($('qa-checks'),
+    h('ul', { class: 'ed-lines of-lines', id: 'qa-lines' }, ...plain.map(line)),
+    critical.length ? h('p', { class: 'of-sub of-critical', id: 'qa-critical' }, CRITICAL_TITLE) : null,
+    critical.length ? h('ul', { class: 'ed-lines of-lines', id: 'qa-crit-lines' }, ...critical.map(line)) : null,
+    h('label', { class: 'wrow of-all', for: 'qa-all' },
+      h('input', { type: 'checkbox', class: 'cbx', id: 'qa-all', checked: asked.every((key) => cs[`${x.pre}${key}`]?.state === 'done'), onchange: () => { $('qa-err').hidden = true; } }),
+      h('span', { class: 'wlabel' }, 'עברתי על הכול, הכול תקין')));
 }
 function setMode(mode) {
   const ret = mode === 'return';
@@ -516,21 +505,26 @@ $('qa-add').addEventListener('click', () => addIssue(true));
 $('qa-to-return').addEventListener('click', () => { setMode('return'); $('qa-err').hidden = true; $('qa-issues').querySelector('input')?.focus(); });
 $('qa-back').addEventListener('click', () => { setMode('check'); $('qa-err').hidden = true; $('qa-checks').querySelector('input')?.focus(); });
 
-// "אישור": only with every check done.
+// "אישור": only with "עברתי על הכול, הכול תקין", which marks every check of the list first.
 $('qa-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const x = qaItem;
   const k = QA_KINDS[x.kind];
   const cs = checksOf(x.client);
-  const open = k.checks.filter((key) => cs[`${x.pre}${key}`]?.state !== 'done');
-  if (open.length) {
-    showErr('qa-err', `כדי לאשר צריך לסמן את כל ${k.checks.length} הבדיקות (חסרות ${open.length}). אם משהו לא תקין: ״החזרה לתיקון״.`);
-    $(`qa-c-${open[0].replace(/\W/g, '_')}`)?.focus();
+  if (!$('qa-all').checked) {
+    showErr('qa-err', 'עוברים על הרשימה ומסמנים ״עברתי על הכול, הכול תקין״. אם משהו לא תקין: ״החזרה לתיקון״.');
+    $('qa-all').focus();
     return;
   }
   $('qa-approve').disabled = true;
   const key = `${x.pre}${k.approved}`;
   try {
+    // The checks shown (a video approved before an item existed is not asked it: `history`).
+    const asked = k.checks.filter((c) => !x.proc.items.find((i) => i.key === `${x.pre}${c}`)?.history)
+      .map((c) => `${x.pre}${c}`).filter((c) => cs[c]?.state !== 'done');
+    if (asked.length) for (const r of await setChecksBulk(x.client.id, asked, 'done')) (checks[x.client.id] ||= {})[r.item_key] = r;
+    const open = k.checks.filter((c) => checksOf(x.client)[`${x.pre}${c}`]?.state !== 'done');
+    if (open.length) throw new Error(`חסרות ${open.length} בדיקות.`);
     (checks[x.client.id] ||= {})[key] = await setCheck(x.client.id, key, 'done');
   } catch (err) {
     showErr('qa-err', `האישור לא נשמר. ${errorText(err)}`);

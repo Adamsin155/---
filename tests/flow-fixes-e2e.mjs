@@ -276,7 +276,7 @@ try {
     await o.page.waitForSelector('#dlg-qa[open]');
     assert.match(await text(o.page.locator('#qa-dlg-h')), /בקרת איכות · גל אשכנזי/);
     assert.match(await text(o.page.locator('#qa-meta')), /9 הגרפיקות הראשונות · בדיקה ראשונה · באיחור · ליאור עודכן · לאשר עד היום 09:50/);
-    assert.equal(await o.page.locator('#qa-checks input').count(), 7);
+    assert.equal(await o.page.locator('#qa-checks li').count(), 7);
     await shot(o.page.locator('#dlg-qa'), 'ofir-graphics9-review-dialog');
     await o.ctx.close();
     // Lior does not carry it; before the graphics are ready nobody has the check.
