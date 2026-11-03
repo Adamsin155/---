@@ -289,6 +289,8 @@ assert.match(await page.locator('.done-row').first().innerText(), /1 תהליכ�
 // The tick is the "סיימתי" pill (ops.md section 44): still the checkbox itself, 44px high,
 // named by the item alone, and the same box when it turns into "בוצע".
 const pill = (sel) => page.locator(sel).evaluate((el) => { const b = el.getBoundingClientRect(); return { type: el.type, w: Math.round(b.width), h: Math.round(b.height), word: getComputedStyle(el, '::after').content }; });
+// (Her items of 2 are one "בוצע" since 3.11.2026; their pills wait in the fold under it.)
+if (await page.locator('#p02 details.chk-fold:not([open]) > summary').count()) await page.click('#p02 details.chk-fold > summary');
 const openPill = await pill('#i-p02-opened');
 assert.ok(openPill.type === 'checkbox' && openPill.h >= 44 && /סיימתי/.test(openPill.word), `the open pill: ${JSON.stringify(openPill)}`);
 assert.doesNotMatch(await page.locator('#i-p02-opened').evaluate((el) => el.closest('.item').textContent), /סיימתי/);
@@ -950,7 +952,7 @@ assert.ok(await mob.locator('#new-station').evaluate((el) => el.getBoundingClien
 await shot('07b-mobile-import', mob);
 await mob.click('#dlg-new [data-close]');
 await mob.goto(`${BASE}clients.html#mine`);
-await mob.waitForSelector('.witem');
+await mob.waitForSelector('#mine-list .wproc'); // (rows may wait folded under "בוצע", 3.11.2026)
 assert.ok(await noHScroll(mob), 'my work scrolls sideways at 360px');
 await shot('08-mobile-mine', mob);
 
