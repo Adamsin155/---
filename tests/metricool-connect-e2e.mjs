@@ -20,7 +20,7 @@
 //     focus and its text through the minute's refresh;
 //   - a brand someone else took in the meantime, and Metricool not answering (a way
 //     to the client's Gantt instead);
-//   - the owner has the card; Irit, Lior, an editor and a sales agent do not;
+//   - the owner, Irit and Lior (4.11.2026) have the card on the Gantt's index; an editor and a sales agent do not;
 //   - a 360px phone; only "not relevant" clients left: the card stays with them; every client
 //     connected: no card, the index says so in words; before the migrations.
 // Run: npx http-server -p 8163 -s -c-1 . &  then
@@ -477,7 +477,7 @@ try {
     await page.context().close();
   });
 
-  await step('the owner has the card and connects too; Irit, Lior and an editor have none; a sales agent lands on his own page', async () => {
+  await step('the owner, Irit and Lior (4.11.2026) have the card on the Gantt\'s index, not in their own tasks; an editor has none; a sales agent lands on his own page', async () => {
     const owner = await newPage();
     await signIn(owner, 'clients.html#mine', 'owner');
     // Not among the owners' own tasks (8.10.2026; docs/ops.md, section 43): since 20.10.2026 the
@@ -505,11 +505,10 @@ try {
       assert.equal(await page.locator(`${CARD} *`).count(), 0, who);
       assert.equal(await page.locator('#mine-list a[href="gantt.html#not-connected"]').count(), 0, who);
       if (who !== 'nadia') {
-        // The Gantt's index, the same filter: the clients, not the card (they do not connect).
+        // The Gantt's index, the same filter: since 4.11.2026 the managers connect, as the owners, there.
         await page.goto(`${BASE}${PAGE}`);
-        await settledIndex(page);
-        assert.ok(await page.locator(CARD).isHidden(), who);
-        assert.equal(await page.locator(`${CARD} *`).count(), 0, who);
+        await page.locator(`${CARD}:not([hidden])`).waitFor();
+        await shot(page, `05-${who}-index`);
       }
       await page.context().close();
     }

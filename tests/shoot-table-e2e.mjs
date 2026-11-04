@@ -234,10 +234,9 @@ await step('Lior: "טבלת ימי צילום" in the menu and as a tab; every a
   // The ended client and the archived one are not in it.
   assert.doesNotMatch(await text(lior, '#sd'), /גן אירועים|בארכיון/);
   assert.equal(await text(lior, '#sd-count'), '16 לקוחות · 14 צולמו · 2 טרם צולמו');
-  // The menu (20.10.2026, the owner): no entry of its own for Lior any more, the table is a
-  // tab of "כל הלקוחות במבט", which the menu marks.
-  await lior.waitForSelector('#side-overview[aria-current="page"]');
-  assert.equal(await lior.locator('#side-shoot-table').count(), 0);
+  // The menu: its own entry again since 4.11.2026 (the managers have every screen of the owners';
+  // from 20.10.2026 until then it was a tab of "כל הלקוחות במבט" only).
+  await lior.waitForSelector('#side-shoot-table[aria-current="page"]');
   assert.equal(await lior.getAttribute('#tab-shoots', 'aria-selected'), 'true');
   assert.equal(await lior.isHidden('#tab-now'), true);
   await shot(lior, 'shoot-table-01-desktop-lior');

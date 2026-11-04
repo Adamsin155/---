@@ -486,7 +486,7 @@ await step('a 360px phone: no sideways scrolling', async () => {
   await octx.close();
 });
 
-await step('Lior reads it (no payouts link); Irit, Ofir and an editor have no access', async () => {
+await step('Lior reads it (no payouts link); Irit and Ofir too since 4.11.2026; an editor has no access', async () => {
   const ctx = await newContext();
   const l = await newPage(ctx);
   await signIn(l, 'insights.html', 'lior@astrateg.test');
@@ -494,13 +494,24 @@ await step('Lior reads it (no payouts link); Irit, Ofir and an editor have no ac
   assert.equal(await l.isHidden('#link-payouts'), true);
   assert.equal(await l.isVisible('#in-ro'), true);
   // The office screens' row, as on clients.html: his, without the page itself.
-  assert.deepEqual(await l.evaluate(() => [...document.querySelectorAll('#head-actions .office-link')].map((a) => a.id)), ['cta-qa', 'cta-decisions', 'cta-year']);
+  // "מעבר על הלקוחות" too since 4.11.2026 (the managers).
+  assert.deepEqual(await l.evaluate(() => [...document.querySelectorAll('#head-actions .office-link')].map((a) => a.id)), ['cta-qa', 'cta-pass', 'cta-decisions', 'cta-year']);
   assert.equal(await text(l, '#st-returns .v'), '5');
   // The surveys are office-read (RLS), and Lior is the office: he sees the scores too.
   await l.waitForSelector('#st-sat');
   assert.equal(await text(l, '#sat-avg dd'), '3.5 · 2 תשובות');
   await ctx.close();
-  for (const who of ['irit', 'ofir', 'nadia']) {
+  for (const who of ['irit', 'ofir']) {
+    const c = await newContext();
+    const page = await newPage(c);
+    await signIn(page, 'clients.html', `${who}@astrateg.test`);
+    await page.waitForSelector('#app-side');
+    await page.goto(`${BASE}insights.html`);
+    await page.waitForSelector('#in-page:not([hidden]) #st-ontime');
+    assert.equal(await page.isHidden('#link-payouts'), true, who);
+    await c.close();
+  }
+  for (const who of ['nadia']) {
     const c = await newContext();
     const page = await newPage(c);
     // Signed in at home, then this page by its address: a sign-in ON a page that is not theirs
@@ -516,7 +527,7 @@ await step('Lior reads it (no payouts link); Irit, Ofir and an editor have no ac
   }
 });
 
-await step('the office links: the owner and Lior reach the insights, Irit does not', async () => {
+await step('the office links: the owner, Lior and Irit (4.11.2026) reach the insights', async () => {
   const ctx = await newContext();
   const o = await newPage(ctx);
   await signIn(o, 'owner.html', 'owner@astrateg.test');
@@ -528,9 +539,8 @@ await step('the office links: the owner and Lior reach the insights, Irit does n
   const i = await newPage(c2);
   await signIn(i, 'owner.html#all', 'irit@astrateg.test');
   await i.waitForSelector('#ow-page:not([hidden])');
-  assert.equal(await i.isHidden('#nav-insights'), true);
-  await i.waitForSelector('#side-list .side-link');
-  assert.equal(await i.locator('#side-insights').count(), 0);
+  await i.waitForSelector('#side-insights');
+  assert.equal(await i.getAttribute('#side-insights', 'href'), 'insights.html');
   await c2.close();
 });
 
