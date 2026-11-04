@@ -220,7 +220,7 @@ await step('owner sees everyone: owner first, then the protocol people, with the
   await owner.waitForSelector('#team-list .tm-row');
   assert.equal(await owner.locator('#no-access').isHidden(), true);
   const people = await owner.locator('#team-list .tm-row').evaluateAll((els) => els.map((e) => e.dataset.person));
-  assert.deepEqual(people, ['owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos']);
+  assert.deepEqual(people, ['owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos']); // Noam since 1.11.2026
   assert.match(await text(owner, '#row-owner'), /הבעלים[\s\S]*זה אני/);
   assert.match(await text(owner, '#row-irit'), /עירית[\s\S]*irit@astrateg\.test[\s\S]*מחובר\/ה לאחרונה היום/);
   assert.match(await text(owner, '#row-lior'), /מחובר\/ה לאחרונה אתמול/);
@@ -367,127 +367,62 @@ await step('clients.html shows the team link to the owner', async () => {
   assert.equal(await owner.getAttribute('#nav-team', 'href'), 'team.html');
 });
 
-// ── Irit ──────────────────────────────────
-const irit = await newPage();
-await step('Irit manages the team without the owner\'s powers', async () => {
-  await signIn(irit, 'team.html', 'irit@astrateg.test');
-  await irit.waitForSelector('#team-list .tm-row');
-  assert.equal(await irit.locator('.tm-vault-btn').count(), 0, 'no vault switch');
-  assert.ok(await irit.locator('.tm-vault').count() > 0, 'the vault shows as a badge');
-  assert.equal(await irit.locator('.tm-remove').count(), 0, 'no removing');
-  assert.equal(await irit.locator('#mklink-owner').count(), 0, 'no link for the owner');
-  assert.equal(await text(irit, '#ownerlink-owner'), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
-  assert.match(await text(irit, '#row-irit'), /זה אני/);
-  // Security audit, 6.10.2026 (ops.md, section 36): Irit has the vault, and still makes
-  // no sign-in link into an office account or a vault account (Ofir, Lior), on the
-  // screen or straight at the function. Her own, and an editor's, as before.
-  for (const who of ['ofir', 'lior']) {
-    assert.equal(await irit.locator(`#mklink-${who}`).count(), 0, who);
-    assert.equal(await text(irit, `#ownerlink-${who}`), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
-    assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: `${who}@astrateg.test`, redirectTo: `${BASE}clients.html` }),
-      [403, { error: 'owner_only' }], who);
+// ── The managers: the list, read-only (the owner's decision of 4.11.2026; docs/ops.md, section 96) ──
+// Until then Irit and Lior added rows for people outside the office, made their sign-in links and
+// set the WhatsApp numbers. Now every action of the page and of the function is the owners'.
+const readOnly = async (page, who) => {
+  await page.waitForSelector('#team-list .tm-row');
+  for (const sel of ['.tm-vault-btn', '.tm-remove', '[id^="mklink-"]', '[id^="ownerlink-"]', '.tm-add input', '.tm-phone-edit', '.tm-wa-acts button']) {
+    assert.equal(await page.locator(sel).count(), 0, `${who}: ${sel}`);
   }
-  assert.equal(await irit.locator('#mklink-irit').count(), 1, 'her own');
-  assert.equal(await irit.locator('#ownerlink-irit').count(), 0);
-  await irit.click('#mklink-yariv');
-  await irit.waitForSelector('#link-yariv');
-  assert.match(await irit.inputValue('#link-yariv'), /#type=recovery&token_hash=/);
-  assert.equal(fnCalls.at(-1).by, 'irit@astrateg.test');
-  await irit.fill('#email-nadia', 'nadia2@astrateg.test');
-  await irit.click('#save-nadia');
-  await irit.waitForSelector('#mklink-nadia');
-  const nadia = staff.find((r) => r.person === 'nadia');
-  assert.deepEqual([nadia.email, nadia.vault], ['nadia2@astrateg.test', false]);
+  assert.ok(await page.locator('.tm-vault').count() > 0, 'the vault shows as a badge');
+  assert.equal(await page.locator('#team-readonly').isVisible(), true, 'the read-only line');
+  assert.match(await text(page, '#team-readonly'), /רק אצל הבעלים/);
+  assert.match(await text(page, `#row-${who}`), /זה אני/);
+  assert.match(await text(page, '#row-yariv'), /yariv@astrateg\.test/);
+};
+const irit = await newPage();
+await step('Irit reads the team list; not one button of the owner\'s, and the function refuses her every action', async () => {
+  await signIn(irit, 'team.html', 'irit@astrateg.test');
+  await readOnly(irit, 'irit');
+  const redirectTo = `${BASE}clients.html`;
+  const me = users.get('irit@astrateg.test');
+  for (const who of ['yariv', 'irit', 'ofir', 'lior', 'owner']) {
+    assert.deepEqual(staffAdmin(me, { action: 'link', email: `${who}@astrateg.test`, redirectTo }), [403, { error: 'owner_only' }], who);
+  }
+  assert.deepEqual(staffAdmin(me, { action: 'phone', email: 'yariv@astrateg.test', phone: '0541112233' }), [403, { error: 'owner_only' }]);
+  assert.deepEqual(staffAdmin(me, { action: 'upsert', mode: 'add', email: 'anna2@astrateg.test', person: 'anna' }), [403, { error: 'owner_only' }]);
+  assert.deepEqual(staffAdmin(me, { action: 'remove', email: 'yariv@astrateg.test' }), [403, { error: 'owner_only' }]);
+  assert.equal(staffAdmin(me, { action: 'list' })[0], 200, 'the list');
+  await shot(irit, 'team-03-irit-readonly');
   await irit.goto(`${BASE}clients.html`);
   await irit.waitForSelector('#app:not([hidden])');
   await irit.waitForFunction(() => !document.getElementById('nav-team').hidden);
 });
 
-await step('Irit sets and clears a colleague\'s WhatsApp number, but not the owner\'s', async () => {
-  await irit.goto(`${BASE}team.html`);
-  await irit.waitForSelector('#phone-edit-yariv');
-  assert.equal(await irit.locator('#phone-edit-owner').count(), 0, 'the owner\'s row keeps no number');
-  assert.doesNotMatch(await text(irit, '#row-owner'), /וואטסאפ/);
-  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'phone', email: 'owner@astrateg.test', phone: '0501234567' }),
-    [403, { error: 'owner_only' }]);
-  await irit.click('#phone-edit-yariv');
-  await irit.fill('#phone-yariv', '054 111 2233');
-  await irit.click('#phone-save-yariv');
-  await irit.waitForFunction(() => /וואטסאפ: 054-111-2233/.test(document.querySelector('#row-yariv')?.textContent || ''));
-  assert.equal(staff.find((r) => r.person === 'yariv').phone, '972541112233');
-  // Lior is a manager, and a number is not a power: Irit may set his.
-  assert.equal(await irit.locator('#phone-edit-lior').count(), 1);
-  await irit.click('#phone-edit-yariv');
-  await irit.fill('#phone-yariv', '');
-  await irit.click('#phone-save-yariv');
-  await toastHas(irit, 'המספר של יריב נמחק');
-  await irit.waitForFunction(() => /וואטסאפ: אין מספר/.test(document.querySelector('#row-yariv')?.textContent || ''));
-  assert.equal(staff.find((r) => r.person === 'yariv').phone, null);
-  assert.deepEqual(fnCalls.filter((c) => c.action === 'phone').at(-1), { by: 'irit@astrateg.test', action: 'phone', email: 'yariv@astrateg.test', phone: null });
-});
-
-await step('Irit cannot put a login that is not on the team, or someone else\'s address, into a row', async () => {
-  await irit.goto(`${BASE}team.html`);
-  await irit.waitForSelector('#email-anna');
-  const before = staff.length;
-  await irit.fill('#email-anna', 'books@astrateg.test');
-  await irit.click('#save-anna');
-  await toastHas(irit, 'לכתובת הזו כבר יש חשבון במערכת. רק הבעלים יכול להוסיף אותה לצוות.');
-  assert.deepEqual(fnCalls.filter((c) => c.action === 'upsert').at(-1),
-    { by: 'irit@astrateg.test', action: 'upsert', email: 'books@astrateg.test', person: 'anna', mode: 'add' });
-  assert.equal(staff.length, before);
-  await irit.fill('#email-anna', 'yariv@astrateg.test');
-  await irit.click('#save-anna');
-  await toastHas(irit, 'הכתובת כבר שייכת ליריב');
-  assert.equal(await irit.getAttribute('#email-anna', 'aria-invalid'), 'true');
-  assert.equal(staff.find((r) => r.email === 'yariv@astrateg.test').person, 'yariv');
-  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'upsert', mode: 'add', email: 'yariv@astrateg.test', person: 'anna' }),
-    [409, { error: 'email_taken' }]);
+await step('Lior reads the list the same way; Ofir (who has not signed in here) gets the list and nothing else from the function', async () => {
+  const page = await newPage();
+  await signIn(page, 'team.html', 'lior@astrateg.test');
+  await readOnly(page, 'lior');
+  for (const who of ['lior', 'ofir']) {
+    const me = users.get(`${who}@astrateg.test`) || { email: `${who}@astrateg.test` };
+    assert.deepEqual(staffAdmin(me, { action: 'link', email: 'yariv@astrateg.test', redirectTo: `${BASE}clients.html` }), [403, { error: 'owner_only' }], who);
+    assert.equal(staffAdmin(me, { action: 'list' })[0], 200, `${who}: the list`);
+  }
 });
 
 await step('a payouts owner\'s login gets a link from the owner only', async () => {
-  // The owner may put that login on the team (it has no link of its own yet).
   await owner.goto(`${BASE}team.html`);
   await owner.waitForSelector('#email-anna');
   await owner.fill('#email-anna', 'books@astrateg.test');
   await owner.click('#save-anna');
   await owner.waitForSelector('#mklink-anna');
   const links = tokens.size;
-  await irit.click('#btn-refresh');
-  await irit.waitForSelector('#mklink-anna');
-  await irit.click('#mklink-anna');
-  await toastHas(irit, 'רק הבעלים יכול לעשות את זה.');
-  assert.equal(await irit.locator('#link-anna').count(), 0);
+  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'books@astrateg.test', redirectTo: `${BASE}clients.html` }), [403, { error: 'owner_only' }]);
   assert.equal(tokens.size, links, 'no link made');
   await owner.click('#mklink-anna');
   await owner.waitForSelector('#link-anna');
   assert.match(await owner.inputValue('#link-anna'), /#type=recovery&token_hash=/);
-});
-
-await step('Lior, with or without the vault, gets no link into an office or vault account', async () => {
-  await owner.click('#vault-lior');
-  await owner.waitForSelector('#vault-lior[aria-pressed="false"]');
-  const lior = await newPage();
-  await signIn(lior, 'team.html', 'lior@astrateg.test');
-  await lior.waitForSelector('#team-list .tm-row');
-  for (const who of ['ofir', 'irit']) {
-    assert.equal(await lior.locator(`#mklink-${who}`).count(), 0, who);
-    assert.equal(await text(lior, `#ownerlink-${who}`), 'רק הבעלים יוצר קישור כניסה לחשבון הזה.');
-  }
-  assert.equal(await lior.locator('#mklink-yariv').count(), 1, 'no vault: a link as before');
-  assert.equal(await lior.locator('#mklink-lior').count(), 1, 'their own');
-  const redirectTo = `${BASE}clients.html`;
-  assert.deepEqual(staffAdmin(users.get('lior@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
-  assert.equal(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ofir@astrateg.test', redirectTo })[0], 403, 'Irit has the vault, and still none');
-  // A row with no login yet (an invite): the same rule. Ilai's row is added by the owner.
-  assert.equal(staffAdmin(users.get('owner@astrateg.test'), { action: 'upsert', mode: 'add', email: 'ilai-new@astrateg.test', person: 'ilai' })[0], 200);
-  assert.equal(users.has('ilai-new@astrateg.test'), false, 'no login yet');
-  assert.deepEqual(staffAdmin(users.get('irit@astrateg.test'), { action: 'link', email: 'ilai-new@astrateg.test', redirectTo }), [403, { error: 'owner_only' }]);
-  await lior.click('#btn-refresh');
-  await lior.waitForSelector('#ownerlink-ilai');
-  assert.equal(await lior.locator('#mklink-ilai').count(), 0, 'no invite button for an office row');
-  const made = staffAdmin(users.get('owner@astrateg.test'), { action: 'link', email: 'ilai-new@astrateg.test', redirectTo });
-  assert.deepEqual([made[0], made[1].type], [200, 'invite']);
 });
 
 // ── An editor ─────────────────────────────
