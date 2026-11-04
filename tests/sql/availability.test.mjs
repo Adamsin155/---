@@ -85,7 +85,8 @@ test('the lists are the app\'s: who is a photographer, who reads, who enters it 
     const person = PEOPLE[who] ?? 'owner';
     const r = (await q(who, "select public.can_read_availability('eli') as reads, public.can_manage_availability() as manages")).rows[0];
     assert.equal(r.reads, READERS.includes(person) || PHOTOGRAPHERS.includes(person), `${who} reads`);
-    assert.equal(r.manages, ON_BEHALF.includes(person), `${who} manages`);
+    // This database stops at its own file: Ofir enters it too since 20261128100000_managers_all.sql (tests/sql/managers-all.test.mjs).
+    assert.equal(r.manages, ON_BEHALF.filter((p) => p !== 'ofir').includes(person), `${who} manages`);
   }
   assert.equal((await q('stranger', "select public.can_read_availability('eli') as ok")).rows[0].ok, false);
   assert.match((await q('anon', "select public.can_read_availability('eli')")).error, DENIED);
