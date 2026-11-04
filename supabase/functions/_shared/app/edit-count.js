@@ -152,7 +152,8 @@ export function exceptMonths(client, now = new Date()) {
 //     last month (the database takes no number for it any more);
 //   - every other job (the client's own first job, a shoot round, a monthly round left with an
 //     editor who is no longer the client's): its own job, in public.editor_progress →
-//     { key, month: null, round, of, from }. `from` is where a monthly client's first job (or shoot
+//     { key, month: null, round, own, of, from }; `own`: the month it was assigned in (a monthly
+//     client only, else null). `from` is where a monthly client's first job (or shoot
 //     round) kept its number before the fix: the month row of the month it was assigned in, read
 //     while the job has no number of its own yet; null when that month has a monthly round (the
 //     number is then that round's), or for a client counted by the package.
@@ -167,7 +168,7 @@ export function jobCount(job, person, checks = {}, now = new Date()) {
   const own = monthlyFor(client, person) ? monthOfAt(checks?.[`${job.pre || ''}p22a.assigned`]?.at) : null;
   const taken = own && Array.isArray(client.rounds) && client.rounds.some((r) => r?.monthly === true && r.month === own);
   return {
-    key: progressKey(client.id, round, person), month: null, round,
+    key: progressKey(client.id, round, person), month: null, round, own,
     of: editTarget(ctx, person) ?? (monthlyFor(client, person) ? monthTargetOf(client, own || monthKey(now)) : null),
     from: own && !taken ? monthRowKey(client.id, own, person) : null,
   };

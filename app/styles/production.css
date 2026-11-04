@@ -402,3 +402,22 @@ dialog.ed-dlg .ed-start-foot .hint { margin: 0; text-align: center; font-size: 1
   .ed-waitfold > summary { padding: 6px 12px; }
   .ed-wlist { padding: 0 8px 8px; }
 }
+/* A chevron at the end of each line says it opens (the summary is a flex row: no marker of its own). */
+.ed-waitfold > summary::-webkit-details-marker, .ed-wline > summary::-webkit-details-marker { display: none; }
+.ed-waitfold > summary { list-style: none; }
+.ed-wline > summary { list-style: none; }
+.ed-waitfold > summary::after, .ed-wline > summary::after {
+  content: ""; inline-size: 9px; block-size: 9px; margin-inline-start: auto; flex: 0 0 auto;
+  border-inline-end: 2px solid var(--text-2); border-block-end: 2px solid var(--text-2);
+  transform: rotate(45deg); transition: transform .2s ease;
+}
+.ed-waitfold[open] > summary::after, .ed-wline[open] > summary::after { transform: rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { .ed-waitfold > summary::after, .ed-wline > summary::after { transition: none; } }
+.ed-waitfold > summary::after, .ed-wline > summary::after { border: 0; border-right: 2px solid var(--text-2); border-bottom: 2px solid var(--text-2); margin-block-end: 4px; }
+.ed-waitfold[open] > summary::after, .ed-wline[open] > summary::after { margin-block: 4px 0; }
+/* The line: the client and where it is, the chevron at its end; since when under them. */
+.ed-wline > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; row-gap: 2px; }
+.ed-wline > summary > .ed-wname { grid-column: 1; grid-row: 1; }
+.ed-wline > summary > .ed-state { grid-column: 2; grid-row: 1; }
+.ed-wline > summary > .ed-wsince { grid-column: 1 / -1; grid-row: 2; }
+.ed-wline > summary::after { grid-column: 3; grid-row: 1; margin-inline-start: 0; }

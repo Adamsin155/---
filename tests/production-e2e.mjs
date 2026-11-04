@@ -307,6 +307,13 @@ const set = (c, key, note = null, by = 'ofir@astrateg.test') => {
   db.protocol_log.push({ id: db.protocol_log.length + 1, client_id: c.id, item_key: key, action: 'done', note, by_email: by, at: row.at });
 };
 const reload = async (page) => { await page.click('#btn-refresh'); await page.waitForTimeout(150); };
+// What already left the editor (with Ofir, the client or Ilai) waits in the closed fold "מחכים לבדיקה"
+// at the end of the page (docs/ops.md, section 97): the fold and the card's line opened, to read the card.
+async function openWait(page, sel) {
+  if (!(await page.locator('#ed-waits').evaluate((d) => d.open))) await page.click('#ed-waits-s');
+  const line = page.locator(`${sel}-w`);
+  if (!(await line.evaluate((d) => d.open))) await line.locator(':scope > summary').click();
+}
 
 let passed = 0;
 let nirelPage;
@@ -565,6 +572,7 @@ await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofi
   await page.click('#ready-submit');
   await toastHas(page, 'נשלח לאופיר');
   for (const k of ['p22.edited', 'p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p22.self.sound', 'p22.self.exposure', 'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.drive', 'p24.dropbox', 'p24.notify']) assert.ok(checkOf(A, k), k);
+  await openWait(page, card);
   assert.equal(await text(page, `${card} .ed-state`), 'אצל אופיר לבקרה');
   await page.waitForSelector('#handoff:not([hidden])');
   assert.match(await text(page, '#handoff'), /אופיר/);
@@ -596,6 +604,7 @@ await step('(3) Ofir\'s return (the office\'s marks): "תוקן" per issue, the 
   assert.equal(checkOf(A, 'p24.notify').at, notify, 'the fixed mark is enough; the videos are not marked ready again');
   assert.equal(checkOf(A, 'p25.return'), null, 'never production\'s old key');
   assert.equal(checkOf(A, 'p24.fixed'), null, 'never production\'s old key');
+  await openWait(page, card);
   assert.equal(await text(page, `${card} .ed-state`), 'אצל אופיר לבקרה');
   assert.match(await text(page, `${card} .ed-wait`), /^התיקונים אצל אופיר לבדיקה חוזרת/);
 });
@@ -605,6 +614,7 @@ await step('the client\'s fixes, then (4) the final versions go to Ilai; the car
   set(A, 'p25.approved');
   set(A, 'p26.sent', null, 'irit@astrateg.test');
   await reload(page);
+  await openWait(page, card);
   assert.equal(await text(page, `${card} .ed-state`), 'אצל הלקוח לאישור');
   assert.equal(await page.locator(`#${A_ID}-go`).count(), 0); // button 4 not before the client
   set(A, 'p27.notes', JSON.stringify({ videos: [{ n: 1, text: 'להחליף את השיר' }] }), 'irit@astrateg.test');
@@ -618,6 +628,7 @@ await step('the client\'s fixes, then (4) the final versions go to Ilai; the car
   await toastHas(page, 'עברו לעילאי');
   assert.ok(checkOf(A, 'p27.final'));
   assert.equal(checkOf(A, 'p27.toilai'), null, 'the editor never marks Ilai\'s "קיבלתי"');
+  await openWait(page, card);
   assert.equal(await text(page, `${card} .ed-state`), 'אצל עילאי');
   await page.waitForSelector('#handoff:not([hidden])');
   assert.match(await text(page, '#handoff'), /עילאי/);

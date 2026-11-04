@@ -445,10 +445,10 @@ function jobCard(job) {
   const videos = P.videosPerDay(job.ctx);
   const share = shareOf(job.ctx, me);
   // A monthly round: "12 סרטונים החודש" (or its month). Another job of a monthly client: the
-  // package's videos when known, else the client's "8 סרטונים בחודש".
+  // package's videos when known, else the number of the month it was assigned in ("8 סרטונים · ספטמבר 2026"), as its counter.
   const cnt = jobCount(job, me, cs(c), now);
   const perMonth = cnt?.month ? monthVideosText(c, now, cnt.month)
-    : monthlyFor(c, me) && !share && !videos ? monthVideosText(c, now) : null;
+    : monthlyFor(c, me) && !share && !videos ? monthVideosText(c, now, cnt?.own || monthKey(now)) : null;
   const mine = scriptsOf(job);
   // The scripts: Lior's Google Docs link (links.scripts), and how many (the office's number, else the system's).
   const nScripts = job.round > 1 ? (mine.length || null) : P.scriptsCountOf(c, mine.length);
