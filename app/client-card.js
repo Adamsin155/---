@@ -73,7 +73,7 @@ import { folderItemOf, awaitingEditor, editorLoad } from './qa-logic.js';
 import { loadOfirMeetings, loadSelections } from './office-data.js';
 // "שיוך עורך" from the card (the owner, 29.10.2026): qa.html's own dialog, and who may open it.
 import { assignDialog } from './assign-dialog.js';
-import { cardAssignMode } from './card-assign-logic.js';
+import { cardAssignMode, canUnassign, UNASSIGN_KEYS, unassignable, editorStarted } from './card-assign-logic.js';
 import { intakeShortcut, mountClientIntake, describeIntakeMark, writesScripts } from './intake-ui.js';
 import { canWriteScripts } from './scripts-data.js';
 // Stage 4: the client's status page, approvals, surveys and WhatsApp consent.
@@ -571,6 +571,32 @@ function assignButton(s) {
     'aria-label': change ? `שינוי העורך של ${client.name}` : `שיוך עורך ל${client.name}`, onclick: () => openCardAssign(),
   }, change ? 'שינוי' : 'שיוך עורך');
 }
+// "החזרה לשיוך" beside "שינוי": Irit, Ofir and the owners (app/card-assign-logic.js).
+function unassignButton(c = client) {
+  if (printing || !c || !canUnassign(viewerInfo) || !unassignable(c, checks)) return null;
+  return h('button', {
+    type: 'button', class: 'btn-text danger cc-unassign', id: 'cc-unassign',
+    'aria-label': `החזרה לשיוך: להוריד את העורך של ${client.name}`, onclick: (e) => unassign(e.currentTarget),
+  }, 'החזרה לשיוך');
+}
+async function unassign(btn) {
+  const who = editorNames(client);
+  const started = editorStarted(checks);
+  const words = `להוריד את ${who} מ${client.name} ולהחזיר את הלקוח ל״בקרה ושיוך״?${started ? ` ${who} כבר סימן/ה שהעריכה התחילה: מה שסומן נשאר בהיסטוריה.` : ''}`;
+  if (!window.confirm(words)) return;
+  btn.disabled = true;
+  try {
+    const keys = UNASSIGN_KEYS('').filter((k) => checks[k]);
+    if (keys.length) await clearChecksBulk(id, keys);
+    client = await updateClient(id, { editor: null, editor2: null });
+  } catch (err) {
+    btn.disabled = false;
+    toast(`לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  toast(`${client.name} חזר/ה ל״בקרה ושיוך״, בלי עורך.`);
+  load();
+}
 let assignUi = null;
 let assignWorld = null; // the office's clients, checks, open tasks and the star day's selection, read when the dialog opens
 let assignOpening = false;
@@ -956,7 +982,7 @@ function renderHead(s) {
     : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
   const shootFact = fact('יום צילום', [shootTypeName(c) || null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
   const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך',
-    c.editor ? editorNames(c) : c.editor_name || (assignMode(s) ? h('span', { class: 'cc-noeditor' }, 'אין עורך') : null), assignButton(s));
+    c.editor ? editorNames(c) : c.editor_name || (assignMode(s) ? h('span', { class: 'cc-noeditor' }, 'אין עורך') : null), [assignButton(s), unassignButton(c)].filter(Boolean));
   fill($('cc-head'),
     landingNote(),
     autoBanner(),
