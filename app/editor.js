@@ -39,8 +39,9 @@ import { closedProcesses } from './health.js';
 import * as P from './production.js';
 import { todoText } from './office-marks.js';
 import {
-  progressMap, progressKey, editTarget, editedValue, isMonthly, monthlyFor, monthTargetOf, monthKey, monthRowKey, monthMap, monthVideosText, monthLabel, addMonth,
+  progressMap, editTarget, editedValue, isMonthly, monthlyFor, monthKey, monthMap, monthVideosText, monthLabel, jobCount,
 } from './edit-count.js';
+import { splitJobs, byAssigned, sinceOf, readSort, saveSort } from './editor-order.js';
 import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
 import { charViewHref } from './intake-ui.js';
 // The old system's characterization of each of my clients (the owner, 26.10.2026: every member of staff reads it).
@@ -76,8 +77,6 @@ const scriptsOf = (job) => scripts.filter((s) => s.client_id === job.client.id &
 const cardId = (job) => `c-${job.client.id}${job.round > 1 ? `-r${job.round}` : ''}`;
 // A monthly editing round (app/monthly-rounds.js) is said by its month: "אלאור בוטיק · נובמבר 2026".
 const jobName = (job) => `${job.client.name}${job.ctx?.monthly ? ` · ${monthLabel(job.ctx.month)}` : job.round > 1 ? ` · סבב ${job.round}` : ''}`;
-// The month a job of a monthly client counts: a monthly round's own month, else the current one.
-const jobMonth = (job, now = new Date()) => (job.ctx?.monthly ? job.ctx.month : monthKey(now));
 const isNirel = () => me === 'nirel';
 // How many videos I have edited, per shoot ('<client>:<round>:<me>' → row; 22.10.2026).
 // null: the numbers cannot be read (before their migration): no counter then.
@@ -85,16 +84,19 @@ let progress = null;
 // A monthly client's number this month ('<client>:<YYYY-MM>:<me>' → row; app/edit-count.js
 // monthTarget). null: no monthly client of mine, or before its migration: no counter on those.
 let months = null;
-// What I count on a job: a monthly client's current Israel month (I am its editor), else the shoot's part.
-const partOf = (job, now = new Date()) => (monthlyFor(job.client, me) ? monthTargetOf(job.client, jobMonth(job, now)) : editTarget(job.ctx, me));
+// What I count on a job (app/edit-count.js jobCount): a monthly round its month's number, else the job's part.
+const partOf = (job, now = new Date()) => (jobCount(job, me, cs(job.client), now) || { of: editTarget(job.ctx, me) }).of;
 
 // ── Loading ─────────────────────────────────
-// A monthly client's numbers: this month's, and the month of a monthly editing round of mine
-// still open from before (only last month: the database takes no number for an older one).
+// A monthly client's numbers: this month's, the month of a monthly editing round of mine still
+// open from before (only last month: the database takes no number for an older one), and the
+// month each other job of it kept its number in before 4.11.2026 (jobCount's `from`, read only).
 async function loadMonthRows(ids) {
   const now = new Date();
   const here = monthKey(now);
-  const keys = [here, ...new Set(allJobs().filter((j) => j.ctx?.monthly && j.ctx.month === addMonth(here, -1)).map((j) => j.ctx.month))];
+  const counts = allJobs().filter((j) => ids.includes(j.client.id)).map((j) => jobCount(j, me, cs(j.client), now)).filter(Boolean);
+  const olds = counts.flatMap((n) => [n.month, n.from?.split(':')[1]]).filter((m) => m && m !== here);
+  const keys = [here, ...new Set(olds)];
   const parts = await Promise.all(keys.map((k) => loadEditorMonths(ids, k)));
   return parts[0] ? parts.flatMap((p) => p || []) : null;
 }
@@ -132,11 +134,18 @@ async function load() {
 function allJobs() {
   return clients.flatMap((c) => P.editingCases(c, cs(c), me, stateOf(c)));
 }
-// What waits for the editor first, by its deadline; what already left them (with Ofir, the client or
-// Ilai) after it (the owner, 3.11.2026: "משימות שכבר עורך ביצע שירדו למטה").
-const withOthers = (j) => ['qa', 'client', 'ilai'].includes(j.st.key);
-const openJobs = () => allJobs().map((j) => ({ ...j, st: P.editorState(j, cs(j.client)) })).filter((j) => j.st.key !== 'done')
-  .sort((a, b) => (withOthers(a) - withOthers(b)) || ((a.p24?.dueAt || Infinity) - (b.p24?.dueAt || Infinity)));
+// The open jobs: what waits for the editor first, then what already left them (with Ofir, the
+// client or Ilai; the owner, 3.11.2026: "משימות שכבר עורך ביצע שירדו למטה"). Each part by the date
+// of its assignment, in the order chosen on this device (4.11.2026, app/editor-order.js), the
+// deadline breaking a tie.
+let sortDir = readSort();
+function openJobs() {
+  const open = allJobs().map((j) => ({ ...j, st: P.editorState(j, cs(j.client)) })).filter((j) => j.st.key !== 'done')
+    .sort((a, b) => (a.p24?.dueAt || Infinity) - (b.p24?.dueAt || Infinity));
+  const { mine, waiting } = splitJobs(open);
+  const by = (list) => byAssigned(list, (j) => cs(j.client), sortDir);
+  return [...by(mine), ...by(waiting)];
+}
 
 // A block ended from the client card (its wait on 22 ended there): the waits it put
 // on 24 and 27 end too, and the report is cleared. (A report made while the editing goes
@@ -158,10 +167,46 @@ function render() {
     ? `${jobs.length === 1 ? 'לקוח אחד בעריכה' : `${jobs.length} לקוחות בעריכה`}${waiting ? ` · ${waiting} ממתינים לכונן` : ''}`
     : '';
   if (jobs.length) noteIcon($('ed-summary'), 'info', 'scissors');
-  fill($('ed-list'), jobs.length ? jobs.map(jobCard)
+  const { mine, waiting: theirs } = splitJobs(jobs);
+  const sort = $('ed-sort');
+  sort.hidden = jobs.length < 2;
+  sort.textContent = sortDir === 'new' ? 'מהחדש לישן' : 'מהישן לחדש';
+  sort.setAttribute('aria-label', `סדר הרשימה לפי תאריך השיוך: ${sort.textContent}. לחיצה הופכת את הסדר.`);
+  fill($('ed-list'), jobs.length ? [...mine.map(jobCard), theirs.length ? waitFold(theirs) : null]
     : emptyState({ icon: 'scissors', tone: 'purple', text: 'אין כרגע לקוח בעריכה אצלך. כשאופיר ישייך לקוח, הוא יופיע כאן ותקבל/י הודעה.' }));
   renderBriefs();
   renderStats();
+}
+// One toggle, "מהישן לחדש" / "מהחדש לישן", remembered on this device.
+$('ed-sort').addEventListener('click', () => {
+  sortDir = sortDir === 'new' ? 'old' : 'new';
+  saveSort(sortDir);
+  renderKeepingFocus('ed-sort');
+});
+
+// What the editor finished and waits for someone else (the owner, 4.11.2026): one fold at the end,
+// closed, "מחכים לבדיקה (N)"; inside, one short line each (the client, where it is, since when),
+// and the full card under the line on a tap. What is open stays open across the page's re-renders.
+let foldOpen = false;
+const openWaits = new Set();
+function waitFold(list) {
+  const now = new Date();
+  return h('details', {
+    class: 'ed-waitfold', id: 'ed-waits', open: foldOpen,
+    ontoggle: (e) => { foldOpen = e.currentTarget.open; },
+  }, h('summary', { id: 'ed-waits-s' }, `מחכים לבדיקה (${list.length})`),
+  h('div', { class: 'ed-wlist' }, ...list.map((job) => {
+    const id = `${cardId(job)}-w`;
+    const since = sinceOf(job, cs(job.client));
+    return h('details', {
+      class: `ed-wline s-${job.st.key}`, id, open: openWaits.has(id),
+      ontoggle: (e) => { if (e.currentTarget.open) openWaits.add(id); else openWaits.delete(id); },
+    }, h('summary', {},
+      h('span', { class: 'ed-wname' }, jobName(job)),
+      h('span', { class: `ed-state s-${job.st.key}` }, P.STATE_TEXT[job.st.key]),
+      since ? h('span', { class: 'ed-wsince' }, `מאז ${formatWhen(new Date(since), now)}`) : null),
+    jobCard(job));
+  })));
 }
 function renderKeepingFocus(focusId = document.activeElement?.id) {
   const y = window.scrollY;
@@ -177,6 +222,12 @@ function goToHash() {
   // A link to the client (#c-<id>) finds its card, or its first shoot round's.
   const el = document.getElementById(id) || document.querySelector(`[id^="${CSS.escape(id)}-r"]`);
   if (!el) return;
+  // A card in the fold of "מחכים לבדיקה": the fold and its line open first.
+  for (let d = el.parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) {
+    d.open = true;
+    if (d.id === 'ed-waits') foldOpen = true;
+    else openWaits.add(d.id);
+  }
   el.scrollIntoView({ block: 'start' });
   el.querySelector('h2')?.focus({ preventScroll: true });
 }
@@ -393,8 +444,11 @@ function jobCard(job) {
   const day = P.editingDay(job.assignedAt, now);
   const videos = P.videosPerDay(job.ctx);
   const share = shareOf(job.ctx, me);
-  // A monthly client: "8 סרטונים בחודש", or this month's own number, "12 סרטונים החודש".
-  const perMonth = monthlyFor(c, me) ? monthVideosText(c, now, jobMonth(job, now)) : null;
+  // A monthly round: "12 סרטונים החודש" (or its month). Another job of a monthly client: the
+  // package's videos when known, else the number of the month it was assigned in ("8 סרטונים · ספטמבר 2026"), as its counter.
+  const cnt = jobCount(job, me, cs(c), now);
+  const perMonth = cnt?.month ? monthVideosText(c, now, cnt.month)
+    : monthlyFor(c, me) && !share && !videos ? monthVideosText(c, now, cnt?.own || monthKey(now)) : null;
   const mine = scriptsOf(job);
   // The scripts: Lior's Google Docs link (links.scripts), and how many (the office's number, else the system's).
   const nScripts = job.round > 1 ? (mine.length || null) : P.scriptsCountOf(c, mine.length);
@@ -466,21 +520,19 @@ const typed = new Map(); // key → the number typed and not saved yet (kept acr
 const saveTimers = new Map();
 // What a job's counter counts: { key, of, month } (month: a monthly client's 'YYYY-MM', else
 // null), or null when those numbers cannot be read (before their migration): no counter then.
+// Each card counts its own work (the owner's bug of 4.11.2026, app/edit-count.js jobCount): a
+// monthly editing round its own month; the client's own job and a shoot round their own job.
+// A client in landing counts too (most of the real ones, 22.10.2026): the office records its
+// editor in clients.editor (landing_set_editor), and the number is that editor's.
 function counterOf(job, now = new Date()) {
-  if (monthlyFor(job.client, me)) {
-    if (!months) return null;
-    // A monthly editing round counts its own month (one still open from last month, last month's).
-    const month = jobMonth(job, now);
-    if (month < addMonth(monthKey(now), -1)) return null; // older months take no number any more
-    return { key: monthRowKey(job.client.id, month, me), of: monthTargetOf(job.client, month), month };
-  }
-  // A client in landing counts too (most of the real ones, 22.10.2026): the office records its
-  // editor in clients.editor (landing_set_editor), and the number is that editor's.
-  if (!progress) return null;
-  return { key: progressKey(job.client.id, job.round, me), of: editTarget(job.ctx, me), month: null };
+  const cnt = jobCount(job, me, cs(job.client), now);
+  return cnt && mapOf(cnt) ? cnt : null;
 }
 const mapOf = (cnt) => (cnt.month ? months : progress);
-const shownOf = (cnt) => (typed.has(cnt.key) ? typed.get(cnt.key) : mapOf(cnt)?.[cnt.key]?.edited ?? 0);
+// A job's number: what was typed, else its own row, else (a monthly client's job from before the
+// fix) the month row it was kept in until then, else 0.
+const shownOf = (cnt) => (typed.has(cnt.key) ? typed.get(cnt.key)
+  : mapOf(cnt)?.[cnt.key]?.edited ?? (cnt.from ? months?.[cnt.from]?.edited : null) ?? 0);
 function countLine(job) {
   const cnt = counterOf(job);
   if (!cnt) return null;
@@ -517,12 +569,6 @@ function setCount(job, cnt, n, { status, row = status.closest('.ed-count') }) {
   const { key } = cnt;
   typed.set(key, n);
   stepsFor(row, n);
-  // The same monthly number on another card of the client (one of its shoot rounds) follows.
-  for (const other of document.querySelectorAll('.ed-count-n')) {
-    if (other.dataset.count !== key || row.contains(other)) continue;
-    other.value = String(n);
-    stepsFor(other.closest('.ed-count'), n);
-  }
   status.textContent = '';
   clearTimeout(saveTimers.get(key));
   saveTimers.set(key, setTimeout(() => saveCount(job, cnt, n), 700));

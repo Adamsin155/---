@@ -60,6 +60,7 @@
   <link rel="modulepreload" href="app/health.js">
   <link rel="modulepreload" href="app/production.js">
   <link rel="modulepreload" href="app/edit-count.js">
+  <link rel="modulepreload" href="app/editor-order.js">
   <link rel="modulepreload" href="app/files-ui.js">
   <link rel="modulepreload" href="app/intake-ui.js">
   <link rel="modulepreload" href="app/legacy-char-data.js">
@@ -161,7 +162,11 @@
       </div>
 
       <section class="push-card" id="push-card" aria-labelledby="push-h" hidden></section>
-      <p class="prod-summary" id="ed-summary" role="status"></p>
+      <div class="ed-bar">
+        <p class="prod-summary" id="ed-summary" role="status"></p>
+        <!-- The order of the list, by the date of the assignment (docs/ops.md, section 97). -->
+        <button type="button" class="btn btn-sm btn-ghost ed-sort" id="ed-sort" hidden>מהישן לחדש</button>
+      </div>
       <div class="prod-list" id="ed-list"></div>
       <section class="prod-sec" id="ed-briefs" aria-labelledby="briefs-h" hidden></section>
       <section class="prod-sec prod-stats" id="ed-stats" aria-labelledby="stats-h" hidden></section>
