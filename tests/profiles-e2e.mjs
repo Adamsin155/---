@@ -100,20 +100,18 @@ const PERSONAL = {
   lior: ['המשימות שלי', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'ימי צילום', 'יומן'],
   // The pass over the clients is Irit's since 26.10.2026 (the owner): in her own menu; Ofir may look at it from his manager profile.
   ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'יומן'], // his meetings in his own menu (15.10.2026)
-  irit: ['המשימות שלי', 'לקוחות', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
+  // "בקרה ושיוך" in Irit's own menu since 3.11.2026.
+  irit: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
 };
 const MANAGER = {
   owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום', 'שאלו את המערכת', 'צוות', 'אסטרטג פיימנט'],
-  // 20.10.2026 (the owner): Lior without qa, prep and the second shoot-day table; Ofir without the Gantt, the year and prep.
-  lior: ['כל הלקוחות במבט', 'לקוחות', 'גאנט תוכן', 'תובנות', 'שנת החבילה', 'הצעה חדשה והכנת חוזה', 'שאלו את המערכת', 'צוות'],
-  // 28.10.2026 (the owner): Ofir builds contracts too (app/shell-rules.js, commit de2c40b).
-  // 29.10.2026 (the owner): Ofir has the sent quotes with their amounts ("לאופיר את העסקאות של חודש").
-  // 29.10.2026: "שאלו את המערכת" for the owners, Lior and Ofir (app/ask-logic.js).
-  ofir: ['מבט מנהל', 'לקוחות', 'מעבר על הלקוחות', 'החלטות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת'],
-  // 29.10.2026: "שאלו את המערכת" for everyone on the staff; Irit's is in her manager profile.
-  irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'שנת החבילה', 'ימי צילום', 'שאלו את המערכת', 'צוות'],
+  // 4.11.2026 (the owner; docs/ops.md, section 96): the managers have every screen of the owners' but
+  // the payments app; a long manager profile is two parts (the daily ones, then the rest).
+  lior: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת', 'צוות'],
+  ofir: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'מעבר על הלקוחות', 'החלטות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'הודעות ללקוחות', 'ימי צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת', 'צוות'],
+  irit: ['מבט מנהל', 'לקוחות', 'גאנט תוכן', 'החלטות', 'תובנות', 'שנת החבילה', 'ימי צילום', 'טבלת ימי צילום', 'שאלו את המערכת', 'צוות'],
 };
-const HOME = { owner: 'owner.html#now', lior: 'owner.html#all', ofir: 'owner.html#now', irit: 'owner.html#now' };
+const HOME = { owner: 'owner.html#now', lior: 'owner.html#now', ofir: 'owner.html#now', irit: 'owner.html#now' }; // Lior's screen 1 since 4.11.2026
 // The daily review stays with Ofir (process 33) and with Irit (process 32): their own work.
 const MY_TABS = { owner: ['המשימות שלי', 'לקוחות'], lior: ['המשימות שלי', 'לקוחות'], ofir: ['המשימות שלי', 'לקוחות'] /* the daily review left his personal profile, 20.10.2026 */, irit: ['המשימות שלי', 'לקוחות', 'בקרה יומית'] };
 
@@ -143,12 +141,12 @@ for (const role of ['owner', 'lior', 'ofir', 'irit']) {
     await page.click('#profile-switch');
     await page.waitForURL(new RegExp(`${HOME[role].replace('.', '\\.')}$`));
     await page.waitForSelector('#profile-switch[data-to="mine"]');
-    await page.waitForSelector(role === 'lior' ? '#view-all:not([hidden])' : '#view-now:not([hidden])');
+    await page.waitForSelector('#view-now:not([hidden])'); // Lior too since 4.11.2026 (until then "כל הלקוחות במבט")
     await settle(page);
     assert.deepEqual(await sw(page), ['חזרה למשימות שלי', 'clients.html#mine', 'mine'], role);
     assert.deepEqual(await menu(page), MANAGER[role], role);
     assert.equal(await page.locator('#side-mine').count(), 0, 'the way back is the button');
-    assert.equal(await page.getAttribute(role === 'lior' ? '#side-overview' : '#side-manager', 'aria-current'), 'page');
+    assert.equal(await page.getAttribute('#side-manager', 'aria-current'), 'page');
     assert.deepEqual(await headLinks(page), [], role);
     await shot(page, `${role}-manager-1366`);
 
@@ -216,12 +214,11 @@ await step('a manager screen opened by its address opens in the manager profile;
   assert.deepEqual(await menu(l.page), MANAGER.lior);
   await l.page.goto(`${BASE}owner.html#shoots`);
   await l.page.waitForSelector('#view-shoots:not([hidden])');
-  // The table is a tab of "כל הלקוחות במבט" (its own menu entry left on 20.10.2026).
-  await l.page.waitForSelector('#side-overview[aria-current="page"]');
-  assert.equal(await l.page.locator('#side-shoot-table').count(), 0);
+  // The table is its own menu entry again since 4.11.2026 (the managers have every screen of the owners').
+  await l.page.waitForSelector('#side-shoot-table[aria-current="page"]');
   await l.page.goto(`${BASE}decisions.html`);
   await l.page.waitForSelector('#side-decisions[aria-current="page"]');
-  assert.deepEqual(await sw(l.page), ['מבט מנהל', 'owner.html#all', 'manager']);
+  assert.deepEqual(await sw(l.page), ['מבט מנהל', 'owner.html#now', 'manager']);
   await l.ctx.close();
 });
 
@@ -307,13 +304,13 @@ await step('nothing that needs action is lost in the personal profile: the cards
   assert.equal(new URL(o.page.url()).hash, '#team');
   assert.equal(await o.page.innerText('#profile-switch'), 'חזרה למשימות שלי');
   await o.ctx.close();
-  // Lior: his decisions and the clients' messages are one tap away, and no seller's deal (it carries a price).
+  // Lior: his decisions and the clients' messages are one tap away, and the sellers' deals since 4.11.2026 (the managers).
   const l = await open('lior');
   await l.page.waitForSelector('#profile-switch');
   await l.page.waitForSelector('#view-mine:not([hidden])');
   await settle(l.page);
   assert.equal(await l.page.getAttribute('#side-decisions', 'href'), 'decisions.html');
-  assert.equal(await l.page.locator('#deals-card').isVisible(), false);
+  await l.page.waitForSelector('#deals-card:not([hidden])');
   await l.ctx.close();
 });
 
@@ -416,7 +413,7 @@ await step('nobody without profiles has a button or a switch', async () => {
   }
 });
 
-await step('money: the amounts in "הצעות שנשלחו" are the owners\' and Ofir\'s; Irit has the list without them; the rest have no access', async () => {
+await step('money: the amounts in "הצעות שנשלחו" are the owners\' and the managers\' (Irit and Lior since 4.11.2026); the rest have no access', async () => {
   const MONEY = /₪/;
   const { page, ctx } = await open('owner', { path: 'quotes.html' });
   await page.waitForSelector('#rows tr');
@@ -433,10 +430,10 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
   await i.page.waitForSelector('#rows tr');
   await settle(i.page);
   assert.equal(await i.page.locator('#rows tr').count(), 3, 'Irit has every quote: she sends, corrects and cancels them');
-  assert.equal(await i.page.locator('#th-amt').isVisible(), false);
-  assert.equal(await i.page.locator('#rows td.amt').count(), 0);
-  assert.equal(MONEY.test(await i.page.innerText('main')), false, 'no amount anywhere on Irit\'s list');
-  assert.equal(/נחתם החודש · כולל מע״מ/.test(await i.page.innerText('#stats')), false);
+  // With the amounts since 4.11.2026 (a manager).
+  assert.equal(await i.page.locator('#th-amt').isVisible(), true);
+  assert.equal(await i.page.locator('#rows td.amt').count(), 3);
+  assert.match(await i.page.innerText('#stats'), /נחתם החודש · כולל מע״מ/);
   assert.ok(await i.page.locator('#rows [data-act="edit"], #rows button').count() > 0, 'her actions are there');
   assert.equal(await i.page.locator('#no-access').isVisible(), false);
   await shot(i.page, 'quotes-irit-1366');
@@ -470,7 +467,8 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
     await o.ctx.close();
   }
 
-  for (const role of ['lior', 'ilai', 'nadia', 'eli']) {
+  // Lior has the list with its amounts since 4.11.2026 (tests/managers-all-e2e.mjs).
+  for (const role of ['ilai', 'nadia', 'eli']) {
     // Signed in, then the page by its address. (A sign-in ON a page that is not theirs takes
     // them home instead of showing the refusal: docs/ops.md, section 54; tests/phone-bugs-e2e.mjs.)
     const x = await open(role);
@@ -484,12 +482,11 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
     assert.equal(await x.page.locator('#rows tr').count(), 0, role);
     assert.equal(MONEY.test(await x.page.innerText('body')), false, role);
     assert.equal(await x.page.getAttribute('#no-access a', 'href'), 'clients.html#mine');
-    if (role === 'lior') { await shot(x.page, 'quotes-lior-no-access-1366'); await x.page.setViewportSize(PHONE); await x.page.waitForTimeout(200); await shot(x.page, 'quotes-lior-no-access-390'); }
     await x.ctx.close();
   }
 });
 
-await step('money: the price columns of the manager table are the owners\'; the sellers\' deals are Irit\'s and the owners\'', async () => {
+await step('money: the price columns of the manager table and the sellers\' deals are the owners\' and the managers\' (4.11.2026)', async () => {
   const heads = async (role) => {
     const x = await open(role, { path: 'owner.html#table' });
     await x.page.waitForSelector('#mt-head th');
@@ -500,13 +497,9 @@ await step('money: the price columns of the manager table are the owners\'; the 
   };
   const owner = await heads('owner');
   assert.ok(owner.some((t) => /חודשי/.test(t)) && owner.some((t) => /סה״כ חוזה/.test(t)), `the owner's columns: ${owner}`);
-  for (const role of ['irit', 'ofir', 'lior']) {
-    const cols = await heads(role);
-    assert.equal(cols.some((t) => /חודשי|סה״כ חוזה|מע״מ/.test(t)), false, `${role}: ${cols}`);
-    assert.ok(cols.length < owner.length, role);
-  }
+  for (const role of ['irit', 'ofir', 'lior']) assert.deepEqual(await heads(role), owner, role);
   // The deals card with the discount or the price that was agreed.
-  for (const [role, sees] of [['owner', true], ['irit', true], ['lior', false], ['ofir', false], ['ilai', false]]) {
+  for (const [role, sees] of [['owner', true], ['irit', true], ['lior', true], ['ofir', true], ['ilai', false]]) {
     const x = await open(role, { path: 'clients.html#mine' });
     await x.page.waitForSelector('#view-mine:not([hidden])');
     await settle(x.page);
@@ -564,7 +557,7 @@ await step('a phone: the button is 44px high and in the same place on every page
       assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
       for (const h of await page.locator('.tabs [role=tab]:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `a tab is ${h}px`);
       await page.click('#side-more');
-      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['מעבר על הלקוחות', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "יומן": 15.10.2026; her pass: 26.10.2026
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['בקרה ושיוך', 'מעבר על הלקוחות', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "יומן": 15.10.2026; her pass: 26.10.2026; "בקרה ושיוך": 3.11.2026
       await page.keyboard.press('Escape');
       await page.click('#tab-control');
       await page.waitForSelector('#view-control:not([hidden])');
