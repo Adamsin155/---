@@ -18,6 +18,7 @@ import { shootHistory } from '../app/shoot-table.js';
 import { importKeys } from '../app/client-open.js';
 import { dateIL } from '../app/tz.js';
 import { stationChange, suggestFor, thursdayVars } from '../app/messages-logic.js';
+import { runTick } from '../supabase/functions/reminders/tick.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const NOV4 = IL(2026, 11, 4, 10); // Wednesday
@@ -219,4 +220,69 @@ test('Irit\'s messages to the client: nothing of a shoot day or a move of statio
   }
   const vars = thursdayVars(w.c, w.checks, clientState(w.c, w.checks, IL(2026, 11, 5, 12)), IL(2026, 11, 5, 12));
   assert.doesNotMatch(JSON.stringify(vars), /יום צילום|תסריט/);
+});
+
+// ── The reminders function's tick (supabase/functions/reminders/tick.js) ──
+function tickDb(clients, rows, { refuse = false, stale = false } = {}) {
+  const db = {
+    clients, rows, log: [], writes: [], nextId: 1,
+    async load() { return { clients: db.clients.map((c) => ({ ...c, rounds: [...c.rounds] })), checks: db.rows.map((r) => ({ ...r })), tasks: [], staff: STAFF, access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [], log: [] }; },
+    async known() { return new Set(); },
+    async insertLog(list) { const out = list.map((r) => ({ id: db.nextId++, created_at: new Date().toISOString(), attempts: 0, ...r })); db.log.push(...out); return out; },
+    async reclaim() { return []; },
+    async updateLog() {},
+    // As index.ts: the round only when the row is the one loaded; the marks never over one that exists.
+    async openMonthlyRound({ client, rounds, marks }) {
+      if (refuse) throw Object.assign(new Error('refused'), { code: '42501' });
+      const row = db.clients.find((c) => c.id === client.id);
+      if (rounds) {
+        if (stale || row.updated_at !== client.updated_at) return false;
+        row.rounds = rounds;
+        row.updated_at = new Date(Date.parse(row.updated_at) + 1000).toISOString();
+      }
+      for (const m of marks) if (!db.rows.some((r) => r.client_id === client.id && r.item_key === m.item_key)) db.rows.push({ client_id: client.id, ...m, by_email: 'system', at: new Date().toISOString() });
+      db.writes.push(client.id);
+      return true;
+    },
+  };
+  return db;
+}
+const noPush = async () => ({ ok: true, status: 201 });
+
+test('the tick opens the month once; again the same minute or the next day: nothing', async () => {
+  const c = client({ name: 'אלאור בוטיק' });
+  const other = client({ deliverables: { videos: 8 } });
+  const db = tickDb([c, other], [...Object.values(history(c)), ...Object.values(history(other))]);
+  const s1 = await runTick({ db, push: noPush, now: NOV4 });
+  assert.equal(s1.monthly, 1);
+  assert.equal(s1.monthlyFailed, 0);
+  assert.deepEqual(db.clients[0].rounds, [{ n: 2, month: '2026-11', monthly: true, editor: 'anna', start_at: NOV4.toISOString() }]);
+  assert.deepEqual(db.clients[1].rounds, []);
+  assert.equal(db.rows.filter((r) => r.item_key.startsWith('r2.')).length, NA_KEYS.length + 2);
+  assert.equal(db.rows.find((r) => r.item_key === 'r2.p22a.assigned').note, MONTHLY_NOTE);
+  // This tick already saw the round: the editor's own "new client in editing" went out, nobody else's.
+  const told = db.log.filter((r) => /:r2-/.test(r.key));
+  assert.ok(told.length && told.every((r) => r.person === 'anna'), told.map((r) => `${r.person} ${r.key}`).join());
+  for (const at of [IL(2026, 11, 4, 10, 1), IL(2026, 11, 5, 9)]) {
+    const s = await runTick({ db, push: noPush, now: at });
+    assert.equal(s.monthly, 0);
+  }
+  assert.deepEqual(db.writes, [c.id]);
+  assert.equal(db.clients[0].rounds.length, 1);
+});
+
+test('the tick: a row changed since it was loaded writes nothing; a refusal is counted and the tick goes on', async () => {
+  const c = client();
+  const stale = tickDb([c], Object.values(history(c)), { stale: true });
+  const s1 = await runTick({ db: stale, push: noPush, now: NOV4 });
+  assert.deepEqual([s1.monthly, s1.monthlyFailed, stale.clients[0].rounds.length, stale.rows.some((r) => r.item_key.startsWith('r2.'))], [0, 0, 0, false]);
+  const refused = tickDb([client()], [], { refuse: true });
+  refused.rows = Object.values(history(refused.clients[0]));
+  const s2 = await runTick({ db: refused, push: noPush, now: NOV4 });
+  assert.deepEqual([s2.monthly, s2.monthlyFailed, s2.errors], [0, 1, 0]);
+  // A database without the write (an older adapter): the tick runs as before.
+  const plain = tickDb([client()], []);
+  delete plain.openMonthlyRound;
+  const s3 = await runTick({ db: plain, push: noPush, now: NOV4 });
+  assert.equal(s3.monthly, 0);
 });
