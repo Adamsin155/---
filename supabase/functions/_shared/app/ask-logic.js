@@ -16,8 +16,14 @@
 //   the errors    the function's short codes, in plain Hebrew for the page.
 // Never passwords: no tool reads the vault or the clients' logins (public.client_access and
 // everything around it), not even their statuses. Money (prices, quote amounts, income) only for
-// the two owners, as everywhere in the app (public.sees_money(), seesFinance in manager-rules.js).
+// the owners and the managers (Irit, Ofir, Lior since 4.11.2026), as everywhere in the app
+// (public.sees_income(), seesFinance in manager-rules.js).
 import { isOwnerView } from './team-rules.js';
+
+// The database function the ask and mcp functions ask for money, and the one before its migration
+// (supabase/migrations/20261128100000_managers_all.sql): asked when the first one is missing.
+export const MONEY_RPC = 'sees_income';
+export const MONEY_RPC_BEFORE = 'sees_money';
 import { PEOPLE } from './protocol.js';
 
 // Who asks besides the owners: first "לאופיר, אדם, ליאור ועידן", then Irit and Ilai, and on the

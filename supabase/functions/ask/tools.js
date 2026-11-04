@@ -9,7 +9,8 @@
 //      there is no rpc at all: no tool can ask for a password, nor whether one is in place;
 //   2. the columns: every read names its columns (never "*"); a client's notes, phone, email and
 //      address are not read (the notes are free text, where anything may have been written);
-//   3. money: prices, quote amounts and income only when public.sees_money() (the two owners).
+//   3. money: prices, quote amounts and income only when public.sees_income() (the owners and the
+//      managers Irit, Ofir and Lior since 4.11.2026; the ask and mcp handlers ask it).
 //      The sales tool asks for money columns only then, and `withoutMoney` takes every money
 //      field out of anything a tool returns to anyone else, as a last net.
 // Every list is capped (ROW_CAP rows, and OUTPUT_MAX characters for a whole tool answer).
@@ -132,7 +133,7 @@ export const TOOLS = [
   },
   {
     name: 'client_details',
-    description: 'Everything known about one client: status, package, what they are owed (videos, graphics, shoot days, this month\'s videos for a monthly client), dates, shoot rounds, editors and how many videos were edited, protocol progress, open and late tasks, this month\'s content Gantt, links. Money only for the owners.',
+    description: 'Everything known about one client: status, package, what they are owed (videos, graphics, shoot days, this month\'s videos for a monthly client), dates, shoot rounds, editors and how many videos were edited, protocol progress, open and late tasks, this month\'s content Gantt, links. Money only for the owners and the managers.',
     input_schema: { type: 'object', properties: { client: str('The client\'s name (or part of it).') }, required: ['client'], additionalProperties: false },
   },
   {
@@ -166,7 +167,7 @@ export const TOOLS = [
   },
   {
     name: 'sales',
-    description: 'The field sales\' deals and the quotes/contracts sent: counts by status and seller in a period. Amounts only for the owners.',
+    description: 'The field sales\' deals and the quotes/contracts sent: counts by status and seller in a period. Amounts only for the owners and the managers.',
     input_schema: { type: 'object', properties: { from: str('YYYY-MM-DD, default the 1st of this month.'), to: str('YYYY-MM-DD, default today.') }, additionalProperties: false },
   },
   {
@@ -289,7 +290,7 @@ async function clientDetails(ctx, i) {
     // The client's own pages in the app (the card, and its content Gantt).
     app_links: { card: clientLink(c.id), gantt: ganttLink(c.id) },
   };
-  // The agreement's price: the owners only (public.sees_money()); nobody else's query asks for it.
+  // The agreement's price: the owners and the managers only (public.sees_income()); nobody else's query asks for it.
   if (ctx.seesMoney && c.quote_id) {
     const q = await rows(ctx.db.from('quotes').select('number, status, monthly_gross_agorot, term_gross_agorot, signed_at').eq('id', c.quote_id).limit(1));
     out.agreements = q.map((x) => ({ number: x.number, status: x.status, signed: day(x.signed_at), monthly_price_ils: shekels(x.monthly_gross_agorot), term_total_ils: shekels(x.term_gross_agorot) }));

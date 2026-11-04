@@ -2,25 +2,20 @@
 // Deno APIs so node can test them (tests/staff-admin.test.mjs) and the function can
 // import them. Who may do what:
 //  - The owner (staff.person is null): everything.
-//  - Irit and Lior (TEAM_MANAGERS): list the team, add a staff row for someone who
-//    is not a manager and has no login yet, and make sign-in links only for people
-//    outside the office who have no vault (the editors, Eli, the sales agents), and
-//    for themselves. A sign-in link lets its holder into that account (whoever opens
-//    it first chooses the password), so the links of the owner, a payouts owner, the
-//    office accounts (OFFICE_PERSONS) and every account with the vault are made by
-//    the owner alone: first sign-in (invite) and forgotten password (recovery) alike.
-//  - Only the owner sets the vault flag, removes a row, adds an email that already
-//    has a login, or creates or changes the owner's row or a manager's row (a
-//    manager can make links for others, so that power is granted by the owner alone).
-//  - A WhatsApp number (for the handoff buttons) is contact details, not a power:
-//    the owner, Irit and Lior set anyone's on the team. The owner's row keeps no
-//    number (no handoff goes there). Only an Israeli mobile number is kept, as 972XXXXXXXXX.
+//  - Irit, Lior and Ofir (TEAM_MANAGERS): the list of the team, read-only. Since 4.11.2026
+//    (the owner's decision; docs/ops.md, section 96) every action is the owner's alone: adding
+//    or changing a staff row, the vault flag, removing a row, a sign-in link (whoever opens it
+//    first chooses that account's password) and a WhatsApp number. Until then Irit and Lior
+//    added rows for people outside the office, made their links and set the numbers; the
+//    manager branches below stay as a second fence and refuse the same.
+//  - The owner's row keeps no number (no handoff goes there). Only an Israeli mobile number is
+//    kept, as 972XXXXXXXXX.
 
 // Keep in step with TEAM_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
 // function cannot import files from outside its folder.
 export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos'];
-export const TEAM_MANAGERS = ['irit', 'lior'];
+export const TEAM_MANAGERS = ['irit', 'lior', 'ofir'];
 // The office accounts: they see every client, the quotes and the office screens
 // (public.is_office() in the database; SCOPE 'office' and Ilai in app/protocol.js).
 // Keep in step with OFFICE_PERSONS in app/team-rules.js (the unit tests compare them).
@@ -143,6 +138,7 @@ export function planUpsert({ role, callerEmail, existing, input, personTaken = f
   if (person !== null && !PERSONS.includes(person)) return fail(400, ERR.badPerson);
   if (input.vault !== undefined && typeof input.vault !== 'boolean') return fail(400, ERR.badRequest);
   if (input.mode === 'add' && existing) return fail(409, ERR.emailTaken);
+  if (role === 'manager') return fail(403, ERR.ownerOnly);
   if (role !== 'owner') {
     if (role !== 'manager') return fail(403, ERR.notAllowed);
     if (input.vault !== undefined) return fail(403, ERR.ownerOnly);
@@ -166,6 +162,7 @@ export function planUpsert({ role, callerEmail, existing, input, personTaken = f
 // the staff list, so a number there would only be exposed.
 export function planPhone({ role, target, input }) {
   if (role !== 'owner' && role !== 'manager') return fail(403, ERR.notAllowed);
+  if (role !== 'owner') return fail(403, ERR.ownerOnly);
   if (!target) return fail(404, ERR.notStaff);
   if (isOwnerRow(target)) return fail(role === 'owner' ? 400 : 403, role === 'owner' ? ERR.ownerNoPhone : ERR.ownerOnly);
   const v = input?.phone;
@@ -196,6 +193,7 @@ export const linkByOwnerOnly = (row) => isOwnerRow(row) || OFFICE_PERSONS.includ
 // (which opens nothing the manager does not already have).
 export function planLink({ role, me = null, target, redirectTo, targetIsPayoutOwner = false }) {
   if (role !== 'owner' && role !== 'manager') return fail(403, ERR.notAllowed);
+  if (role !== 'owner') return fail(403, ERR.ownerOnly);
   if (!target) return fail(404, ERR.notStaff);
   if (role !== 'owner') {
     if (isOwnerRow(target) || targetIsPayoutOwner) return fail(403, ERR.ownerOnly);

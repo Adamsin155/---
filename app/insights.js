@@ -331,6 +331,8 @@ export function computeInsights({ clients = [], checks = {}, log = null, tasks =
 
 // Who opens the page: the owner, and Lior read-only (decision 22 gives him the team
 // screen). The link to the payouts app is the owner's alone.
-export const canSeeInsights = (v) => !!v && !v.error && ((!v.me && v.scope === 'office') || v.me === 'lior');
+// The owners and Lior; Irit and Ofir since 4.11.2026 (the managers; docs/ops.md, section 96).
+export const INSIGHTS_VIEWERS = ['lior', 'irit', 'ofir'];
+export const canSeeInsights = (v) => !!v && !v.error && ((!v.me && v.scope === 'office') || INSIGHTS_VIEWERS.includes(v.me));
 export const canSeePayouts = (v) => !!v && !v.error && !v.me && v.scope === 'office';
 export const pct = (r) => (r === null || r === undefined ? '—' : `${Math.round(r * 100)}%`);

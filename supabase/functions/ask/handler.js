@@ -11,14 +11,15 @@
 //     (app/ask-guide.js), with the viewer the function builds from my_person() (never the page's);
 //   - Claude reads the system only through ./tools.js, as the person who asked (their JWT goes
 //     with every read, so row level security answers what their own screens answer); never the
-//     vault or the clients' logins; money only for the owners (public.sees_money());
+//     vault or the clients' logins; money only for the owners and the managers (public.sees_income(),
+//     4.11.2026; before its migration public.sees_money(), the owners');
 //   - at most MAX_ROUNDS rounds of tools, MAX_TOKENS a reply, RATE_PER_MINUTE questions a minute
 //     for each person; the key is the secret ANTHROPIC_API_KEY (as contract-ai): never logged,
 //     never sent back. Without it: 503 { error: 'ai_not_configured' };
 //   - the Drive listing (../_shared/drive.js) only when the secret GOOGLE_DRIVE_SERVICE_ACCOUNT
 //     is set; without it the drive tool answers "הדרייב עוד לא מחובר" and everything else works;
 //   - nothing is kept and nothing is logged but a short code (no question, no answer, no rows).
-import { mayAsk, cleanQuestion, cleanHistory } from '../_shared/app/ask-logic.js';
+import { mayAsk, cleanQuestion, cleanHistory, MONEY_RPC, MONEY_RPC_BEFORE } from '../_shared/app/ask-logic.js';
 import { PEOPLE, scopeOf } from '../_shared/app/protocol.js';
 import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
 import { TOOLS, runTool, guardDb } from './tools.js';
@@ -65,7 +66,7 @@ export const SYSTEM = [
   'Use the tools to read the system; never guess a number. If the tools do not hold the answer, say so in one line and say what you can tell instead.',
   'The tools read the system with the rights of the person asking: what they cannot see is simply missing. Never mention tools, JSON, tables or databases.',
   'Passwords and the clients\' logins are never available here: if asked, say that passwords are only in the vault in the client\'s card.',
-  'When the tools hold no money fields, the person does not see prices or income: if asked about money, say that money is shown to the owners only.',
+  'When the tools hold no money fields, the person does not see prices or income: if asked about money, say that money is shown to the owners and the managers only.',
   'For a list or a total over many clients of what they are still owed (videos, graphics, shoot days…: "לכל לקוח כמה תכנים הוא לא קיבל"), call content_owed once, never client_details client by client: answer with the totals and the top few owing clients (up to 10, one short line each), then offer the rest.',
   'When several clients match a name, ask which one, listing them. When a Drive file is asked for, give its link.',
   'The person asking may be an owner, a manager, Ilai (graphics), an editor, the photographer or a field sales agent: answer only from what the tools return for them, never from what others might see.',
@@ -162,7 +163,9 @@ export function makeHandler(deps) {
     const user = userData?.user;
     if (!user) return json(401, { error: 'not_signed_in' });
     // Who asks: the database decides, not the menu.
-    const [office, person, money] = await Promise.all(['is_office', 'my_person', 'sees_money'].map((fn) => userClient.rpc(fn)));
+    const [office, person, income] = await Promise.all(['is_office', 'my_person', MONEY_RPC].map((fn) => userClient.rpc(fn)));
+    // Before the migration of 4.11.2026 there is no sees_income(): the owners' sees_money() then.
+    const money = income.error ? await userClient.rpc(MONEY_RPC_BEFORE) : income;
     const ok = !office.error && !person.error && mayAsk({ office: office.data, person: person.data ?? null });
     if (!ok) return json(403, { error: 'not_allowed' });
     const seesMoney = !money.error && money.data === true;

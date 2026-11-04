@@ -10,7 +10,8 @@ import { loadBrands, loadNoBrand } from './gantt-data.js';
 // Who sees the line: the office (the owners, Irit, Lior, Ofir) and Ilai.
 export const seesMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (scope === 'office' || me === 'ilai');
 // Who connects a brand (public.metricool_connect): Ofir (his step since v11), Ilai and the owner.
-export const connectsMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (me === 'ofir' || me === 'ilai' || (me === null && scope === 'office'));
+// Irit and Lior too since 4.11.2026 (public.can_connect_metricool).
+export const connectsMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (['ofir', 'ilai', 'irit', 'lior'].includes(me) || (me === null && scope === 'office'));
 
 // The words of the line. `brand` undefined: the columns are not there yet (no line).
 // { text, tone ('ok' | 'warn' | 'plain'), failed (words or null), connect (bool) }

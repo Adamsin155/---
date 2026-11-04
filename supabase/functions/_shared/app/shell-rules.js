@@ -20,8 +20,8 @@ import {
 const known = (v) => !!v && !v.error;
 const officeOf = (v) => known(v) && v.scope === 'office';
 // As canSendMessages (messages-logic.js), canSeeInsights (insights.js), canSeeAllClients (health.js).
-const sendsMessages = (v) => known(v) && ((!v.me && v.scope === 'office') || ['irit', 'lior'].includes(v.me));
-const seesInsights = (v) => known(v) && ((!v.me && v.scope === 'office') || v.me === 'lior');
+const sendsMessages = (v) => known(v) && ((!v.me && v.scope === 'office') || ['irit', 'lior', 'ofir'].includes(v.me));
+const seesInsights = (v) => known(v) && ((!v.me && v.scope === 'office') || ['lior', 'irit', 'ofir'].includes(v.me));
 const seesAllClients = (v) => canSeeTable(v);
 // The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
 // field sales (as seesCalendar in calendar-view.js).
@@ -49,8 +49,10 @@ export const listsAllClients = (me) => ALL_CLIENTS_PEOPLE.includes(me);
 export const writesChar = (v) => known(v) && (v.scope === 'office' || MEETING_PEOPLE.includes(v.me)) && (!v.me || CHAR_WRITERS.includes(v.me));
 // The index of the content Gantt: the office, Ilai and Noam (as worksCycle in month-ui.js).
 export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai' || v.me === 'noam');
-// Who changes a Gantt: Ilai, Irit (22.10.2026) and the owner (public.can_edit_gantt() decides).
-export const editsGantt = (v) => known(v) && (v.me === 'ilai' || v.me === 'irit' || (!v.me && v.scope === 'office'));
+// Who changes a Gantt: Ilai, Irit (22.10.2026), Ofir and Lior (4.11.2026) and the owner
+// (public.can_edit_gantt() decides).
+export const GANTT_EDITORS = ['ilai', 'irit', 'ofir', 'lior'];
+export const editsGantt = (v) => known(v) && (GANTT_EDITORS.includes(v.me) || (!v.me && v.scope === 'office'));
 
 // The office screens, one order everywhere: Ofir's queue, the pass over the clients (Irit's
 // since 26.10.2026; Ofir, who did it until then, and the owner look at it), Lior's decisions
@@ -61,9 +63,10 @@ export function officeScreens(viewer) {
   const ok = known(viewer);
   const owner = ok && !me && viewer.scope === 'office';
   return [
+    // Since 4.11.2026 all three for Irit, Ofir and Lior too (the managers have every screen of the owners').
     ['qa', 'qa.html', 'בקרה ושיוך', me === 'ofir' || me === 'lior' || me === 'irit' || owner],
-    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'irit' || me === 'ofir' || owner, 'מעבר'],
-    ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || owner],
+    ['pass', 'pass.html', 'מעבר על הלקוחות', me === 'irit' || me === 'ofir' || me === 'lior' || owner, 'מעבר'],
+    ['decisions', 'decisions.html', 'החלטות', me === 'lior' || me === 'ofir' || me === 'irit' || owner],
     ['insights', 'insights.html', 'תובנות', seesInsights(viewer)],
     ['year', 'year.html', 'שנת החבילה', ok && (viewer.scope === 'office' || me === 'ilai')],
   ].filter(([, , , show]) => show).map(([id, href, label, , short]) => (short ? { id, href, label, short } : { id, href, label }));
@@ -111,7 +114,8 @@ export function menuOf(viewer) {
   // never takes a place in the bottom bar (barOf), so that nobody's bar changes.
   if (canAsk(viewer)) list.push(ASK_ITEM);
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
-  // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners.
+  // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners
+  // only, also after 4.11.2026 (the managers have everything else of the owners' menu).
   if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
   return unique(list);
 }
@@ -181,10 +185,11 @@ const IN_BOTH = ['clients'];
 //   ofir  his manager profile without "גאנט תוכן", "שנת החבילה" and "לפני יום צילום"
 //         (Ilai's and Irit's work). "החלטות" (as Lior's backup) and "ימי צילום" stay
 //         until the owner decides (one line here to take back).
+// Since 4.11.2026 (the owner: the managers get every screen the owners' menu shows; docs/ops.md,
+// section 96) nothing is left out of Lior's and Ofir's menus: until then Lior's lacked
+// 'qa', 'prep', 'shoot-table' and Ofir's 'gantt', 'year', 'prep'.
 export const NOT_IN_MENU = {
-  lior: ['qa', 'prep', 'shoot-table'],
   ilai: ['year', 'calendar'],
-  ofir: ['gantt', 'year', 'prep'],
 };
 const shownIn = (viewer) => { const out = NOT_IN_MENU[known(viewer) ? viewer.me : null] || []; return (it) => !out.includes(it.id); };
 const profileKey = (viewer) => (hasProfiles(viewer) ? viewer.me || 'owner' : null);

@@ -310,7 +310,7 @@ export function uploadStepOf(key, person, clientId = '') {
 
 // ── The client's gallery link ─────────────
 // Irit, Lior and the owner make it (public.can_manage_status_links()).
-export const LINK_MANAGERS = ['irit', 'lior'];
+export const LINK_MANAGERS = ['irit', 'lior', 'ofir']; // Ofir since 4.11.2026 (public.can_manage_status_links)
 export const canManageGallery = (me) => me === null || LINK_MANAGERS.includes(me);
 export const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 // The token rides in the fragment (app/link-token.js): it reaches no log of the host.

@@ -32,7 +32,7 @@ export function cardAssignMode({ viewer, client, checks = {}, state = null }) {
 // "החזרה לשיוך" (the owner, 4.11.2026: a client assigned by mistake): the editor leaves the card and
 // 22א opens again, so the client is back on qa.html's "מחכים לשיוך עורך". Irit, Ofir and the owners.
 // What the editor already marked stays in the history (and counts again once someone is assigned).
-export const UNASSIGNERS = ['ofir', 'irit'];
+export const UNASSIGNERS = ['ofir', 'irit', 'lior']; // Lior since 4.11.2026 (the managers)
 export const canUnassign = (v) => isOwnerView(v) || (!!v && !v.error && v.scope === 'office' && UNASSIGNERS.includes(v.me));
 // The marks of the assignment that are taken back (the client's own shoot; a round's carry its prefix).
 export const UNASSIGN_KEYS = (pre = '') => ['p22a.assigned', 'p22a.load', 'p22a.irit', 'p22a.reason', 'p22a.handoff.editor'].map((k) => pre + k);

@@ -23,6 +23,9 @@ import {
   clientStatus, nextState, toSchedule, weekOf, nextPost, addDays,
 } from './gantt-logic.js';
 import { isOwnerView } from './team-rules.js';
+// Who changes a Gantt besides the owners: GANTT_EDITORS in app/shell-rules.js (a copy here, so the
+// client's public view loads no menu module; tests/managers-all.test.mjs holds them equal).
+export const GANTT_EDITORS = ['ilai', 'irit', 'ofir', 'lior'];
 import { clientLabel } from './protocol-logic.js';
 import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
@@ -124,9 +127,9 @@ async function boot() {
     const id = params.get('id');
     const [dir, viewer] = await Promise.all([loadDirectory().catch(() => ({})), ui.viewerOf(staff.email)]);
     Object.assign(ui.directory, dir);
-    // Ilai, Irit (22.10.2026) and the owner change the Gantt; the office (Lior, Ofir) reads and shares the client's link.
+    // Ilai, Irit (22.10.2026), Ofir and Lior (4.11.2026) and the owner change the Gantt; the rest of the office reads and shares the client's link.
     canShare = worksCycle(viewer);
-    canEdit = !viewer.error && (viewer.me === 'ilai' || viewer.me === 'irit' || isOwnerView(viewer));
+    canEdit = !viewer.error && (GANTT_EDITORS.includes(viewer.me) || isOwnerView(viewer)); // Ofir and Lior since 4.11.2026
     canConnect = canConnectMetricool(viewer);
     if (canEdit) driveUi = await import('./gantt-drive.js').catch(() => null);
     $('nav-year').hidden = !canShare;

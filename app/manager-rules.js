@@ -1,27 +1,39 @@
 // Who is a manager, and the two profiles a manager switches between (the owner's
 // decision, 3.10.2026): the owner (Adam, no person), Ofir and Irit see everything and
 // switch between "המשימות שלי" (their own tasks, clients.html#mine) and the manager
-// profile (owner.html: "מה דורש אותי", "כל הלקוחות במבט" and the table). Lior sees
-// everything except money: "כל הלקוחות במבט" and the table without its price
-// columns, and no switch. Everyone else sees only what they must do.
+// profile (owner.html: "מה דורש אותי", "כל הלקוחות במבט" and the table). Until 4.11.2026 Lior
+// saw everything except money (screen 2 and the table without its prices); since then he is a
+// manager as Irit and Ofir, with the money. Everyone else sees only what they must do.
 // Screens only; the database decides (supabase/migrations/20261003140000_manager_features.sql:
 // is_manager(), can_archive_clients(), manager_client_finance()). No DOM here, so
 // node can test it (tests/manager.test.mjs).
 import { isOwnerView } from './team-rules.js';
 
-export const MANAGERS = ['irit', 'ofir'];     // and the owner
-export const ARCHIVERS = ['ofir'];            // and the owner: archive and delete clients
+// Irit, Ofir and Lior (the owner's decision of 4.11.2026; docs/ops.md, section 96): what the
+// owners have and what any staff member can do, except security and the payments app. One list,
+// the managers' (MANAGERS): every manager screen and work action, the money, the archive.
+// What stays the owners' alone (isOwnerView): the payments app, the team page's actions
+// (sign-in links, adding or removing staff, the vault flag and code, WhatsApp on and off, the
+// Claude connector), the permanent purge of a client (canPurge), the evening summary's message.
+// In the database: public.sees_income() and public.is_manager()
+// (supabase/migrations/20261128100000_managers_all.sql); public.sees_money() stays the owners'.
+export const MANAGERS = ['irit', 'ofir', 'lior'];  // and the owner
+export const ARCHIVERS = MANAGERS;                  // and the owner: archive and restore a client
 export const TABLE_VIEWERS = ['irit', 'ofir', 'lior'];
-export const SHOOT_TABLE_VIEWERS = ['ofir', 'lior']; // and the owner: "טבלת ימי צילום" (6.10.2026)
+export const SHOOT_TABLE_VIEWERS = ['ofir', 'lior', 'irit']; // and the owner: "טבלת ימי צילום" (6.10.2026; Irit 4.11.2026)
 
 const known = (v) => !!v && !v.error;
 export const isManager = (v) => isOwnerView(v) || (known(v) && MANAGERS.includes(v.me));
 export const canArchive = (v) => isOwnerView(v) || (known(v) && ARCHIVERS.includes(v.me));
-// Money (the owner's decision, 6.10.2026): the prices of the agreements in the table and
-// in its CSV, the amounts in the list of sent quotes, and every sum of income, are the
-// two owners' only. In the database: public.sees_money()
-// (supabase/migrations/20261013100000_money_owners_only.sql).
-export const seesFinance = (v) => isOwnerView(v);
+// The permanent purge of an archived client: the owners only (public.can_archive_clients(),
+// which public.purge_client() asks; Ofir until 4.11.2026).
+export const canPurge = (v) => isOwnerView(v);
+// Money (the owner's decision, 6.10.2026; the managers since 4.11.2026): the prices of the
+// agreements in the table and in its CSV, the amounts in the list of sent quotes, and every
+// sum of income: the owners and the managers. In the database: public.sees_income()
+// (supabase/migrations/20261128100000_managers_all.sql). The payments app is not this: it
+// stays public.payout_owners' (the menu's "אסטרטג פיימנט" is isOwnerView's).
+export const seesFinance = (v) => isManager(v);
 // The list of sent quotes (quotes.html): the owners, and Irit, who builds the contracts
 // (she sees it without the amounts). public.quotes answers nobody else, except with the
 // quotes a person made, and the approvers with the contracts that wait for them.
@@ -29,15 +41,15 @@ export const seesFinance = (v) => isOwnerView(v);
 export const QUOTE_LIST_VIEWERS = ['irit'];
 // The same list WITH its amounts and the month's two sums ("נשלח החודש", "נחתם החודש"):
 // the owners, and Ofir since 29.10.2026 (the owner: "לאופיר את העסקאות של חודש ... כמו שאתה
-// רואה"). Only this screen: every other sum of income, the prices in the table and the
-// payments stay the owners' (seesFinance). In the database: public.sees_quote_money()
-// (supabase/migrations/20261114100000_ofir_deals.sql).
-export const QUOTE_MONEY_VIEWERS = ['ofir'];
+// רואה"), and Irit and Lior since 4.11.2026 (the managers: every sum of income is theirs too,
+// seesFinance; the payments app stays the owners'). In the database: public.sees_quote_money(),
+// which asks public.sees_income() (supabase/migrations/20261128100000_managers_all.sql).
+export const QUOTE_MONEY_VIEWERS = MANAGERS; // Ofir since 29.10.2026, Irit and Lior since 4.11.2026
 export const seesQuoteMoney = (v) => isOwnerView(v) || (known(v) && QUOTE_MONEY_VIEWERS.includes(v.me));
 export const canSeeQuoteList = (v) => seesQuoteMoney(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
 // Stav's and Amos's deals with what was agreed (the discount, a price typed by hand):
 // Irit and Ofir, whoever takes it prepares the contract (31.10.2026), and the owners.
-export const DEAL_VIEWERS = ['irit', 'ofir'];
+export const DEAL_VIEWERS = MANAGERS; // and Lior since 4.11.2026 (he hands a deal over, as the owners; only Irit and Ofir take one)
 export const canSeeDeals = (v) => isOwnerView(v) || (known(v) && DEAL_VIEWERS.includes(v.me));
 // The builder of a quote and of the contract (index.html), 8.10.2026: whoever prepares a
 // contract. Ofir builds them too (the owner, 28.10.2026; until then he only approved an
@@ -49,7 +61,7 @@ export const canBuildQuote = (v) => isOwnerView(v) || (known(v) && QUOTE_BUILDER
 // "החלטות" (decisions.html) and "בקרה ושיוך" (qa.html): Lior's and Ofir's screens, and the
 // owners'. Irit is of the office and the database would take her writes, but neither
 // screen is her work (8.10.2026). Nobody else's side of them changed.
-export const NOT_ON_OFFICE_QUEUES = ['irit'];
+export const NOT_ON_OFFICE_QUEUES = []; // Irit until 4.11.2026 (the managers have every screen)
 export const canSeeOfficeQueues = (v) => known(v) && v.scope === 'office' && !NOT_ON_OFFICE_QUEUES.includes(v.me);
 // "בקרה ושיוך": since 3.11.2026 Irit too (the owner: "עירית לא רואה אצלה את בקרה ושיוך").
 export const QA_EXTRA = ['irit'];
@@ -79,7 +91,8 @@ export const MODES = {
   manager: { key: 'manager', label: 'מבט מנהל', href: 'owner.html#now' },
 };
 export const BACK_LABEL = 'חזרה למשימות שלי';
-// Where the manager profile opens: screen 1 for the managers, screen 2 for Lior (who has no screen 1).
+// Where the manager profile opens: screen 1 for the managers (Lior too since 4.11.2026), screen 2
+// for anyone else with profiles (nobody today).
 export const managerHome = (v) => (isManager(v) ? MODES.manager.href : 'owner.html#all');
 // The choice lives in this tab only (sessionStorage) since 9.10.2026: "מבט מנהל" is not
 // remembered across launches of the app, new tabs or sign-ins; everyone starts in the

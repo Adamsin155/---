@@ -186,6 +186,13 @@ test('handing a deal between Irit and Ofir: the owners and the three; the pool s
     assert.equal(r.error, undefined, `${who}: ${r.error}`);
     assert.equal(r.rows[0].r.taken_by, to, who);
   }
+  // Irit holds it now: Ofir cannot hand it to himself (the pool's rule), Lior and the owners can.
+  assert.match((await tryQ('ofir', 'select public.deal_hand_over($1, $2)', [d, 'ofir'])).error, /deal_taken/);
+  assert.equal((await tryQ('lior', 'select public.deal_hand_over($1, $2)', [d, 'ofir'])).error, undefined);
+  // A free deal: Ofir may bring it to himself or give it to Irit.
+  const free = await newDeal();
+  assert.equal((await tryQ('ofir', 'select public.deal_hand_over($1, $2)', [free, 'ofir'])).error, undefined);
+  assert.equal((await tryQ('ofir', 'select public.deal_hand_over($1, $2)', [free, 'irit'])).error, undefined);
   // Nobody else hands a deal; only to Irit or Ofir; only a waiting one.
   for (const who of REST) assert.match((await tryQ(who, 'select public.deal_hand_over($1, $2)', [d, 'ofir'])).error, DENIED, who);
   assert.match((await tryQ('anon', 'select public.deal_hand_over($1, $2)', [d, 'ofir'])).error, /permission denied/);

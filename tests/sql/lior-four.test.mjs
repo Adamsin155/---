@@ -65,7 +65,7 @@ before(async () => {
 });
 
 test('the file: the newest, none of the refused words, every UPDATE with a WHERE, no table or policy, a writers block', () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), []);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261128100000_managers_all.sql']); // Irit, Ofir and Lior get the owners' work (4.11.2026)
   const sql = migrationSql(FILE);
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));

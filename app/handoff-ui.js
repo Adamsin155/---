@@ -68,14 +68,14 @@ function waButton(o, ctx, { id, label, cls }) {
   }, label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)'));
 }
 
-// No number on file: WhatsApp asks whom to send to. The team page, where numbers
-// are added, opens for the owner, Irit and Lior only: a link for them, words for the rest.
+// No number on file: WhatsApp asks whom to send to. Numbers are added on the team page by the
+// owners only (since 4.11.2026; Irit and Lior until then): a link for them, words for the rest.
 const noPhoneHint = (o, canTeam) => {
   if (!o.known) return ['עוד לא שויך עורך, אז בוואטסאפ בוחרים את השיחה.'];
   const why = `אין במערכת מספר וואטסאפ של ${o.name}, אז בוואטסאפ בוחרים את השיחה. `;
   return canTeam
     ? [why, h('a', { href: 'team.html' }, 'מוסיפים מספר בעמוד הצוות'), '.']
-    : [why, 'עירית או ליאור מוסיפים מספרים בעמוד הצוות.'];
+    : [why, 'הבעלים מוסיפים מספרים בעמוד הצוות.'];
 };
 
 // ── The prompt ────────────────────────────

@@ -11,7 +11,7 @@
 import { PEOPLE, isSales } from './protocol.js';
 import { isOwnerView } from './team-rules.js';
 import { canAsk } from './ask-logic.js';
-import { hasProfiles, managerHome, MODES } from './manager-rules.js';
+import { hasProfiles, managerHome, MODES, isManager, seesQuoteMoney } from './manager-rules.js';
 import { profileMenu, managerTabs, opensClients, writesChar, editsGantt } from './shell-rules.js';
 
 export const SITE = 'https://app.astrateg.tech/';
@@ -53,11 +53,13 @@ const WHAT = {
     : 'יומן: האירועים שלך בשבוע או בחודש (ימי צילום, יעדים ומשימות). לחיצה על אירוע פותחת את כרטיס הלקוח.'),
   'shoot-table': () => 'טבלת ימי צילום: כל הלקוחות הפעילים לפי יום הצילום האחרון, מי שצולם הכי מזמן למעלה.',
   quote: () => 'בניית הצעת מחיר וחוזה: בוחרים חבילה ומשפיענים, תוספות, הנחה ופרטי לקוח, ושולחים ללקוח קישור לחתימה. אפשר גם "הכנת חוזה עם AI".',
-  quotes: (v) => (isOwnerView(v) || (known(v) && v.me === 'ofir')
+  quotes: (v) => (seesQuoteMoney(v) // the owners and the managers (4.11.2026)
     ? 'כל ההצעות והחוזים שנשלחו ומה נחתם, עם הסכומים, ו"נשלח החודש" / "נחתם החודש".'
     : 'כל ההצעות והחוזים שנשלחו ומה מצב החתימה של כל אחד (בלי סכומים).'),
   ask: () => 'שאלו את המערכת: שאלה בעברית על לקוחות, משימות, תוכן, דרייב, או איפה עושים משהו במערכת.',
-  team: () => 'צוות וכניסות: כל אחד מהצוות, יצירת קישור כניסה אישי ושליחתו בוואטסאפ (גם למי ששכח סיסמה), וקוד הכספת.',
+  team: (v) => (isOwnerView(v)
+    ? 'צוות וכניסות: כל אחד מהצוות, יצירת קישור כניסה אישי ושליחתו בוואטסאפ (גם למי ששכח סיסמה), וקוד הכספת.'
+    : 'צוות וכניסות: רשימת הצוות לצפייה (מי מחובר, התראות). קישורי כניסה, הוספה והסרה והכספת: רק אצל הבעלים.'),
   payouts: () => 'אסטרטג פיימנט: התשלומים החודשיים, עמלות, משכורות והוצאות (אפליקציה נפרדת לבעלים).',
   deal: () => 'עסקה חדשה: ממלאים את מה שסגרת עם הלקוח ושולחים לעירית ולאופיר. מי שלוקח ראשון מכין את החוזה. מתחת: העסקאות ששלחת ומה המצב שלהן.',
   // The tabs of the clients screen that belong to a profile (MANAGER_TABS in shell-rules.js).
@@ -134,7 +136,7 @@ const HOWTOS = [
     then: '"עומס עורכים" ← פותחים את העורך ← ליד הלקוח "החלפת עורך" ← בוחרים עורך ← שמירה.' },
   { id: 'late', q: 'איפה רואים מה באיחור?', via: 'mine', when: known,
     then: 'לשונית "באיחור" (מופיעה רק כשיש משהו באיחור, עם המספר).' },
-  { id: 'evening', q: 'איפה סיכום הערב (19:00)?', via: 'manager', when: isOwnerView,
+  { id: 'evening', q: 'איפה סיכום הערב (19:00)?', via: 'manager', when: isManager, // the managers too since 4.11.2026
     then: 'לשונית "סיכום היום": כמה פריטים באיחור אצל כל עובד ומה לא בוצע היום. אותם מספרים מגיעים גם בהודעה של 19:00.' },
   { id: 'new-deal', q: 'איך שולחים עסקה חדשה?', via: 'deal', when: (v) => known(v) && isSales(v.me),
     then: 'ממלאים את מה שסגרת עם הלקוח ← שליחה. עירית ואופיר מקבלים, ומי שלוקח ראשון מכין את החוזה.' },

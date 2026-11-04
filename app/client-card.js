@@ -38,7 +38,7 @@ import {
 import { isShootMonthly, withShootMonthly } from './monthly-shoot.js';
 import { companyIdValue, emailValue } from './client-contact.js';
 import { loadEditorProgress, loadEditorMonths } from './production-data.js';
-import { canManageTeam, isOwnerView } from './team-rules.js';
+import { canAdminTeam } from './team-rules.js';
 import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
 import { clientHealth, station, timeline } from './health.js';
@@ -94,7 +94,7 @@ import { CONTRACT_KIND, CONTRACT_LABEL, CONTRACT_ACCEPT, contractFiles, contract
 // The manager's features: the contract summary, and archiving (the owner and Ofir).
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
-import { canArchive } from './manager-rules.js';
+import { canArchive, isManager } from './manager-rules.js';
 import { openedBySigning } from './client-open.js';
 import { warm, taken, onFresh } from './supa.js';
 import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
@@ -692,7 +692,8 @@ function landingNote() {
     h('p', {}, h('span', { class: 'tag tag-landing' }, 'בקליטה'), ' הלקוח הגיע מהמערכת הישנה ועוד לא הופעל: אין עליו שעונים, איחורים או התראות. מה שיישאר פתוח יקבל מועד חדש ביום ההפעלה.'),
     h('div', { class: 'auto-acts' },
       me ? h('a', { class: 'btn btn-sm', href: 'landing.html' }, 'לקליטת הלקוחות הקיימים') : null,
-      isOwnerView(viewerInfo) ? h('button', {
+      // The owners and the managers activate (public.landing_activate; the managers since 4.11.2026).
+      isManager(viewerInfo) ? h('button', {
         type: 'button', class: 'btn btn-sm btn-primary', id: 'land-activate',
         onclick: async (e) => {
           if (!confirm(`להפעיל את ${c.name}? מה שפתוח יקבל מועד חדש מעכשיו, וההתראות יחזרו.`)) return;
@@ -1467,7 +1468,8 @@ async function markBulk(x, items, focusId = `${x.proc.id}-bulk`) {
 // After WhatsApp was opened for a handoff: the "העברות" line and the history show it.
 const afterHandoff = () => { renderKeepingFocus(); loadHistory(); };
 // A missing WhatsApp number: the team page (where it is added) is linked only for those who can open it.
-const canTeam = () => canManageTeam({ me, scope, error: viewerError });
+// Whether the handoff's hint links to the team page to add a number: the owners only (4.11.2026).
+const canTeam = () => canAdminTeam({ me, scope, error: viewerError });
 
 // A block opened or folded inside the protocol: only the protocol is drawn again, not
 // the whole card (the head, the files, the vault and the rest did not change).

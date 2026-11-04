@@ -36,7 +36,7 @@ export const READERS = ['owner', 'irit', 'lior', 'ofir'];
 // manager and whoever sets the shoot days.
 export const MANAGERS = ['irit', 'lior'];
 // Who may enter it in his name, after a phone call (public.can_manage_availability).
-export const ON_BEHALF = ['owner', 'irit', 'lior'];
+export const ON_BEHALF = ['owner', 'irit', 'lior', 'ofir']; // Ofir since 4.11.2026 (the managers)
 
 export const DEADLINE_DAY = 15;
 export const NUDGE_DAY = 10;

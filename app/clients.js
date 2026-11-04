@@ -32,7 +32,7 @@ import { pacer } from './turns.js';
 import { TZ, partsIL, dayKeyIL, dayFromKeyIL, endOfDayIL, weekdayIL, addDaysIL, atTimeIL, dateIL, inputValueIL, fromInputIL } from './tz.js';
 import { PACKAGES } from './catalog.js';
 import { PACKAGE_OPTIONS, packageName, shootTypeOf, dealDeliverables, importKeys, openedBySigning } from './client-open.js';
-import { canManageTeam } from './team-rules.js';
+import { canManageTeam, canAdminTeam } from './team-rules.js';
 import { canSendMessages, stationTitle } from './messages-logic.js';
 import { offerHandoff, dropHandoff } from './handoff-ui.js';
 import { canSeeAllClients, canSeeOwnerScreen, seesWholeTeam, closedProcesses, teamRows, EDITOR_CAP, historyKeys, withHistory } from './health.js';
@@ -674,7 +674,7 @@ async function toggleEntry(e, input) {
   renderMine();
   if (next) document.getElementById(next)?.focus();
   toast(`סומן כבוצע: ${e.task ? e.task.title : e.item.label}`, { label: 'ביטול', run: () => undo(e) });
-  offerHandoff({ client: e.client, key: e.task ? null : e.item.key, checks: () => checks[e.client.id], me, canTeam: canManageTeam({ me, scope, error: viewerError }) });
+  offerHandoff({ client: e.client, key: e.task ? null : e.item.key, checks: () => checks[e.client.id], me, canTeam: canAdminTeam({ me, scope, error: viewerError }) });
 }
 
 async function undo(e) {
@@ -975,7 +975,8 @@ function linkLine(g, entry = null) {
   const kind = g.proc?.link;
   if (!kind || g.task) return null;
   const id = `link-${g.key}`.replace(/[^\w-]/g, '_');
-  const may = kind === 'access' ? canManageAccessLinks({ me, scope, error: viewerError }) : scope === 'office' && !viewerError && (me === null || ['irit', 'lior'].includes(me));
+  // The status-page and gallery links: the owners, Irit, Lior, and Ofir since 4.11.2026 (public.can_manage_status_links).
+  const may = kind === 'access' ? canManageAccessLinks({ me, scope, error: viewerError }) : scope === 'office' && !viewerError && (me === null || ['irit', 'lior', 'ofir'].includes(me));
   if (!may) return null;
   const shown = linkShown.get(g.key);
   return h('div', { class: 'wlink', role: 'group', 'aria-label': 'הקישור ללקוח' },

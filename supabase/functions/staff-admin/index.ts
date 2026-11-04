@@ -3,8 +3,9 @@
 // WhatsApp, because Supabase's own email is rate-limited.
 //
 // Deployed with verify_jwt=false (supabase/config.toml): the caller's token is
-// checked here, and the caller must be the owner (staff.person is null), Irit or
-// Lior. The rules are in ./rules.js (tested in tests/staff-admin.test.mjs).
+// checked here, and the caller must be the owner (staff.person is null), or Irit, Lior or
+// Ofir for the list alone (every action is the owner's since 4.11.2026). The rules are in
+// ./rules.js (tested in tests/staff-admin.test.mjs).
 // Deploy both files together, e.g. `supabase functions deploy staff-admin`.
 //
 // POST JSON { action, ... }:

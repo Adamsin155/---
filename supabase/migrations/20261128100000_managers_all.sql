@@ -167,12 +167,18 @@ create or replace function public.deal_hand_over(p_id uuid, p_person text) retur
 language plpgsql security definer set search_path = '' as $$
 declare
   d public.deal_requests%rowtype;
+  who text := public.my_person();
 begin
   if not public.sees_income() then
     raise exception 'not allowed' using errcode = '42501';
   end if;
   if p_person is null or p_person not in ('irit', 'ofir') then
     raise exception 'invalid person' using errcode = '22023';
+  end if;
+  -- Irit and Ofir still never take a deal the other holds (they hand their own, or a free one).
+  if not public.sees_money() and who in ('irit', 'ofir') and p_person = who and exists (
+    select 1 from public.deal_requests x where x.id = p_id and x.taken_by is not null and x.taken_by <> who) then
+    raise exception 'deal_taken' using errcode = 'P0001';
   end if;
   perform set_config('astrateg.deal_hand_over', 'on', true);
   update public.deal_requests set taken_by = p_person where id = p_id and status = 'pending' returning * into d;

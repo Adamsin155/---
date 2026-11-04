@@ -33,9 +33,9 @@ import { whatsappLink } from './quote-doc.js';
 import { ACCESS_VAR, accessVars, withAccessVar, waitingLink } from './access-logic.js';
 import { NUDGE_KEY, nudgeDue, nudgeRef, nudgeTimes } from './access-nudge.js';
 
-// Who works in the queue: the owner (no person), Irit and Lior. The database lets
-// the office read and write (can_message_clients(): Ofir too); the page is theirs.
-export const MESSAGE_SENDERS = ['irit', 'lior'];
+// Who works in the queue: the owner (no person), Irit, Lior, and Ofir since 4.11.2026 (the
+// managers). The database lets the office read and write (can_message_clients()).
+export const MESSAGE_SENDERS = ['irit', 'lior', 'ofir'];
 export const canSendMessages = (v) => !!v && !v.error
   && ((!v.me && v.scope === 'office') || MESSAGE_SENDERS.includes(v.me));
 

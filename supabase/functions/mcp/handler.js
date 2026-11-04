@@ -10,7 +10,8 @@
 //     and iss here, and it must carry `client_id`, so an ordinary browser session token is not taken;
 //   - every read goes with that person's JWT, so row level security answers what their screens answer,
 //     through the same tools and the same walls as "שאלו את המערכת" (../ask/tools.js, imported, never
-//     copied): no phone, email, address, notes, vault, logins, payroll; money only for sees_money();
+//     copied): no phone, email, address, notes, vault, logins, payroll; money only for sees_income()
+//     (the owners and the managers, 4.11.2026; sees_money(), the owners', before its migration);
 //   - who: the owners, Lior and Ofir (mayUseMcp in app/mcp-logic.js) AND switched on in public.mcp_access
 //     (public.mcp_allowed()), asked on every request, so switching someone off works at once. Anything
 //     unclear is a no; the answer holds a short code and never a database's words;
@@ -23,6 +24,7 @@ import { PEOPLE, scopeOf } from '../_shared/app/protocol.js';
 import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
 import { canBuildQuote } from '../_shared/app/manager-rules.js';
 import { mayUseMcp } from '../_shared/app/mcp-logic.js';
+import { MONEY_RPC, MONEY_RPC_BEFORE } from '../_shared/app/ask-logic.js';
 import { DRAFT_TOOL, DRAFT_SCHEMA, DRAFT_ERRORS, draftDescription, draftAnswer } from '../_shared/app/mcp-draft.js';
 
 export const LATEST_VERSION = '2025-11-25';
@@ -34,7 +36,9 @@ export const METADATA_PATH = '/.well-known/oauth-protected-resource';
 // What this function asks the database as the person, besides the tools' tables (TABLES in ../ask/tools.js).
 // public.mcp_request_gate() lets a connected app's token ask these and nothing else; tests/sql/mcp-gate.test.mjs
 // holds the two lists equal.
-export const GATE_RPCS = ['is_office', 'my_person', 'mcp_allowed', 'sees_money'];
+export const GATE_RPCS = ['is_office', 'my_person', 'mcp_allowed', MONEY_RPC];
+// Asked only when the gate or the database does not have sees_income() yet (before the migration).
+export const GATE_FALLBACK_RPC = MONEY_RPC_BEFORE;
 export const GATE_HEADER = 'x-mcp-gate';
 
 // JSON-RPC's own codes, and two of ours for "who".
@@ -232,6 +236,7 @@ export function makeHandler(deps) {
       if (isCall) await keepUsage(user.email, toolName, 'not_allowed');
       return rpcError(403, id, E.REFUSED, REFUSED_WORDS, { code: 'not_allowed' });
     }
+    if (money.error) money = await userClient.rpc(GATE_FALLBACK_RPC).catch(() => ({ error: true }));
     const seesMoney = !money.error && money.data === true;
     const viewer = { me: me && PEOPLE[me] ? me : null, scope: scopeOf(me), error: null };
 

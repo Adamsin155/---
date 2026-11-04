@@ -19,7 +19,7 @@ const OWNER = 'owner';
 // v11 (the owner, 21.10.2026): connecting is Ofir's step, right after he takes the accesses;
 // Ilai keeps the right (the Gantt is his) but it is no longer his task. Since 1.11.2026 it is
 // the step of whoever sets the client's pages up (6: Noam or Ofir), so Noam connects too.
-export const CONNECTORS = [OWNER, 'ofir', 'ilai', 'noam'];
+export const CONNECTORS = [OWNER, 'ofir', 'ilai', 'noam', 'irit', 'lior']; // Irit and Lior since 4.11.2026 (public.can_connect_metricool)
 const personOfViewer = (viewer) => {
   if (!viewer || viewer.error) return null;
   if (viewer.me) return viewer.me;
@@ -30,7 +30,9 @@ export const canConnect = (viewer) => CONNECTORS.includes(personOfViewer(viewer)
 // (Ilai's before): the card is on the Gantt index, and his "המשימות שלי" has a line to it. The owners may connect too, but it is not their
 // own task: not in their personal "המשימות שלי" (#mine), only in the manager profile's
 // "עבודת הצוות" (#team), where it was.
-export const showsCard = (viewer, personal = false) => canConnect(viewer) && !(personal && personOfViewer(viewer) === OWNER);
+// Irit and Lior (4.11.2026) connect too, as the owners do, and it is not their task either.
+const NOT_THEIR_TASK = [OWNER, 'irit', 'lior'];
+export const showsCard = (viewer, personal = false) => canConnect(viewer) && !(personal && NOT_THEIR_TASK.includes(personOfViewer(viewer)));
 
 // The first rows shown; the rest wait behind "הצג עוד".
 export const CONNECT_CAP = 8;

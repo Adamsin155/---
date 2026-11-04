@@ -51,7 +51,8 @@ const COLOR_RANK = { red: 0, yellow: 1, green: 2 };
 export const ALL_CLIENTS_VIEWERS = ['irit', 'lior', 'ofir'];
 export const canSeeOwnerScreen = (v) => isManager(v);
 export const canSeeAllClients = (v) => isOwnerView(v) || (!!v && !v.error && ALL_CLIENTS_VIEWERS.includes(v.me));
-export const seesWholeTeam = (v) => isOwnerView(v) || (!!v && !v.error && v.me === 'lior');
+// The whole team's performance: the owners and Lior; Irit and Ofir since 4.11.2026 (the managers).
+export const seesWholeTeam = (v) => isOwnerView(v) || (!!v && !v.error && ['lior', 'irit', 'ofir'].includes(v.me));
 
 // Defaults waiting for the office's decision (docs/protocols/README.md).
 export const EDITOR_CAP = 2;          // editing jobs an editor holds at once
