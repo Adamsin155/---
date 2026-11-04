@@ -515,11 +515,12 @@ test('WhatsApp links: the client\'s number in 972 form, or no number to pick the
   assert.equal(groupLink('שורה\nשנייה'), `https://wa.me/?text=${encodeURIComponent('שורה\nשנייה')}`);
 });
 
-test('who works in the queue: the owner, Irit and Lior', () => {
+test('who works in the queue: the owner, Irit, Lior, and Ofir (the managers, 4.11.2026)', () => {
   assert.equal(canSendMessages({ me: null, scope: 'office', error: null }), true);
   assert.equal(canSendMessages({ me: 'irit', scope: 'office', error: null }), true);
   assert.equal(canSendMessages({ me: 'lior', scope: 'office', error: null }), true);
-  for (const me of ['ofir', 'ilai', 'nirel', 'nadia', 'eli']) assert.equal(canSendMessages({ me, scope: me === 'ofir' ? 'office' : 'own', error: null }), false, me);
+  assert.equal(canSendMessages({ me: 'ofir', scope: 'office', error: null }), true);
+  for (const me of ['ilai', 'nirel', 'nadia', 'eli']) assert.equal(canSendMessages({ me, scope: 'own', error: null }), false, me);
   assert.equal(canSendMessages({ me: null, scope: 'own', error: null }), false, 'an unknown role');
   assert.equal(canSendMessages({ me: null, scope: 'own', error: new Error('x') }), false);
   assert.equal(canSendMessages(null), false);

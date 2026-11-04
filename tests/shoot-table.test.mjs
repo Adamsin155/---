@@ -196,9 +196,9 @@ test('sorting by a header: one list, empty values last either way; the search by
 
 // ── Who sees it ──────────────────────────────
 const v = (me, scope = 'office', error = null) => ({ me, scope, error });
-test('the screen: Lior, Ofir and the owner; nobody else, and nobody the app could not identify', () => {
+test('the screen: Lior, Ofir, Irit (4.11.2026) and the owner; nobody else, and nobody the app could not identify', () => {
   const who = [v(null), v('lior'), v('ofir'), v('irit'), v('ilai'), v('nadia', 'own'), v('nirel', 'own'), v('eli', 'own'), v('stav', 'own')];
-  assert.deepEqual(who.map(canSeeShootTable), [true, true, true, false, false, false, false, false, false]);
+  assert.deepEqual(who.map(canSeeShootTable), [true, true, true, true, false, false, false, false, false]);
   assert.equal(canSeeShootTable(v('lior', 'office', new Error('x'))), false);
   assert.equal(canSeeShootTable(null), false);
   // Whoever sees it also opens owner.html, where it lives.
@@ -208,10 +208,11 @@ test('the screen: Lior, Ofir and the owner; nobody else, and nobody the app coul
     assert.deepEqual(item || null, canSeeShootTable(x) ? { id: 'shoot-table', href: 'owner.html#shoots', label: 'טבלת ימי צילום' } : null, x.me || 'owner');
   }
   // The menu marks the table as its own entry, and every other tab of owner.html as before.
-  for (const [x, other] of [[v(null), 'manager'], [v('ofir'), 'manager'], [v('lior'), 'overview']]) {
+  // Lior has "מבט מנהל" since 4.11.2026 (until then "כל הלקוחות במבט", 'overview'); Irit has the table since that day.
+  for (const [x, other] of [[v(null), 'manager'], [v('ofir'), 'manager'], [v('lior'), 'manager'], [v('irit'), 'manager']]) {
     const items = menuOf(x);
     assert.deepEqual(currentOf(items, '/owner.html', '#shoots'), { id: 'shoot-table', exact: true });
     for (const hash of ['', '#now', '#all', '#table', '#archive']) assert.deepEqual(currentOf(items, '/owner.html', hash), { id: other, exact: true }, hash);
   }
-  assert.deepEqual(currentOf(menuOf(v('irit')), '/owner.html', '#shoots'), { id: 'manager', exact: true });
+  assert.deepEqual(currentOf(menuOf(v('ilai', 'own')), '/owner.html', '#shoots'), { id: null, exact: false });
 });

@@ -216,12 +216,13 @@ test('everything for a month: on time per person and role agrees with the closed
   assert.deepEqual(onTimeReport([], r.months).people.map((p) => p.rate), INSIGHT_PEOPLE.map(() => null));
 });
 
-test('who opens it: the owner and Lior; the payouts link only the owner', () => {
+test('who opens it: the owner and the managers (Irit and Ofir since 4.11.2026); the payouts link only the owner', () => {
   const owner = { me: null, scope: 'office', error: null };
   const v = (me) => ({ me, scope: ['irit', 'lior', 'ofir'].includes(me) ? 'office' : 'own', error: null });
   assert.equal(canSeeInsights(owner), true);
   assert.equal(canSeeInsights(v('lior')), true);
-  for (const p of ['irit', 'ofir', 'ilai', 'nadia', 'eli']) assert.equal(canSeeInsights(v(p)), false, p);
+  for (const p of ['irit', 'ofir']) assert.equal(canSeeInsights(v(p)), true, p);
+  for (const p of ['ilai', 'nadia', 'eli']) assert.equal(canSeeInsights(v(p)), false, p);
   assert.equal(canSeeInsights({ me: null, scope: 'own', error: new Error('x') }), false);
   assert.equal(canSeeInsights(null), false);
   assert.equal(canSeePayouts(owner), true);

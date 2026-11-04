@@ -40,11 +40,12 @@ test('emails are trimmed and lower-cased; anything else is refused', () => {
   for (const bad of ['', null, undefined, 'nadia', 'a@b', 'a b@c.de', `${'x'.repeat(250)}@a.co`]) assert.equal(normEmail(bad), null, String(bad));
 });
 
-test('roles: the owner row has no person; only Irit and Lior manage besides the owner', () => {
+test('roles: the owner row has no person; Irit, Lior and Ofir read the list besides the owner (4.11.2026)', () => {
   assert.equal(roleOf(row(OWNER, null)), 'owner');
   assert.equal(roleOf(row('i@a.test', 'irit')), 'manager');
   assert.equal(roleOf(row('l@a.test', 'lior')), 'manager');
-  for (const p of ['ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'editor']) assert.equal(roleOf(row('x@a.test', p)), null, p);
+  assert.equal(roleOf(row('o@a.test', 'ofir')), 'manager');
+  for (const p of ['ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'editor']) assert.equal(roleOf(row('x@a.test', p)), null, p);
   assert.equal(roleOf(null), null);
 });
 
@@ -97,13 +98,12 @@ test('upsert: the owner may do anything but change their own role', () => {
   assert.equal(planUpsert({ ...owner, existing: null, input: { email: 'x@a.test', person: 'eli', vault: 'yes' } }).error, ERR.badRequest);
 });
 
-test('upsert: Irit and Lior add staff without the vault, and never touch the owner or a manager', () => {
+// Since 4.11.2026 (the owner's decision; docs/ops.md, section 96) a manager adds and changes nothing:
+// until then Irit and Lior added staff without the vault for people outside the office.
+test('upsert: the managers (Irit, Lior, Ofir) add or change no staff row at all; the owner does', () => {
   const irit = { role: 'manager', callerEmail: 'irit@a.test' };
-  assert.deepEqual(planUpsert({ ...irit, existing: null, input: { email: 'eli@a.test', person: 'eli' } }),
-    { ok: true, insert: true, row: { email: 'eli@a.test', person: 'eli', vault: false } });
-  // Editing a staff row keeps its vault flag.
-  assert.deepEqual(planUpsert({ ...irit, existing: row('n@a.test', 'nadia', true), input: { email: 'n@a.test', person: 'yariv' } }).row,
-    { email: 'n@a.test', person: 'yariv', vault: true });
+  assert.deepEqual(planUpsert({ ...irit, existing: null, input: { email: 'eli@a.test', person: 'eli' } }), { ok: false, status: 403, error: ERR.ownerOnly });
+  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia', true), input: { email: 'n@a.test', person: 'yariv' } }).error, ERR.ownerOnly);
   const refused = [
     [{ existing: null, input: { email: 'x@a.test', person: 'eli', vault: false } }, ERR.ownerOnly],
     [{ existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', vault: true } }, ERR.ownerOnly],
@@ -112,7 +112,7 @@ test('upsert: Irit and Lior add staff without the vault, and never touch the own
     [{ existing: null, input: { email: 'x@a.test', person: null } }, ERR.ownerOnly],
     [{ existing: null, input: { email: 'x@a.test', person: 'lior' } }, ERR.ownerOnly],
     [{ existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'irit' } }, ERR.ownerOnly],
-    [{ existing: null, input: { email: 'x@a.test', person: 'nadia' }, personTaken: true }, ERR.personTaken],
+    [{ existing: null, input: { email: 'x@a.test', person: 'nadia' }, personTaken: true }, ERR.ownerOnly],
   ];
   for (const [args, error] of refused) assert.equal(planUpsert({ ...irit, ...args }).error, error, JSON.stringify(args));
   assert.equal(planUpsert({ role: null, callerEmail: 'n@a.test', existing: null, input: { email: 'x@a.test', person: 'eli' } }).error, ERR.notAllowed);
@@ -128,21 +128,20 @@ test('upsert: adding an email already on the list never moves that person into a
     { ok: false, status: 409, error: ERR.emailTaken });
   assert.equal(planUpsert({ ...owner, existing: row(OWNER, null, true), input: { email: OWNER, person: 'ofir', mode: 'add' } }).error, ERR.emailTaken);
   assert.equal(planUpsert({ ...irit, existing: row(OWNER, null, true), input: { email: OWNER, person: 'ofir', mode: 'add' } }).error, ERR.emailTaken);
-  // A new email is added as before.
-  assert.deepEqual(planUpsert({ ...irit, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'add' } }),
-    { ok: true, insert: true, row: { email: 'eli@a.test', person: 'eli', vault: false } });
+  // A new email: the owner's alone since 4.11.2026.
+  assert.deepEqual(planUpsert({ ...irit, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'add' } }), { ok: false, status: 403, error: ERR.ownerOnly });
   assert.equal(planUpsert({ ...owner, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'add' } }).ok, true);
   assert.equal(planUpsert({ ...owner, existing: null, input: { email: 'eli@a.test', person: 'eli', mode: 'edit' } }).error, ERR.badRequest);
-  // A manager's edit may not give a role that another row already has.
-  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'yariv' }, personTaken: true }).error, ERR.personTaken);
-  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'nadia' }, personTaken: true }).ok, true);
+  // A manager edits nothing (4.11.2026).
+  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'yariv' }, personTaken: true }).error, ERR.ownerOnly);
+  assert.equal(planUpsert({ ...irit, existing: row('n@a.test', 'nadia'), input: { email: 'n@a.test', person: 'nadia' }, personTaken: true }).error, ERR.ownerOnly);
 });
 
 test('upsert: only the owner adds an email that already has a login (a manager could then make a link into it)', () => {
   const input = { email: 'books@a.test', person: 'eli', mode: 'add' };
   assert.deepEqual(planUpsert({ role: 'manager', callerEmail: 'irit@a.test', existing: null, input, hasLogin: true }),
-    { ok: false, status: 409, error: ERR.hasLogin });
-  assert.equal(planUpsert({ role: 'manager', callerEmail: 'irit@a.test', existing: null, input, hasLogin: false }).ok, true);
+    { ok: false, status: 403, error: ERR.ownerOnly });
+  assert.equal(planUpsert({ role: 'manager', callerEmail: 'irit@a.test', existing: null, input, hasLogin: false }).error, ERR.ownerOnly);
   assert.equal(planUpsert({ role: 'owner', callerEmail: OWNER, existing: null, input, hasLogin: true }).ok, true);
 });
 
@@ -156,7 +155,8 @@ test('remove: owner only, never their own row', () => {
 test('link: only for staff, the owner\'s only by the owner, only to an allowed page', () => {
   const page = LINK_PAGES[1];
   const irit = row('i@a.test', 'irit', true);
-  assert.deepEqual(planLink({ role: 'manager', me: irit, target: row('n@a.test', 'nadia'), redirectTo: page }), { ok: true, page });
+  // A manager makes no link since 4.11.2026, also not for an editor (until then: outside the office, no vault).
+  assert.deepEqual(planLink({ role: 'manager', me: irit, target: row('n@a.test', 'nadia'), redirectTo: page }), { ok: false, status: 403, error: ERR.ownerOnly });
   assert.equal(planLink({ role: 'manager', me: irit, target: row('l@a.test', 'lior', true), redirectTo: page }).error, ERR.ownerOnly);
   assert.equal(planLink({ role: 'owner', target: row(OWNER, null), redirectTo: page }).ok, true);
   assert.equal(planLink({ role: 'manager', me: irit, target: row(OWNER, null), redirectTo: page }).error, ERR.ownerOnly);
@@ -179,7 +179,7 @@ test('link: a manager gets no link into an office account, a vault account or a 
   assert.deepEqual(planLink({ role: 'manager', me: iritNoVault, target: ofir, redirectTo: page }), { ok: false, status: 403, error: ERR.ownerOnly });
   assert.equal(planLink({ role: 'manager', me: iritNoVault, target: lior, redirectTo: page }).error, ERR.ownerOnly);
   assert.equal(planLink({ role: 'manager', target: ofir, redirectTo: page }).error, ERR.ownerOnly, 'no caller row');
-  assert.equal(planLink({ role: 'manager', me: iritNoVault, target: nadia, redirectTo: page }).ok, true);
+  assert.equal(planLink({ role: 'manager', me: iritNoVault, target: nadia, redirectTo: page }).error, ERR.ownerOnly); // 4.11.2026
   // The takeover the audit found: a manager with the vault, into every office account.
   for (const me of [irit, lior]) {
     for (const p of OFFICE_PERSONS) {
@@ -191,12 +191,11 @@ test('link: a manager gets no link into an office account, a vault account or a 
     }
     // Outside the office, an account with the vault (Nirel had it once) is the owner's too.
     assert.equal(planLink({ role: 'manager', me, target: row('ni@a.test', 'nirel', true), redirectTo: page }).error, ERR.ownerOnly);
-    // The people a manager still helps in: editors, Eli and the sales agents, without the vault.
+    // Since 4.11.2026 nobody else's either: editors, Eli and the sales agents, and their own account.
     for (const p of PERSONS.filter((x) => !OFFICE_PERSONS.includes(x))) {
-      assert.equal(planLink({ role: 'manager', me, target: row(`${p}@a.test`, p), redirectTo: page }).ok, true, `${me.person} → ${p}`);
+      assert.equal(planLink({ role: 'manager', me, target: row(`${p}@a.test`, p), redirectTo: page }).error, ERR.ownerOnly, `${me.person} → ${p}`);
     }
-    // Their own account: nothing they do not already have.
-    assert.equal(planLink({ role: 'manager', me, target: me, redirectTo: page }).ok, true, `${me.person} → self`);
+    assert.equal(planLink({ role: 'manager', me, target: me, redirectTo: page }).error, ERR.ownerOnly, `${me.person} → self`);
   }
   // The rule does not look at whether the account has a login: an invite for a row with
   // no login yet is refused the same way (planLink is called before linkTypeFor).
@@ -205,7 +204,7 @@ test('link: a manager gets no link into an office account, a vault account or a 
   assert.equal(linkByOwnerOnly(row('il@a.test', 'ilai')), true);
   assert.equal(linkByOwnerOnly(row('ni@a.test', 'nirel', true)), true);
   assert.equal(linkByOwnerOnly(nadia), false);
-  // The team screen hides the button on the same rows (and keeps the manager's own).
+  // The team screen hides the button on the same rows (every row, for a manager, since 4.11.2026).
   for (const target of [ofir, lior, irit, nadia, row(OWNER, null), row('ni@a.test', 'nirel', true), row('s@a.test', 'stav')]) {
     for (const me of [irit, lior]) {
       const fn = planLink({ role: 'manager', me, target, redirectTo: page }).ok;
@@ -288,7 +287,10 @@ test('team screen: who may open it', () => {
   assert.equal(isOwnerView({ me: null, scope: 'office', error: null }), true);
   assert.equal(canManageTeam({ me: 'irit', scope: 'office', error: null }), true);
   assert.equal(canManageTeam({ me: 'lior', scope: 'office', error: null }), true);
-  assert.equal(canManageTeam({ me: 'ofir', scope: 'office', error: null }), false);
+  assert.equal(canManageTeam({ me: 'ofir', scope: 'office', error: null }), true); // the list, since 4.11.2026
+  // Every action on it: the owners only.
+  assert.equal(teamRules.canAdminTeam({ me: null, scope: 'office', error: null }), true);
+  for (const me of ['irit', 'lior', 'ofir']) assert.equal(teamRules.canAdminTeam({ me, scope: 'office', error: null }), false, me);
   assert.equal(canManageTeam({ me: 'nadia', scope: 'own', error: null }), false);
   assert.equal(canManageTeam({ me: null, scope: 'own', error: null }), false);           // 'editor' or unknown
   assert.equal(canManageTeam({ me: null, scope: 'own', error: new Error('x') }), false); // lookup failed
@@ -337,7 +339,7 @@ test('WhatsApp numbers: Israeli mobiles only, kept as 972 and nine digits; the p
   assert.match(src, /check \(action in \('upsert', 'remove', 'link', 'phone'\)\)/);
 });
 
-test('phone: the owner, Irit and Lior set anyone\'s number on the team; the owner\'s row keeps none; empty clears it', () => {
+test('phone: the owner sets anyone\'s number on the team (Irit and Lior too until 4.11.2026); the owner\'s row keeps none; empty clears it', () => {
   const nadia = row('n@a.test', 'nadia');
   const lior = row('l@a.test', 'lior', true);
   const owner = row(OWNER, null, true);
@@ -347,12 +349,13 @@ test('phone: the owner, Irit and Lior set anyone\'s number on the team; the owne
   }
   assert.equal(ERR.ownerNoPhone, 'owner_no_phone');
   assert.deepEqual(planPhone({ role: 'owner', target: nadia, input: { email: 'n@a.test', phone: '+972 52 555 1234' } }), { ok: true, phone: '972525551234' });
-  assert.deepEqual(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: '0541112233' } }), { ok: true, phone: '972541112233' });
-  // A number is contact details, not a power: a manager sets a manager's (and their own).
-  assert.equal(planPhone({ role: 'manager', target: lior, input: { email: 'l@a.test', phone: '0541112233' } }).ok, true);
+  // A manager sets no number since 4.11.2026 (staff-admin's actions are the owners').
+  assert.deepEqual(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: '0541112233' } }), { ok: false, status: 403, error: ERR.ownerOnly });
+  assert.equal(planPhone({ role: 'manager', target: lior, input: { email: 'l@a.test', phone: '0541112233' } }).error, ERR.ownerOnly);
   assert.deepEqual(planPhone({ role: 'manager', target: owner, input: { email: OWNER, phone: '0541112233' } }), { ok: false, status: 403, error: ERR.ownerOnly });
   for (const clear of ['', '   ', null, undefined]) {
-    assert.deepEqual(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: clear } }), { ok: true, phone: null }, String(clear));
+    assert.deepEqual(planPhone({ role: 'owner', target: nadia, input: { email: 'n@a.test', phone: clear } }), { ok: true, phone: null }, String(clear));
+    assert.equal(planPhone({ role: 'manager', target: nadia, input: { email: 'n@a.test', phone: clear } }).error, ERR.ownerOnly, String(clear));
   }
   for (const bad of ['03-1234567', '12345', 501234567, ['0501234567'], { n: 1 }, true]) {
     assert.deepEqual(planPhone({ role: 'owner', target: nadia, input: { email: 'n@a.test', phone: bad } }), { ok: false, status: 400, error: ERR.badPhone }, JSON.stringify(bad));
@@ -366,8 +369,8 @@ test('phone: the owner, Irit and Lior set anyone\'s number on the team; the owne
   assert.equal(canEditPhone({ owner: true }, owner), false);
   assert.equal(canEditPhone({ owner: true }, nadia), true);
   assert.equal(canEditPhone({ owner: false, person: 'irit' }, owner), false);
-  assert.equal(canEditPhone({ owner: false, person: 'irit' }, lior), true);
-  assert.equal(canEditPhone({ owner: false, person: 'irit' }, nadia), true);
+  assert.equal(canEditPhone({ owner: false, person: 'irit' }, lior), false); // the owners' since 4.11.2026
+  assert.equal(canEditPhone({ owner: false, person: 'irit' }, nadia), false);
   assert.equal(canEditPhone(null, nadia), false);
   assert.equal(canEditPhone({ owner: true }, null), false);
 });

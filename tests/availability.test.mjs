@@ -40,7 +40,7 @@ test('the lists: the photographers, who reads, who is told, who enters it in his
   assert.deepEqual(A.PHOTOGRAPHERS.map(A.personName), ['אלי', 'אליאל']);
   assert.deepEqual(A.READERS, ['owner', 'irit', 'lior', 'ofir']);
   assert.deepEqual(A.MANAGERS, ['irit', 'lior']);
-  assert.deepEqual(A.ON_BEHALF, ['owner', 'irit', 'lior']);
+  assert.deepEqual(A.ON_BEHALF, ['owner', 'irit', 'lior', 'ofir']); // Ofir since 4.11.2026 (the managers)
   assert.deepEqual([A.DEADLINE_DAY, A.NUDGE_DAY, A.CHANGE_MAX_DAYS], [15, 10, 2]);
   // The four rules are in the engine's list, and in the map the digests name topics from.
   for (const id of OURS) { assert.ok(RULES.some((r) => r.id === id), id); assert.equal(RULE_BY_ID.get(id)?.id, id); }

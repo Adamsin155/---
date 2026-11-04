@@ -276,10 +276,11 @@ export function barOf(items, viewer) {
 // 26.10.2026: Irit's own menu, with her pass over the clients, is eight, and stays one list;
 // 9 since 29.10.2026: Ofir's manager profile, with the sent quotes and "שאלו את המערכת").
 // The phone's bar is always part of the daily ones (tests/shell.test.mjs).
+// Lior's "כל הלקוחות במבט" ('overview') became "מבט מנהל" on 4.11.2026 (a manager).
 const DAILY = {
   owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
   irit: ['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'],
-  lior: ['mine', 'overview', 'clients', 'decisions', 'messages'],
+  lior: ['mine', 'manager', 'clients', 'decisions', 'messages'],
   ofir: ['mine', 'manager', 'clients', 'qa'],
 };
 export const GROUP_FROM = 9;

@@ -277,8 +277,9 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
       // Money (20261013100000_money_owners_only.sql): the owners and Irit read the deals and the
       // quotes; a seller their own deals; Ofir and Lior a contract that waits for approval;
       // anyone a quote they made. Ofir every quote since 20261114100000_ofir_deals.sql
-      // (public.sees_quote_money()), but still not the sellers' deals.
-      const readsAll = person === null || person === 'irit';
+      // (public.sees_quote_money()), but still not the sellers' deals. Since 20261128100000_managers_all.sql
+      // the managers (Irit, Ofir, Lior) read them all, as the owners (public.sees_income()).
+      const readsAll = person === null || ['irit', 'ofir', 'lior'].includes(person);
       if (table === 'deal_requests' && !readsAll) rows = rows.filter((r) => r.seller === person);
       if (table === 'quotes' && !readsAll && person !== 'ofir') {
         const approver = person === 'ofir' || person === 'lior';

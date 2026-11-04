@@ -13,8 +13,8 @@ import { addWorkingMinutes, parseDate } from './protocol-logic.js';
 
 export const OWNER = 'owner';
 // One of them is enough: the owner (staff.person is null), Ofir and Lior.
-export const APPROVERS = [OWNER, 'ofir', 'lior', 'irit']; // Irit since 4.11.2026 (public.can_approve_quotes; never her own)
-export const APPROVER_NAMES = 'אדם, אופיר, ליאור או עירית';
+export const APPROVERS = [OWNER, 'ofir', 'lior'];
+export const APPROVER_NAMES = 'אדם, אופיר או ליאור';
 // Nobody decided within this many office minutes: the approvers ring once more, and
 // whoever prepared the contract is told quietly.
 export const APPROVAL_NUDGE_MINUTES = 30;

@@ -18,14 +18,14 @@ const mk = (id, fields = {}) => ({
 });
 const ids = (list) => list.map((c) => c.id);
 
-test('who has the card: Ofir (v11), Ilai, Noam (1.11.2026) and the owner, nobody else', () => {
-  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai', 'noam']);
+test('who has the card: Ofir (v11), Ilai, Noam (1.11.2026), the owner, and Irit and Lior (4.11.2026), nobody else', () => {
+  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai', 'noam', 'irit', 'lior']);
   assert.equal(canConnect({ me: 'noam', scope: 'own', error: null }), true, 'Noam sets the pages up (6)');
   const viewer = (me, scope = 'office') => ({ me, scope, error: null });
   assert.equal(canConnect(viewer('ilai', 'own')), true);
   assert.equal(canConnect(viewer('ofir')), true);
   assert.equal(canConnect(viewer(null)), true, 'the owner: an office login with no person');
-  for (const me of ['irit', 'lior']) assert.equal(canConnect(viewer(me)), false, me);
+  for (const me of ['irit', 'lior']) assert.equal(canConnect(viewer(me)), true, me);
   for (const me of ['nadia', 'nirel', 'eli', 'stav', 'amos']) assert.equal(canConnect(viewer(me, 'own')), false, me);
   assert.equal(canConnect(viewer(null, 'own')), false, 'a login with no role');
   assert.equal(canConnect({ me: 'ilai', scope: 'office', error: 'x' }), false, 'an unknown viewer');
@@ -34,14 +34,15 @@ test('who has the card: Ofir (v11), Ilai, Noam (1.11.2026) and the owner, nobody
 
 // 8.10.2026: connecting the clients was Ilai's task; since v11 (21.10.2026) Ofir's. The owners
 // may connect too, but the card is not among their own tasks: only in the manager profile.
-test('where the card is shown: always for Ofir and Ilai; for the owners not in the personal profile', () => {
+test('where the card is shown: always for Ofir and Ilai; for the owners, Irit and Lior not in the personal profile', () => {
   const viewer = (me, scope = 'office') => ({ me, scope, error: null });
   for (const personal of [false, true]) assert.equal(showsCard(viewer('ilai'), personal), true, `Ilai, personal=${personal}`);
   for (const personal of [false, true]) assert.equal(showsCard(viewer('ofir'), personal), true, `Ofir, personal=${personal}`);
   assert.equal(showsCard(viewer(null), true), false, 'the owner, in "המשימות שלי"');
   assert.equal(showsCard(viewer(null), false), true, 'the owner, in the manager profile');
   assert.equal(showsCard(viewer(null)), true);
-  for (const me of ['irit', 'lior']) for (const personal of [false, true]) assert.equal(showsCard(viewer(me), personal), false, me);
+  // Irit and Lior connect since 4.11.2026, as the owners: not their own task, so not in "המשימות שלי".
+  for (const me of ['irit', 'lior']) { assert.equal(showsCard(viewer(me), true), false, me); assert.equal(showsCard(viewer(me), false), true, me); }
   for (const me of ['nadia', 'nirel', 'eli', 'stav', 'amos']) assert.equal(showsCard(viewer(me, 'own'), false), false, me);
   assert.equal(showsCard(null, false), false);
 });

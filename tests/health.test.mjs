@@ -461,11 +461,11 @@ test('the weekly call (31) left the protocol in v12: nothing is due or late; the
   assert.equal(upcomingEvents([d], (x) => clientState(x, {}, at('2026-10-12T10:00:00+03:00')), at('2026-10-12T10:00:00+03:00'), 7).length, 2); // the videos close on 22.10, beyond the week
 });
 
-test('who sees what: screen 1 the owner, Irit and Ofir (the managers); screen 2 also Lior; the whole team the owner and Lior', () => {
+test('who sees what: screen 1 the owner and the managers (Lior too since 4.11.2026); the whole team the owner and the managers', () => {
   const v = (me, scope = 'office', error = null) => ({ me, scope, error });
-  assert.deepEqual([null, 'irit', 'lior', 'ofir', 'ilai', 'nadia'].map((m) => canSeeOwnerScreen(v(m, m && m !== 'irit' && m !== 'lior' && m !== 'ofir' ? 'own' : 'office'))), [true, true, false, true, false, false]);
+  assert.deepEqual([null, 'irit', 'lior', 'ofir', 'ilai', 'nadia'].map((m) => canSeeOwnerScreen(v(m, m && m !== 'irit' && m !== 'lior' && m !== 'ofir' ? 'own' : 'office'))), [true, true, true, true, false, false]);
   assert.deepEqual([null, 'irit', 'lior', 'ofir', 'ilai', 'eli'].map((m) => canSeeAllClients(v(m))), [true, true, true, true, false, false]);
-  assert.deepEqual([null, 'irit', 'lior', 'ofir', 'nadia'].map((m) => seesWholeTeam(v(m))), [true, false, true, false, false]);
+  assert.deepEqual([null, 'irit', 'lior', 'ofir', 'nadia'].map((m) => seesWholeTeam(v(m))), [true, true, true, true, false]);
   assert.equal(canSeeOwnerScreen(v(null, 'office', new Error('x'))), false);
   assert.equal(canSeeAllClients(null), false);
   // Responsible for editing before an editor is assigned: Ofir assigns.

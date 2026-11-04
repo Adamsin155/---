@@ -90,10 +90,10 @@ test('the mark of a recorded editor: the reason mark, the clocks unchanged, word
   assert.equal(String(after.dueAt), String(before.dueAt));
 });
 
-test('"החזרה לשיוך" (4.11.2026): Irit, Ofir and the owners, on a client in work with an editor; the marks taken back', async () => {
+test('"החזרה לשיוך" (4.11.2026): Irit, Ofir, Lior and the owners, on a client in work with an editor; the marks taken back', async () => {
   const { canUnassign, UNASSIGN_KEYS, unassignable, editorStarted } = await import('../app/card-assign-logic.js');
   const v = (me, scope = 'office') => ({ me, scope, error: null });
-  assert.deepEqual(['irit', 'ofir', 'lior', 'ilai', 'nadia'].map((p) => canUnassign(v(p, ['ilai', 'nadia'].includes(p) ? 'own' : 'office'))), [true, true, false, false, false]);
+  assert.deepEqual(['irit', 'ofir', 'lior', 'ilai', 'nadia'].map((p) => canUnassign(v(p, ['ilai', 'nadia'].includes(p) ? 'own' : 'office'))), [true, true, true, false, false]); // Lior: a manager since 4.11.2026
   assert.equal(canUnassign(v(null)), true, 'the owners');
   assert.equal(canUnassign({ me: 'irit', scope: 'office', error: new Error('x') }), false);
   assert.deepEqual(UNASSIGN_KEYS('r2.'), ['r2.p22a.assigned', 'r2.p22a.load', 'r2.p22a.irit', 'r2.p22a.reason', 'r2.p22a.handoff.editor']);

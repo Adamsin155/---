@@ -127,6 +127,7 @@ async function load() {
   // The managers read the list; every action on it is the owners' (docs/ops.md, section 96).
   $('team-readonly').hidden = !!caller?.owner;
   $('team-help').hidden = !caller?.owner;
+  if (!caller?.owner) $('team-lead').textContent = 'כל הצוות במבט אחד: מי מחובר, ומי מקבל התראות בטלפון.';
   render();
 }
 

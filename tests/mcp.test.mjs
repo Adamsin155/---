@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeHandler, claimsOf, claimsProblem, allowedOrigin, INSTRUCTIONS, MCP_READ_TOOLS, VERSIONS, LATEST_VERSION, RATE_PER_MINUTE, METADATA_PATH, E, GATE_RPCS, GATE_HEADER } from '../supabase/functions/mcp/handler.js';
+import { makeHandler, claimsOf, claimsProblem, allowedOrigin, INSTRUCTIONS, MCP_READ_TOOLS, VERSIONS, LATEST_VERSION, RATE_PER_MINUTE, METADATA_PATH, E, GATE_RPCS, GATE_FALLBACK_RPC, GATE_HEADER } from '../supabase/functions/mcp/handler.js';
 import { isOAuthToken } from '../supabase/functions/_shared/oauth-token.js';
 import { FUNCTIONS, deployFiles } from '../scripts/sync-functions.mjs';
 import { makeHandler as askHandler } from '../supabase/functions/ask/handler.js';
@@ -487,11 +487,14 @@ test('everything the handler and the tools ask the database is on the gate\'s li
   for (const m of tools.matchAll(/\.from\('([a-z_]+)'\)/g)) assert.ok(TABLES.includes(m[1]), m[1]);
   assert.doesNotMatch(tools, /\.rpc\(/);
   const handler = code('../supabase/functions/mcp/handler.js');
-  assert.deepEqual([...handler.matchAll(/userClient\.(rpc|from)\(/g)].length, 1, 'one call on the person\'s client');
+  // The gate's list, and sees_money() only when sees_income() is not there yet (before 4.11.2026's migration).
+  assert.deepEqual([...handler.matchAll(/userClient\.(rpc|from)\(/g)].length, 2, 'the gate\'s calls on the person\'s client');
   assert.match(handler, /GATE_RPCS\.map\(\(fn\) => userClient\.rpc\(fn\)\)/);
+  assert.match(handler, /if \(money\.error\) money = await userClient\.rpc\(GATE_FALLBACK_RPC\)/);
   assert.deepEqual([...handler.matchAll(/\.from\('([a-z_]+)'\)/g)].map((m) => m[1]), ['mcp_usage'], 'with the service key');
   assert.deepEqual([...handler.matchAll(/\.rpc\('([a-z_]+)'\)/g)].map((m) => m[1]), ['mcp_gate_key'], 'with the service key');
-  assert.deepEqual(GATE_RPCS, ['is_office', 'my_person', 'mcp_allowed', 'sees_money']);
+  assert.deepEqual(GATE_RPCS, ['is_office', 'my_person', 'mcp_allowed', 'sees_income']);
+  assert.equal(GATE_FALLBACK_RPC, 'sees_money');
 });
 
 // ── The other functions ────────────────────────

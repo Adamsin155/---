@@ -71,7 +71,8 @@ test('who uploads what: managers all, Ilai his three and a logo he made, an edit
   assert.equal(canEdit('ilai', { kind: 'deliverable_video', uploaded_by: 'nadia@x' }, 'ilai@x', dana), true);
   assert.equal(canEdit('nadia', f, 'nadia@x', dana), false);
   assert.equal(canManageGallery(null) && canManageGallery('irit') && canManageGallery('lior'), true);
-  assert.equal(canManageGallery('ofir') || canManageGallery('ilai'), false);
+  assert.equal(canManageGallery('ofir'), true); // a manager since 4.11.2026
+  assert.equal(canManageGallery('ilai'), false);
 });
 
 test('counts, the gallery, and its words', () => {

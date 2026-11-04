@@ -9,7 +9,7 @@ import { applicableProcesses, clientState, packageDeliverables } from '../app/pr
 import { importKeys } from '../app/client-open.js';
 import { clientHealth, station } from '../app/health.js';
 import {
-  isManager, canArchive, seesFinance, seesQuoteMoney, canSeeTable, canSeeQuoteList, canSeeDeals, hasProfiles, managerHome, modeOf, setMode, resetMode, defaultMode, MODES,
+  isManager, canArchive, canPurge, seesFinance, seesQuoteMoney, canSeeTable, canSeeQuoteList, canSeeDeals, hasProfiles, managerHome, modeOf, setMode, resetMode, defaultMode, MODES,
 } from '../app/manager-rules.js';
 import { profileOf, profileMenu, profileSwitch, managerTabs, PERSONAL } from '../app/shell-rules.js';
 import { firstScreenOf } from '../app/office-ui.js';
@@ -23,19 +23,23 @@ const OWNER = v(null);
 const at = (s) => new Date(s);
 const memory = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, x) => m.set(k, String(x)), removeItem: (k) => m.delete(k) }; };
 
-test('the managers: the owner, Irit and Ofir; the prices for the owners only (6.10.2026); the owner and Ofir archive', () => {
+test('the managers: the owner, Irit, Ofir and Lior (4.11.2026), with the money and the archive; the purge the owners\' only', () => {
   const who = [OWNER, v('irit'), v('ofir'), v('lior'), v('ilai', 'own'), v('nadia', 'own'), v('eli', 'own')];
-  assert.deepEqual(who.map(isManager), [true, true, true, false, false, false, false]);
-  assert.deepEqual(who.map(seesFinance), [true, false, false, false, false, false, false]);
+  assert.deepEqual(who.map(isManager), [true, true, true, true, false, false, false]);
+  // The prices (6.10.2026: the owners only); since 4.11.2026 the managers too (public.sees_income()).
+  assert.deepEqual(who.map(seesFinance), [true, true, true, true, false, false, false]);
+  assert.deepEqual(who.map(canPurge), [true, false, false, false, false, false, false]);
   // The list of sent quotes: the owners, Irit, who builds the contracts, and Ofir (29.10.2026);
   // its amounts and the month's sums: the owners and Ofir. The sellers' deals: the owners, Irit and Ofir (31.10.2026).
-  assert.deepEqual(who.map(canSeeQuoteList), [true, true, true, false, false, false, false]);
-  assert.deepEqual(who.map(seesQuoteMoney), [true, false, true, false, false, false, false]);
-  assert.deepEqual(who.map(canSeeDeals), [true, true, true, false, false, false, false]);
+  // Since 4.11.2026 all of it the managers' too (Lior included).
+  assert.deepEqual(who.map(canSeeQuoteList), [true, true, true, true, false, false, false]);
+  assert.deepEqual(who.map(seesQuoteMoney), [true, true, true, true, false, false, false]);
+  assert.deepEqual(who.map(canSeeDeals), [true, true, true, true, false, false, false]);
   assert.equal(seesQuoteMoney(v('ofir', 'office', new Error('x'))), false);
   assert.equal(seesFinance(v(null, 'office', new Error('x'))), false);
   assert.equal(canSeeQuoteList(v('irit', 'office', new Error('x'))), false);
-  assert.deepEqual(who.map(canArchive), [true, false, true, false, false, false, false]);
+  assert.deepEqual(who.map(canArchive), [true, true, true, true, false, false, false]);
+  assert.equal(canPurge(v(null, 'office', new Error('x'))), false);
   assert.deepEqual(who.map(canSeeTable), [true, true, true, true, false, false, false]);
   // Someone the app could not identify gets nothing.
   assert.equal(isManager(v(null, 'office', new Error('x'))), false);
@@ -52,7 +56,7 @@ test('the two profiles: everyone starts in their own work (the owners too, 6.10.
   // Who has the two profiles behind the button: the owners, Ofir, Lior, and Irit (7.10.2026; her switch was in the menu).
   assert.deepEqual([OWNER, v('ofir'), v('lior'), v('irit'), v('ilai', 'own'), v('nadia', 'own'), v(null, 'office', new Error('x')), null].map(hasProfiles), [true, true, true, true, false, false, false, false]);
   assert.equal(hasProfiles(v('irit', 'office', new Error('x'))), false);
-  assert.deepEqual([OWNER, v('ofir'), v('lior'), v('irit')].map(managerHome), ['owner.html#now', 'owner.html#now', 'owner.html#all', 'owner.html#now']);
+  assert.deepEqual([OWNER, v('ofir'), v('lior'), v('irit')].map(managerHome), ['owner.html#now', 'owner.html#now', 'owner.html#now', 'owner.html#now']); // Lior's screen 1 since 4.11.2026
   setMode('manager', s);
   assert.equal(modeOf(v('ofir'), s), 'manager');
   setMode('nonsense', s);
@@ -136,7 +140,7 @@ test('which profile a page is shown in: a manager screen by its address opens th
   // The one button: to the manager profile's first screen, and back.
   assert.deepEqual(profileSwitch(OWNER, 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#now' });
   assert.deepEqual(profileSwitch(v('ofir'), 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#now' });
-  assert.deepEqual(profileSwitch(v('lior'), 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#all' });
+  assert.deepEqual(profileSwitch(v('lior'), 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#now' }); // screen 1 since 4.11.2026
   assert.deepEqual(profileSwitch(v('irit'), 'mine'), { to: 'manager', label: 'מבט מנהל', href: 'owner.html#now' });
   for (const viewer of [OWNER, v('ofir'), v('lior'), v('irit')]) assert.deepEqual(profileSwitch(viewer, 'manager'), { to: 'mine', label: 'חזרה למשימות שלי', href: 'clients.html#mine' });
   assert.deepEqual(Object.keys(PERSONAL).sort(), ['irit', 'lior', 'ofir', 'owner']);

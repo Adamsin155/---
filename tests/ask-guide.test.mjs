@@ -87,13 +87,16 @@ test('no leaks: a screen or a how-to is in a guide only when the person has its 
   }
   // The other roles: what is not theirs is not in their guide.
   const has = (who, q) => qs(guideOf(who)).includes(q);
-  assert.equal(has(v('lior'), 'איפה רואים את ההצעות והעסקאות שנשלחו החודש?'), false, 'Lior has no sent quotes');
-  assert.equal(has(v('lior'), 'איך מחליפים עורך ללקוח?'), false, '"בקרה ושיוך" is not in his menu');
-  for (const who of ['irit', 'lior', 'ofir']) assert.equal(has(v(who), 'איפה סיכום הערב (19:00)?'), false, who);
+  // Since 4.11.2026 the managers have every screen of the owners' but the payments app (docs/ops.md, section 96).
+  assert.equal(has(v('lior'), 'איפה רואים את ההצעות והעסקאות שנשלחו החודש?'), true, 'Lior has the sent quotes');
+  assert.equal(has(v('lior'), 'איך מחליפים עורך ללקוח?'), true, '"בקרה ושיוך" is in his menu');
+  for (const who of ['irit', 'lior', 'ofir']) assert.equal(has(v(who), 'איפה סיכום הערב (19:00)?'), true, who);
+  for (const who of ['ilai', 'nadia']) assert.equal(has(v(who), 'איפה סיכום הערב (19:00)?'), false, who);
   assert.equal(has(OWNER, 'איפה סיכום הערב (19:00)?'), true);
-  assert.equal(has(v('ofir'), 'איך מושכים קישורים מהדרייב לגאנט?'), false, 'Ofir reads the Gantt only');
+  assert.equal(has(v('ofir'), 'איך מושכים קישורים מהדרייב לגאנט?'), true, 'Ofir changes the Gantt since 4.11.2026');
   for (const who of [OWNER, v('irit'), v('lior'), v('ofir')]) assert.equal(has(who, 'איך מוסיפים לקוח חדש?'), true, who.me || 'owner');
-  assert.ok(!ids(guideOf(v('lior')).mine).includes('quotes') && !ids(guideOf(v('lior')).manager).includes('quotes'));
+  assert.ok(ids(guideOf(v('lior')).manager).includes('quotes'));
+  for (const who of ['irit', 'lior', 'ofir']) assert.ok(!JSON.stringify(guideOf(v(who))).includes('פיימנט'), who);
   assert.ok(!JSON.stringify(guideOf(v('irit'))).includes('פיימנט'));
 });
 
@@ -116,8 +119,8 @@ test('the paths: in clicks from the menu, through "מבט מנהל" when the scr
   // Irit's daily review is a tab of her clients list, in her own profile; the owner's behind the button.
   assert.equal(guideOf(v('irit')).mine.find((s) => s.id === 'control').path, 'בתפריט ← לקוחות ← לשונית "בקרה יומית"');
   assert.match(guideOf(OWNER).manager.find((s) => s.id === 'control').path, /^כפתור "מבט מנהל".*לשונית "בקרה יומית"/);
-  // Lior's "מבט מנהל" opens on "כל הלקוחות במבט" (he has no screen 1).
-  assert.equal(guideOf(v('lior')).switch.link, 'https://app.astrateg.tech/owner.html#all');
+  // Lior's "מבט מנהל" opens on screen 1 since 4.11.2026 (until then "כל הלקוחות במבט").
+  assert.equal(guideOf(v('lior')).switch.link, 'https://app.astrateg.tech/owner.html#now');
   assert.equal(guideOf(OWNER).switch.link, 'https://app.astrateg.tech/owner.html#now');
   // The calendar: "שליחת זימון" only for the office.
   assert.match(howto(v('ofir'), 'איפה היומן ואיך שולחים זימון?').path, /שליחת זימון/);

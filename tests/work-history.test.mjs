@@ -92,11 +92,12 @@ test('every employee is listed, also with nothing; the list line says today or t
   assert.equal(lastWork(of(list, 'ofir'), '2026-10-28').isToday, false);
 });
 
-test('who sees the tab: the owners, Lior and Ofir', () => {
+test('who sees the tab: the owners, Lior, Ofir and Irit (4.11.2026)', () => {
   const office = (me) => ({ scope: 'office', me });
   assert.equal(canSeeWorkHistory(office('lior')), true);
   assert.equal(canSeeWorkHistory(office('ofir')), true);
-  assert.equal(canSeeWorkHistory(office('irit')), false);
+  assert.equal(canSeeWorkHistory(office('irit')), true);
+  assert.equal(canSeeWorkHistory({ scope: 'office', me: 'ilai' }), false);
   assert.equal(canSeeWorkHistory({ scope: 'assigned', me: 'anna' }), false);
   assert.equal(canSeeWorkHistory({ error: 'x', scope: 'office', me: 'ofir' }), false);
   assert.equal(canSeeWorkHistory(null), false);
