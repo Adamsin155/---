@@ -62,10 +62,10 @@ test('the function\'s helpers and the cron call are for the service role only', 
   assert.deepEqual(loose, []);
 });
 
-test('the log: everyone reads their own, the owner and Lior all, and only a confirmed staff login', async () => {
+test('the log: everyone reads their own, the owner, Lior and Irit all (Irit and Ofir since 4.11.2026), and only a confirmed staff login', async () => {
   const keys = async (who) => (await q(who, 'select key from public.reminder_log order by key')).map((r) => r.key);
   assert.deepEqual(await keys('nadia'), ['k-n1']);
-  assert.deepEqual(await keys('irit'), ['k-i1']);
+  assert.deepEqual(await keys('irit'), ['k-i1', 'k-l1', 'k-n1']); // a manager since 20261128100000_managers_all.sql
   assert.deepEqual(await keys('lior'), ['k-i1', 'k-l1', 'k-n1']);
   assert.deepEqual(await keys('owner'), ['k-i1', 'k-l1', 'k-n1']);
   // A staff email whose login was never confirmed reads nothing and marks nothing.

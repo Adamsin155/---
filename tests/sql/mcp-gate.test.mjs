@@ -9,9 +9,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { freshDatabase } from './pg.mjs';
 import { TABLES, NEVER } from '../../supabase/functions/ask/tools.js';
-import { GATE_RPCS, GATE_HEADER } from '../../supabase/functions/mcp/handler.js';
+import { GATE_RPCS, GATE_FALLBACK_RPC, GATE_HEADER } from '../../supabase/functions/mcp/handler.js';
 
 const SQL = readFileSync(new URL('../../supabase/migrations/20261121100000_mcp.sql', import.meta.url), 'utf8');
+// The gate as it stands now: replaced by 20261128100000_managers_all.sql ('/rpc/sees_income' added, 4.11.2026).
+const GATE_SQL = readFileSync(new URL('../../supabase/migrations/20261128100000_managers_all.sql', import.meta.url), 'utf8');
 let db;
 let KEY;
 const APP = { sub: 'u1', email: 'o@astrateg.test', role: 'authenticated', aud: 'authenticated', client_id: 'claude-client' };
@@ -65,7 +67,7 @@ test('that path cannot break: empty, missing, odd or broken claims and headers',
 });
 
 test('that path reads no table: it runs with the key table out of its reach', () => {
-  const body = /function public\.mcp_request_gate\(\)[\s\S]*?end \$\$;/.exec(SQL)[0];
+  const body = /function public\.mcp_request_gate\(\)[\s\S]*?end \$\$;/.exec(GATE_SQL)[0];
   const first = body.indexOf('return;');
   assert.ok(first > 0 && !/\bfrom\b/.test(body.slice(0, first)), 'nothing is read before the first return');
   assert.ok(body.indexOf('private.mcp_gate') > first);
@@ -80,12 +82,13 @@ test('a connected app with the key: every table of the tools, GET and HEAD', asy
 });
 
 test('the lists in the gate are exactly the code\'s, and nothing the tools\' wall forbids', () => {
-  const body = /function public\.mcp_request_gate\(\)[\s\S]*?end \$\$;/.exec(SQL)[0];
+  const body = /function public\.mcp_request_gate\(\)[\s\S]*?end \$\$;/.exec(GATE_SQL)[0];
   const quoted = [...body.matchAll(/'\/([a-z_/]+)'/g)].map((m) => m[1]);
   const rpcs = quoted.filter((q) => q.startsWith('rpc/')).map((q) => q.slice(4));
   const tables = quoted.filter((q) => !q.startsWith('rpc/'));
   assert.deepEqual([...tables].sort(), [...TABLES].sort());
-  assert.deepEqual([...rpcs].sort(), [...GATE_RPCS].sort());
+  // GATE_RPCS, and sees_money() the function falls back to before the migration of 4.11.2026.
+  assert.deepEqual([...rpcs].sort(), [...GATE_RPCS, GATE_FALLBACK_RPC].sort());
   for (const t of tables) assert.ok(!NEVER.test(t), t);
   assert.equal(new RegExp(`'${GATE_HEADER}'`).test(body), true, 'the header the function sends');
 });

@@ -107,12 +107,13 @@ test("Eliel's own days: the days he films; the office reads them, nobody else", 
 test("Eliel's month: the office marks it in his name, stamped with who did it; Irit marks Eli's the same way", async () => {
   assert.deepEqual((await db.query('select public.photographer_people() as p')).rows[0].p, PHOTOGRAPHERS);
   const submit = (who, person, days, none = false) => call(who, 'select person, by_person, array(select x::text from unnest(days) x) as days from public.photographer_submit($1::date, $2::date[], $3, $4)', [`${FAR}-01`, days, none, person]);
-  for (const who of ['owner', 'irit', 'lior']) {
+  // Ofir too since 4.11.2026 (the managers: public.can_manage_availability()).
+  for (const who of ['owner', 'irit', 'lior', 'ofir']) {
     const r = await submit(who, 'eliel', [d(3), d(4)]);
     assert.deepEqual(r.rows?.[0], { person: 'eliel', by_person: PEOPLE[who] ?? 'owner', days: [d(3), d(4)] }, who);
   }
-  // Ofir reads, and does not mark; Eli marks only his own; nobody else.
-  for (const who of ['ofir', 'eli', 'nadia']) assert.match((await submit(who, 'eliel', [d(5)])).error, /not allowed/, who);
+  // Eli marks only his own; nobody else.
+  for (const who of ['eli', 'nadia']) assert.match((await submit(who, 'eliel', [d(5)])).error, /not allowed/, who);
   assert.equal((await call('ofir', "select count(*)::int as n from public.photographer_months where person = 'eliel'")).rows[0].n, 1);
   // A day off with a shoot of his on it: the office is not held by it (he called).
   assert.equal((await submit('irit', 'eliel', [d(20)])).error, undefined);

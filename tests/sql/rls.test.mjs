@@ -466,10 +466,11 @@ test('signing an agreement still opens its client by itself (anon signs; the off
 
 // It was the whole office (20260930210000_hardening.sql); since 20261013100000_money_owners_only.sql
 // the owners and Irit (tests/sql/money.test.mjs holds the rule per role).
-test('quotes are the owners\', Irit\'s and Ofir\'s (the agreement carries the client\'s phone and the prices); payouts are for payout owners', async () => {
-  // Ofir too since 29.10.2026 (20261114100000_ofir_deals.sql: the sent quotes with their amounts).
-  for (const who of ['owner', 'irit', 'ofir']) assert.ok((await rows(who, 'select 1 from public.quotes')).length >= 1, who);
-  for (const who of ['lior', 'ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual(await rows(who, 'select 1 from public.quotes'), [], who);
+test('quotes are the owners\' and the managers\' (the agreement carries the client\'s phone and the prices); payouts are for payout owners', async () => {
+  // Ofir too since 29.10.2026 (20261114100000_ofir_deals.sql: the sent quotes with their amounts),
+  // and Lior since 4.11.2026 (20261128100000_managers_all.sql: the managers).
+  for (const who of ['owner', 'irit', 'ofir', 'lior']) assert.ok((await rows(who, 'select 1 from public.quotes')).length >= 1, who);
+  for (const who of ['ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual(await rows(who, 'select 1 from public.quotes'), [], who);
   assert.deepEqual(await rows('irit', 'select 1 from public.payout_deals'), []);
 });
 
@@ -511,8 +512,9 @@ test('every client table has row level security, and no policy on it lets every 
     script_grants: /can_manage_scripts\(\)/,
     script_share_links: /can_manage_scripts\(\)/,
     // Who archived or deleted a client (20261003140000_manager_features.sql): the owner and
-    // Ofir; the row outlives the client, so no client rule can apply.
-    client_admin_log: /can_archive_clients/,
+    // Ofir, and since 20261128100000_managers_all.sql the managers (public.is_manager());
+    // the row outlives the client, so no client rule can apply.
+    client_admin_log: /can_archive_clients|is_manager\(\)/,
     // The tasks given on the spot (20261011100000_staff_tasks.sql): each row is addressed
     // to one person; only the assignee, whoever gave it and the owner read it. The client
     // is an optional note on the task (tests/sql/staff-tasks.test.mjs).

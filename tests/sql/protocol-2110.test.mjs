@@ -68,10 +68,11 @@ test('version 11: the function, the column default, a new client', async () => {
 });
 
 test('who connects to Metricool: Ofir, Ilai and the owner (the app\'s CONNECTORS); Ofir does not edit the Gantt', async () => {
-  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai', 'noam']); // Noam since 1.11.2026 (tests/sql/noam.test.mjs)
+  assert.deepEqual(CONNECTORS, ['owner', 'ofir', 'ilai', 'noam', 'irit', 'lior']); // Noam since 1.11.2026 (tests/sql/noam.test.mjs); Irit and Lior since 4.11.2026 (20261128100000_managers_all.sql)
   for (const [who, person] of Object.entries(PEOPLE)) {
     const can = (await run(who, 'select public.can_connect_metricool() as ok')).rows[0].ok;
-    assert.equal(can, CONNECTORS.includes(person ?? 'owner'), who);
+    // This database stops at this file: its own list (Irit and Lior came with 20261128100000_managers_all.sql, tests/sql/managers-all.test.mjs).
+    assert.equal(can, CONNECTORS.filter((p) => !['irit', 'lior'].includes(p)).includes(person ?? 'owner'), who);
     const r = await run(who, "select public.metricool_connect($1, '101', 'מספרת רון') as b", [ids.a]);
     if (can) assert.deepEqual(r.rows[0].b, { blogId: '101', brand: 'מספרת רון' }, who);
     else assert.match(r.error, DENIED, who);

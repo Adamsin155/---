@@ -61,8 +61,10 @@ async function keep(who, sql, params = []) {
 const status = async (token) => (await keep('anon', 'select public.get_status($1) as s', [token]))[0].s;
 let token;
 
-test('only Irit, Lior and the owner make a link; the table keeps a hash, the token is in Vault', async () => {
-  for (const who of ['ofir', 'ilai', 'nadia', 'anon']) {
+test('only Irit, Lior, Ofir (since 4.11.2026) and the owner make a link; the table keeps a hash, the token is in Vault', async () => {
+  // Ofir, a manager since 4.11.2026 (20261128100000_managers_all.sql), makes one (rolled back).
+  assert.equal((await q('ofir', 'select public.status_link_create($1)', [ids.dana])).error, undefined);
+  for (const who of ['ilai', 'nadia', 'anon']) {
     const r = await q(who, 'select public.status_link_create($1)', [ids.dana]);
     assert.match(r.error, /not allowed|permission denied/, who);
   }
@@ -80,7 +82,8 @@ test('only Irit, Lior and the owner make a link; the table keeps a hash, the tok
   assert.match((await q('ofir', 'select secret_id from public.client_status_links')).error, /permission denied/);
   assert.deepEqual((await q('nadia', 'select id from public.client_status_links')).rows, []);
   assert.equal((await q('lior', 'select public.status_link_token($1) as t', [l.id])).rows[0].t, token);
-  assert.match((await q('ofir', 'select public.status_link_token($1) as t', [l.id])).error, /not allowed/);
+  assert.equal((await q('ofir', 'select public.status_link_token($1) as t', [l.id])).rows[0].t, token);
+  assert.match((await q('ilai', 'select public.status_link_token($1) as t', [l.id])).error, /not allowed/);
   assert.match((await q('anon', 'select public.status_link_token($1) as t', [l.id])).error, /permission denied/);
   // Nobody writes the tables directly.
   assert.match((await q('irit', "insert into public.client_status_links (client_id, token_hash, expires_at) values ($1, repeat('a', 64), now())", [ids.dana])).error, /permission denied/);

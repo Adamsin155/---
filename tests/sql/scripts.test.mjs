@@ -56,14 +56,18 @@ const save = (who, client, n, fields, round = 1) => keep(who,
    returning *`,
   [ids[client], round, n, fields.title ?? '', fields.body ?? '', JSON.stringify(fields.links ?? []), fields.status ?? 'draft']);
 
-test('Lior and the owner write any client\'s scripts; the office, editors and anon see nothing', async () => {
+test('Lior, the owner, and Irit and Ofir (the managers, 4.11.2026) write any client\'s scripts; the rest of the office, editors and anon see nothing', async () => {
   const [row] = await save('lior', 'dana', 1, { title: 'פתיחה', body: 'דנה מגישה קפה', links: ['https://www.instagram.com/reel/abc'] });
   assert.equal(row.version, 1);
   assert.equal(row.by_email, 'lior@astrateg.test');
   const [again] = await save('owner', 'dana', 1, { title: 'פתיחה', body: 'דנה מגישה קפה ומחייכת', links: ['https://www.instagram.com/reel/abc'] });
   assert.equal(again.version, 2, 'every save moves the version on');
   assert.equal(again.by_email, 'owner@astrateg.test');
-  for (const who of ['irit', 'ofir', 'ilai', 'nadia', 'yariv']) {
+  for (const who of ['irit', 'ofir']) {
+    assert.equal((await q(who, "insert into public.client_scripts (client_id, n, body) values ($1, 2, 'x')", [ids.dana])).error, undefined, who);
+    assert.equal((await q(who, 'select public.can_write_scripts($1) as ok', [ids.dana])).rows[0].ok, true, who);
+  }
+  for (const who of ['ilai', 'nadia', 'yariv']) {
     assert.deepEqual((await q(who, 'select n from public.client_scripts')).rows, [], who);
     const w = await q(who, "insert into public.client_scripts (client_id, n, body) values ($1, 2, 'x')", [ids.dana]);
     assert.match(w.error, /row-level security/, who);
@@ -86,7 +90,8 @@ test('scripts_client: the package\'s video count and rounds, never the office\'s
 });
 
 test('Lior grants a person one client: they write it (not "approved"), and nothing else', async () => {
-  assert.match((await q('irit', 'select public.scripts_grant($1, $2)', [ids.dana, 'nadia'])).error, /not allowed/);
+  assert.match((await q('ilai', 'select public.scripts_grant($1, $2)', [ids.dana, 'nadia'])).error, /not allowed/);
+  assert.equal((await q('irit', 'select public.scripts_grant($1, $2)', [ids.dana, 'nadia'])).error, undefined); // a manager since 4.11.2026 (rolled back)
   assert.match((await q('lior', 'select public.scripts_grant($1, $2)', [ids.dana, 'nobody'])).error, /unknown person/);
   await keep('lior', 'select public.scripts_grant($1, $2)', [ids.dana, 'yariv']);
   assert.equal((await q('yariv', 'select public.can_write_scripts($1) as ok', [ids.dana])).rows[0].ok, true);
@@ -148,8 +153,8 @@ test('Lior approves by hand; the client\'s approval of the scripts (p13) approve
 
 let token;
 let linkId;
-test('the share link: Lior and the owner only, a hash in the table, the token in Vault, a new one revokes the old', async () => {
-  for (const who of ['irit', 'ofir', 'nadia']) {
+test('the share link: Lior, the owner, Irit and Ofir only, a hash in the table, the token in Vault, a new one revokes the old', async () => {
+  for (const who of ['ilai', 'nadia']) {
     assert.match((await q(who, 'select public.scripts_share_create($1)', [ids.dana])).error, /not allowed/, who);
   }
   assert.match((await q('anon', 'select public.scripts_share_create($1)', [ids.dana])).error, /permission denied/);
@@ -165,9 +170,10 @@ test('the share link: Lior and the owner only, a hash in the table, the token in
   assert.notEqual(rows[1].token_hash, token);
   assert.equal((await q('lior', 'select public.scripts_share_token($1) as t', [l.id])).rows[0].t, token);
   assert.equal((await q('owner', 'select public.scripts_share_token($1) as t', [first.id])).rows[0].t, null);
-  assert.match((await q('ofir', 'select public.scripts_share_token($1) as t', [l.id])).error, /not allowed/);
+  assert.match((await q('ilai', 'select public.scripts_share_token($1) as t', [l.id])).error, /not allowed/);
+  assert.equal((await q('ofir', 'select public.scripts_share_token($1) as t', [l.id])).rows[0].t, token);
   assert.match((await q('lior', 'select token_hash from public.script_share_links')).error, /permission denied/);
-  assert.equal((await q('ofir', 'select id from public.script_share_links')).rows.length, 0);
+  assert.equal((await q('ilai', 'select id from public.script_share_links')).rows.length, 0);
   assert.equal((await q('owner', 'select id from public.script_share_links')).rows.length, 2);
 });
 

@@ -142,12 +142,13 @@ test('every other column of clients is readable, and a new column has to be clas
 
 // Since 20261013100000_money_owners_only.sql (it was the whole office: the owner, Irit,
 // Lior, Ofir and Ilai): tests/sql/money.test.mjs holds the rule per role.
-test('the signed agreements (the phone and the prices in them) are the owners\', Irit\'s and Ofir\'s', async () => {
+test('the signed agreements (the phone and the prices in them) are the owners\' and the managers\'', async () => {
   const n = (await db.query('select count(*)::int as n from public.quotes')).rows[0].n;
   assert.ok(n >= 1);
   // Ofir too since 29.10.2026 (20261114100000_ofir_deals.sql: the sent quotes with their amounts).
-  for (const who of ['owner', 'irit', 'ofir']) assert.equal((await q(who, 'select 1 from public.quotes')).rows.length, n, who);
-  for (const who of ['lior', 'ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual((await q(who, 'select 1 from public.quotes')).rows, [], who);
+  // Lior too since 4.11.2026 (20261128100000_managers_all.sql).
+  for (const who of ['owner', 'irit', 'ofir', 'lior']) assert.equal((await q(who, 'select 1 from public.quotes')).rows.length, n, who);
+  for (const who of ['ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual((await q(who, 'select 1 from public.quotes')).rows, [], who);
 });
 
 // ── 2. Who writes which item ─────────────────

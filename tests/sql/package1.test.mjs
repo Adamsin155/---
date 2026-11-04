@@ -115,9 +115,9 @@ test('Eli still reads nothing from the scripts table and writes nothing; a grant
   assert.equal((await q('eli', 'delete from public.client_scripts where client_id = $1', [ids.soon])).affected, 0);
   assert.equal((await q('eli', 'select public.can_write_scripts($1) as ok', [ids.soon])).rows[0].ok, false);
   assert.deepEqual((await q('eli', 'select person from public.script_grants')).rows, []);
-  // Lior and the owner as before; the rest of the office and the editors, nothing.
-  assert.equal((await q('lior', 'select n from public.client_scripts where client_id = $1', [ids.soon])).rows.length, 3);
-  for (const who of ['irit', 'ofir', 'ilai', 'nirel', 'nadia', 'stav']) assert.deepEqual((await q(who, 'select n from public.client_scripts')).rows, [], who);
+  // Lior and the owner as before, Irit and Ofir since 4.11.2026 (the managers); the rest of the office and the editors, nothing.
+  for (const who of ['lior', 'irit', 'ofir']) assert.equal((await q(who, 'select n from public.client_scripts where client_id = $1', [ids.soon])).rows.length, 3, who);
+  for (const who of ['ilai', 'nirel', 'nadia', 'stav']) assert.deepEqual((await q(who, 'select n from public.client_scripts')).rows, [], who);
 });
 
 test('the characterization: Ilai reads every client\'s; Nirel and an editor only of the clients they see; a field agent and anon nothing', async () => {

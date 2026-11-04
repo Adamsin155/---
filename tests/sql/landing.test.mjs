@@ -186,8 +186,13 @@ test('the client is activated when the last person finishes; the answers become 
   assert.equal((await db.query('select count(*)::int as n from public.clients where landing = false and id = $1', [ids.a])).rows[0].n, 1);
 });
 
-test('only the owners activate and close a person\'s part', async () => {
-  for (const who of ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'eli', 'stav']) {
+test('only the owners and the managers activate and close a person\'s part', async () => {
+  // Irit, Lior and Ofir since 4.11.2026 (20261128100000_managers_all.sql), rolled back here.
+  for (const who of ['irit', 'lior', 'ofir']) {
+    assert.equal((await run(who, "select public.landing_done_for('lior', $1)", [[ids.b]])).error, undefined, who);
+    assert.equal((await run(who, 'select public.landing_activate($1)', [[ids.b]])).error, undefined, who);
+  }
+  for (const who of ['ilai', 'nirel', 'nadia', 'eli', 'stav']) {
     assert.match((await run(who, 'select public.landing_activate($1)', [[ids.b]])).error, DENIED, who);
     assert.match((await run(who, "select public.landing_done_for('lior', $1)", [[ids.b]])).error, DENIED, who);
   }

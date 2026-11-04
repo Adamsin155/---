@@ -192,8 +192,9 @@ test('soft delete: the managers and the uploader; only the managers restore', as
   assert.equal((await q('ofir', 'delete from storage.objects where name = $1 returning name', [orphan])).rows.length, 1);
 });
 
-test('the view-only link: Irit, Lior and the owner; a hash in the table, the token in Vault', async () => {
-  for (const who of ['ofir', 'ilai', 'nadia', 'anon']) {
+test('the view-only link: Irit, Lior, Ofir (since 4.11.2026) and the owner; a hash in the table, the token in Vault', async () => {
+  assert.equal((await q('ofir', 'select public.gallery_link_create($1)', [ids.dana])).error, undefined); // a manager (rolled back)
+  for (const who of ['ilai', 'nadia', 'anon']) {
     assert.match(String((await q(who, 'select public.gallery_link_create($1)', [ids.dana])).error), /not allowed|permission denied/, who);
   }
   const [{ l }] = await keep('irit', 'select public.gallery_link_create($1) as l', [ids.dana]);
@@ -202,7 +203,8 @@ test('the view-only link: Irit, Lior and the owner; a hash in the table, the tok
   assert.notEqual(row.token_hash, l.token);
   assert.ok(Math.abs(new Date(row.expires_at) - Date.now() - 365 * 864e5) < 60e3);
   assert.equal((await q('lior', 'select public.gallery_link_token($1) as t', [l.id])).rows[0].t, l.token);
-  assert.match(String((await q('ofir', 'select public.gallery_link_token($1) as t', [l.id])).error), /not allowed/);
+  assert.equal((await q('ofir', 'select public.gallery_link_token($1) as t', [l.id])).rows[0].t, l.token); // a manager since 4.11.2026
+  assert.match(String((await q('ilai', 'select public.gallery_link_token($1) as t', [l.id])).error), /not allowed/);
   assert.match(String((await q('ofir', 'select token_hash from public.client_gallery_links')).error), /permission denied/);
   assert.equal((await q('ofir', 'select id from public.client_gallery_links')).rows.length, 1);
   assert.deepEqual((await q('nadia', 'select id from public.client_gallery_links')).rows, []);
