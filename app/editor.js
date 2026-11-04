@@ -39,7 +39,7 @@ import { closedProcesses } from './health.js';
 import * as P from './production.js';
 import { todoText } from './office-marks.js';
 import {
-  progressMap, progressKey, editTarget, editedValue, isMonthly, monthlyFor, monthTarget, monthKey, monthRowKey, monthMap, monthVideosText,
+  progressMap, progressKey, editTarget, editedValue, isMonthly, monthlyFor, monthTargetOf, monthKey, monthRowKey, monthMap, monthVideosText, monthLabel, addMonth,
 } from './edit-count.js';
 import { mountWorkFiles, workFilesState, forgetFiles, readFiles } from './files-ui.js';
 import { charViewHref } from './intake-ui.js';
@@ -74,7 +74,10 @@ const busy = () => !!document.querySelector('dialog[open]');
 let scripts = [];
 const scriptsOf = (job) => scripts.filter((s) => s.client_id === job.client.id && s.round === (job.round || 1));
 const cardId = (job) => `c-${job.client.id}${job.round > 1 ? `-r${job.round}` : ''}`;
-const jobName = (job) => `${job.client.name}${job.round > 1 ? ` · סבב ${job.round}` : ''}`;
+// A monthly editing round (app/monthly-rounds.js) is said by its month: "אלאור בוטיק · נובמבר 2026".
+const jobName = (job) => `${job.client.name}${job.ctx?.monthly ? ` · ${monthLabel(job.ctx.month)}` : job.round > 1 ? ` · סבב ${job.round}` : ''}`;
+// The month a job of a monthly client counts: a monthly round's own month, else the current one.
+const jobMonth = (job, now = new Date()) => (job.ctx?.monthly ? job.ctx.month : monthKey(now));
 const isNirel = () => me === 'nirel';
 // How many videos I have edited, per shoot ('<client>:<round>:<me>' → row; 22.10.2026).
 // null: the numbers cannot be read (before their migration): no counter then.
@@ -83,9 +86,18 @@ let progress = null;
 // monthTarget). null: no monthly client of mine, or before its migration: no counter on those.
 let months = null;
 // What I count on a job: a monthly client's current Israel month (I am its editor), else the shoot's part.
-const partOf = (job, now = new Date()) => (monthlyFor(job.client, me) ? monthTarget(job.client, now) : editTarget(job.ctx, me));
+const partOf = (job, now = new Date()) => (monthlyFor(job.client, me) ? monthTargetOf(job.client, jobMonth(job, now)) : editTarget(job.ctx, me));
 
 // ── Loading ─────────────────────────────────
+// A monthly client's numbers: this month's, and the month of a monthly editing round of mine
+// still open from before (only last month: the database takes no number for an older one).
+async function loadMonthRows(ids) {
+  const now = new Date();
+  const here = monthKey(now);
+  const keys = [here, ...new Set(allJobs().filter((j) => j.ctx?.monthly && j.ctx.month === addMonth(here, -1)).map((j) => j.ctx.month))];
+  const parts = await Promise.all(keys.map((k) => loadEditorMonths(ids, k)));
+  return parts[0] ? parts.flatMap((p) => p || []) : null;
+}
 async function load() {
   $('state').textContent = clients.length ? '' : 'טוען…';
   try {
@@ -105,7 +117,7 @@ async function load() {
   let monthRows;
   const monthly = clients.filter((c) => ids.includes(c.id) && isMonthly(c)).map((c) => c.id);
   [chars, briefs, logos, scripts, rows, monthRows, legacyChars] = await Promise.all([loadCharacterizations(ids), loadBriefsOf(ids), loadLogoFiles(ids), loadWorkScripts(ids), loadEditorProgress(ids),
-    monthly.length ? loadEditorMonths(monthly, monthKey()) : null, loadLegacyChars(ids), ...ids.map(readFiles)]);
+    monthly.length ? loadMonthRows(monthly) : null, loadLegacyChars(ids), ...ids.map(readFiles)]);
   progress = rows ? progressMap(rows) : null;
   months = monthRows ? monthMap(monthRows) : null;
   lastLoad = Date.now();
@@ -382,7 +394,7 @@ function jobCard(job) {
   const videos = P.videosPerDay(job.ctx);
   const share = shareOf(job.ctx, me);
   // A monthly client: "8 סרטונים בחודש", or this month's own number, "12 סרטונים החודש".
-  const perMonth = monthlyFor(c, me) ? monthVideosText(c, now) : null;
+  const perMonth = monthlyFor(c, me) ? monthVideosText(c, now, jobMonth(job, now)) : null;
   const mine = scriptsOf(job);
   // The scripts: Lior's Google Docs link (links.scripts), and how many (the office's number, else the system's).
   const nScripts = job.round > 1 ? (mine.length || null) : P.scriptsCountOf(c, mine.length);
@@ -457,8 +469,10 @@ const saveTimers = new Map();
 function counterOf(job, now = new Date()) {
   if (monthlyFor(job.client, me)) {
     if (!months) return null;
-    const month = monthKey(now);
-    return { key: monthRowKey(job.client.id, month, me), of: monthTarget(job.client, now), month };
+    // A monthly editing round counts its own month (one still open from last month, last month's).
+    const month = jobMonth(job, now);
+    if (month < addMonth(monthKey(now), -1)) return null; // older months take no number any more
+    return { key: monthRowKey(job.client.id, month, me), of: monthTargetOf(job.client, month), month };
   }
   // A client in landing counts too (most of the real ones, 22.10.2026): the office records its
   // editor in clients.editor (landing_set_editor), and the number is that editor's.

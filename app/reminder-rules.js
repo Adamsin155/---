@@ -1193,7 +1193,8 @@ export const RULES = [
   {
     id: 'cards', event: 'אפשר לפרמט כרטיסים', procs: ['p19b'],
     instances(env) {
-      return casesOf(env, 'p19b', (i) => i.s.complete && !!i.finishedAt('p19b'))
+      // Not a monthly editing round (app/monthly-rounds.js): it had no shoot day and no cards.
+      return casesOf(env, 'p19b', (i) => i.s.complete && !i.ctx.monthly && !!i.finishedAt('p19b'))
         .map((i) => ({ ...i, id: i.proc.id, label: briefingOf(i.checks, i.pre)?.label || noteOf(i.check('p17b.drive')), url: SHOOT_URL(i.cid), anchors: { event: i.finishedAt('p19b') } }));
     },
     steps: [

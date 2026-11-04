@@ -243,16 +243,24 @@ const resolve = (p, ctx) => {
 };
 
 export const roundsOf = (client) => (Array.isArray(client.rounds) ? client.rounds : []);
+// A monthly client's editing round, opened by the system each month with no shoot day (the
+// owner's decision of 4.11.2026; app/monthly-rounds.js): { n, month: 'YYYY-MM', monthly: true, editor }.
+export const isMonthlyRound = (r) => r?.monthly === true && /^\d{4}-(0[1-9]|1[0-2])$/.test(String(r.month ?? ''));
+const MONTH_NAMES = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+// "עריכה חודשית · נובמבר 2026".
+export const monthlyRoundTitle = (r) => `עריכה חודשית · ${MONTH_NAMES[Number(r.month.slice(5, 7)) - 1]} ${r.month.slice(0, 4)}`;
 
 // The client as seen from inside a round: its own shoot, and its start as the "characterization".
 // A round without influencers (25.10.2026: its `shoot_crew`, and no shoot_type of its own) does
 // not take the client's shoot type; any other round still does, and never the client's crew.
+// A monthly editing round also carries `monthly` and its `month`.
 export function roundContext(client, r) {
   const solo = !r.shoot_type && !!PHOTOGRAPHERS[r.shoot_crew];
   return {
     ...client, round: r.n,
     shoot_type: solo ? null : r.shoot_type || client.shoot_type, shoot_crew: solo ? r.shoot_crew : null, shoot_at: r.shoot_at || null,
     char_at: r.start_at || null, editor: r.editor || null, editor2: (r.editor && r.editor2) || null, editor_split: (r.editor && r.editor2 && r.editor_split) || null,
+    ...(isMonthlyRound(r) ? { monthly: true, month: r.month } : {}),
   };
 }
 
@@ -288,7 +296,9 @@ export function applicableProcesses(client) {
 
 // Phases for this client: the fixed ones, with a phase per extra round before "ongoing".
 export function phasesFor(client) {
-  const rounds = roundsOf(client).map((r) => ({ key: `round-${r.n}`, title: `סבב צילום ${r.n}`, round: r.n, needs: ['shoot_type', 'shoot_at'] }));
+  const rounds = roundsOf(client).map((r) => (isMonthlyRound(r)
+    ? { key: `round-${r.n}`, title: monthlyRoundTitle(r), round: r.n, monthly: true, needs: [] }
+    : { key: `round-${r.n}`, title: `סבב צילום ${r.n}`, round: r.n, needs: ['shoot_type', 'shoot_at'] }));
   const i = PHASES.findIndex((p) => p.key === 'ongoing');
   return [...PHASES.slice(0, i), ...rounds, ...PHASES.slice(i)];
 }
@@ -669,6 +679,8 @@ function shootBehind(round, checks) {
 // Eli's handing over, an editor assigned), the moment of the first of them, or null when that is
 // imported history (no real moment). A shoot set for today is still ahead until a mark says so.
 export function shootHeld(x, checks = {}, now = new Date()) {
+  // A monthly editing round has no shoot day: it never counts as one that took place.
+  if (x?.ctx?.monthly === true) return null;
   const at = parseDate(x?.ctx?.shoot_at);
   const today = dayKeyIL(now);
   if (at && dayKeyIL(at) < today) return { at };

@@ -323,6 +323,24 @@ const db = {
     for (const r of [...queued, ...recent]) log.set(r.id, r);
     return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, log: [...log.values()] };
   },
+  // A monthly client's editing round (./tick.js openMonthlyRounds; docs/ops.md, section 94). The
+  // round only when the client row is still the one loaded (its updated_at; the clients trigger
+  // stamps it on every change), so a concurrent save is never overwritten and two ticks never add
+  // two rounds: false, and the next tick looks again. Then the round's marks, never over a mark
+  // that exists (the stamp trigger writes by_email 'system' and the time).
+  async openMonthlyRound({ client, rounds, marks }: { client: Row; rounds: Row[] | null; marks: Row[] }) {
+    if (rounds) {
+      const { data, error } = await admin.from('clients').update({ rounds }).eq('id', client.id).eq('updated_at', client.updated_at).select('id');
+      if (error) throw error;
+      if (!data?.length) return false;
+    }
+    if (marks.length) {
+      const { error } = await admin.from('protocol_checks')
+        .upsert(marks.map((m) => ({ client_id: client.id, item_key: m.item_key, state: m.state, note: m.note })), { onConflict: 'client_id,item_key', ignoreDuplicates: true });
+      if (error) throw error;
+    }
+    return true;
+  },
   async known(keys: string[]) {
     const out = new Set<string>();
     for (const part of chunks(keys, 1000)) {
