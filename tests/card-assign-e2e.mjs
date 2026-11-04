@@ -133,7 +133,7 @@ async function recordImported(page, db, { width, tap = false, name }) {
   // The card: Nadia, and "שינוי" for the people who assign.
   const c = db.clients.find((x) => x.id === IMP);
   assert.equal(c.editor, 'nadia');
-  assert.match(await text(editorFact(page)), /^עורך נדיה ?שינוי$/);
+  assert.match(await text(editorFact(page)), /^עורך נדיה ?שינוי ?החזרה לשיוך$/);
   assert.equal(await page.locator('#cc-assign').getAttribute('data-mode'), 'change');
   await tall(page.locator('#cc-assign'));
   // 22א as the import left it (time, note), no folder task; the reason mark says who recorded it.
@@ -160,7 +160,7 @@ try {
       // Opened again, the card reads Nadia from the database.
       await page.reload();
       await page.waitForSelector('#cc-assign');
-      assert.match(await text(editorFact(page)), /^עורך נדיה ?שינוי$/);
+      assert.match(await text(editorFact(page)), /^עורך נדיה ?שינוי ?החזרה לשיוך$/);
       await ctx.close();
     });
 
@@ -191,7 +191,7 @@ try {
       assert.equal(db.client_tasks.some((t) => t.client_id === SHOT && /פתיחת תיקייה מסודרת בדרייב לעריכה \(24\)/.test(t.title)), false, 'no folder task');
       assert.match(await text(page.locator('#toast')), /נועם פרץ שויך לאנה\./);
       assert.doesNotMatch(await text(page.locator('#toast')), /משימת תיקייה/);
-      assert.match(await text(editorFact(page)), /^עורך אנה ?שינוי$/);
+      assert.match(await text(editorFact(page)), /^עורך אנה ?שינוי ?החזרה לשיוך$/);
       // The editor's ring is due now, as after qa.html's assignment.
       const rung = ringsAt(db, new Date(NOW.getTime() + 60e3)).filter((r) => r.rule === 'editing' && r.step === 'assigned' && r.clientId === SHOT);
       assert.deepEqual(rung.map((r) => [r.person, r.level, r.title]), [['anna', 'ring', 'לקוח חדש בעריכה אצלך: פרץ נדל״ן · נועם פרץ']]);
@@ -209,6 +209,14 @@ try {
       await shot(page.locator('#dlg-assign'), `dialog-swap-${width}`);
       await page.click('#dlg-assign [data-close].btn');
       await page.waitForSelector('#dlg-assign:not([open])', { state: 'attached' });
+      // 'החזרה לשיוך' (4.11.2026): the editor leaves, 22א opens again, the client is back in the queue.
+      page.once('dialog', (d) => d.accept());
+      await page.click('#cc-unassign');
+      await page.waitForFunction(() => !document.getElementById('cc-unassign'));
+      await settle(page);
+      assert.equal(db.clients.find((c) => c.id === SHOT).editor, null);
+      for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) assert.notEqual(checkOf(db, SHOT, k)?.state, 'done', k);
+      assert.match(await text(editorFact(page)), /אין עורך ?שיוך עורך/);
       await ctx.close();
     });
   }
@@ -233,7 +241,7 @@ try {
     assert.equal(db.clients.find((c) => c.id === IMP).editor, 'yariv');
     assert.match(JSON.parse(checkOf(db, IMP, 'p22a.reason').note).reason, /יריב · ממשיך · המועדים לא השתנו/);
     assert.equal(checkOf(db, IMP, 'p22a.reason').by_email, emailOf('irit'));
-    assert.match(await text(editorFact(page)), /^עורך יריב ?שינוי$/);
+    assert.match(await text(editorFact(page)), /^עורך יריב ?שינוי ?החזרה לשיוך$/);
     await shot(page, 'card-irit-390');
     // "שינוי" with no editing on: only the editor is rewritten, the clocks stay.
     await page.click('#handoff-close').catch(() => {});
