@@ -11,7 +11,7 @@
 // Pure, no DOM (tests/contract-summary.test.mjs). No prices: the money is the
 // managers' (app/manager-rules.js seesFinance) and never comes here.
 import { deliverablesPace, shootContexts, contractMonth } from './health.js';
-import { parseDate } from './protocol-logic.js';
+import { parseDate, shootHeld } from './protocol-logic.js';
 import { addDaysIL, atTimeIL, daysBetweenIL } from './tz.js';
 
 export const RENEWAL_WINDOW_DAYS = 90; // as RENEWAL_DAYS in app/year-logic.js (the renewals list)
@@ -82,11 +82,9 @@ export function contractSummary(client, state, checks = {}, { files = null, now 
   // The protocol's own count: deliverablesPace without the card's counter (it takes the most of both).
   const pace = state ? deliverablesPace({ ...client, deliverables: { ...d, done: {} } }, state, checks, now) : { items: [] };
   const fromProtocol = Object.fromEntries(pace.items.map((x) => [x.key, x.done]));
-  // Shoot days held: process 19 closed for the shoot (the main one or a round's).
-  if (state) {
-    const byId = new Map(state.states.map((s) => [s.proc.id, s]));
-    fromProtocol.shoot_days = shootContexts(client).filter((x) => byId.get(`${x.pid}p19`)?.complete).length;
-  }
+  // Shoot days held (the main one or a round's): since protocol v12 its date is behind today, or a
+  // mark says so (shootHeld in app/protocol-logic.js; until then, process 19 closed).
+  if (state) fromProtocol.shoot_days = shootContexts(client).filter((x) => shootHeld(x, checks, now)).length;
   const totals = { ...d, shoot_days: n(d.shoot_days) + n(d.photo_days) };
   const items = [];
   for (const it of ITEMS) {

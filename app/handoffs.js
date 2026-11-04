@@ -73,15 +73,8 @@ export const HANDOFFS = [
       due: [{ label: 'יעד', proc: 'p07' }],
     }],
   },
-  {
-    id: 'shootDone', on: 'p19', label: 'יום הצילום הסתיים',
-    to: [{
-      // Protocol v9: Ofir alone assigns; no deadline since 30.10.2026.
-      id: 'assigner', person: 'ofir', proc: 'p22a', until: 'p22a.assigned',
-      text: 'יום הצילום של {client} הסתיים. צריך לשייך עורך ולהעביר אליו את הכונן.',
-      due: [],
-    }],
-  },
+  // 'shootDone' (19, "יום הצילום הסתיים" → Ofir) left with protocol v12: nobody closes the shoot
+  // day any more; 22א opens on the evening of the shoot day itself.
   {
     id: 'editor', on: 'p22a.assigned', label: 'עורך שויך',
     to: [{
@@ -174,11 +167,17 @@ export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'ל�
 // editor assignment; the editor by name). Null when the key is not a handoff record.
 // Records of hand-offs that no longer exist, so a client's history keeps its words.
 // (The accesses went to Ilai until 28.10.2026; they are Ofir's since, `p05.handoff.ofir`.)
-const RETIRED = { 'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית', 'p05.handoff.ilai': 'גישות התקבלו ← עילאי' };
+// (The closing of the shoot day, 19, handed it to Ofir's assignment until v12; a record written when
+// Lior had taken the assignment names him.)
+const RETIRED = {
+  'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית', 'p05.handoff.ilai': 'גישות התקבלו ← עילאי',
+  'p19.handoff.assigner': (note) => `יום הצילום הסתיים ← ${nameOf(note) || 'אופיר'}`,
+};
 export function describeMark(key, note = null) {
   const m = /^(?:r\d+\.)?(p\d+[a-z]?)\.handoff\.([a-z0-9]+)$/.exec(String(key || ''));
   if (!m) return null;
-  if (RETIRED[`${m[1]}.handoff.${m[2]}`]) return RETIRED[`${m[1]}.handoff.${m[2]}`];
+  const old = RETIRED[`${m[1]}.handoff.${m[2]}`];
+  if (old) return typeof old === 'function' ? old(note) : old;
   for (const point of HANDOFFS) {
     const target = procOfPoint(point) === m[1] && point.to.find((t) => t.id === m[2]);
     if (target) return `${point.label} ← ${nameOf(note) || nameOf(typeof target.person === 'string' ? target.person : null) || target.who}`;

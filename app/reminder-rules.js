@@ -1091,17 +1091,17 @@ export const RULES = [
     ],
   },
 
-  // 2: the group was opened. Lior at once (the introduction, shared with Irit, an
-  // unusual deal, "the client knows who handles them"); the owner's screen after an office hour.
+  // 2: the group was opened. The owner's screen when the introduction (Irit's) was not sent within an
+  // office hour. Until v12 Lior was rung at once too (the introduction with Irit, an unusual deal,
+  // "the client knows who handles them"): his items of 2 left the protocol.
   {
     id: 'group', event: 'קבוצה נפתחה (2)', procs: ['p02'],
     instances(env) {
-      return casesOf(env, 'p02', (i) => !!i.doneAt('p02.opened') && openOf(i, 'lior').length > 0 && !i.s.wait)
+      return casesOf(env, 'p02', (i) => !!i.doneAt('p02.opened') && !i.resolved('p02.intro') && !i.s.wait)
         .map((i) => ({ ...i, id: 'p02', anchors: { event: i.doneAt('p02.opened') } }));
     },
     steps: [
-      { id: 'lior', to: 'lior', level: 'ring', title: (i) => `קבוצה חדשה נפתחה: ${i.name}`, body: () => 'הודעת היכרות (עם עירית), בדיקת עסקה חריגה, והלקוח יודע מי מטפל בו.' },
-      { id: 'board', officeMinutes: 60, to: OWNER, level: 'board', overdue: true, when: (i) => !i.resolved('p02.intro'), title: (i) => `הודעת היכרות לא נשלחה שעה: ${i.name}`, body: () => 'באחריות ליאור ועירית.' },
+      { id: 'board', officeMinutes: 60, to: OWNER, level: 'board', overdue: true, when: (i) => !i.resolved('p02.intro'), title: (i) => `הודעת היכרות לא נשלחה שעה: ${i.name}`, body: () => 'באחריות עירית.' },
     ],
   },
 
@@ -1188,12 +1188,13 @@ export const RULES = [
     ],
   },
 
-  // 19ב: Eli may format the cards once his list is done and Lior confirmed the drive (quiet).
+  // 19ב: Eli may format the cards once his list is done (quiet). Until v12 it also waited for Lior's
+  // confirmation that the drive came back (p19.took), which left the protocol with the rest of 19.
   {
     id: 'cards', event: 'אפשר לפרמט כרטיסים', procs: ['p19b'],
     instances(env) {
-      return casesOf(env, 'p19b', (i) => i.s.complete && !!i.finishedAt('p19b') && !!i.doneAt('p19.took'))
-        .map((i) => ({ ...i, id: i.proc.id, label: briefingOf(i.checks, i.pre)?.label || noteOf(i.check('p17b.drive')), url: SHOOT_URL(i.cid), anchors: { event: new Date(Math.max(i.finishedAt('p19b'), i.doneAt('p19.took'))) } }));
+      return casesOf(env, 'p19b', (i) => i.s.complete && !!i.finishedAt('p19b'))
+        .map((i) => ({ ...i, id: i.proc.id, label: briefingOf(i.checks, i.pre)?.label || noteOf(i.check('p17b.drive')), url: SHOOT_URL(i.cid), anchors: { event: i.finishedAt('p19b') } }));
     },
     steps: [
       { id: 'eli', to: 'eli', level: 'quiet', title: (i) => `אפשר לפרמט את הכרטיסים של ${i.name}${i.label ? `, ${driveName(i.label)}` : ''}`, body: () => 'הכונן אצל ליאור והחומר נבדק.' },

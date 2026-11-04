@@ -27,7 +27,7 @@ import { STATIONS, PEOPLE, PROCESSES, WORK_HOURS, DELIVERABLES, NETWORKS, PASS_O
 import {
   isResolved, blockers, businessDaysBetween, isBusinessDay, parseDate, roundsOf, roundContext, IMPORT_NOTE,
   isImported, workingMinutesBetween, addWorkingMinutes, workedMinutes, targetMinutes, durationStart, weekKey,
-  openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses, inLanding, workFloor, creditedTo,
+  openItemsFor, byUrgency, bucketOf, PAUSE, erevOn, applicableProcesses, inLanding, workFloor, creditedTo, shootHeld,
 } from './protocol-logic.js';
 import { stationOf, stationSince, promisedClosing, materialsOf, SENT_CHECK_NOTE } from './messages-logic.js';
 import { isOwnerView } from './team-rules.js';
@@ -374,7 +374,9 @@ export function clientHealth(client, state, extras = {}) {
     // the owner on it): no client approval of the scripts a business day before
     // the shoot, or the day-before reminders not sent by 15:00.
     const risk = (s, whom, what, code = 'shoot-risk', text = 'צילום בסיכון') => add('red', code, { who: whom, text, what: `${what}, הצילום ${whenWords(shoot, now)}${round}`, procId: s?.proc.id || `${x.pid}p19`, days: 0, since: shoot });
-    if (ahead <= 1 && !isResolvedKey(checks, `${x.pre}p13.approved`)) risk(st('p13'), 'lior', 'אין אישור לקוח על התסריטים');
+    // v12: the Zoom (13) is one item, and the client's approval (p13.approved) left with the rest;
+    // an approval from before still counts. The day-before reminders (15) left with Lior's shoot day.
+    if (ahead <= 1 && !isResolvedKey(checks, `${x.pre}p13.approved`) && !isResolvedKey(checks, `${x.pre}p13.zoom`)) risk(st('p13'), 'lior', 'שיחת הזום על התסריטים לא התקיימה');
     if (now >= atTimeIL(prevBusinessDay(shoot), 15) && st('p15') && !st('p15').complete) risk(st('p15'), 'lior', 'התזכורות של יום לפני לא נשלחו');
     // The shoot day's own preparation not closed close to it: red too (a default
     // waiting for the office's decision, docs/protocols/README.md), but not the alert.
@@ -578,6 +580,18 @@ export function nextMilestone(client, state, checks = {}, now = new Date()) {
   const found = [];
   for (const x of shootContexts(client)) {
     for (const [id, what] of MILESTONES) {
+      // The shoot day itself (v12: nobody closes it, 19 left the protocol): ahead until its date
+      // passed or a mark says so (shootHeld). Irit sets it (11), so it is said as hers.
+      if (id === 'p19') {
+        if (shootHeld(x, checks, now)) continue;
+        const at = parseDate(x.ctx.shoot_at);
+        const setter = byId.get(`${x.pid}p11`);
+        found.push({
+          procId: `${x.pid}p11`, what: `${what}${x.n > 1 ? ` (סבב ${x.n})` : ''}`, who: 'irit',
+          when: at, mustSetBy: at ? null : setter?.dueAt || null, status: 'waiting',
+        });
+        break;
+      }
       const s = byId.get(`${x.pid}${id}`);
       if (!s || s.complete) continue;
       found.push(make(s, what));
@@ -998,7 +1012,8 @@ export function upcomingEvents(clients, stateOf, now = new Date(), days = 7, che
     add(parseDate(c.char_at), 'char', 'פגישת אפיון', characterizerOf(c), p04);
     for (const x of shootContexts(c)) {
       const round = x.n > 1 ? ` · סבב ${x.n}` : '';
-      add(parseDate(x.ctx.shoot_at), 'shoot', `יום צילום${round}`, 'lior', byId.get(`${x.pid}p19`));
+      // v12: the shoot day is Irit's (she sets it); it is done once it took place (shootHeld).
+      add(parseDate(x.ctx.shoot_at), 'shoot', `יום צילום${round}`, 'irit', shootHeld(x, checksByClient[c.id] || {}, now) ? { complete: true, proc: { id: `${x.pid}p11` } } : { complete: false, proc: { id: `${x.pid}p11` } });
       const p27 = byId.get(`${x.pid}p27`);
       if (p27) add(p27.dueAt || promisedClosing(x.ctx.shoot_at), 'delivery', `סגירת הסרטונים${round}`, responsibleOf(p27, checksByClient[c.id] || {}, c, now), p27);
       const p30 = byId.get(`${x.pid}p30`);

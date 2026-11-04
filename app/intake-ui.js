@@ -56,6 +56,14 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   }
   if (b === 'p04' && !complete) return go(`intake.html?id=${enc(clientId)}#${checks[CHAR_ENDED]?.state === 'done' ? 'form' : 'end'}`, checks[CHAR_ENDED]?.state === 'done' ? 'לטופס האפיון' : 'האפיון הסתיים');
   if (b === 'p12a') return go(`intake.html?id=${enc(clientId)}${r}#focus`, 'טופס שיחת הדגשים');
+  // v12 (Lior's four things): the scripts' Google Docs link, the pre-shoot form and the campaign's
+  // details are filled in the client card, in the card of that process. From the card itself: nothing.
+  const LIOR_FORMS = { p12: 'קובץ התסריטים', p36: 'לטופס המקדים', p30: 'פרטי הקמפיין' };
+  if (LIOR_FORMS[b]) {
+    const onCard = typeof location !== 'undefined' && /client\.html$/.test(location.pathname);
+    if (onCard) return null;
+    if (!complete) return go(`client.html?id=${enc(clientId)}#${procId}`, LIOR_FORMS[b]);
+  }
   if (b === 'p12' && writesScripts(me, scope)) return go(scriptsHref(clientId, round), 'כתיבת תסריטים');
   if (b === 'p12' || b === 'p13') return go(`intake.html?id=${enc(clientId)}${r}#scripts`, 'תסריטים וזום');
   if (['p11', 'p11b', 'p14', 'p15'].includes(b)) return go(`prep.html?id=${enc(clientId)}`, b === 'p15' ? 'בדיקת יום לפני' : b === 'p14' ? 'חוסמי יום צילום' : 'סגירת יום הצילום');

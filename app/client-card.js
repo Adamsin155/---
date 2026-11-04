@@ -52,6 +52,12 @@ import { fastCaseOf, setOfirMeetings } from './fast-ladder.js';
 import { accessChecked, AUTO_ACCESS_NOTE } from './access-check.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
+// Lior's four things (protocol v12): the forms of 30, 36 ("11ג") and 12.
+import { campaignBox, campaignFromForm, campaignFormId, scriptsDocBox, scriptsFormId, preShootBox, preShootFormId, forgetDraft } from './lior-four-ui.js';
+import {
+  CAMPAIGN_KEY, PRESHOOT_KEY, SCRIPTS_KEY, SCRIPTS_DOC, SCRIPTS_AUTO_NOTE, PRESHOOT_NOTE, keyFor, scriptsDocOf, scriptsKeysToClose,
+  scriptsDocProblem, preShootPatch, preShootComplete, shootOf, campaignWords, readCampaign, roundOfKey as roundOfLiorKey,
+} from './lior-four.js';
 import { stationTitle } from './messages-logic.js';
 
 // A note as a person reads it. What the system keeps as JSON (Irit's day-before check,
@@ -1452,6 +1458,90 @@ function procLinkOf(pid) {
   return link;
 }
 
+// ── Lior's three forms (protocol v12; docs/ops.md, section 92; app/lior-four-ui.js) ──
+// In the cards of 30 (the campaign's details), 36 ("11ג", the pre-shoot form) and 12 (the scripts'
+// Google Docs link). The office fills them; anyone else sees what was saved.
+const LIOR_FORMS = { p30: 'campaign', p36: 'preShoot', p12: 'scriptsDoc' };
+function liorBox(x) {
+  const p = x.proc;
+  const form = LIOR_FORMS[p.id.replace(/^r\d+-/, '')];
+  if (!form) return null;
+  const round = p.ctx?.round || null;
+  const canEdit = !own();
+  const redraw = (focus) => redrawPhases(focus || null);
+  if (form === 'scriptsDoc') {
+    // One file for every shoot: its field is in the client's own card of 12.
+    return round ? null : scriptsDocBox({ client, canEdit, redraw, onSave: saveScriptsDoc });
+  }
+  const key = keyFor(form === 'campaign' ? CAMPAIGN_KEY : PRESHOOT_KEY, round);
+  const item = p.items.find((i) => i.key === key);
+  if (!item) return null;
+  // The campaign's fields wait for the videos (30 starts with Ofir's approval, 25).
+  if (form === 'campaign' && !x.ready && !x.complete) return null;
+  if (form === 'campaign') return campaignBox({ key, check: checks[key], canEdit, redraw, onSave: (note) => saveCampaign(key, note) });
+  return preShootBox({ client, round, key, done: isResolved(item, checks[key]), canEdit, redraw, onSave: (v) => savePreShoot(round, key, v) });
+}
+// What "סיימתי" on such an item takes: { note }, or { refuse, focus } (a sentence, and the field).
+function formMark(form, key) {
+  if (form === 'campaign') {
+    if (!document.getElementById(`${campaignFormId(key)}-start`)) return { refuse: 'את תאריך ההתחלה ואת התקציב היומי ממלאים בכרטיס התהליך (30).' };
+    const r = campaignFromForm(key);
+    return r.problem ? { refuse: r.problem } : { note: r.note };
+  }
+  if (form === 'scriptsDoc') {
+    return scriptsDocOf(client) ? { note: null } : { refuse: 'עוד אין קישור לקובץ התסריטים. מדביקים אותו בשדה ״קובץ התסריטים״, והפריט נסגר לבד.', focus: `${scriptsFormId(client.id)}-url` };
+  }
+  if (form === 'preShoot') {
+    return preShootComplete(client, roundOfLiorKey(key)) ? { note: PRESHOOT_NOTE } : { refuse: 'ממלאים קודם את הטופס המקדים: מועד, כתובת, משפיענים ומי מצלם.', focus: `${preShootFormId(key)}-at` };
+  }
+  return { note: null };
+}
+async function saveCampaign(key, note) {
+  const ok = await mark(key, 'done', `${campaignFormId(key)}-save`, note);
+  if (ok) { forgetDraft(campaignFormId(key)); redrawPhases(); toast(`נשמר: ${campaignWords(readCampaign(note))}.`); }
+  return ok;
+}
+async function saveScriptsDoc(url) {
+  try {
+    client = await updateClient(id, { links: { ...(client.links || {}), [SCRIPTS_DOC]: url } });
+  } catch (err) { toast(`הקישור לא נשמר. ${errorText(err)}`); return false; }
+  await closeScriptsItem();
+  forgetDraft(scriptsFormId(client.id));
+  render();
+  toast(isResolved({}, checks[SCRIPTS_KEY]) ? 'הקישור נשמר, ופריט התסריטים נסגר.' : 'הקישור נשמר.');
+  return true;
+}
+// Once the link is saved (here, or in "עריכת פרטים"): the database closes the item by itself
+// (20261126100000_lior_four.sql); the card reads it back, and closes it itself where the
+// database did not (before that migration).
+async function closeScriptsItem() {
+  if (!scriptsKeysToClose(client, checks).length) return;
+  try { checks = (await loadChecks(id))[id] || checks; } catch { /* the card's own checks */ }
+  const open = new Set(clientState(client, checks).states.flatMap((s) => s.proc.items.map((i) => i.key)));
+  for (const k of scriptsKeysToClose(client, checks).filter((x) => open.has(x))) {
+    try { checks[k] = await setCheck(id, k, 'done', SCRIPTS_AUTO_NOTE); } catch { /* it stays open, with the link saved */ }
+  }
+}
+async function savePreShoot(round, key, values) {
+  const shoot = shootOf(client, round);
+  const at = fromInputIL(values.at)?.toISOString() || null;
+  const moved = !!at && +new Date(at) !== +new Date(shoot.shoot_at || 0);
+  const who = values.influencers === 'no' && PHOTOGRAPHERS[values.photographer] ? values.photographer : 'eli';
+  const asked = moved ? await confirmShootDay({ shootAt: at, charAt: round ? null : client.char_at, own: shoot.shoot_at || null, me, who }) : { ok: true, note: null };
+  if (!asked.ok) return false;
+  try {
+    client = await updateClient(id, preShootPatch(client, round, values));
+  } catch (err) { toast(`הטופס לא נשמר. ${errorText(err)}`); return false; }
+  if (asked.note) await noteDateChange(id, round ? 'round_shoot_at' : 'shoot_at', round, at, asked.note);
+  if (preShootComplete(client, round) && !isResolved({}, checks[key])) {
+    try { checks[key] = await setCheck(id, key, 'done', PRESHOOT_NOTE); } catch { /* the item stays open; the details are saved */ }
+  }
+  forgetDraft(preShootFormId(key));
+  render();
+  toast('הטופס המקדים נשמר.');
+  return true;
+}
+
 function procCard(x, now, s) {
   const p = x.proc;
   const pid = p.id.replace(/^r\d+-/, '');
@@ -1474,7 +1564,8 @@ function procCard(x, now, s) {
   const pkgQty = PKG_QTY[pid] ? client.deliverables?.[PKG_QTY[pid]] : null;
   const pkgUnit = DELIVERABLES.find((d) => d.key === PKG_QTY[pid])?.label;
   // 'own' roles mark a wait only where the client is part of their work.
-  const canWait = !x.complete && !p.recurring && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
+  // (Lior's forms, 12/30/36, wait on nobody: no "ממתין ללקוח" on them.)
+  const canWait = !x.complete && !p.recurring && !LIOR_FORMS[pid] && (own() ? CLIENT_PROCS.has(pid) : x.ready || CLIENT_PROCS.has(pid));
   // Handoffs out of this process: who the work went to, and a WhatsApp button.
   const handoffs = printing ? null : handoffLine({ client, checks: () => checks, state: s, x, me, canTeam: canTeam(), onSent: afterHandoff });
   // Not started yet ("ממתין ל…", "טרם התחיל"): its items are one line, opened on a tap,
@@ -1499,6 +1590,8 @@ function procCard(x, now, s) {
           onclick: () => { if (compact) shownProcs.add(p.id); else shownProcs.delete(p.id); redrawPhases(`${p.id}-items`); },
         }, compact ? 'הצגת הפריטים' : 'הסתרת הפריטים') : null,
         canWait && !x.wait ? h('button', { type: 'button', class: 'btn-text wait-btn', onclick: () => openWait(x) }, 'ממתין ללקוח') : null)),
+    // A closed card of Lior's forms keeps its one line (the file's link, the campaign, the shoot's details).
+    compact && !printing ? liorBox(x) : null,
     compact ? handoffs : null,
     compact ? null : [
       waitLine(x),
@@ -1509,6 +1602,7 @@ function procCard(x, now, s) {
         h('span', {}, `חסר בפרטי הלקוח: ${missing.map((f) => FIELD_NAMES[f]).join(', ')}.`, own() ? ' המשרד משלים אותם.' : ''),
         own() ? null : h('button', { type: 'button', class: 'btn btn-sm', onclick: () => (p.ctx ? openRound(p.ctx.round) : openEdit(FIELD_INPUT[missing[0]])) }, 'השלמת פרטים')) : null,
       p.what ? h('p', { class: 'proc-what' }, p.what) : null,
+      printing ? null : liorBox(x),
       pid === 'p18b' ? rawFilesNote(p) : null,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${linkDef.label}`) : null,
       printing ? null : intakeShortcut(p.id, client.id, { checks, scope, complete: x.complete, me }),
@@ -1550,6 +1644,8 @@ function itemRows(x, items, idp = '') {
   let placed = false;
   let topicsPlaced = false;
   for (const i of items) {
+    // v12: an item that is a form of its own has no row: the form above is the one way, and saving it marks it.
+    if (i.form && !printing) continue;
     if (topics.includes(i)) {
       if (topicsPlaced) continue;
       topicsPlaced = true;
@@ -1609,6 +1705,8 @@ function myProc(x, items, now) {
         h('span', { class: 'pnum num' }, p.num), h('span', {}, `${p.ctx?.round ? `סבב ${p.ctx.round} · ` : ''}${p.title}`)),
       statusBadge(x.status, x.dueAt, now)),
     claimLine(x),
+    // Lior's forms: the one way is the form in the process's card.
+    !go && items.some((i) => i.form) ? h('div', { class: 'mn-acts' }, h('a', { class: 'btn btn-sm ik-go', href: `#${p.id}`, onclick: (e) => { e.preventDefault(); goTo(p.id); } }, 'למילוי')) : null,
     link || go ? h('div', { class: 'mn-acts' }, go,
       link ? h('a', { class: 'plink', href: link, target: '_blank', rel: 'noopener' }, `פתיחת ${LINKS.find((l) => l.key === PROC_LINK[pid]).label}`) : null) : null,
     doneAndRows(x, items, 'mn-'));
@@ -1728,6 +1826,13 @@ async function mark(key, state, focusId, note = null) {
   // one sentence, only when it knows there is nothing behind it.
   if (state === 'done') {
     const verdict = await checkMark(id, key);
+    // v12: an item that is a form of its own (the campaign, the pre-shoot form, the scripts' link):
+    // taken with what the form holds, or refused in one sentence, with the form's field in focus.
+    if (verdict?.via === 'form' && note === null) {
+      const r = formMark(verdict.form, key);
+      if (r.refuse) { toast(r.refuse); if (r.focus) document.getElementById(r.focus)?.focus(); return false; }
+      note = r.note;
+    }
     // (The call's own dialog saves through here with its summary as the note: that is the mark itself.)
     if (verdict?.via === 'call' && note === null) { renderKeepingFocus(focusId); openCall(key); return false; }
     if (verdict?.refuse) { renderKeepingFocus(focusId); toast(verdict.refuse); return false; }
@@ -2661,6 +2766,8 @@ function readLinks() {
     if (!v) continue;
     if (!safeLink(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://', input }; }
     if (SECRET.test(v)) { input.setAttribute('aria-invalid', 'true'); return { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.', input }; }
+    // v12: the scripts' file is a Google Docs address or nothing (`strict`).
+    if (l.strict && l.key === SCRIPTS_DOC && scriptsDocProblem(v)) { input.setAttribute('aria-invalid', 'true'); return { error: scriptsDocProblem(v), input }; }
     const domain = l.hint ? l.hint.split('/')[0].split('.').slice(-2).join('.') : '';
     if (domain && !v.toLowerCase().includes(domain)) hint.textContent = `הקישור לא נראה כמו קישור של ${l.label}. נשמר בכל זאת.`;
     out[l.key] = v;
@@ -2730,6 +2837,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables: delivered, ...contact,
     });
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
+    await closeScriptsItem(); // v12: the scripts' link saved here closes its item too
     edDlg.close();
     render();
     toast(cleared.length ? `הפרטים נשמרו. נוקה: ${cleared.map(([, , label]) => label).join(', ')}.` : 'הפרטים נשמרו.');
