@@ -29,6 +29,17 @@ export function cardAssignMode({ viewer, client, checks = {}, state = null }) {
   return s?.ready && !s.complete ? 'first' : 'early';
 }
 
+// "החזרה לשיוך" (the owner, 4.11.2026: a client assigned by mistake): the editor leaves the card and
+// 22א opens again, so the client is back on qa.html's "מחכים לשיוך עורך". Irit, Ofir and the owners.
+// What the editor already marked stays in the history (and counts again once someone is assigned).
+export const UNASSIGNERS = ['ofir', 'irit'];
+export const canUnassign = (v) => isOwnerView(v) || (!!v && !v.error && v.scope === 'office' && UNASSIGNERS.includes(v.me));
+// The marks of the assignment that are taken back (the client's own shoot; a round's carry its prefix).
+export const UNASSIGN_KEYS = (pre = '') => ['p22a.assigned', 'p22a.load', 'p22a.irit', 'p22a.reason', 'p22a.handoff.editor'].map((k) => pre + k);
+export const unassignable = (client, checks = {}) => !!client?.editor && inWork(client);
+// Whether the editor already started (then the card says so before it asks).
+export const editorStarted = (checks = {}, pre = '') => checks[`${pre}p22.received`]?.state === 'done';
+
 // The reason mark of an editor recorded on a 22א that was already marked: the time of the
 // mark is kept, and the words say so in the client's history.
 export function recordNote({ editor, reason = '', from = null }) {
