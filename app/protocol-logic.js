@@ -280,7 +280,8 @@ export function applicableProcesses(client) {
       const s = spec?.afterMark ? { ...spec, afterMark: stagesOf(spec).map((st) => ({ ...st, key: pre(st.key) })) } : spec;
       return s?.stopsAt ? { ...s, stopsAt: pre(s.stopsAt) } : s;
     };
-    return PROCESSES.filter((p) => p.round && applies(p, ctx)).map((p) => {
+    // A monthly editing round has no shoot day to follow up on every day (14): not in it at all.
+    return PROCESSES.filter((p) => p.round && applies(p, ctx) && !(ctx.monthly && p.recurring)).map((p) => {
       const x = resolve(p, ctx);
       return {
         ...x, id: `r${r.n}-${p.id}`, keyBase: pre(p.id), phase: `round-${r.n}`, ctx,
