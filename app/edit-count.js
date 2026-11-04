@@ -140,3 +140,34 @@ export function exceptMonths(client, now = new Date()) {
   const list = Array.from({ length: 13 }, (_, i) => addMonth(here, i - 1));
   return [...new Set([...list, ...Object.keys(monthExceptions(client))])].sort();
 }
+
+// ── What one editing job counts (the owner's bug of 4.11.2026; docs/ops.md, section 97) ──
+// Every card counts its own work. Until 4.11.2026 every job of a monthly client counted the
+// current Israel month, so the client's first job and its monthly round of the month wrote the
+// same row: a number typed on one card changed the other.
+// job: one of app/production.js editingCases ({ client, ctx, round, pre }); checks: the client's marks.
+//   - a monthly editing round (app/monthly-rounds.js), of the client's own editor: its own month,
+//     in public.editor_progress_month → { key, month, of, from: null }; null for a month older than
+//     last month (the database takes no number for it any more);
+//   - every other job (the client's own first job, a shoot round, a monthly round left with an
+//     editor who is no longer the client's): its own job, in public.editor_progress →
+//     { key, month: null, round, of, from }. `from` is where a monthly client's first job (or shoot
+//     round) kept its number before the fix: the month row of the month it was assigned in, read
+//     while the job has no number of its own yet; null when that month has a monthly round (the
+//     number is then that round's), or for a client counted by the package.
+const monthOfAt = (v) => { const t = Date.parse(v ?? ''); return Number.isFinite(t) ? monthKey(new Date(t)) : null; };
+export function jobCount(job, person, checks = {}, now = new Date()) {
+  const { client, ctx } = job;
+  if (ctx?.monthly && isMonthKey(ctx.month) && monthlyFor(client, person)) {
+    if (ctx.month < addMonth(monthKey(now), -1)) return null;
+    return { key: monthRowKey(client.id, ctx.month, person), month: ctx.month, of: monthTargetOf(client, ctx.month), from: null };
+  }
+  const round = job.round || 1;
+  const own = monthlyFor(client, person) ? monthOfAt(checks?.[`${job.pre || ''}p22a.assigned`]?.at) : null;
+  const taken = own && Array.isArray(client.rounds) && client.rounds.some((r) => r?.monthly === true && r.month === own);
+  return {
+    key: progressKey(client.id, round, person), month: null, round,
+    of: editTarget(ctx, person) ?? (monthlyFor(client, person) ? monthTargetOf(client, own || monthKey(now)) : null),
+    from: own && !taken ? monthRowKey(client.id, own, person) : null,
+  };
+}

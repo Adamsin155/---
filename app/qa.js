@@ -31,7 +31,7 @@ import { assignDialog } from './assign-dialog.js';
 import { loadScriptCounts, scriptsWords, loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { scriptsCountOf } from './production.js';
 import {
-  progressMap, progressKey, editTarget, editedShort, isMonthly, monthlyFor, monthTarget, monthKey, monthRowKey, monthMap,
+  progressMap, editedShort, isMonthly, monthKey, monthMap, jobCount,
 } from './edit-count.js';
 import { liorShoot } from './reminder-engine.js';
 import { loadSelections } from './office-data.js';
@@ -87,18 +87,15 @@ const scriptsLine = (clientId, n) => {
 let progress = {};
 // A monthly client's numbers this month ('<client>:<YYYY-MM>:<editor>' → row; app/edit-count.js monthTarget).
 let months = {};
-// "נערכו 8/10": that editor's own number on the shoot, once they wrote one. A monthly client's
-// editor: this month's, "נערכו 5/12 החודש".
+// "נערכו 8/10": that editor's own number on the job, once they wrote one (app/edit-count.js
+// jobCount: each job its own; 4.11.2026). A monthly client's monthly round of this month: "נערכו 5/12 החודש".
 const editedOf = (j, editor) => {
-  if (monthlyFor(j.client, editor)) {
-    const now = new Date();
-    const m = months[monthRowKey(j.client.id, monthKey(now), editor)];
-    return m ? `נערכו ${editedShort(m.edited, monthTarget(j.client, now))} החודש` : '';
-  }
-  const row = progress[progressKey(j.client.id, j.n, editor)];
-  if (!row) return '';
   const r = j.n ? roundsOf(j.client).find((x) => x.n === j.n) : null;
-  return `נערכו ${editedShort(row.edited, editTarget(r ? roundContext(j.client, r) : j.client, editor))}`;
+  const cnt = jobCount({ client: j.client, ctx: r ? roundContext(j.client, r) : j.client, round: j.n || 1, pre: j.pre }, editor, checksOf(j.client));
+  if (!cnt) return '';
+  const row = cnt.month ? months[cnt.key] : progress[cnt.key] ?? (cnt.from ? months[cnt.from] : null);
+  if (!row) return '';
+  return `נערכו ${editedShort(row.edited, cnt.of)}${cnt.month === monthKey() ? ' החודש' : ''}`;
 };
 function load() {
   inflight ||= doLoad().finally(() => { inflight = null; });

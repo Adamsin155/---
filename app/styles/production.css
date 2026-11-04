@@ -377,3 +377,28 @@ dialog.ed-dlg .ed-start-foot .hint { margin: 0; text-align: center; font-size: 1
 .ed-script-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ed-script-link { display: inline-block; margin-inline-end: 12px; min-height: 44px; line-height: 44px; }
 .ed-scripts-open { justify-self: start; margin-top: 4px; }
+
+/* The editors' page (docs/ops.md, section 97): the order toggle beside the summary, and the fold of
+   what waits for someone else, at the end of the list, closed. */
+.ed-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-width: 0; }
+.ed-bar > .prod-summary { flex: 1 1 220px; min-width: 0; }
+.ed-sort { min-height: 44px; flex: 0 0 auto; }
+.ed-sort::before { content: "⇅"; margin-inline-end: 6px; font-weight: 700; color: var(--accent-deep); }
+.ed-waitfold { min-width: 0; background: var(--panel); border-radius: var(--radius-md); box-shadow: var(--shadow-1); border-inline-start: 4px solid var(--ok); }
+.ed-waitfold > summary {
+  cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 6px 16px;
+  font-size: 17px; font-weight: 700; color: var(--text); list-style-position: inside;
+}
+.ed-wlist { display: grid; gap: 0; padding: 0 12px 10px; min-width: 0; }
+.ed-wline { min-width: 0; border-top: 1px solid var(--line); }
+.ed-wline > summary {
+  cursor: pointer; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 4px;
+  list-style-position: inside; min-width: 0;
+}
+.ed-wname { font-weight: 600; overflow-wrap: anywhere; min-width: 0; flex: 1 1 160px; }
+.ed-wsince { font-size: 13px; color: var(--text-2); }
+.ed-wline > .ed-card { margin: 4px 0 12px; box-shadow: none; border: 1px solid var(--line); border-inline-start: 4px solid var(--ok); }
+@media (max-width: 480px) {
+  .ed-waitfold > summary { padding: 6px 12px; }
+  .ed-wlist { padding: 0 8px 8px; }
+}

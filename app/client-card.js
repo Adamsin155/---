@@ -659,13 +659,14 @@ async function openCardAssign() {
 
 // How many videos the editors edited (22.10.2026): "27/48", or "נדיה 8/10 · יריב 12/15";
 // a round's after the client's own. Only once an editor wrote a number. A monthly client:
-// this month's in place of the client's own shoot, "5/12 החודש" (app/edit-count.js monthLine).
+// this month's first, "5/12 החודש" (app/edit-count.js monthLine: its monthly round), then each
+// job's own (since 4.11.2026 the client's own shoot counts its own job, "צילום ראשון: 3/8").
 function editedFact() {
   if (!client) return null;
   const monthly = isMonthly(client);
-  const shoots = edited ? [[client, null], ...roundsOf(client).map((r) => [roundContext(client, r), r.n])].filter(([, n]) => !monthly || n) : [];
+  const shoots = edited ? [[client, null], ...roundsOf(client).map((r) => [roundContext(client, r), r.n])] : [];
   const parts = [monthly ? monthLine(client, editedMonth) : null,
-    ...shoots.map(([ctx, n]) => { const t = editedLine(ctx, edited); return t && n ? `סבב ${n}: ${t}` : t; })].filter(Boolean);
+    ...shoots.map(([ctx, n]) => { const t = editedLine(ctx, edited); return t && n ? `סבב ${n}: ${t}` : t && monthly ? `צילום ראשון: ${t}` : t; })].filter(Boolean);
   return parts.length ? h('div', { class: 'fact', id: 'cc-edited' }, h('dt', {}, 'נערכו'), h('dd', { class: 'num' }, parts.join(' · '))) : null;
 }
 
