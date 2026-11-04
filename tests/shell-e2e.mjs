@@ -95,8 +95,8 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
   // seven since the calendar she invites from (calendar.html, 15.10.2026), eight since her pass
   // over the clients (pass.html, 26.10.2026).
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
-    ['המשימות שלי', 'לקוחות', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
-  assert.equal(await page.locator('#side-list .side-link:visible').count(), 8);
+    ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "בקרה ושיוך": 3.11.2026
+  assert.equal(await page.locator('#side-list .side-link:visible').count(), 9);
   assert.equal(await page.locator('#mode-bar, .mode-opt').count(), 0);
   assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
   // The lists of clients.html are the "לקוחות" entry: the rail slides there without a page load.
@@ -162,11 +162,10 @@ await step('the manager view: the week\'s chart, five office days, today marked,
   const sum = (i) => days.reduce((a, d) => a + d[i], 0);
   assert.equal(await page.innerText('#wk-sum'), `${sum(0) === 1 ? 'אחת נסגרה' : `${sum(0)} נסגרו`} עד עכשיו, ועוד ${sum(1) === 1 ? 'אחת פתוחה' : `${sum(1)} פתוחות`} עד יום חמישי`);
   assert.ok(sum(1) > 0, 'the world has open work due this week');
-  // Lior has no screen 1: no chart for him.
+  // Lior has screen 1 since 4.11.2026 (a manager), and so the chart.
   await ctx.close();
   const l = await open('lior', { path: 'owner.html' });
-  await l.page.waitForSelector('#view-all:not([hidden])');
-  assert.equal(await l.page.locator('#wk-card').isVisible(), false);
+  await l.page.waitForSelector('#wk-card:not([hidden]) .wk-col');
   await l.ctx.close();
 });
 
@@ -254,13 +253,13 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   // The manager profile's bar: the manager view first, and the rest behind "עוד".
   await page.click('#profile-switch');
   await page.waitForSelector('#profile-switch[data-to="mine"]');
-  await page.waitForSelector('#view-all:not([hidden])');
-  // (20.10.2026, the owner: the package year, with the renewals, in the bar instead of the Gantt;
-  // no qa, prep or second shoot-day table in his menu.)
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['במבט', 'לקוחות', 'שנת החבילה', 'עוד']);
+  await page.waitForSelector('#view-now:not([hidden])');
+  // (20.10.2026, the owner: the package year, with the renewals, in the bar instead of the Gantt.
+  // Since 4.11.2026 he has every screen of the owners' but the payments app, and screen 1.)
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['מבט מנהל', 'לקוחות', 'שנת החבילה', 'עוד']);
   await page.click('#side-more');
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['גאנט תוכן', 'תובנות', 'הצעה חדשה והכנת חוזה', 'שאלו את המערכת', 'צוות']);
+    ['גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת', 'צוות']);
   // A screen behind "עוד" marks "עוד" as where you are.
   await page.click('#side-insights');
   await page.waitForURL(/insights\.html$/);

@@ -6,7 +6,7 @@
 //    the editors, Eli and the field sales the page answers "אין לך גישה לעמוד הזה" with the
 //    way back to their own screen, shows no package and no price, and asks the server
 //    for nothing; whoever is not signed in still gets the builder, as before;
-//  - "החלטות" (decisions.html) refuses Irit, by its address too; "בקרה ושיוך" (qa.html) is hers
+//  - "החלטות" (decisions.html) is Irit's since 4.11.2026 (the managers); "בקרה ושיוך" (qa.html) is hers
 //    since 3.11.2026 (docs/ops.md, section 89): in her menu (on a phone under "עוד" when the bar
 //    is full) and the page opens; her own screens still open; Lior, Ofir and the owners get in
 //    as before;
@@ -209,22 +209,14 @@ await step('a member of staff who signs in from the builder\'s own dialog and is
 });
 
 // ── 3. "החלטות" and "בקרה ושיוך" ───────────
-await step('decisions.html refuses Irit, by its address too: no list and no button', async () => {
-  const { page, ctx, calls } = await signedIn('irit');
-  for (const [path, inner] of [['decisions.html', '#dc-page']]) {
-    await page.goto(`${BASE}${path}`);
-    await page.waitForSelector('#no-access:not([hidden])');
-    await settle(page);
-    assert.equal(await page.innerText('#na-h'), NO_ACCESS, path);
-    assert.equal(await visible(page, inner), false, path);
-    assert.equal(await page.locator('main button:visible').count(), 0, `${path}: a button is shown`);
-    assert.equal(await page.locator('main').locator('text=שיוך עורך').locator('visible=true').count(), 0, path);
-    assert.equal(await page.locator('dialog[open]').count(), 0, path);
-    assert.equal(await page.getAttribute('#no-access a', 'href'), 'clients.html#mine', path);
-    // "החלטות" is not in her menu.
-    assert.equal(await page.locator('#side-decisions').count(), 0, path);
-  }
-  assert.deepEqual(calls, [], 'nothing was written');
+// Since 4.11.2026 (the managers: docs/ops.md, section 96) "החלטות" is Irit's too: in her menu, and the page opens.
+await step('decisions.html opens for Irit, by its address and from her menu', async () => {
+  const { page, ctx } = await signedIn('irit');
+  await page.goto(`${BASE}decisions.html`);
+  await page.waitForSelector('#dc-page:not([hidden])');
+  await settle(page);
+  assert.equal(await visible(page, '#no-access'), false);
+  assert.equal(await page.locator('#side-decisions').count(), 1); // the page opens in her manager profile
   await ctx.close();
 });
 
@@ -235,7 +227,7 @@ await step('"בקרה ושיוך" is in Irit\'s menu (web, and on a phone in the
     const what = `irit at ${viewport.width}px`;
     assert.ok((await menu(page)).includes('בקרה ושיוך'), `${what}: ${await menu(page)}`);
     assert.equal(await page.locator('#side-qa').count(), 1, what);
-    assert.equal(await page.locator('#side-decisions').count(), 0, what);
+    assert.equal(await page.locator('#side-decisions').count(), 0, what); // hers since 4.11.2026, in her manager profile
     if (viewport === NARROW && !(await page.locator('#side-qa').isVisible())) {
       await page.click('#side-more');
       await page.locator('#side-qa').waitFor({ state: 'visible' });
@@ -270,7 +262,7 @@ await step('Irit\'s own screens still open: the daily control, before a shoot da
   await ctx.close();
 });
 
-await step('decisions.html and qa.html open as before for Lior, Ofir and the owners; everyone outside the office is refused as before', async () => {
+await step('decisions.html and qa.html open for Lior, Ofir and the owners (and Irit, above); everyone outside the office is refused as before', async () => {
   for (const role of ['lior', 'ofir', 'owner']) {
     const { page, ctx } = await signedIn(role);
     for (const [path, inner] of [['decisions.html', '#dc-page'], ['qa.html', '#of-page']]) {
