@@ -24,7 +24,7 @@
 //  - Imported history (checks with the note "ייבוא") is never a milestone.
 import { STATIONS, PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSolo, crewOf } from './protocol.js';
 import {
-  clientState, isBusinessDay, addBusinessDays, businessDaysBetween, parseDate, roundsOf, roundContext,
+  clientState, isBusinessDay, addBusinessDays, businessDaysBetween, parseDate, roundsOf, roundContext, isMonthlyRound,
   isImported, IMPORT_NOTE, shootHeld,
 } from './protocol-logic.js';
 import { partsIL, dayKeyIL, weekdayIL, addDaysIL, startOfDayIL, daysBetweenIL, needsYear } from './tz.js';
@@ -379,7 +379,7 @@ function activeRound(client, state, now) {
   if (start && start > now) return null;
   const mine = state.states.filter((s) => s.proc.id.startsWith(`r${r.n}-`));
   if (!mine.length || mine.find((s) => baseId(s.proc.id) === 'p30')?.complete) return null;
-  return { n: Number(r.n), states: mine };
+  return { n: Number(r.n), states: mine, monthly: isMonthlyRound(r) };
 }
 
 // Station of the client (index into STATIONS). A client ending the contract is in renewal.
@@ -439,6 +439,8 @@ export function stationChange(client, checks = {}, state = null, now = new Date(
   const near = (c) => Math.abs(new Date(c.at) - at) < 60e3;
   if (Object.values(checks).some((c) => c?.note === IMPORT_NOTE && near(c))) return null;
   const round = activeRound(client, st, now);
+  // A monthly editing round (app/monthly-rounds.js) opens in "עריכה ובקרה" every month: no news for the client.
+  if (round?.monthly) return null;
   const pre = round ? `r${round.n}.` : '';
   return {
     index, at, from: STATIONS[index - 1].title, to: STATIONS[index].title,
@@ -704,7 +706,9 @@ const sentSince = (messages, key, ref, at) => messages.some((m) => (m.ref ? m.re
 function pendingMilestones(xs, messages, now, station) {
   const out = [];
   for (const x of xs) {
-    const list = MILESTONES.filter((m) => !m.base || !x.round).map((m) => {
+    // A monthly editing round (app/monthly-rounds.js) begins at the editing: nothing of the
+    // journey before it (scripts, the shoot day) is news for the client.
+    const list = MILESTONES.filter((m) => (!m.base || !x.round) && (!x.ctx.monthly || stationAt(m.station) >= stationAt('post'))).map((m) => {
       const at = m.at(x, now);
       const ref = `${x.pre}${m.key}`;
       return { m, at, ref, sent: !!at && sentSince(messages, m.key, ref, at) };
@@ -766,6 +770,8 @@ export function thursdayVars(client, checks, state, now = new Date()) {
   for (const s of state.states) {
     const words = STEPS[baseId(s.proc.id)];
     if (!words || !s.completedAt || s.completedAt < weekStart || s.completedAt > now || isImported(s.proc, checks)) continue;
+    // A monthly editing round's steps before the editing were marked not relevant, not done.
+    if (s.proc.ctx?.monthly && s.proc.items.every((i) => checks[i.key]?.state !== 'done')) continue;
     if (!did.includes(words[0])) did.push(words[0]);
   }
   const call = checks['p31.call'];
@@ -800,6 +806,11 @@ export function thursdayVars(client, checks, state, now = new Date()) {
   if (b.isDone('p07.sent') && !b.isDone('p07.approved')) need.push('אישור על 9 הגרפיקות הראשונות');
   for (const c of xs) {
     const p11 = c.st('p11');
+    // A monthly editing round asks nothing before the editing (app/monthly-rounds.js).
+    if (c.ctx.monthly) {
+      if (c.isDone('p26.sent') && !c.isDone('p27.approved')) need.push('הערות או אישור על הסרטונים');
+      continue;
+    }
     // Once the office has started setting the shoot day (a date to approve exists).
     if (p11?.touched && !p11.complete && !c.isDone('p11.ok.client')) need.push('אישור מועד ליום הצילום');
     if (c.st('p12')?.complete && !c.isDone('p13.approved')) need.push('אישור התסריטים');

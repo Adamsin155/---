@@ -71,18 +71,25 @@ export function monthExceptions(client) {
 // How many videos the client gets in the Israel month of `now` (the month's own number, else
 // the regular one); null for a client counted by the package.
 export function monthTarget(client, now = new Date()) {
+  return monthTargetOf(client, monthKey(now));
+}
+// The same for a month by its key 'YYYY-MM' (a monthly editing round's own month).
+export function monthTargetOf(client, key) {
   const base = monthBase(client);
   if (base === null) return null;
-  return monthExceptions(client)[monthKey(now)] ?? base;
+  return monthExceptions(client)[key] ?? base;
 }
 // Whether `person` counts this client by the month: a monthly client, and one of its editors.
 export const monthlyFor = (client, person) => isMonthly(client) && isEditorOf(client, person);
 // The editor card's line: "8 סרטונים בחודש"; a month with its own number, "12 סרטונים החודש".
-export function monthVideosText(client, now = new Date()) {
-  const n = monthTarget(client, now);
+// A monthly editing round of another month (`key`, not this one) says its month: "8 סרטונים · אוקטובר 2026".
+export function monthVideosText(client, now = new Date(), key = monthKey(now)) {
+  const n = monthTargetOf(client, key);
   if (n === null) return null;
-  const own = monthExceptions(client)[monthKey(now)] !== undefined;
-  return `${n === 1 ? 'סרטון אחד' : `${n} סרטונים`} ${own ? 'החודש' : 'בחודש'}`;
+  const words = n === 1 ? 'סרטון אחד' : `${n} סרטונים`;
+  if (key !== monthKey(now)) return `${words} · ${monthLabel(key)}`;
+  const own = monthExceptions(client)[key] !== undefined;
+  return `${words} ${own ? 'החודש' : 'בחודש'}`;
 }
 export const monthRowKey = (clientId, month, editor) => `${clientId}:${month}:${editor}`;
 export const monthMap = (rows) => Object.fromEntries((rows || []).map((r) => [monthRowKey(r.client_id, r.month, r.editor), r]));
