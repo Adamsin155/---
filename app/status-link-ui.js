@@ -16,7 +16,7 @@ const APPROVAL_COLS = 'id, item, item_key, shoot_round, decision, round, signer_
 const SURVEY_COLS = 'kind, score, respondent, source, recorded_by, at';
 const CONSENT_COLS = 'given, at, phone, version, revoked_at, revoked_via';
 const VIA = { whatsapp: 'השיב/ה "הסר" ב־WhatsApp', phone: 'ביקש/ה בטלפון', staff: 'אמר/ה לאחד מאיתנו' };
-const MANAGERS = ['irit', 'lior'];
+const MANAGERS = ['irit', 'lior', 'ofir']; // Ofir since 4.11.2026 (public.can_manage_status_links)
 
 let cache = { id: null, loaded: false, version: 0, error: null };
 let shown = { id: null, version: -1 };

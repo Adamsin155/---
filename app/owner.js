@@ -24,13 +24,13 @@ import { healthBadge, reasonText, nextText, stationBar, markOwnerLanded } from '
 import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, leafFar, mountSession, directory, who, viewerOf, VIEWER_UNKNOWN, progressBar, capList
 } from './protocol-ui.js';
-import { canManageTeam, isOwnerView } from './team-rules.js';
+import { canManageTeam } from './team-rules.js';
 import { mountLandingControl } from './landing-control.js';
 import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
 import { TZ, dayKeyIL, dayFromKeyIL, daysBetweenIL } from './tz.js';
 // The manager profile (app/manager-rules.js): the table and the archive.
-import { canArchive, canSeeTable, canSeeShootTable, seesFinance, sameName } from './manager-rules.js';
+import { canArchive, canPurge, canSeeTable, canSeeShootTable, seesFinance, sameName } from './manager-rules.js';
 import {
   tableRow, columnsFor, filterRows, sortRows, filterOptions, toCsv, csvName, DEFAULT_FILTERS, dayText as dmy, moneyText,
 } from './manager-table.js';
@@ -68,7 +68,7 @@ let entries = [];      // [{ client, state, health, station }]
 // The manager table and the archive (app/manager-table.js, app/manager-data.js).
 let mayTable = false;  // the owner, Irit, Ofir and Lior
 let showMoney = false; // the owner, Irit and Ofir: the price columns (never Lior)
-let mayArchive = false; // the owner and Ofir
+let mayArchive = false; // the owners and the managers (Irit, Ofir, Lior; 4.11.2026)
 let finance = null;    // the prices by client id (null: not loaded or not allowed)
 let files = null;      // deliverables uploaded as files (null: no such table, or not readable)
 let tableRows = [];    // one row per client, every status
@@ -78,7 +78,8 @@ let sortKey = 'color';
 let sortDir = 'asc';
 let archived = null;   // archived_clients() (null: not loaded)
 let mayShoots = false; // Lior, Ofir and the owner: the shoot-day table
-let mayEod = false;    // the owners only: the end-of-day table
+let mayEod = false;    // the owners and the managers (4.11.2026): the end-of-day table
+let mayPurge = false;  // the owners only: the permanent purge of an archived client
 let shootRows = [];    // one row per active client (app/shoot-table.js)
 let shootQ = '';
 let shootSort = { ...DEFAULT_SORT };
@@ -836,7 +837,8 @@ async function renderArchive() {
       h('p', { class: 'ar-meta' }, [a.package_name, `בארכיון מ־${formatStamp(a.archived_at)}`, a.archived_by ? `על ידי ${who(a.archived_by) || a.archived_by}` : null].filter(Boolean).join(' · '))),
     h('div', { class: 'ar-acts' },
       h('button', { type: 'button', class: 'btn btn-sm', id: `ar-restore-${a.id}`, 'aria-label': `שחזור: ${a.label}`, onclick: (e) => restore(a, e.currentTarget) }, 'שחזור'),
-      h('button', { type: 'button', class: 'btn btn-sm btn-danger', id: `ar-purge-${a.id}`, 'aria-label': `מחיקה לצמיתות: ${a.label}`, onclick: () => openPurge(a) }, 'מחיקה לצמיתות'))))
+      // The permanent purge: the owners only (public.can_archive_clients(); Ofir until 4.11.2026).
+      mayPurge ? h('button', { type: 'button', class: 'btn btn-sm btn-danger', id: `ar-purge-${a.id}`, 'aria-label': `מחיקה לצמיתות: ${a.label}`, onclick: () => openPurge(a) }, 'מחיקה לצמיתות') : null)))
     : [h('li', { class: 'muted k-emptyrow' }, kIcon('archive', { size: 18 }), h('span', {}, 'אין לקוחות בארכיון.'))]);
 }
 async function restore(a, btn) {
@@ -930,8 +932,10 @@ mountSession(async (staff) => {
   showMoney = seesFinance(v);
   mayArchive = canArchive(v);
   mayShoots = canSeeShootTable(v);
-  // The end-of-day table: the two owners only (staff rows with no person), as its message is theirs.
-  mayEod = isOwnerView(v);
+  // The end-of-day table: the owners, and the managers since 4.11.2026 (the 19:00 message itself
+  // still goes to the owners only: app/reminder-rules.js).
+  mayEod = isOwner;
+  mayPurge = canPurge(v);
   // Landed: from now on in this tab, "לקוחות" opens the clients list, not this screen.
   if (isOwner) markOwnerLanded();
   $('ow-page').hidden = false;
@@ -955,8 +959,8 @@ mountSession(async (staff) => {
   view = tabsShown().includes(fromHash) ? fromHash : isOwner ? 'now' : 'all';
   await load();
   setView(view);
-  // Only the owners activate (the database checks it as well).
-  if (isOwnerView(v)) landingCtl = mountLandingControl($('landing'), { clients: () => allClients, checks: () => checks, reload: load, toast });
+  // The owners and the managers activate (public.landing_activate checks it as well; 4.11.2026).
+  if (isOwner) landingCtl = mountLandingControl($('landing'), { clients: () => allClients, checks: () => checks, reload: load, toast });
 });
 
 // ── The look of the kit on the manager view (app/kit.js; docs/ops.md, section 53) ──

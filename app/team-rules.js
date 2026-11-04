@@ -2,21 +2,24 @@
 // node can test them. The staff-admin function enforces the same on the server
 // (supabase/functions/staff-admin/rules.js); this only shapes the screens.
 
-// Who opens the team screen besides the owner (staff.person is null).
-export const TEAM_MANAGERS = ['irit', 'lior'];
+// Who opens the team screen besides the owner (staff.person is null): the managers, to read the
+// list (Ofir since 4.11.2026). Every action on it is the owners' alone since that day (the owner's
+// decision; docs/ops.md, section 96): a sign-in link, adding or removing staff, the vault flag,
+// the WhatsApp numbers, and the owners' cards (WhatsApp on/off, Metricool, the vault code, Claude).
+export const TEAM_MANAGERS = ['irit', 'lior', 'ofir'];
 // The office accounts (public.is_office() in the database). A copy of OFFICE_PERSONS
 // in supabase/functions/staff-admin/rules.js, which decides (the unit tests compare them).
 export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'noam']; // Noam since 1.11.2026 (sees every client, as Ilai)
-// Whose sign-in link only the owner makes (linkByOwnerOnly in the function's rules):
-// the owner's, an office account's and any account with the vault. A manager still
-// makes a link for their own account.
-export const linkOnlyByOwner = (caller, row) => !!row && !caller?.owner && row.email !== caller?.email
-  && (row.person === null || row.person === undefined || OFFICE_PERSONS.includes(row.person) || !!row.vault);
+// Whose sign-in link only the owner makes: since 4.11.2026 everyone's (until then a manager made
+// one for an account outside the office with no vault, and for their own). The function decides.
+export const linkOnlyByOwner = (caller, row) => !!row && !caller?.owner;
 
 // From viewerOf() in protocol-ui.js: { me, scope, error }. The owner has no person
 // and the office scope; someone the app could not identify gets nothing.
 export const isOwnerView = (v) => !!v && !v.error && !v.me && v.scope === 'office';
 export const canManageTeam = (v) => isOwnerView(v) || (!!v && !v.error && TEAM_MANAGERS.includes(v.me));
+// The actions on the team screen (staff-admin's upsert, remove, link and phone): the owners only.
+export const canAdminTeam = (v) => isOwnerView(v);
 
 // How long a sign-in link works, in words (Supabase's email link lifetime, 1 hour by default).
 export const LINK_VALID_FOR = 'שעה';
@@ -60,9 +63,8 @@ export function formatPhone(stored) {
   return m ? `0${m[1]}-${m[2]}-${m[3]}` : d ? `+${d}` : '';
 }
 
-// Which rows have a number on the team screen (the screen opens only for the owner,
-// Irit and Lior, who set anyone's): everyone's but the owner's, which keeps none,
-// since no handoff goes to the owner and all staff read the staff list. The
-// function checks the same.
+// Which rows have a number on the team screen: everyone's but the owner's, which keeps none,
+// since no handoff goes to the owner and all staff read the staff list. Who sets one: the owners
+// (Irit and Lior too until 4.11.2026). The function checks the same.
 export const hasPhone = (row) => !!row && row.person !== null && row.person !== undefined;
-export const canEditPhone = (caller, row) => !!caller && hasPhone(row);
+export const canEditPhone = (caller, row) => !!caller?.owner && hasPhone(row);

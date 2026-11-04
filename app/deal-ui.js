@@ -14,12 +14,14 @@ import {
 } from './deal-logic.js';
 import { loadDeals, setDealStatus, takeDeal, handOverDeal } from './deal-data.js';
 import { canSeeDeals } from './manager-rules.js';
+import { isOwnerView } from './team-rules.js';
 
 let box = null;
 let deals = [];
 let timer = null;
 let active = false;
-let me = null; // Irit or Ofir; null: an owner, who sees every deal and can hand it over
+let me = null; // Irit or Ofir; null: an owner or Lior, who see every deal and can hand it over
+let works = false; // the owners work a deal without taking it (the database lets them alone)
 
 const telHref = (phone) => `tel:${String(phone).replace(/[^\d+]/g, '')}`;
 const sellerName = (d) => PEOPLE[d.seller]?.name || 'השטח';
@@ -84,11 +86,13 @@ function actions(d) {
       onclick: (e) => { if (window.confirm(`לסמן שהעסקה של ${d.business_name} בוטלה?`)) move(d, 'cancelled', e.currentTarget, `העסקה סומנה כמבוטלת: ${d.business_name}`); },
     }, 'בוטל'),
   ];
-  if (!me) {
-    const others = DEAL_PREPARERS.filter((p) => p !== d.taken_by);
-    return [...work, ...others.map((p) => h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => handOver(d, p, e.currentTarget) }, `להעביר ל${PEOPLE[p].name}`))];
-  }
-  if (d.taken_by === me) return work;
+  // Handing a deal to Irit or Ofir (public.deal_hand_over): the owners, and since 4.11.2026 the
+  // managers (docs/ops.md, section 96). Irit and Ofir hand the deal they hold to the other (a free
+  // one they just take); neither takes one the other holds (the database refuses that too).
+  const handTo = (p) => h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => handOver(d, p, e.currentTarget) }, `להעביר ל${PEOPLE[p].name}`);
+  const others = DEAL_PREPARERS.filter((p) => p !== d.taken_by);
+  if (!me) return [...(works ? work : []), ...others.map(handTo)];
+  if (d.taken_by === me) return [...work, ...others.map(handTo)];
   if (d.taken_by) return [];
   return [h('button', { type: 'button', class: 'btn', onclick: (e) => take(d, e.currentTarget) }, 'אני לוקח')];
 }
@@ -133,7 +137,7 @@ function tick() {
   }
 }
 
-// Mounts the card for Irit, Ofir and the owners (canSeeDeals: a deal carries the discount and
+// Mounts the card for Irit, Ofir, Lior and the owners (canSeeDeals: a deal carries the discount and
 // any price that was agreed, and the database answers only them and the seller); hidden for anyone
 // else, and when the table is not there yet. Every half minute it reads again, so that a deal the
 // other one took shows it soon.
@@ -142,6 +146,7 @@ export async function mountDeals(el, viewer) {
   if (!el || !canSeeDeals(viewer)) { if (el) el.hidden = true; return; }
   active = true;
   me = DEAL_PREPARERS.includes(viewer?.me) ? viewer.me : null;
+  works = isOwnerView(viewer);
   await refreshDeals();
   if (!timer) {
     timer = setInterval(tick, 1000);

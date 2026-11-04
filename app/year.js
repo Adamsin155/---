@@ -41,7 +41,8 @@ const stateOf = (c) => {
 const enc = encodeURIComponent;
 const cardUrl = (id, hash = '') => `client.html?id=${enc(id)}${hash ? `#${hash}` : ''}`;
 // The renewals are the owner's, Lior's and Irit's (station 8).
-const seesRenewals = () => !viewer?.error && (viewer?.scope === 'office' && (!me || me === 'lior' || me === 'irit'));
+// Ofir too since 4.11.2026 (the managers).
+const seesRenewals = () => !viewer?.error && (viewer?.scope === 'office' && (!me || me === 'lior' || me === 'irit' || me === 'ofir'));
 const office = () => worksCycle(viewer);
 // The protocol's versions are the owners' (the owner, 12.10.2026: long and technical, not a worker's daily need).
 const seesVersions = () => !viewer?.error && viewer?.scope === 'office' && !me;

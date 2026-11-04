@@ -1,7 +1,7 @@
 // "צוות וכניסות" (team.html): everyone's login at a glance, and a personal sign-in
 // link to send by WhatsApp for a first login or a forgotten password, with no email.
 // Also each person's WhatsApp number, for the handoff buttons (app/handoffs.js).
-// For the owner, Irit and Lior; the staff-admin function checks the same on the
+// For the owner (every action), and Irit, Lior and Ofir (the list, read-only since 4.11.2026); the staff-admin function checks the same on the
 // server (supabase/functions/staff-admin/). Links are kept only in this page's memory.
 import { supabase } from './supa.js';
 import { TEAM_PEOPLE } from './protocol.js';
@@ -9,7 +9,7 @@ import { $, fill, h, toast, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, f
 import { dress } from './kit.js';
 import { whatsappLink } from './quote-doc.js';
 import {
-  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, TEAM_MANAGERS, normPhone, formatPhone, canEditPhone, hasPhone, linkOnlyByOwner,
+  canManageTeam, loginState, linkMessage, LINK_VALID_FOR, normPhone, formatPhone, canEditPhone, hasPhone, linkOnlyByOwner,
 } from './team-rules.js';
 import { loadWaTeam, paintWaPanel, waStatusView } from './wa-team.js';
 import { avatar } from './shell.js';
@@ -64,7 +64,6 @@ async function call(action, payload = {}) {
 }
 
 // ── The list ──────────────────────────────
-const isManagerPerson = (person) => person === null || TEAM_MANAGERS.includes(person);
 const nameOfEmail = (email) => {
   const r = rows.find((x) => x.email === email);
   if (!r) return String(email || '').split('@')[0];
@@ -125,6 +124,10 @@ async function load() {
     return;
   }
   $('state').textContent = '';
+  // The managers read the list; every action on it is the owners' (docs/ops.md, section 96).
+  $('team-readonly').hidden = !!caller?.owner;
+  $('team-help').hidden = !caller?.owner;
+  if (!caller?.owner) $('team-lead').textContent = 'כל הצוות במבט אחד: מי מחובר, ומי מקבל התראות בטלפון.';
   render();
 }
 
@@ -184,7 +187,8 @@ function vaultView(e) {
 
 function emailView(e) {
   if (e.row) return h('bdi', { dir: 'ltr', class: 'tm-address' }, e.row.email);
-  if (!caller?.owner && isManagerPerson(e.person)) return h('span', { class: 'muted' }, 'אין כתובת. רק הבעלים מוסיף אותה.');
+  // Adding an address is the owners' (since 4.11.2026; Irit and Lior added them for people outside the office until then).
+  if (!caller?.owner) return h('span', { class: 'muted' }, 'אין כתובת. רק הבעלים מוסיף אותה.');
   const inputId = `email-${e.id}`;
   return h('form', { class: 'tm-add', novalidate: true, onsubmit: (ev) => { ev.preventDefault(); addEmail(e, inputId); } },
     h('label', { class: 'sr-only', for: inputId }, `כתובת המייל של ${e.name}`),
@@ -267,7 +271,7 @@ function rowView(e) {
         type: 'button', class: 'btn btn-sm', id: `mklink-${e.id}`, disabled: pending, onclick: () => makeLink(e),
         'aria-label': `${links.has(e.row.email) ? 'קישור כניסה חדש' : 'יצירת קישור כניסה'} ל${e.name}`,
       }, links.has(e.row.email) ? 'קישור חדש' : 'יצירת קישור כניסה')
-        : e.row && !me ? h('span', { class: 'muted tm-owner-link', id: `ownerlink-${e.id}` }, 'רק הבעלים יוצר קישור כניסה לחשבון הזה.') : null,
+        : null, // the managers read the list: one line above it says that the links are the owners' (#team-readonly)
       canRemove ? h('button', {
         type: 'button', class: 'btn-text tm-remove', id: `remove-${e.id}`, disabled: pending, onclick: () => removeRow(e),
         'aria-label': `הסרת ${e.name} מהצוות`,

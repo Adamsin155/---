@@ -18,7 +18,7 @@ import { dayKeyIL } from './tz.js';
 // How far one load goes back, and how much "ימים קודמים" adds.
 export const WORK_DAYS = 30;
 // The managers who see it: the owners, Lior and Ofir.
-const WORK_READERS = ['lior', 'ofir'];
+const WORK_READERS = ['lior', 'ofir', 'irit']; // Irit since 4.11.2026 (the managers)
 export const canSeeWorkHistory = (v) => isOwnerView(v) || (!!v && !v.error && v.scope === 'office' && WORK_READERS.includes(v.me));
 
 // The marks that are worth their own words; any other item counts as work on a step.
