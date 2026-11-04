@@ -87,14 +87,14 @@ function actions(d) {
     }, 'בוטל'),
   ];
   // Handing a deal to Irit or Ofir (public.deal_hand_over): the owners, and since 4.11.2026 the
-  // managers (docs/ops.md, section 96). Irit and Ofir hand their own deal, or a free one, to the
-  // other; neither takes one the other holds (the database refuses that too).
+  // managers (docs/ops.md, section 96). Irit and Ofir hand the deal they hold to the other (a free
+  // one they just take); neither takes one the other holds (the database refuses that too).
   const handTo = (p) => h('button', { type: 'button', class: 'btn btn-ghost', onclick: (e) => handOver(d, p, e.currentTarget) }, `להעביר ל${PEOPLE[p].name}`);
   const others = DEAL_PREPARERS.filter((p) => p !== d.taken_by);
   if (!me) return [...(works ? work : []), ...others.map(handTo)];
   if (d.taken_by === me) return [...work, ...others.map(handTo)];
   if (d.taken_by) return [];
-  return [h('button', { type: 'button', class: 'btn', onclick: (e) => take(d, e.currentTarget) }, 'אני לוקח'), ...others.filter((p) => p !== me).map(handTo)];
+  return [h('button', { type: 'button', class: 'btn', onclick: (e) => take(d, e.currentTarget) }, 'אני לוקח')];
 }
 
 function card(d) {

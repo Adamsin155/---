@@ -139,7 +139,11 @@ function rpc(name, body, me, json) {
   }
   if (name === 'deal_hand_over') {
     calls.push({ handOver: body.p_id, to: body.p_person });
-    if (!isOwner(me)) return json(403, { code: '42501', message: 'not allowed' });
+    // The owners and the managers since 4.11.2026 (public.sees_income()); Irit and Ofir never take one the other holds.
+    const who = personOf(me);
+    if (!isOwner(me) && !['irit', 'ofir', 'lior'].includes(who)) return json(403, { code: '42501', message: 'not allowed' });
+    const held = deals.find((x) => x.id === body.p_id);
+    if (['irit', 'ofir'].includes(who) && body.p_person === who && held?.taken_by && held.taken_by !== who) return json(400, { code: 'P0001', message: 'deal_taken' });
     const d = deals.find((x) => x.id === body.p_id && x.status === 'pending');
     if (!d) return json(404, { code: 'P0002', message: 'deal not waiting' });
     Object.assign(d, { taken_by: body.p_person, taken_at: serverNow() });
@@ -530,10 +534,10 @@ async function pool(engine) {
     await ofir.locator('#dlg-preview .close').click();
   });
 
-  await step(`${L}: back on his list, Ofir holds it: the work buttons, not "אני לוקח"`, async () => {
+  await step(`${L}: back on his list, Ofir holds it: the work buttons and the hand-over to Irit (4.11.2026), not "אני לוקח"`, async () => {
     await ofir.goto(`${BASE}${MINE}`);
     await cardOf(ofir, d.id).waitFor();
-    assert.deepEqual(await actionsOf(cardOf(ofir, d.id)), ['להכנת החוזה', 'החוזה נשלח', 'בוטל']);
+    assert.deepEqual(await actionsOf(cardOf(ofir, d.id)), ['להכנת החוזה', 'החוזה נשלח', 'בוטל', 'להעביר לעירית']);
     assert.equal(await cardOf(ofir, d.id).locator('a.btn').getAttribute('href'), `index.html?deal=${d.id}`);
     assert.match(await cardOf(ofir, d.id).locator('.deal-clock').innerText(), /נשארו \d+:\d\d/);
     assert.deepEqual(await smallTargets(ofir, '.deal-task-acts .btn'), []);
@@ -623,7 +627,8 @@ async function pool(engine) {
     assert.deepEqual(await actionsOf(cardOf(ofir, d.id)), []);
     await irit.reload();
     await cardOf(irit, d.id).waitFor();
-    assert.deepEqual(await actionsOf(cardOf(irit, d.id)), ['להכנת החוזה', 'החוזה נשלח', 'בוטל']);
+    // Hers now: the work buttons, and the hand-over to Ofir (the managers hand a deal over since 4.11.2026).
+    assert.deepEqual(await actionsOf(cardOf(irit, d.id)), ['להכנת החוזה', 'החוזה נשלח', 'בוטל', 'להעביר לאופיר']);
   });
 
   await step(`${L}: Irit makes the link: the agreement has the exceptional discount, the number and the address; the deal is "חוזה נשלח"`, async () => {
