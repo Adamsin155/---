@@ -12,7 +12,7 @@ import { SOLO_PREFIX, soloOf, choiceOf, roundWithCrew, timeLabel } from './shoot
 import { shootMinutes, shootStart } from './calendar-feed.js';
 import {
   clientState, missingFields, isResolved, blockers, openItemsFor, byUrgency, CLAIM, WAIT,
-  waitNote, parseWaitNote, bulkEligible, roundsOf, roundContext, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
+  waitNote, parseWaitNote, bulkEligible, roundsOf, roundContext, isMonthlyRound, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
 } from './protocol-logic.js';
 import {
   loadClient, loadClients, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
@@ -904,7 +904,7 @@ function bump(key, delta) {
 
 function roundsSummary(s) {
   const total = client.deliverables?.shoot_days;
-  const rounds = [{ n: 1, shoot_at: client.shoot_at }, ...roundsOf(client)];
+  const rounds = [{ n: 1, shoot_at: client.shoot_at }, ...roundsOf(client).filter((r) => !isMonthlyRound(r))]; // a monthly editing round is not a shoot day
   const parts = rounds.map((r) => {
     const phase = r.n === 1 ? null : s.phases.find((p) => p.key === `round-${r.n}`);
     const done = r.n === 1 ? ['prep', 'eve', 'shoot', 'post', 'publish'].every((k) => s.phases.find((p) => p.key === k)?.complete !== false)
@@ -1230,6 +1230,12 @@ function roundHeader(ph) {
   const r = roundsOf(client).find((x) => x.n === ph.round);
   if (!r) return null;
   const has = Object.keys(checks).some((k) => k.startsWith(`r${r.n}.`));
+  // A monthly editing round (app/monthly-rounds.js): no shoot day, nothing to edit in it.
+  if (isMonthlyRound(r)) {
+    return h('div', { class: 'round-head', id: `round-head-${r.n}` },
+      iconSquare('calendar', 'blue', { size: 'sm' }),
+      h('span', {}, `נפתח לבד בתחילת החודש, ישר לעריכה אצל ${editorNames(roundContext(client, r)) || 'העורך'}. בלי יום צילום.`));
+  }
   return h('div', { class: 'round-head' },
     iconSquare('camera', 'pink', { size: 'sm' }),
     h('span', {}, [shootTypeName(roundContext(client, r)) || null, r.shoot_at ? `יום צילום ${formatStamp(r.shoot_at)}` : 'מועד יום הצילום טרם נקבע'].filter(Boolean).join(' · ')),
@@ -1259,7 +1265,7 @@ function renderPhases(s) {
     const det = h('details', { class: `phase${ph.key === s.current ? ' is-current' : ''}${ph.round ? ' is-round' : ''}`, open: printing || openPhases.has(ph.key) },
       h('summary', {},
         h('span', { class: 'ph-idx num' }, String(idx + 1)),
-        iconSquare(...(PHASE_LOOK[ph.key] || ['camera', 'pink']), { size: 'sm' }),
+        iconSquare(...(PHASE_LOOK[ph.key] || (ph.monthly ? ['edit', 'purple'] : ['camera', 'pink'])), { size: 'sm' }),
         h('span', { class: 'ph-title' }, h('h2', {}, ph.title), ph.key === s.current ? h('span', { class: 'ph-now' }, 'פתוח עכשיו') : null),
         h('span', { class: 'ph-meta' },
           late ? statusBadge('overdue', null) : null,

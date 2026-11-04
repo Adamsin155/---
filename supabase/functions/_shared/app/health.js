@@ -585,7 +585,8 @@ export function nextMilestone(client, state, checks = {}, now = new Date()) {
       // The shoot day itself (v12: nobody closes it, 19 left the protocol): ahead until its date
       // passed or a mark says so (shootHeld). Irit sets it (11), so it is said as hers.
       if (id === 'p19') {
-        if (shootHeld(x, checks, now)) continue;
+        // A monthly editing round has no shoot day to wait for (app/monthly-rounds.js).
+        if (x.ctx.monthly || shootHeld(x, checks, now)) continue;
         const at = parseDate(x.ctx.shoot_at);
         const setter = byId.get(`${x.pid}p11`);
         found.push({
@@ -636,6 +637,11 @@ export function awaitedFromClient(client, state, checks = {}) {
   if (isDone(checks, 'p07.sent') && !isDone(checks, 'p07.approved')) out.push('אישור 9 הגרפיקות הראשונות');
   for (const x of shootContexts(client)) {
     const p11 = byId.get(`${x.pid}p11`);
+    // A monthly editing round (app/monthly-rounds.js) asks nothing of the client before the editing.
+    if (x.ctx.monthly) {
+      if (isDone(checks, `${x.pre}p26.sent`) && !isDone(checks, `${x.pre}p27.approved`)) out.push('הערות או אישור על הסרטונים');
+      continue;
+    }
     if (p11?.touched && !p11.complete && !isDone(checks, `${x.pre}p11.ok.client`)) out.push('אישור מועד ליום הצילום');
     if (byId.get(`${x.pid}p12`)?.complete && !isDone(checks, `${x.pre}p13.approved`)) out.push('אישור התסריטים');
     if (isDone(checks, `${x.pre}p26.sent`) && !isDone(checks, `${x.pre}p27.approved`)) out.push('הערות או אישור על הסרטונים');

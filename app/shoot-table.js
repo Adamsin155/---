@@ -41,6 +41,7 @@ export function shootHistory(client, checks = {}, now = new Date(), state = null
   let undated = 0;
   let next = null;
   for (const x of shootContexts(client)) {
+    if (x.ctx.monthly) continue; // a monthly editing round is not a shoot day (app/monthly-rounds.js)
     const at = parseDate(x.ctx.shoot_at);
     // v12: a shoot day took place once its date is behind today, or a mark says so (shootHeld:
     // an old closing of 19, Eli's handing over, an editor assigned). Nobody closes the day any

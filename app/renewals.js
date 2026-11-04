@@ -45,7 +45,7 @@ export function resultsSummary(client, state, checks = {}, { marks = {}, surveys
     lines.push({ key: x.key, label: d?.label || x.key, text: `${x.done} מתוך ${x.total}`, warn: !!x.behind });
   }
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
-  const shoots = shootContexts(client);
+  const shoots = shootContexts(client).filter((x) => !x.ctx.monthly); // a monthly editing round is not a shoot day
   const held = shoots.filter((x) => shootHeld(x, checks, now)).length; // v12: shootHeld (19 left the protocol)
   const planned = Math.max(Number(client.deliverables?.shoot_days) || 0, shoots.length);
   if (planned) lines.push({ key: 'shoots', label: 'ימי צילום', text: `${held} מתוך ${planned}`, warn: false });

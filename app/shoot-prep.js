@@ -22,7 +22,7 @@
 //                  (a database trigger opens it) with a ready message.
 import { PEOPLE, NETWORKS, PHOTOGRAPHERS, isSolo, crewOf, hasShootType, shootTypeName, isStarDay, starShort, starWords } from './protocol.js';
 import {
-  parseDate, roundsOf, roundContext, isBusinessDay, businessDaysBetween, addBusinessDays, isDaily, inLanding,
+  parseDate, roundsOf, roundContext, isMonthlyRound, isBusinessDay, businessDaysBetween, addBusinessDays, isDaily, inLanding,
 } from './protocol-logic.js';
 import { dayKeyIL, atTimeIL, addDaysIL, startOfDayIL, daysBetweenIL } from './tz.js';
 import { materialsOf, listText, dayText, timeText } from './messages-logic.js';
@@ -34,10 +34,11 @@ const live = (c) => c.status === 'active' || c.status === 'ending';
 const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
 
 // The shoot of the client and of each extra round: { n, pre ('' or 'r2.'), pid ('' or 'r2-'), ctx }.
+// A monthly editing round (app/monthly-rounds.js) has no shoot day and is not one of them.
 export function shootContexts(client) {
   return [
     { n: 1, pre: '', pid: '', ctx: client },
-    ...roundsOf(client).map((r) => ({ n: r.n, pre: `r${r.n}.`, pid: `r${r.n}-`, ctx: roundContext(client, r) })),
+    ...roundsOf(client).filter((r) => !isMonthlyRound(r)).map((r) => ({ n: r.n, pre: `r${r.n}.`, pid: `r${r.n}-`, ctx: roundContext(client, r) })),
   ];
 }
 

@@ -24,6 +24,7 @@ import {
 } from '../_shared/app/reminder-engine.js';
 import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH, VOID_WHEN_GONE } from '../_shared/app/reminder-rules.js';
 import { isBusinessDay } from '../_shared/app/protocol-logic.js';
+import { monthlyRoundPlans } from '../_shared/app/monthly-rounds.js';
 
 const MIN = 6e4;
 // How long a push may wait at the push service before it is dropped (a ring is
@@ -119,12 +120,39 @@ async function deliver({ db, push, env, row, kind, now, stats }) {
 
 // (Until protocol v9 the tick also assigned an editor by itself when a shoot day was
 // closed. The owner's decision of 10.10.2026: Ofir assigns, and is rung to do it, the
-// rule `fast`. Nothing is written to a client here any more.)
+// rule `fast`.)
+//
+// A monthly client's editing round (the owner's decision of 4.11.2026; app/monthly-rounds.js;
+// docs/ops.md, section 94): on a business day, each monthly client with an editor and no editing
+// for this Israel month gets its round, straight to its regular editor. Every tick looks, and
+// writes only what is missing, so a month is opened once: the round is in clients.rounds from
+// then on and the plan is empty. db.openMonthlyRound writes the round only when the client row
+// did not change since it was loaded (two ticks, or the office saving the card at that moment,
+// never add two), and then the round's marks without overwriting any. What was written is put
+// into this tick's view too. A failure is counted and tried again on the next tick.
+async function openMonthlyRounds({ db, input, now, stats }) {
+  for (const { client, plan } of monthlyRoundPlans(input.clients, input.checks, now)) {
+    try {
+      const ok = await db.openMonthlyRound({ client, rounds: plan.rounds, marks: plan.marks });
+      if (!ok) continue;
+      if (plan.rounds) client.rounds = plan.rounds;
+      const at = now.toISOString();
+      for (const m of plan.marks) {
+        if (!input.checks.some((r) => r.client_id === client.id && r.item_key === m.item_key)) input.checks.push({ client_id: client.id, ...m, at });
+      }
+      stats.monthly += 1;
+    } catch (err) {
+      stats.monthlyFailed += 1;
+      console.error('reminders: a monthly round was not opened', err?.code || err?.name || 'error');
+    }
+  }
+}
 
 /** @param {{ db: any, push: any, wa?: any, now?: Date }} args */
 export async function runTick({ db, push, wa = null, now = new Date() }) {
-  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0 };
+  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0, monthly: 0, monthlyFailed: 0 };
   const input = await db.load(now);
+  if (typeof db.openMonthlyRound === 'function') await openMonthlyRounds({ db, input, now, stats });
   const env = buildEnv({ ...input, now });
   const all = candidates(env);
   const active = new Set(all.map((r) => r.key));
