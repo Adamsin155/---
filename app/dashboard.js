@@ -292,6 +292,11 @@ function renderRows() {
   $('empty').textContent = quotes.length ? (filter === UNSIGNED_FILTER ? 'אין כרגע הסכם שמחכה לחתימה.' : 'אין הצעות בסינון הזה.') : 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.';
 }
 
+// The quotes not to list (public.hidden_quotes). Before its migration: none.
+async function loadHidden() {
+  const { data, error } = await supabase.from('hidden_quotes').select('quote_id');
+  return new Set(error ? [] : (data || []).map((x) => x.quote_id));
+}
 async function loadQuotes() {
   $('state').textContent = 'טוען…';
   const BASE = 'id, token, number, client_name, monthly_gross_agorot, term_gross_agorot, created_at, created_by_email, status, first_viewed_at, signed_at, signer_name, tier:model->package->>tierName, influencer:model->package->>influencer, doc:model->>docTitle, signable:model->>signable, expires_at, phone:model->client->>phone';
@@ -310,7 +315,10 @@ async function loadQuotes() {
   const old = await loadLegacy().catch(() => []);
   // And the contracts signed outside the system, uploaded by hand and confirmed (5.11.2026).
   const manual = await loadManual().catch(() => []);
-  quotes = [...data, ...old, ...manual].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  // A signed quote named in public.hidden_quotes (a duplicate: האלופים פחחות וצבע, 5.11.2026) is
+  // neither listed nor summed; the quote itself is kept as it was (docs/ops.md, section 107).
+  const hidden = await loadHidden().catch(() => new Set());
+  quotes = [...data.filter((q) => !hidden.has(q.id)), ...old, ...manual].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   $('state').textContent = '';
   $('list-block').hidden = false;
   renderStats();

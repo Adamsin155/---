@@ -450,6 +450,10 @@ const QUOTE = {
   package_id: 'social-natali', tier: 'Social', influencer: 'נטלי דדון', selection: null, term_months: 12,
 };
 db.quotes.push(QUOTE);
+// A duplicate signed quote, named in public.hidden_quotes (האלופים פחחות וצבע, 5.11.2026): not listed, not summed.
+const DUP = { ...QUOTE, id: 'eeeeeeee-0000-4000-8000-000000000051', number: 'AST-2026-051', client_name: 'כפילות לבדיקה', term_gross_agorot: 9999900, monthly_gross_agorot: 833300 };
+db.quotes.push(DUP);
+db.hidden_quotes = [{ quote_id: DUP.id, reason: 'כפילות של AST-2026-050', created_at: '2026-10-12T16:00:00+03:00' }];
 const pdf = (n = 3000) => Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(n)]);
 const contractRows = (cid) => db.client_files.filter((f) => f.client_id === cid && f.kind === 'material_other' && f.label === 'חוזה חתום' && !f.deleted_at);
 
@@ -742,6 +746,8 @@ await step('"הצעות שנשלחו": the manual contract as "נחתם · חו�
     await p.waitForSelector('#rows tr.is-manual');
     if (OUT) await p.waitForTimeout(600);
     const row = await p.innerText('#rows tr.is-manual');
+    assert.doesNotMatch(await p.innerText('#rows'), /כפילות לבדיקה|AST-2026-051/, 'a hidden quote is not listed');
+    assert.doesNotMatch(await p.innerText('#stats'), /99,999/, 'nor summed');
     assert.match(row, /ידני/);
     assert.match(row, /מספרת אבי בע״מ/);
     assert.match(row, /נחתם · חוזה ידני/);
