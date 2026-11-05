@@ -81,11 +81,11 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   // 8 is its owner's alone: nobody waits inside the protocol. (10, Lior's Meta check, left in v12.)
   assert.deepEqual([by('8').holders, by('10')], [['ofir'], undefined]);
   assert.equal(hhmm(by('7').lateAt), '5.10 14:15'); // the deadline and the grace
-  // Ofir and Lior are told of their own late process by the note every late process sends them
-  // (rule `late`), not a second time: one line each in their batch, never the same item twice.
+  // Since 5.11.2026 (docs/ops.md, section 100) the rule `late` sends nothing: Ofir rings for his own
+  // late process as everyone (`lateOwn.own`), and nobody gets a copy of someone else's.
   const at1415 = due(w, IL(2026, 10, 5, 14, 15));
   const told = (p, num) => at1415.filter((r) => r.person === p && /^late(Own)?$/.test(r.rule) && new RegExp(` ${num} · `).test(r.title)).map((r) => `${r.rule}.${r.step}`);
-  assert.deepEqual([told('ofir', '8'), told('lior', '10'), told('ilai', '7'), told('ofir', '7')], [['late.ofir'], [], ['lateOwn.own'], ['late.ofir']]);
+  assert.deepEqual([told('ofir', '8'), told('lior', '10'), told('ilai', '7'), told('ofir', '7')], [['lateOwn.own'], [], ['lateOwn.own'], []]);
   assert.equal(LATE_LADDER.graceMinutes, 15);
   // Ilai delivered a day late. The check is Ofir's alone, and it has its own clock from the
   // moment the graphics reach him (protocol v9: ten minutes on his fast ladder), so 7 is not late now.
@@ -110,8 +110,8 @@ test('who holds a late item and who waits for it come from the protocol: its ite
   const after = lateOf(w, IL(2026, 10, 6, 12, 50)).find((x) => x.num === '7');
   assert.deepEqual([after.holders, after.waiters, hhmm(after.lateAt), after.fast], [['irit'], ['ilai'], '6.10 12:45', false]);
   const at12 = due(w, IL(2026, 10, 6, 12, 45)).filter((r) => / 7 · /.test(r.title));
-  assert.deepEqual(at12.filter((r) => r.rule === 'lateOwn').map((r) => `${r.step}@${r.person}`).sort(), ['own@irit', 'wait@ilai']);
-  assert.deepEqual(at12.filter((r) => r.rule === 'late').map((r) => r.person).sort(), ['lior', 'ofir']);
+  assert.deepEqual(at12.filter((r) => r.rule === 'lateOwn').map((r) => `${r.step}@${r.person}`).sort(), ['own@irit']);
+  assert.deepEqual(at12.filter((r) => r.rule === 'late').map((r) => r.person).sort(), []);
   const nagTo = (now) => due(w, now).filter((r) => r.rule === 'lateNag' && / 7 · /.test(`${r.title} ${r.body}`)).map((r) => r.person).sort();
   assert.deepEqual(nagTo(IL(2026, 10, 6, 9, 46)), []);
   assert.deepEqual(nagTo(IL(2026, 10, 6, 14, 0)), ['irit']);
@@ -145,17 +145,13 @@ test('the ladder of a late item: "באיחור" when the deadline passes, the on
   // Monday 5.10, the 9 graphics were due at 14:00. Before the grace: nothing of the ladder.
   assert.deepEqual(stepsOf(at(IL(2026, 10, 5, 14, 14)), 'lateOwn'), []);
   const first = at(IL(2026, 10, 5, 14, 15));
-  // Ilai rings; Irit, who reviews them next, is told why her card is stuck. (Lior waits too, and
-  // is told by the note every late item sends him and Ofir: rule `late`, as before.)
-  assert.deepEqual(stepsOf(first, 'lateOwn'), ['own@ilai:ring', 'wait@irit:quiet']);
-  assert.deepEqual(stepsOf(first, 'late'), ['lior@lior:quiet', 'ofir@ofir:quiet']);
+  // Ilai rings, and only he (since 5.11.2026, section 100: no "מתעכב אצל" to Irit, no copy to Ofir and Lior).
+  assert.deepEqual(stepsOf(first, 'lateOwn'), ['own@ilai:ring']);
+  assert.deepEqual(stepsOf(first, 'late'), []);
   const [own] = of(first, 'lateOwn', 'ilai');
   assert.equal(own.title, 'באיחור: אלפא · 7 · הכנת 9 גרפיקות ראשונות');
   assert.match(own.body, /^היעד היה היום 14:00\. תזכורת ב־09:00 וב־14:00 בכל יום עבודה, עד שזה מסומן\.$/);
   assert.equal(own.batch, true);
-  const [wait] = of(first, 'lateOwn', 'irit');
-  assert.equal(wait.title, 'מתעכב אצל עילאי: אלפא · 7 · הכנת 9 גרפיקות ראשונות');
-  assert.match(wait.body, /^בגלל זה הכרטיס שלך מחכה\./);
   // The same afternoon: no reminder (it became late after 14:00).
   assert.deepEqual(stepsOf(at(IL(2026, 10, 5, 16)), 'lateNag'), []);
   // Tuesday: 09:00 and 14:00, one ring each, and nothing in between.
@@ -166,23 +162,18 @@ test('the ladder of a late item: "באיחור" when the deadline passes, the on
   assert.match(of(nine, 'lateNag')[0].body, /^באיחור יום עסקים\. מסמנים ב״המשימות שלי״/);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 11)), 'lateNag'), []);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 14, 0)), 'lateNag'), ['d2026-10-06.1400@ilai:ring']);
-  // One full business day late (Tuesday 14:15 passed): the managers ring at the next of the two hours,
-  // Wednesday 09:00, so that everything that crossed the line since 14:00 is one ring. Nothing new for Ilai or Irit.
+  // One full business day late, then two: since 5.11.2026 no ring to the managers or the owners (their 19:00 table has it).
   assert.deepEqual(stepsOf(at(IL(2026, 10, 6, 14, 15)), 'lateOwn'), []);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 7, 8, 59)), 'lateOwn'), []);
   const mgr = at(IL(2026, 10, 7, 9, 0));
-  assert.deepEqual(stepsOf(mgr, 'lateOwn'), ['mgr@lior:ring', 'mgr@ofir:ring']);
+  assert.deepEqual(stepsOf(mgr, 'lateOwn'), []);
   assert.equal(hhmm(nextNagSlot(IL(2026, 10, 6, 14, 15))), '7.10 09:00');
   assert.equal(hhmm(nextNagSlot(IL(2026, 10, 8, 14, 1))), '11.10 09:00'); // Thursday afternoon: Sunday
   assert.equal(hhmm(nextNagSlot(IL(2027, 4, 21, 9, 15))), '25.4 09:00');  // erev Pesach after 09:00: after the holiday and the weekend
-  assert.equal(of(mgr, 'lateOwn', 'ofir')[0].title, 'באיחור יום עסקים: אלפא · 7 · הכנת 9 גרפיקות ראשונות · עילאי');
-  // Two business days (Wednesday 14:15 passed): the owners ring on Thursday 09:00, with a link to their table.
   at(IL(2026, 10, 7, 14, 0));
   assert.deepEqual(stepsOf(at(IL(2026, 10, 7, 14, 15)), 'lateOwn'), []);
   const owner = at(IL(2026, 10, 8, 9, 0));
-  assert.deepEqual(stepsOf(owner, 'lateOwn'), ['owner@owner:ring']);
-  assert.equal(of(owner, 'lateOwn')[0].title, 'באיחור יומיים: אלפא · 7 · הכנת 9 גרפיקות ראשונות · עילאי');
-  assert.equal(of(owner, 'lateOwn')[0].url, 'owner.html#eod');
+  assert.deepEqual(stepsOf(owner, 'lateOwn'), []);
   // Thursday as every day; Friday and Saturday nothing; Sunday again. Until it is done.
   assert.deepEqual(stepsOf(owner, 'lateNag'), ['d2026-10-08.0900@ilai:ring']);
   assert.deepEqual(stepsOf(at(IL(2026, 10, 9, 9, 0)), 'lateNag'), []);
@@ -211,26 +202,26 @@ test('an ordinary task (a decision\'s task too) that stays open past its due day
   at(IL(2026, 10, 5, 8, 30));
   assert.deepEqual(at(IL(2026, 10, 5, 19)), []); // the due day itself: not late
   assert.deepEqual(at(IL(2026, 10, 6, 9, 14)), []);
-  // Tuesday 09:15: Irit rings; Nadia, who opened it, is told once; Ofir and Lior get their note.
-  assert.deepEqual(at(IL(2026, 10, 6, 9, 15)), ['lateOwn.own@irit:ring', 'lateOwn.wait@nadia:quiet', 'task.late@lior:quiet', 'task.late@ofir:quiet']);
+  // Tuesday 09:15: Irit rings, and only she (since 5.11.2026, section 100).
+  assert.deepEqual(at(IL(2026, 10, 6, 9, 15)), ['lateOwn.own@irit:ring']);
   assert.deepEqual(at(IL(2026, 10, 6, 14, 0)), ['lateNag.d2026-10-06.1400@irit:ring']);
   assert.deepEqual(at(IL(2026, 10, 7, 9, 0)), ['lateNag.d2026-10-07.0900@irit:ring']);
   assert.deepEqual(at(IL(2026, 10, 7, 9, 15)), []);
-  // A full business day late since Wednesday 09:15: the managers at 14:00; the owners on Thursday at 14:00.
-  assert.deepEqual(at(IL(2026, 10, 7, 14, 0)), ['lateNag.d2026-10-07.1400@irit:ring', 'lateOwn.mgr@lior:ring', 'lateOwn.mgr@ofir:ring']);
+  // A full business day late, then two: nothing to the managers or the owners (since 5.11.2026).
+  assert.deepEqual(at(IL(2026, 10, 7, 14, 0)), ['lateNag.d2026-10-07.1400@irit:ring']);
   assert.deepEqual(at(IL(2026, 10, 8, 9, 15)), ['lateNag.d2026-10-08.0900@irit:ring']);
-  assert.deepEqual(at(IL(2026, 10, 8, 14, 0)), ['lateNag.d2026-10-08.1400@irit:ring', 'lateOwn.owner@owner:ring']);
+  assert.deepEqual(at(IL(2026, 10, 8, 14, 0)), ['lateNag.d2026-10-08.1400@irit:ring']);
   // Weeks later it still rings twice a day (it used to be mentioned once and forgotten).
   assert.deepEqual(at(IL(2026, 11, 2, 9, 0)), ['lateNag.d2026-11-02.0900@irit:ring']);
   assert.match(due(w, IL(2026, 11, 2, 9, 0)).find((r) => r.rule === 'lateNag').body, /^באיחור 20 ימי עסקים/);
   w.tasks[0].done_at = IL(2026, 11, 2, 10).toISOString();
   assert.deepEqual(at(IL(2026, 11, 2, 14, 0)), []);
-  // A task of the manager himself: he is not his own manager's ring.
+  // A task of a manager himself: no manager ring for it either (since 5.11.2026 there is none).
   const w2 = world();
   const c2 = client(w2);
   importTo(w2, c2, 'ongoing');
   w2.tasks.push({ id: 't2', client_id: c2.id, title: 'לבדוק קמפיין', owner: 'lior', due_on: '2026-10-05', urgent: false, created_at: IL(2026, 10, 4, 11).toISOString(), created_by_email: 'lior@x' });
-  assert.deepEqual(due(w2, IL(2026, 10, 7, 14, 0)).filter((r) => r.rule === 'lateOwn' && r.step === 'mgr').map((r) => r.person), ['ofir']);
+  assert.deepEqual(due(w2, IL(2026, 10, 7, 14, 0)).filter((r) => r.rule === 'lateOwn' && r.step === 'mgr').map((r) => r.person), []);
 });
 
 // ── 3. One message, and the day's volume ────────────────────────────────────
@@ -299,12 +290,9 @@ test('several things that became late at the same moment are ONE ring with the l
   // Each item is still a row of its own in "התראות", marked as sent with that batch.
   const mine = db.log.filter((r) => r.rule === 'lateOwn' && r.person === 'irit');
   assert.deepEqual([mine.length, new Set(mine.map((r) => r.digest_key)).size, mine.every((r) => r.status === 'sent' && r.level === 'ring')], [5, 1, true]);
-  // Lior: one batch with the 15 notes (as before), nothing per item. Ofir has no line of his own
-  // in the 08:30 digest any more (the pass over the clients is Irit's since 26.10.2026): his
-  // morning digest goes out with the notes in it, at 09:15, one message.
-  assert.deepEqual(sent.filter((s) => s.to === 'lior' && s.title !== 'תקציר בוקר').map((s) => s.title), ['15 איחורים חדשים']);
-  assert.deepEqual(sent.filter((s) => s.to === 'ofir').map((s) => `${s.at} ${s.title}`), ['6.10 09:15 תקציר בוקר']);
-  assert.match(sent.find((s) => s.to === 'ofir').body, /^באיחור: גמא/);
+  // Ofir and Lior: nothing about other people's lateness since 5.11.2026 (docs/ops.md, section 100).
+  assert.deepEqual(sent.filter((s) => s.to === 'lior' && /איחור/.test(s.title)).map((s) => s.title), []);
+  assert.deepEqual(sent.filter((s) => s.to === 'ofir' && /איחור/.test(`${s.title} ${s.body}`)).map((s) => s.title), []);
   assert.equal(LATE_BATCH_MINUTES, 30);
 });
 
@@ -319,19 +307,18 @@ test('the volume of a day: with 5 late items each, a person gets the two daily r
   const d1 = await day(6);
   // The late person: the morning digest (as every day), "באיחור" once at 09:15, the 14:00 reminder.
   for (const p of ['irit', 'ilai', 'nadia']) assert.deepEqual(about(d1, p), ['08:30 תקציר בוקר', '09:15 5 איחורים חדשים', '14:00 5 דברים באיחור אצלך'], p);
-  // Ofir: no 08:30 line of his own since the pass went to Irit (26.10.2026); the notes are his morning digest.
-  assert.deepEqual(about(d1, 'ofir'), ['09:15 תקציר בוקר']);
+  // Ofir: no 08:30 line of his own (the pass is Irit's since 26.10.2026), and no notes of other people's lateness since 5.11.2026.
+  assert.deepEqual(about(d1, 'ofir'), []);
   assert.deepEqual(about(d1, 'owner'), ['19:00 סיכום היום']);
   assert.equal(d1.filter((s) => s.to === 'owner2').length, 1); // both owners
   assert.match(d1.find((s) => s.to === 'owner').body, /^היום: 15 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע\n/);
   const d2 = await day(7);
   for (const p of ['irit', 'ilai', 'nadia']) assert.deepEqual(about(d2, p), ['08:30 תקציר בוקר', '09:00 5 דברים באיחור אצלך', '14:00 5 דברים באיחור אצלך'], p);
-  // The managers: ONE ring for the 15 items that are a business day late.
-  assert.deepEqual(about(d2, 'ofir').filter((t) => /איחור/.test(t)), ['14:00 באיחור יום עסקים: 15 פריטים']);
-  assert.deepEqual(about(d2, 'lior').filter((t) => /איחור/.test(t)), ['14:00 באיחור יום עסקים: 15 פריטים']);
-  assert.equal(db.log.find((r) => r.key.startsWith('digest:late:ofir:2026-10-07')).level, 'ring');
+  // The managers and the owners: no ring about other people's lateness (since 5.11.2026); the 19:00 table has it.
+  assert.deepEqual(about(d2, 'ofir').filter((t) => /איחור/.test(t)), []);
+  assert.deepEqual(about(d2, 'lior').filter((t) => /איחור/.test(t)), []);
   const d3 = await day(8);
-  assert.deepEqual(about(d3, 'owner').filter((t) => !/סיכום היום/.test(t)), ['14:00 באיחור יומיים: 15 פריטים']);
+  assert.deepEqual(about(d3, 'owner').filter((t) => !/סיכום היום/.test(t)), []);
   assert.ok(about(d3, 'owner').some((t) => /^19:00 סיכום היום/.test(t)));
   // Over the three days nobody got more than the two reminders and one batch about lateness a day.
   for (const list of [d1, d2, d3]) {
@@ -445,9 +432,9 @@ test('the client\'s turn: work that was sent and waits for the client is nobody\
   // …and past it, the old deadline is not rung on the editor: the fix's task carries the lateness.
   const p27b = lateOf(w, IL(2026, 10, 21, 9)).find((x) => x.num === '27');
   assert.deepEqual([p27b.clientTurn, p27b.holders, p27b.fixing], [false, [], true]);
-  // …and when the fix is late (Wednesday 09:15), Nadia rings and Irit, who waits for it, is told.
+  // …and when the fix is late (Wednesday 09:15), Nadia rings (Irit, who waits, is not told since 5.11.2026).
   const wed = due(w, IL(2026, 10, 21, 9, 15), at10.map((r) => ({ key: r.key }))).filter((r) => r.rule === 'lateOwn');
-  assert.deepEqual(wed.map((r) => `${r.step}@${r.person}:${r.level}`).sort(), ['own@nadia:ring', 'wait@irit:quiet']);
+  assert.deepEqual(wed.map((r) => `${r.step}@${r.person}:${r.level}`).sort(), ['own@nadia:ring']);
   // Fixed: the task closes and the item is the approval again.
   w.tasks[0].done_at = IL(2026, 10, 21, 11).toISOString();
   assert.equal(fixTaskOf(w.tasks, c.id, 'p27.approved'), null);

@@ -127,10 +127,10 @@ test('each new step rings Irit when it opens, and from its deadline it is on the
   // Once only: the same step is not sent again.
   const log = open.map((r) => ({ key: r.key }));
   assert.deepEqual(of(due(w, IL(2026, 10, 5, 12, 5), log), 'clientLink'), []);
-  // Past the deadline and the grace (12:30 + 15 office minutes): "באיחור" to Irit, the note to Ofir and Lior.
+  // Past the deadline and the grace (12:30 + 15 office minutes): "באיחור" to Irit; no copy to Ofir and Lior since 5.11.2026 (section 100).
   const late = due(w, IL(2026, 10, 5, 12, 45)).filter((r) => / 5ב · /.test(r.title));
   assert.deepEqual(late.filter((r) => r.rule === 'lateOwn').map((r) => `${r.step}@${r.person}:${r.level}`), ['own@irit:ring']);
-  assert.deepEqual(late.filter((r) => r.rule === 'late').map((r) => r.person).sort(), ['lior', 'ofir']);
+  assert.deepEqual(late.filter((r) => r.rule === 'late').map((r) => r.person).sort(), []);
   // And the reminder of the next morning, until it is marked.
   const nine = due(w, IL(2026, 10, 6, 9, 0)).filter((r) => r.rule === 'lateNag' && r.person === 'irit');
   assert.equal(nine.length, 1);

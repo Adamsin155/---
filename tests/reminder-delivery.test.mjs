@@ -180,7 +180,8 @@ test('every step of every rule reaches the phone: no step is in the app only (th
   }
   for (const id of IN_APP_ONLY.keys()) assert.ok(ids.has(id), `IN_APP_ONLY names ${id}, which is not a step`);
   assert.equal(IN_APP_ONLY.size, 0);
-  assert.ok(seen.push > 60 && seen.batch >= 4 && seen.digest > 30, JSON.stringify(seen));
+  // Since 5.11.2026 (docs/ops.md, section 100) only the holder's own lateness ring is batched.
+  assert.ok(seen.push > 60 && seen.batch >= 1 && seen.digest > 30, JSON.stringify(seen));
   // And every `level:` written in the rule files is one of the four (none slipped past the walk).
   for (const f of ['reminder-rules.js', 'status-rules.js', 'year-rules.js']) {
     const text = readFileSync(new URL(`../app/${f}`, import.meta.url), 'utf8').split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');

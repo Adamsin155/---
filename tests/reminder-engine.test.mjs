@@ -44,6 +44,8 @@ const one = (list, rule, step, person = null) => {
   assert.equal(got.length, 1, `${rule}.${step}${person ? `@${person}` : ''}: ${JSON.stringify(list.filter((r) => r.rule === rule).map((r) => r.key))}`);
   return got[0];
 };
+// What only a screen reads (Lior's "החלטות"; the rule `late` since 5.11.2026, docs/ops.md, section 100): never sent.
+const onScreen = (w, now) => candidates(buildEnv({ ...w, now })).filter((r) => r.screen);
 const none = (list, rule, step = null) => assert.equal(list.filter((r) => r.rule === rule && (!step || r.step === step)).length, 0,
   `${rule}${step ? `.${step}` : ''} should not be due: ${JSON.stringify(list.filter((r) => r.rule === rule).map((r) => r.key))}`);
 const hhmm = (d) => { const p = partsIL(d); return `${p.day}.${p.month} ${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`; };
@@ -283,8 +285,9 @@ test('9 graphics ready: Ofir alone is rung to check them (protocol v9); Irit is 
   assert.match(ring.body, /^אופיר אישר\. יעד היום 13:08\.$/);
   none(due(w, IL(2026, 10, 7, 11, 8)), 'fast');
   none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9', 'lior');
-  // Lior hears when she is late with the sending, as of every late item (the rule `late`, 15 office minutes past her deadline).
-  assert.ok(due(w, IL(2026, 10, 7, 13, 23)).some((r) => r.rule === 'late' && r.person === 'lior' && /7 · הכנת 9 גרפיקות ראשונות/.test(r.title)));
+  // Late with the sending: on Lior's screen (the rule `late`, 15 office minutes past her deadline), and no copy is sent (5.11.2026).
+  assert.ok(onScreen(w, IL(2026, 10, 7, 13, 23)).some((r) => r.rule === 'late' && r.person === 'lior' && /7 · הכנת 9 גרפיקות ראשונות/.test(r.title)));
+  none(due(w, IL(2026, 10, 7, 13, 23)), 'late');
   mark(w, c, 'p07.wait', IL(2026, 10, 7, 11, 9), JSON.stringify({ reason: 'הלקוח ביקש לחכות' }));
   none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9');
   delete w.checks[c.id]['p07.wait'];
@@ -327,9 +330,9 @@ test('setting the shoot day (11, v6): right after the group opens; Irit in the a
   none(due(w, IL(2026, 10, 5, 15, 59)), 'shootDate', 'due16');
   const ring = one(due(w, IL(2026, 10, 5, 16)), 'shootDate', 'due16', 'irit');
   assert.equal(ring.level, 'ring');
-  // The next morning it is late: Ofir and Lior hear quietly (the `late` rule, 15 office minutes into the day), no board step per item.
-  const tue = due(w, IL(2026, 10, 6, 9, 16));
-  for (const who of ['ofir', 'lior']) assert.equal(pick(tue, 'late', who).find((r) => r.key.includes(':p11@')).level, 'quiet', who);
+  // The next morning it is late: on Lior's screen only (the `late` rule, 15 office minutes into the day); nothing sent to the managers (5.11.2026).
+  assert.ok(pick(onScreen(w, IL(2026, 10, 6, 9, 16)), 'late', 'lior').some((r) => r.key.includes(':p11@')));
+  none(due(w, IL(2026, 10, 6, 9, 16)), 'late');
   // Waiting on the client stops it; so does closing the day.
   mark(w, c, 'p11.wait', IL(2026, 10, 5, 12), JSON.stringify({ reason: 'הלקוח בחו״ל' }));
   none(due(w, IL(2026, 10, 6, 8, 30)), 'shootDate');
@@ -711,8 +714,9 @@ test('ordinary task: quiet when created, the morning it is due; a day late: Ofir
   assert.equal(one(due(w, IL(2026, 10, 6, 8, 30)), 'task', 'due', 'irit').level, 'digest');
   none(due(w, IL(2026, 10, 7, 9, 14)), 'task', 'late');
   const late = due(w, IL(2026, 10, 7, 9, 15));
-  one(late, 'task', 'late', 'lior'); // a watcher of every late item: once
-  assert.equal(one(late, 'task', 'late', 'ofir').level, 'quiet'); // 3.10.2026: Ofir too
+  // Since 5.11.2026 (section 100) no copy to Ofir and Lior: only on Lior's screen.
+  none(late, 'task', 'late');
+  assert.equal(pick(onScreen(w, IL(2026, 10, 7, 9, 15)), 'task', 'late', 'lior').length, 1);
   // 8.10.2026 (docs/ops.md, section 48): its owner rings "באיחור" at the same moment, not a quiet line.
   assert.equal(pick(late, 'task', 'late', 'irit').length, 0);
   assert.deepEqual([one(late, 'lateOwn', 'own', 'irit').level, one(late, 'lateOwn', 'own', 'irit').batch], ['ring', true]);
@@ -753,7 +757,7 @@ test('staff not connected to notifications: Irit\'s morning digest', () => {
   none(due(w, IL(2026, 10, 5, 8, 30)), 'unconnected');
 });
 
-test('lateness (3.10.2026): every late item to Ofir and Lior, quietly, once per deadline; no per-item board line', () => {
+test('lateness (3.10.2026; since 5.11.2026 on Lior screen only): every late item listed once per deadline, nothing sent, no per-item board line', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 6, 10).toISOString() });
   importTo(w, c, 'char');
@@ -762,32 +766,24 @@ test('lateness (3.10.2026): every late item to Ofir and Lior, quietly, once per 
   const at = due(w, IL(2026, 10, 6, 14, 16));
   // (Lior's own Meta check, 10, left the protocol in v12: it is late for nobody.)
   assert.ok(!at.some((r) => r.key.includes(':p10@')));
-  for (const who of ['ofir', 'lior']) {
-    for (const proc of ['p07', 'p08']) { // Ilai's and Ofir's own
-      const r = pick(at, 'late', who).find((x) => x.key.includes(`:${proc}@`));
-      assert.ok(r, `${proc} late: ${who}`);
-      assert.equal(r.level, 'quiet');
-      assert.equal(r.overdue, true);
-    }
+  // Since 5.11.2026 (section 100): nothing sent to Ofir or Lior; Lior's screen lists both.
+  none(at, 'late');
+  for (const proc of ['p07', 'p08']) { // Ilai's and Ofir's own
+    const r = pick(onScreen(w, IL(2026, 10, 6, 14, 16)), 'late', 'lior').find((x) => x.key.includes(`:${proc}@`));
+    assert.ok(r, `${proc} late: lior's screen`);
+    assert.equal(r.overdue, true);
   }
   none(at, 'late', 'board');
-  assert.match(pick(at, 'late', 'lior').find((r) => r.key.includes(':p08@')).title, /באיחור: .* · 8 · הכנת Highlights · אופיר/);
-  // Since 7.10.2026 they reach the phone, together: each waits for its person's batch
-  // (tests/reminder-delivery.test.mjs), never a push per item and never the app only.
-  const plan = planDelivery({ reminders: pick(at, 'late', 'ofir'), now: IL(2026, 10, 6, 14, 16) });
-  assert.ok(plan.length >= 3 && plan.every((r) => r.batch && r.channel === 'digest' && r.status === 'queued' && r.reason === 'batch'));
-  // Editing late: Ofir and Lior.
+  const scr = onScreen(w, IL(2026, 10, 6, 14, 16));
+  assert.match(pick(scr, 'late', 'lior').find((r) => r.key.includes(':p08@')).title, /באיחור: .* · 8 · הכנת Highlights · אופיר/);
+  // Editing late: on Lior's screen, naming the editor; nothing sent to Ofir or Lior (5.11.2026).
   const w2 = world();
   const e = client(w2, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'anna' });
   importTo(w2, e, 'post');
   for (const k of [...itemsOf('p22'), ...itemsOf('p22a')]) delete w2.checks[e.id][k];
   mark(w2, e, 'p22a.assigned', IL(2026, 10, 18, 10));
-  const late = due(w2, IL(2026, 10, 22, 9, 16));
-  assert.ok(pick(late, 'late', 'ofir').some((r) => r.key.includes(':p22@')));
-  assert.match(pick(late, 'late', 'lior').find((r) => r.key.includes(':p22@')).title, /אנה/);
-  // The same deadline again later: already known, so nothing new (the key is the deadline's).
-  const keys = pick(late, 'late', 'ofir').map((r) => r.key);
-  assert.equal(computeReminders({ ...w2, now: IL(2026, 10, 22, 12), log: keys }).filter((r) => keys.includes(r.key)).length, 0);
+  none(due(w2, IL(2026, 10, 22, 9, 16)), 'late');
+  assert.match(pick(onScreen(w2, IL(2026, 10, 22, 9, 16)), 'late', 'lior').find((r) => r.key.includes(':p22@')).title, /אנה/);
 });
 
 test('"לדחות עד…": what came due meanwhile waits for that moment, as one step', () => {
@@ -936,7 +932,7 @@ test('ending (35): Lior\'s digest the day before, a ring on the last day; late c
   importTo(w, c, 'ongoing');
   one(due(w, IL(2026, 10, 14, 8, 30)), 'ending', 'lior', 'lior');
   one(due(w, IL(2026, 10, 15, 10)), 'ending', 'day', 'lior');
-  assert.ok(pick(due(w, IL(2026, 10, 18, 9, 16)), 'late', 'ofir').some((r) => r.key.includes(':p35@'))); // Sunday: 15 office minutes after the end of Thursday
+  assert.ok(pick(onScreen(w, IL(2026, 10, 18, 9, 16)), 'late', 'lior').some((r) => r.key.includes(':p35@'))); // Sunday: 15 office minutes after the end of Thursday; Lior's screen (5.11.2026)
 });
 
 test('"אין מי שייצא לאפיון" rings for Lior; Ilai\'s late graphics go to Lior\'s list', () => {
@@ -949,7 +945,7 @@ test('"אין מי שייצא לאפיון" rings for Lior; Ilai\'s late graphic
   assert.equal(r.body, 'מחר 10:00, הרצל 1');
   none(due(w, IL(2026, 10, 5, 10)), 'exception', 'list');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 6, 10));
-  assert.ok(pick(due(w, IL(2026, 10, 6, 12, 16)), 'late', 'lior').some((r2) => r2.key.includes(':p07@')));
+  assert.ok(pick(onScreen(w, IL(2026, 10, 6, 12, 16)), 'late', 'lior').some((r2) => r2.key.includes(':p07@')));
 });
 
 // Found live (6.10.2026): "בעוד שעה אפיון" went out 1 minute before the meeting, and
