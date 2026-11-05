@@ -244,6 +244,13 @@ async function fakeSupabase(route) {
     }
     return reply(rows);
   }
+  // The office saves a client's details ("עריכה"; the shoot-days step below).
+  if (req.method() === 'PATCH' && table === 'clients') {
+    if (!isOffice(me)) return rls();
+    const rows = applyFilters(visibleRows(me, table), url.searchParams);
+    for (const r of rows) Object.assign(r, body, { updated_at: now });
+    return reply(rows);
+  }
   return json(405, { message: 'not in this fake' });
 }
 
@@ -551,6 +558,47 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   await ctx2.close();
   await wk.close();
 });
+
+// "עם מי כל יום צילום" (Irit, 5.11.2026; app/shoot-plan.js): a second day in the package, with
+// Natali, shows in the card before its round is added, and the round starts with her.
+for (const [w, h] of [[390, 844], [1280, 900]]) {
+  await step(`shoot days with whom (${w})`, async () => {
+    S.deliverables = { videos: 4, shoot_days: 1 };
+    const { ctx, page } = await scene('2026-10-19T12:00:00', { width: w, height: h });
+    await signIn(page, `client.html?id=${S.id}`, 'owner');
+    await loginGone(page);
+    await page.waitForSelector('#btn-edit');
+    await page.click('#btn-edit');
+    await page.waitForSelector('#dlg-edit[open]');
+    assert.equal(await page.isHidden('#ed-plan'), true);
+    await page.click('#ed-deliv-shoot_days', { clickCount: 3 });
+    await page.keyboard.press('Backspace');
+    await page.keyboard.type('23', { delay: 40 });
+    await page.keyboard.press('Backspace');
+    assert.equal(await page.inputValue('#ed-deliv-shoot_days'), '2');
+    await page.waitForSelector('#ed-plan-2');
+    assert.equal(await page.locator('#ed-plan-3').count(), 0);
+    await page.selectOption('#ed-plan-2', 'natali');
+    await page.locator('#ed-plan-2').scrollIntoViewIfNeeded();
+    if (OUT) await page.screenshot({ path: `${OUT}/shoot-plan-edit-${w}.png` });
+    await page.click('#ed-submit');
+    await page.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
+    await page.waitForTimeout(300);
+    assert.deepEqual(db.clients.find((c) => c.id === S.id).deliverables.shoot_plan, { 2: 'natali' });
+    if (!(await page.locator('#fold-contract').evaluate((d) => d.open))) await page.click('#fold-contract > summary');
+    const days = await page.locator('.shoot-day').allInnerTexts();
+    assert.equal(days.length, 2);
+    assert.match(days[0], /יום 1 · דניס, מישל וסמיון/);
+    assert.match(days[1], /יום 2 · נטלי דדון · עוד לא נוסף/);
+    assert.ok(await noHScroll(page));
+    await page.locator('.deliv-days').scrollIntoViewIfNeeded();
+    if (OUT) await page.screenshot({ path: `${OUT}/shoot-plan-card-${w}.png` });
+    await page.click('.deliv-row .btn:has-text("הוספת סבב צילום")');
+    await page.waitForSelector('#dlg-round[open]');
+    assert.equal(await page.inputValue('#round-type'), 'natali');
+    await ctx.close();
+  });
+}
 
 await browser.close();
 noCspViolations();
