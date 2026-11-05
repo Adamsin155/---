@@ -311,6 +311,10 @@ async function loadRows() {
   }
   // The rows are new: no state worked out from the old ones is read from here on.
   states.clear();
+  // Each client's state needs only its own row and marks: it is worked out (a few at a time)
+  // while the extras below are still on their way, not after them (docs/ops.md, section 102).
+  // The draw then finds them ready; a row that changes meanwhile stops it (warmStates).
+  if (!document.hidden) warmStates();
   // The cards that read their own rows ask now, side by side with the rest. (The deals'
   // card has just read its rows when the page opens: mountDeals.)
   refreshQuestions($('my-questions'), me, clients);

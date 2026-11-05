@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  planOf, tokenUser, sessionCache, KEPT_TABLES, KEPT_RPCS, READ_RPCS, CACHE_KEY, MAX_AGE, MAX_ENTRY, MAX_TOTAL,
+  planOf, tokenUser, sessionCache, KEPT_TABLES, KEPT_RPCS, READ_RPCS, CACHE_KEY, MAX_AGE, MAX_ENTRY, MAX_TOTAL, SQUEEZE_FROM, gzipSqueeze,
 } from '../app/data-cache.js';
 
 const BASE = 'https://czncjzziqrqtezpwxxpz.supabase.co';
@@ -190,7 +190,7 @@ test('the store is the tab\'s sessionStorage and nothing else; signing out and t
   const supa = readFileSync(new URL('../app/supa.js', import.meta.url), 'utf8');
   const rules = readFileSync(new URL('../app/data-cache.js', import.meta.url), 'utf8');
   const layer = readFileSync(new URL('../app/session-store.js', import.meta.url), 'utf8');
-  assert.match(layer, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\)\)/);
+  assert.match(layer, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\), \{ squeeze: gzipSqueeze\(\), later: whenIdle \}\)/); // squeezed, written when idle (section 102)
   // What keeps and hands out answers, and the rules: nowhere but the tab. (The one read of
   // localStorage is of the sign-in client's own session: whose device this is now.)
   for (const [name, src] of [['session-store.js', layer.replace('localStorage.getItem(supabase.auth.storageKey)', '')], ['data-cache.js', rules]]) {
@@ -210,4 +210,67 @@ test('the store is the tab\'s sessionStorage and nothing else; signing out and t
   assert.match(sw, /if \(url\.origin !== self\.location\.origin\) return;/);
   const gate = readFileSync(new URL('../app/shell-gate.js', import.meta.url), 'utf8');
   assert.match(gate, /if \(!uid \|\| \(shell && shell\.uid !== uid\) \|\| \(owner && owner !== uid\)\) \{ forget\(\); shell = null; \}/);
+});
+
+// docs/ops.md, section 102: the marks of every client were more than the whole store, so the
+// store threw itself away on every visit and the list was never shown from it.
+test('a long answer is kept squeezed and read back whole; the marks of ninety clients fit', async () => {
+  const squeeze = gzipSqueeze();
+  assert.ok(squeeze, 'node and the browsers have CompressionStream');
+  const storage = tab();
+  const cache = sessionCache(storage, { squeeze });
+  // 14 pages of 1,000 marks, as a client's rows look (about 2.7 million characters as text).
+  const pages = Array.from({ length: 14 }, (_, n) => JSON.stringify(Array.from({ length: 1000 }, (_, i) => ({
+    client_id: `c${String(Math.floor((n * 1000 + i) / 170)).padStart(4, '0')}-0000-4000-8000-000000000000`, item_key: `p${String(i % 40).padStart(2, '0')}.item${i % 7}`,
+    state: 'done', note: i % 9 ? null : 'הערה קצרה', by_email: 'irit@astrateg.com', at: `2026-10-${String(1 + (i % 28)).padStart(2, '0')}T08:${String(i % 60).padStart(2, '0')}:00.12345+00:00`,
+  }))));
+  const qs = pages.map((_, n) => plan(`protocol_checks?select=client_id,item_key&offset=${n * 1000}&limit=1000`));
+  assert.ok(pages.reduce((n, p) => n + p.length, 0) > MAX_TOTAL, 'as text, more than the whole store');
+  for (const [n, q] of qs.entries()) assert.equal(await cache.put('u', q, { status: 200, type: 'application/json', body: pages[n] }), true);
+  for (const [n, q] of qs.entries()) {
+    const entry = sessionCache(storage, { squeeze }).get('u', q.key);
+    assert.ok(entry, `page ${n} is there`);
+    assert.equal(typeof entry.z, 'string');
+    assert.equal(await cache.bodyOf(entry), pages[n]);
+  }
+  // A short answer stays as it was.
+  const short = plan('staff?select=email,person');
+  assert.equal(await cache.put('u', short, { status: 200, body: '[{"email":"a@b.c"}]' }), true);
+  assert.equal(cache.get('u', short.key).body, '[{"email":"a@b.c"}]');
+  assert.ok('[{"email":"a@b.c"}]'.length < SQUEEZE_FROM);
+  // A store that cannot squeeze (no CompressionStream) does not hand out what it cannot read.
+  assert.equal(sessionCache(storage).get('u', qs[0].key), null);
+});
+
+test('a squeezed answer on its way, or one waiting for the page to be idle, is not kept after a write or another account', async () => {
+  const squeeze = gzipSqueeze();
+  const big = JSON.stringify(Array.from({ length: 400 }, (_, i) => ({ id: i, name: `לקוח ${i}` })));
+  assert.ok(big.length > SQUEEZE_FROM);
+  // A write while it is being squeezed.
+  let storage = tab();
+  let cache = sessionCache(storage, { squeeze });
+  const q = plan('clients?select=id,name');
+  const putting = cache.put('u', q, { status: 200, body: big });
+  cache.wrote('u', 'protocol_checks');
+  assert.equal(await putting, false);
+  assert.equal(cache.get('u', q.key), null);
+  // Written only when the page is idle: nothing until then; a write before it wins.
+  const jobs = [];
+  storage = tab();
+  cache = sessionCache(storage, { squeeze, later: (job) => jobs.push(job) });
+  const one = cache.put('u', q, { status: 200, body: '[1]' });
+  assert.equal(cache.get('u', q.key), null, 'not before the page is idle');
+  jobs.shift()();
+  assert.equal(await one, true);
+  assert.equal(cache.get('u', q.key).body, '[1]');
+  const two = cache.put('u', plan('client_tasks?select=id'), { status: 200, body: '[2]' });
+  cache.wrote('u', 'client_tasks');
+  jobs.shift()();
+  assert.equal(await two, false, 'the write came first');
+  // Another account signed in meanwhile.
+  const three = cache.put('u', plan('staff_tasks?select=id'), { status: 200, body: big });
+  cache.get('v', q.key);
+  jobs.shift()();
+  assert.equal(await three, false);
+  assert.equal(sessionCache(storage, { squeeze }).get('u', plan('staff_tasks?select=id').key), null);
 });
