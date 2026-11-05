@@ -164,7 +164,7 @@ export function candidates(env, { until = env.now } = {}) {
             key: `${rule.id}:${inst.cid || '-'}:${inst.id}:${d.step.id}@${person}`,
             rule: rule.id, step: d.step.id, person, holders: d.persons, level: d.step.level,
             exempt: d.step.exempt || null, shoot: !!d.step.shoot, ownHours: !!d.step.ownHours, exception: !!d.step.exception,
-            list: !!d.step.list, overdue: !!d.step.overdue, batch: !!d.step.batch, noFold: !!d.step.noFold, escalation: d.escalation,
+            list: !!d.step.list, screen: !!d.step.screen, overdue: !!d.step.overdue, batch: !!d.step.batch, noFold: !!d.step.noFold, escalation: d.escalation,
             at: d.at, clientId: inst.cid || null, ref: inst.ref || null, url: (d.step.url ? d.step.url(inst, env) : inst.url) || MINE_URL,
             title: d.step.title(inst, env), body: d.step.body ? d.step.body(inst, env) : '',
             // The step follows whoever holds the work (planHandover): what the one before is told, if anything.
@@ -197,7 +197,8 @@ const keysOf = (log) => (log instanceof Set ? log : new Set([...(log || [])].map
 // Whether a step is not in the log yet. Lior's copy of an exception (decision 8)
 // is new only with the exception itself: one he already got before the shoot is
 // not in his summary.
-export const notKnown = (known) => (r) => !known.has(r.key) && !(r.copy && known.has(r.key.slice(0, -SHOOT_COPY.length)));
+// A `screen` step is never sent or logged: it is only read by a screen (Lior's "החלטות", candidates()).
+export const notKnown = (known) => (r) => !r.screen && !known.has(r.key) && !(r.copy && known.has(r.key.slice(0, -SHOOT_COPY.length)));
 
 // The steps due now that the log does not have yet (spec: computeReminders).
 export function computeReminders({ log = [], until, env = null, ...input }) {

@@ -1025,9 +1025,9 @@ export const RULES = [
       { id: 'created', to: (i) => i.who, level: 'quiet', handover: true, when: (i) => i.creator !== null || !i.task.created_by_email, title: (i) => `משימה חדשה: ${i.name}`, body: (i) => i.task.title },
       { id: 'due', from: 'due', at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `משימה להיום: ${i.name} · ${i.task.title}`, body: () => '' },
       // Past its due day it follows the ladder of every late item (`lateOwn`, `lateNag` below;
-      // docs/ops.md, section 48): its owner rings and is reminded twice a day, whoever opened
-      // it is told once, then the managers and the owners. Ofir and Lior keep their one note:
-      { id: 'late', from: 'due', businessDays: 1, at: '09:15', to: (i) => LATE_WATCHERS.filter((p) => p !== i.who), level: 'quiet', batch: true, overdue: true, title: (i) => `באיחור: ${i.name} · ${i.task.title} · ${personName(i.who)}`, body: (i, env) => `משימה. היעד היה ${whenText(i.anchors.due, env.now).split(' ')[0]}.` },
+      // docs/ops.md, section 48): its owner rings and is reminded twice a day. Since 5.11.2026 the
+      // managers get no copy (section 100); Lior's "החלטות" still lists it (`screen`):
+      { id: 'late', from: 'due', businessDays: 1, at: '09:15', to: (i) => (i.who === 'lior' ? [] : ['lior']), level: 'quiet', screen: true, list: true, overdue: true, title: (i) => `באיחור: ${i.name} · ${i.task.title} · ${personName(i.who)}`, body: (i, env) => `משימה. היעד היה ${whenText(i.anchors.due, env.now).split(' ')[0]}.` },
     ],
   },
 
@@ -1480,9 +1480,11 @@ export const RULES = [
       }
       return out;
     },
-    // `list`: Lior's "החלטות" screen keeps listing what is late (decisions.html), as before.
-    steps: LATE_WATCHERS.map((p) => ({
-      id: p, to: p, level: 'quiet', batch: true, overdue: true, list: p === 'lior', officeMinutes: LATE_GRACE_MINUTES,
+    // Since 5.11.2026 (the owner: "כן לכולם"; docs/ops.md, section 100) nobody is sent a copy of
+    // every late item: the step is `screen` only, so Lior's "החלטות" (decisions.html) still counts
+    // them, and the owners' 19:00 table and the "באיחור" tab compute their own.
+    steps: ['lior'].map((p) => ({
+      id: p, to: p, level: 'quiet', screen: true, overdue: true, list: true, officeMinutes: LATE_GRACE_MINUTES,
       // Not a second message to the watcher its own ladder already rang for this deadline.
       when: (i) => lateRungOf(i.proc.id, i.client) !== p,
       title: (i) => `באיחור: ${i.name} · ${procName(i.proc)} · ${names(i.owners.filter((o) => o !== 'editor').map(personName)) || 'העורך המשויך'}`,
@@ -1595,7 +1597,8 @@ export const RULES = [
       return out;
     },
     steps: [
-      { id: 'irit', to: 'irit', level: 'quiet', title: (i) => `${i.name} עבר/ה לשלב ${i.move.to}`, body: (i) => `לשלוח בקבוצה: ${i.move.text}` },
+      // In her 08:30 list, not a push per client (5.11.2026, section 100).
+      { id: 'irit', to: 'irit', level: 'digest', title: (i) => `${i.name} עבר/ה לשלב ${i.move.to}`, body: (i) => `לשלוח בקבוצה: ${i.move.text}` },
     ],
   },
 
@@ -2293,7 +2296,8 @@ export function nextNagSlot(d) {
 }
 // Ofir and Lior hear of every late process through the rule `late` at this very moment, their
 // own too ("באיחור: … · אופיר"): they are not told twice.
-const toldByLate = (x, p) => x.kind === 'proc' && LATE_WATCHERS.includes(p) && lateRungOf(x.procId, x.client) !== p;
+// Since 5.11.2026 `late` only feeds Lior's screen (section 100): nobody is told by it, so `own` rings them as everyone.
+const toldByLate = () => false;
 // Who held each late item at the moment of a reminder hour, from the marks as they stood then:
 // work that was handed to someone after 09:00 is not "still late" on them at 09:45.
 const lateKey = (x) => (x.kind === 'task' ? `t:${x.task.id}` : `${x.cid}:${x.procId}`);
@@ -2326,10 +2330,9 @@ const LADDER_RULES = [
       }));
     },
     steps: [
+      // Since 5.11.2026 (section 100) only whoever holds it: no "מתעכב אצל" to those who wait, no copy to
+      // the managers or the owners (the owners' 19:00 table and the "באיחור" tab show everything late).
       { id: 'own', to: (i) => i.x.holders.filter((p) => !toldByLate(i.x, p)), level: 'ring', batch: true, overdue: true, when: (i, env) => !i.x.rung && justLate(i, env), title: (i) => `באיחור: ${i.name} · ${i.x.what}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. ${NAG_WORDS}.` },
-      { id: 'wait', to: (i) => i.waiters, level: 'quiet', batch: true, when: justLate, title: (i) => `מתעכב אצל ${names(i.x.holders.map(personName))}: ${i.name} · ${i.x.what}`, body: (i, env) => `בגלל זה הכרטיס שלך מחכה. היעד היה ${whenText(i.x.dueAt, env.now)}; התזכורות אצל ${names(i.x.holders.map(personName))} נמשכות עד שזה נגמר.` },
-      { id: 'mgr', from: 'mgr', to: (i) => i.managers, level: 'ring', batch: true, overdue: true, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.managerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}, ועוד לא נסגר.` },
-      { id: 'owner', from: 'owner', to: OWNER, level: 'ring', batch: true, overdue: true, url: () => EOD.url, title: (i) => `באיחור ${DAY_WORDS(LATE_LADDER.ownerAfter)}: ${i.name} · ${i.x.what} · ${names(i.x.holders.map(personName))}`, body: (i, env) => `היעד היה ${whenText(i.x.dueAt, env.now)}. המנהלים קיבלו על זה צלצול אחרי יום עסקים. הכול בסיכום היום.` },
     ],
   },
   {
@@ -2401,6 +2404,7 @@ const FAST_WORDS = {
   },
 };
 const fastWhat = (i) => `${i.f.what}${i.f.round > 1 ? ` (בדיקה ${i.f.round}, אחרי תיקון)` : ''}`;
+export const FAST_AGAIN_MAX = 3;
 const FAST_RULE = {
   id: 'fast', event: 'הסולם המהיר של אופיר: בדיקת הגרפיקות (7, 23)', procs: ['p07', 'p23'],
   instances(env) {
@@ -2427,7 +2431,8 @@ const FAST_RULE = {
         to: () => (env.liorShoot?.active && FAST_LADDER.manager === 'lior' ? OWNER : FAST_LADDER.manager),
         title: () => w.told(i), body: () => `${fastWhat(i)} · מחכה מ־${whenText(i.f.t0, env.now)} (${waited}). אופיר מקבל תזכורת כל ${i.f.spec.every} דקות עד ${w.until}.`,
       },
-      ...(i.at.slot?.n ? [{
+      // At most 3 repeats (5.11.2026, section 100: one reached 71 live).
+      ...(i.at.slot?.n && i.at.slot.n <= FAST_AGAIN_MAX ? [{
         ...base, id: `again.${i.at.slot.n}`, from: 'again', to: who, overdue: true,
         title: () => w.again(i), body: () => `${fastWhat(i)} · מחכה ${waited}. ${personName(FAST_LADDER.manager)} עודכן. תזכורת כל ${i.f.spec.every} דקות עד ${w.until}.`,
       }] : []),
