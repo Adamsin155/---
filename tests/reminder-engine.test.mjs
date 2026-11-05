@@ -474,8 +474,9 @@ test('editing (22, 24), a client from before protocol v11: assigned, not started
   // Started: no "not started"; paused: nothing; ready for QA: done.
   mark(w, c, 'p22.received', IL(2026, 10, 18, 11));
   none(due(w, IL(2026, 10, 18, 14)), 'editing', 'nostart');
+  // An old pause stops nothing since 5.11.2026: the editing rings go on.
   mark(w, c, 'p22.pause', IL(2026, 10, 19, 11), JSON.stringify({ reason: 'משימה דחופה' }));
-  none(due(w, IL(2026, 10, 21, 15)), 'editing');
+  one(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm', 'nadia');
   delete w.checks[c.id]['p22.pause'];
   mark(w, c, 'p24.notify', IL(2026, 10, 21, 12));
   none(due(w, IL(2026, 10, 21, 15)), 'editing');
@@ -882,16 +883,14 @@ test('after the shoot: the rest of the graphics; the cards once Eli handed the d
   assert.equal(one(due(w, IL(2026, 10, 15, 17)), 'cards', 'eli', 'eli').level, 'quiet');
 });
 
-test('editing paused: Ofir quietly and Lior\'s list; still paused next morning, Lior decides', () => {
+test('an old editing pause rings nobody (5.11.2026: nothing stops the editing)', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nirel', shoot_type: 'natali' });
   importTo(w, c, 'post');
   for (const k of itemsOf('p22')) delete w.checks[c.id][k];
   mark(w, c, 'p22.pause', IL(2026, 10, 18, 11), JSON.stringify({ reason: 'משימה דחופה' }));
-  const now = due(w, IL(2026, 10, 18, 11));
-  assert.match(one(now, 'paused', 'ofir', 'ofir').title, /ניראל/);
-  one(now, 'paused', 'lior', 'lior');
-  one(due(w, IL(2026, 10, 19, 8, 30)), 'paused', 'morning', 'lior');
+  none(due(w, IL(2026, 10, 18, 11)), 'paused');
+  none(due(w, IL(2026, 10, 19, 8, 30)), 'paused');
 });
 
 test('client notes by day 4 (Irit), campaign the next business day and Tuesday\'s campaign check (Lior); no call follow-up since v12', () => {
