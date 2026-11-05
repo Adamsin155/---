@@ -713,21 +713,9 @@ assert.match(await page.locator('.cc-progress').innerText(), /התהליכים �
 assert.equal(await page.locator('#app > a.back').innerText(), '→ המשימות שלי');
 // Why her editing waits, in one line.
 assert.match(await page.locator('#my-next .cc-next').innerText(), /התהליך הבא שלך[^]*22 · עריכת הסרטונים[^]*ממתין ל: הלקוח שויך לעורך והכונן הועבר אליו \(תהליך 22א\)/);
+// No "עצירת העריכה למשימה אחרת" since 5.11.2026: nothing stops the editing.
 await page.evaluate(() => { document.querySelector('#p22')?.closest('details').setAttribute('open', ''); });
-await page.click('#p22 button:has-text("עצירת העריכה")');
-await page.waitForSelector('#dlg-pause[open]');
-await page.click('#pause-submit');
-assert.equal(await page.isVisible('#pause-err'), true);
-await page.fill('#pause-stage', 'חיתוך ראשון');
-await page.fill('#pause-left', 'כתוביות ומוזיקה');
-await page.fill('#pause-why', 'סרטון דחוף ללקוח אחר');
-await page.click('#pause-submit');
-await page.waitForSelector('#p22 .pause-line');
-await page.waitForFunction(() => document.querySelector('#toast.on')?.textContent.includes('ליאור ואופיר עודכנו'));
-assert.equal(JSON.parse(db.protocol_checks.find((c) => c.client_id === seeded.id && c.item_key === 'p22.pause').note).left, 'כתוביות ומוזיקה');
-assert.deepEqual(db.client_tasks.filter((t) => t.client_id === seeded.id && /עצר/.test(t.title)).map((t) => t.owner).sort(), ['lior', 'ofir']);
-await page.click('#p22 .pause-line button:has-text("חזרה לעריכה")');
-await page.waitForFunction(() => !document.querySelector('#p22 .pause-line'));
+assert.equal(await page.locator('#p22 button:has-text("עצירת העריכה")').count(), 0);
 // A task given to her shows (only hers), without the form to open tasks.
 db.client_tasks.push({ id: randomUUID(), client_id: seeded.id, title: 'לקצר את סרטון 4', owner: 'nadia', due_on: null, done_at: null, done_by_email: null, created_by_email: 'ofir@astrateg.test', created_at: hoursAgo(1), source: null, brief: null, urgent: false });
 await page.reload();

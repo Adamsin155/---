@@ -436,7 +436,9 @@ await step('Ofir\'s queue, one tap from "המשימות שלי": what waits for 
   // Nadia: Ron's videos are with Ofir (day 2 of 4, closing); Shemesh is late (day 6 of 4). Yariv's paused job.
   await openQaFolds(ofir);
   assert.match(await ofir.locator('#load-list').innerText(), /נדיה\s*2 לקוחות בעריכה[^]*גלידה שמש · יום 6 מתוך 4[^]*מספרת רון · יום 2 מתוך 4 · תיקונים וסגירה · נערכו 18\/25/);
-  assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה · אחת עצורה\s*סטודיו פז · יום 2 מתוך 2 · נערכו 7\/25 עצורה/);
+  // Yariv's old pause stops nothing since 5.11.2026: an editing job like any other.
+  assert.match(await ofir.locator('#load-list').innerText(), /יריב\s*לקוח אחד בעריכה\s*סטודיו פז · יום 2 מתוך 2 · נערכו 7\/25/);
+  assert.doesNotMatch(await ofir.locator('#load-list').innerText(), /עצורה/);
   // An editor with no number yet: nothing is said (Shemesh).
   assert.doesNotMatch(await ofir.locator('#load-list').innerText(), /גלידה שמש[^\n]*נערכו/);
   await shot(ofir, 'office-01-qa');
@@ -680,15 +682,8 @@ await step('an urgent task not started in 30 office minutes is back with Lior; a
   const a = db.client_access.find((x) => x.client_id === G.id);
   assert.deepEqual([a.status, a.note], ['broken', 'תוקן חלקית, עדיין חסר: קוד אימות מהלקוח']);
   assert.deepEqual(JSON.parse(checkOf(G, 'p06.fixed.instagram').note), { partial: true, missing: 'קוד אימות מהלקוח', access: a.id });
-  // Editing paused since yesterday: Ofir's proposal by load, and the deadlines moved by a day.
-  const pz = lior.locator('#pz-list .of-card');
-  // Nadia, not Anna: the two swaps above left Nadia with one job and gave Anna the late one, and the fewest open tasks decide.
-  assert.match(await pz.innerText(), /סטודיו פז[^]*יריב[^]*עצורה מאז[^]*הצעת אופיר לפי העומס: נדיה/);
-  await pz.locator('input[type=number]').fill('1');
-  await pz.locator('button[type=submit]').click();
-  await toastHas(lior, 'המועדים של סטודיו פז הוזזו ב־1 ימי עסקים');
-  assert.deepEqual(JSON.parse(checkOf(P, 'p22a.shift').note), { days: 1, why: 'עריכה עצורה' });
-  assert.equal(JSON.parse(checkOf(P, 'p22.decision').note).choice, 'move');
+  // No "עריכה שעדיין עצורה" queue since 5.11.2026.
+  assert.equal(await lior.locator('#pz-list').count(), 0);
 });
 
 await step('the Tuesday campaign check, and the lists: the same items the reminder engine puts in them', async () => {
