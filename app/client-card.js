@@ -137,6 +137,7 @@ let mcLine = null;         // the Metricool line's data (null: not loaded, or no
 let edited = null;         // how many videos each editor edited (office only; null: none readable)
 let editedMonth = null;    // a monthly client's numbers this month (office only; null: none readable)
 let legacy = null;         // the old system's signed documents (office only; null: none readable)
+let manual = {};           // the signed contracts uploaded by hand and confirmed: { fileId: row } (app/contract-read-ui.js)
 let legacyChar = null;     // the old system's characterization (null: none, or not readable)
 let viewerInfo = null;     // viewerOf(): for archiving
 let myEmail = '';
@@ -209,7 +210,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy, legacyChar] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy, legacyChar, manual] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
@@ -222,6 +223,8 @@ async function loadCard() {
       own() || !isMonthly(c) ? null : loadEditorMonths([id], monthKey()).then((rows) => (rows ? monthMap(rows) : null)),
       own() ? null : loadLegacyContracts(id),
       loadLegacyChar(id),
+      // "קריאת חוזה חתום" (5.11.2026): what was confirmed for each contract file (none for whoever does not see the money).
+      own() ? {} : import('./contract-read-ui.js').then((m) => m.loadManualContracts(id)).catch(() => ({})),
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -1075,7 +1078,8 @@ function contractDocs() {
     ...files.map((f) => h('li', { class: 'cd-row', id: `cd-f-${f.id}` }, h('span', { class: 'cd-k' }, 'קובץ חוזה חתום'),
       h('span', { class: 'cd-v' }, h('bdi', { class: 'cd-name' }, fileNameOf(f.storage_path)), ` · הועלה ${formatDay(f.created_at)}`),
       h('button', { type: 'button', class: 'btn btn-sm cd-get', 'aria-label': `הורדת החוזה ${fileNameOf(f.storage_path)}`,
-        onclick: () => downloadClientFile(f.storage_path).catch(() => toast('ההורדה לא התחילה. נסו שוב.')) }, 'הורדה'))),
+        onclick: () => downloadClientFile(f.storage_path).catch(() => toast('ההורדה לא התחילה. נסו שוב.')) }, 'הורדה'),
+      manualLine(f, may))),
   ].filter(Boolean);
   return h('section', { class: 'cd', id: 'contract-docs', 'aria-labelledby': 'cd-h' },
     h('div', { class: 'cs-head' }, h('h2', { id: 'cd-h' }, 'החוזה החתום')),
@@ -1086,6 +1090,30 @@ function contractDocs() {
         contractBusy ? 'מעלה…' : files.length ? 'העלאת קובץ חוזה נוסף' : 'העלאת קובץ חוזה חתום'),
       h('span', { class: 'hint' }, 'PDF או תמונה. נשמר גם בתיק הלקוח.')) : null);
 }
+// What was read from a contract file and confirmed (5.11.2026), or the button that reads it.
+// The rows reach only those who see the quotes' money, so the price shows only to them.
+function manualLine(f, may) {
+  const m = manual?.[f.id];
+  if (m) {
+    const words = [m.package_name, m.monthly_net_agorot ? `${(m.monthly_net_agorot / 100).toLocaleString('he-IL')} ₪ לחודש + מע״מ` : null,
+      m.term_months ? `${m.term_months} חודשים` : null, m.signed_on ? `נחתם ${formatDay(m.signed_on)}` : null].filter(Boolean).join(' · ');
+    return h('span', { class: 'cd-read' }, h('span', { class: 'cd-read-v' }, words || 'נשמר כחוזה ידני'),
+      may ? h('button', { type: 'button', class: 'btn-text cd-fix', id: `cd-fix-${f.id}`, onclick: () => openRead(f) }, 'תיקון') : null);
+  }
+  return may ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost cd-read-go', id: `cd-read-${f.id}`, onclick: () => openRead(f) }, 'קריאת החוזה') : null;
+}
+async function openRead(file) {
+  const { readSignedContract } = await import('./contract-read-ui.js');
+  readSignedContract({
+    client, file, existing: manual?.[file.id] || null,
+    onSaved: (row, next) => {
+      manual = { ...(manual || {}), [row.file_id]: row };
+      if (next) client = next;
+      renderKeepingFocus();
+    },
+  });
+}
+
 async function addContract(input) {
   const file = input.files?.[0];
   input.value = '';
@@ -1095,7 +1123,7 @@ async function addContract(input) {
   contractBusy = true;
   renderKeepingFocus();
   try {
-    await uploadClientFile(client.id, CONTRACT_KIND, file, { label: CONTRACT_LABEL });
+    const uploaded = await uploadClientFile(client.id, CONTRACT_KIND, file, { label: CONTRACT_LABEL });
     // The signed contract covers process 1 (5.11.2026): what of it is still open is marked.
     const keys = p01ToMark(checks);
     if (keys.length) {
@@ -1108,6 +1136,8 @@ async function addContract(input) {
       }
     }
     toast(keys.length ? 'קובץ החוזה נשמר, ו״הכנת חוזה״ סומן כבוצע.' : 'קובץ החוזה נשמר בכרטיס ובתיק הלקוח.');
+    // And it is read at once (5.11.2026): what was found is shown for confirmation.
+    if (uploaded?.id) setTimeout(() => openRead(uploaded), 0);
   } catch (err) {
     toast(`החוזה לא הועלה: ${uploadError(err)}`);
   }
@@ -2966,6 +2996,12 @@ mountSession(async (staff) => {
   // check that closes by itself, then the log), without reading the list a second time.
   if (vaultOk) autoAccessCheck().then(refreshAccessLog);
   if (vaultOk) mountVaultHint($('vault-open'), { locked: hideSecrets });
+  // "לקוח חדש" with a signed contract (5.11.2026): client.html?id=…#read-<file id> reads it here.
+  const readHash = /^#read-([0-9a-f-]{36})$/.exec(location.hash);
+  if (client && readHash && !own()) {
+    history.replaceState(null, '', location.pathname + location.search + '#contract-docs');
+    openRead({ id: readHash[1] });
+  }
   const target = location.hash ? document.getElementById(location.hash.slice(1)) : null;
   const shut = target?.closest('details.cc-fold:not([open])');
   if (shut) shut.open = true;

@@ -196,6 +196,53 @@ async function loadLegacy() {
   return data.filter((l) => !built.has(l.client_id)).map((l) => legacyAsQuote({ ...l, client_name: name[l.client_id] }));
 }
 
+// A contract signed outside the system, uploaded by hand, read and confirmed (5.11.2026; docs/ops.md,
+// section 104): public.manual_contracts, shown as "נחתם · חוזה ידני" with its amounts (with VAT, as
+// the quotes are), counted in "נחתם החודש". Its only action opens the file.
+function manualRow(q) {
+  return h('tr', { class: 'is-legacy is-manual' },
+    h('td', { 'data-label': 'מספר' }, h('span', { class: 'num' }, 'ידני'), h('small', { class: 'doc-type' }, q.doc)),
+    h('td', { class: 'client', 'data-label': 'לקוח' }, q.client_name, q.signer_name ? h('small', {}, q.signer_name) : null),
+    h('td', { class: 'client', 'data-label': 'חבילה' }, h('span', { dir: 'auto' }, q.tier || '')),
+    showMoney ? h('td', { class: 'amt', dir: 'ltr', 'data-label': 'סה״כ כולל מע״מ' }, formatILS(q.term_gross_agorot ?? 0),
+      q.monthly_gross_agorot ? h('small', { class: 'by', dir: 'rtl' }, `${formatILS(q.monthly_gross_agorot)} לחודש`) : null) : null,
+    h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
+    h('td', { 'data-label': 'סטטוס' }, h('span', { class: 'pill k-pill k-pill-ok signed' }, 'נחתם · חוזה ידני'),
+      q.signed_at ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at)) : null),
+    h('td', { 'data-label': 'שינויים מהחבילה' }, h('span', { class: 'apv-cell' }, '—')),
+    h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
+      q.path ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'data-act': 'manual-open', onclick: () => openManual(q) }, 'פתיחה') : null,
+      h('a', { class: 'btn btn-sm btn-ghost', href: `client.html?id=${encodeURIComponent(q.client_id)}#contract-docs` }, 'לכרטיס'))));
+}
+async function openManual(q) {
+  try {
+    const { downloadClientFile } = await import('./files-ui.js');
+    await downloadClientFile(q.path);
+  } catch {
+    toast('הקובץ לא נפתח. אפשר לפתוח אותו מכרטיס הלקוח.');
+  }
+}
+async function loadManual() {
+  const { data, error } = await supabase.from('manual_contracts')
+    .select('id, client_id, file_id, business, contact_name, package_name, monthly_net_agorot, term_months, signed_on, created_at, created_by_email')
+    .order('created_at', { ascending: false }).limit(200);
+  if (error || !data?.length) return [];
+  const ids = [...new Set(data.map((m) => m.client_id))];
+  const files = [...new Set(data.map((m) => m.file_id))];
+  const [{ data: cs }, { data: fs }] = await Promise.all([
+    supabase.from('clients').select('id, name, business').in('id', ids),
+    supabase.from('client_files').select('id, storage_path').in('id', files),
+  ]);
+  const name = Object.fromEntries((cs || []).map((c) => [c.id, c.business || c.name]));
+  const path = Object.fromEntries((fs || []).map((x) => [x.id, x.storage_path]));
+  const { manualAmounts } = await import('./contract-read-logic.js');
+  return data.map((m) => ({
+    manual: m.id, client_id: m.client_id, number: 'ידני', client_name: m.business || name[m.client_id] || '', status: 'signed',
+    signed_at: m.signed_on || m.created_at, created_at: m.created_at, created_by_email: m.created_by_email, signer_name: m.contact_name || null,
+    ...manualAmounts(m), tier: m.package_name || '', doc: 'חוזה ידני', signable: 'true', path: path[m.file_id] || null,
+  }));
+}
+
 function renderRows() {
   const list = quotes.filter((q) => {
     const s = statusOf(q);
@@ -210,6 +257,7 @@ function renderRows() {
   $('rows').replaceChildren(...list.map((q) => {
     const s = statusOf(q);
     if (q.legacy) return legacyRow(q, s);
+    if (q.manual) return manualRow(q);
     const link = quoteLink(q.token);
     const when = s === 'signed' ? formatDate(q.signed_at, true) : (s === 'viewed' || s === 'seen') ? formatDate(q.first_viewed_at, true) : '';
     const open = OPEN.includes(s);
@@ -260,7 +308,9 @@ async function loadQuotes() {
   if (error) { $('state').textContent = explainError(error); return; }
   // With the old system's signed contracts since 1.10.2026, newest first among them all.
   const old = await loadLegacy().catch(() => []);
-  quotes = [...data, ...old].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  // And the contracts signed outside the system, uploaded by hand and confirmed (5.11.2026).
+  const manual = await loadManual().catch(() => []);
+  quotes = [...data, ...old, ...manual].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   $('state').textContent = '';
   $('list-block').hidden = false;
   renderStats();

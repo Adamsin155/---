@@ -3516,8 +3516,10 @@ async function saveFirstChecks(p) {
 async function saveContractFile(p) {
   if (!p.contract) return;
   const { uploadClientFile } = await import('./files-ui.js');
-  await uploadClientFile(p.row.id, CONTRACT_KIND, p.contract, { label: CONTRACT_LABEL });
+  const row = await uploadClientFile(p.row.id, CONTRACT_KIND, p.contract, { label: CONTRACT_LABEL });
   p.contract = null;
+  // Read on the card at once (5.11.2026): what was found is shown there for confirmation.
+  p.readFile = row?.id || null;
 }
 
 $('new-form').addEventListener('submit', async (e) => {
@@ -3541,7 +3543,7 @@ $('new-form').addEventListener('submit', async (e) => {
     try {
       $('new-submit').textContent = 'מעלה את החוזה…';
       await saveContractFile(pendingChecks);
-      location.href = clientUrl(pendingChecks.row.id);
+      location.href = clientUrl(pendingChecks.row.id) + (pendingChecks.readFile ? `#read-${pendingChecks.readFile}` : '');
     } catch (err) {
       const { uploadError } = await import('./files-logic.js');
       fail(`הלקוח נפתח, אבל קובץ החוזה לא הועלה (${uploadError(err)}). לחיצה נוספת תנסה שוב, או מהכרטיס אחר כך.`);
