@@ -36,6 +36,7 @@ import {
 } from './edit-count.js';
 // A monthly shoot day and the client's email and company number (the owner, 28.10.2026).
 import { isShootMonthly, withShootMonthly } from './monthly-shoot.js';
+import { shootDays, planOf, withPlan, plannedFor } from './shoot-plan.js';
 import { companyIdValue, emailValue } from './client-contact.js';
 import { loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { canAdminTeam } from './team-rules.js';
@@ -908,16 +909,19 @@ function bump(key, delta) {
 
 function roundsSummary(s) {
   const total = client.deliverables?.shoot_days;
-  const rounds = [{ n: 1, shoot_at: client.shoot_at }, ...roundsOf(client).filter((r) => !isMonthlyRound(r))]; // a monthly editing round is not a shoot day
-  const parts = rounds.map((r) => {
-    const phase = r.n === 1 ? null : s.phases.find((p) => p.key === `round-${r.n}`);
-    const done = r.n === 1 ? ['prep', 'eve', 'shoot', 'post', 'publish'].every((k) => s.phases.find((p) => p.key === k)?.complete !== false)
-      : phase?.complete;
-    return `סבב ${r.n}${done ? ' הושלם' : r.shoot_at ? ` ב־${formatDay(r.shoot_at)}` : ' · טרם נקבע'}`;
-  });
-  return h('div', { class: 'deliv-row' },
+  const rounds = roundsOf(client).filter((r) => !isMonthlyRound(r)); // a monthly editing round is not a shoot day
+  const doneOf = (n) => {
+    if (n === 1) return ['prep', 'eve', 'shoot', 'post', 'publish'].every((k) => s.phases.find((p) => p.key === k)?.complete !== false);
+    return !!s.phases.find((p) => p.key === `round-${n}`)?.complete;
+  };
+  // One line for each shoot day, with whom (app/shoot-plan.js; Irit, 5.11.2026).
+  const days = shootDays(client).map((d) => h('li', { class: 'shoot-day' },
+    h('b', {}, `יום ${d.n}`), ' · ', d.who || 'עוד לא נבחר משפיען', ' · ',
+    h('span', { class: 'muted' }, d.added && doneOf(d.n) ? 'הושלם' : d.at ? formatDay(d.at) : d.added ? 'טרם נקבע' : 'עוד לא נוסף')));
+  return h('div', { class: 'deliv-row deliv-days' },
     h('span', { class: 'deliv-k' }, 'ימי צילום'),
-    h('span', {}, parts.join(' · '), total ? h('span', { class: 'num muted' }, ` · ${rounds.length} מתוך ${total}`) : null),
+    h('span', {}, total ? h('span', { class: 'num muted' }, `${rounds.length + 1} מתוך ${total}`) : null,
+      h('ul', { class: 'shoot-days' }, ...days)),
     h('button', { type: 'button', class: 'btn btn-sm', onclick: () => openRound() }, 'הוספת סבב צילום'));
 }
 
@@ -2456,7 +2460,8 @@ function openRound(n = null) {
   headText('round-h', `סבב צילום ${nextN}`);
   // A new round starts with the client's own choice (a client with a monthly day without
   // influencers adds the next one as it is); an old round without a type of its own, too.
-  const was = (r && choiceOf(r)) || choiceOf(client) || 'natali';
+  // A new round starts with the influencer planned for its day, when there is one (app/shoot-plan.js).
+  const was = (r && choiceOf(r)) || (!r && plannedFor(client, nextN)) || choiceOf(client) || 'natali';
   $('round-type').value = SHOOT_TYPES[r?.shoot_type || client.shoot_type] ? (r?.shoot_type || client.shoot_type) : 'natali';
   setCrew('round', was);
   fillEditors('round-editor', $('round-type').value, r?.editor);
@@ -2725,6 +2730,23 @@ fill($('ed-month'),
   h('div', { class: 'field span-2' },
     h('label', { class: 'only' }, h('input', { type: 'checkbox', id: 'ed-shoot-monthly', 'aria-describedby': 'ed-shoot-monthly-h' }), ' יום צילום חודשי'),
     h('div', { class: 'hint', id: 'ed-shoot-monthly-h' }, 'ללקוח יש יום צילום כל חודש. ביום העבודה האחרון של החודש עירית מקבלת תזכורת לקבוע איתו את יום הצילום של החודש הבא.')));
+// "עם מי כל יום צילום" (5.11.2026): a select for each later day that has no round yet; day 1
+// is the client's own "סוג יום הצילום", and a round's day is chosen in the round itself.
+function renderPlan(c) {
+  const total = Math.min(Math.round(Number($('ed-deliv-shoot_days').value) || 0), 12);
+  const taken = new Set(roundsOf(c).map((r) => r.n));
+  const plan = planOf(c);
+  const keep = Object.fromEntries([...document.querySelectorAll('#ed-plan select')].map((x) => [x.dataset.day, x.value]));
+  const days = [];
+  for (let n = 2; n <= total; n += 1) if (!taken.has(n)) days.push(n);
+  fill($('ed-plan'), ...days.map((n) => h('div', { class: 'field' },
+    h('label', { for: `ed-plan-${n}` }, `יום צילום ${n}: עם מי`),
+    h('select', { class: 'input', id: `ed-plan-${n}`, 'data-day': String(n) },
+      h('option', { value: '' }, 'עוד לא ידוע'),
+      ...Object.values(SHOOT_TYPES).map((t) => h('option', { value: t.key, selected: (keep[n] ?? plan[n]) === t.key }, t.name))))));
+  $('ed-plan').hidden = !days.length;
+}
+$('ed-deliv-shoot_days').addEventListener('input', () => renderPlan(client));
 const monthExceptText = (c) => {
   const x = Object.entries(monthExceptions(c));
   return x.length ? `חריגים: ${x.map(([k, n]) => `${monthLabel(k)}: ${n}`).join(' · ')}. מספר ריק מחזיר את החודש לרגיל.` : 'אין חריגים. חודש עם מספר אחר: בוחרים אותו וכותבים את המספר.';
@@ -2763,6 +2785,8 @@ function openEdit(focusId = 'ed-name') {
   $('ed-notes').value = c.notes || '';
   for (const [k] of DELIV_FIELDS) $(`ed-deliv-${k}`).value = c.deliverables?.[k] ?? '';
   $('ed-scripts-n').value = c.deliverables?.scripts ?? '';
+  fill($('ed-plan'));
+  renderPlan(c);
   fillMonthFields(c);
   for (const l of LINKS) { $(`ed-link-${l.key}`).value = c.links?.[l.key] || ''; $(`ed-link-${l.key}-h`).textContent = ''; $(`ed-link-${l.key}`).removeAttribute('aria-invalid'); }
   edDlg.showModal();
@@ -2879,7 +2903,8 @@ $('ed-form').addEventListener('submit', async (e) => {
   if (crew) deliverables.shoot_crew = crew; else delete deliverables.shoot_crew;
   const monthly = withMonthly(deliverables, { base: $('ed-month-n').value, month: $('ed-month-x').value, except: $('ed-month-xn').value });
   if (monthly.error) return fail(monthly.error, $({ base: 'ed-month-n', month: 'ed-month-x', except: 'ed-month-xn' }[monthly.field]));
-  const delivered = withShootMonthly(monthly.deliverables, $('ed-shoot-monthly').checked);
+  const picks = Object.fromEntries([...document.querySelectorAll('#ed-plan select')].map((x) => [x.dataset.day, x.value]));
+  const delivered = withPlan(withShootMonthly(monthly.deliverables, $('ed-shoot-monthly').checked), { ...planOf(client), ...picks });
   // The email and the company number: checked here, and sent only when changed (so a save
   // before 20261113100000_client_details_month.sql, with both empty, asks nothing new).
   const mail = emailValue($('ed-email').value);
