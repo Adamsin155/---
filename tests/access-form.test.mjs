@@ -220,14 +220,12 @@ test('the statuses: a login from the client is "new", and Ilai\'s check is not d
   assert.deepEqual(toCheck([{ status: 'new', network: 'instagram' }, { status: 'ok', network: 'tiktok' }]).map((a) => a.network), ['instagram']);
 });
 
-test('before a shoot day: a login from the client that nobody checked is a blocker of Ilai\'s', () => {
+test('before a shoot day: a login from the client that nobody checked is not the shoot day’s (5.11.2026)', () => {
   const c = { id: 'c1', name: 'דנה', status: 'active', shoot_type: 'dms', characterizer: 'ofir', has_logo: true, rounds: [], deal_at: IL(2026, 10, 1, 9).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString(), shoot_at: IL(2026, 10, 15, 10).toISOString() };
   const now = IL(2026, 10, 12, 10);
-  const prep = (access) => shootPrep(c, {}, clientState(c, {}, now), { tasks: [], access, now })[0];
-  const none = prep([]);
-  const withNew = prep([{ client_id: 'c1', network: 'instagram', status: 'new' }, { client_id: 'other', network: 'tiktok', status: 'new' }]);
-  const added = withNew.blockers.filter((b) => !none.blockers.some((x) => x.id === b.id));
-  assert.deepEqual(added.map((b) => [b.topic, b.text, b.who]), [['access', 'גישה מהלקוח שעוד לא נבדקה: Instagram', 'ilai']]);
+  const prep = shootPrep(c, {}, clientState(c, {}, now), { tasks: [], now })[0];
+  assert.ok(!prep.topics.some((t) => t.key === 'access'));
+  assert.ok(!prep.blockers.some((b) => /גישה/.test(b.text)));
 });
 
 // ── The welcome message ─────────────────────

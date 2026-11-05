@@ -474,8 +474,9 @@ test('editing (22, 24), a client from before protocol v11: assigned, not started
   // Started: no "not started"; paused: nothing; ready for QA: done.
   mark(w, c, 'p22.received', IL(2026, 10, 18, 11));
   none(due(w, IL(2026, 10, 18, 14)), 'editing', 'nostart');
+  // An old pause stops nothing since 5.11.2026: the editing rings go on.
   mark(w, c, 'p22.pause', IL(2026, 10, 19, 11), JSON.stringify({ reason: 'משימה דחופה' }));
-  none(due(w, IL(2026, 10, 21, 15)), 'editing');
+  one(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm', 'nadia');
   delete w.checks[c.id]['p22.pause'];
   mark(w, c, 'p24.notify', IL(2026, 10, 21, 12));
   none(due(w, IL(2026, 10, 21, 15)), 'editing');
@@ -858,25 +859,14 @@ test('Natali (11ב) left the protocol in v12 with Lior\'s shoot day: no ring to 
   none(due(w, IL(2026, 10, 12, 10)), 'natali');
 });
 
-test('focus call (12א) left in v12; shoot blockers (14) every morning and Lior two days before', () => {
+test('focus call (12א) left in v12; shoot blockers (14) left on 5.11.2026: no line, no ring', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'shoot');
   for (const k of [...itemsOf('p08'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]) delete w.checks[c.id][k];
   none(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall');
-  // The blockers are computed (shoot-prep.js): the Highlights (8) are late, an employee's delay.
-  const mon = one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');
-  assert.match(mon.title, /חוסמי יום צילום: .* · חוסם אחד/);
-  assert.match(mon.body, /באיחור: 8 · הכנת Highlights/);
-  assert.equal(mon.url, `prep.html?id=${c.id}`);
-  one(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior', 'lior');
-  // Reported to Lior from Irit's list: it is his exception now, no second ring.
-  w.tasks.push({ id: 'b1', client_id: c.id, title: 'חוסם ליום הצילום: באיחור', owner: 'lior', source: 'escalation', urgent: true, brief: { blocker: 'delays:p08' }, created_at: IL(2026, 10, 13, 9).toISOString() });
-  none(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior');
-  w.tasks.length = 0;
-  // Nothing blocks any more (the open p14 items alone are not blockers): no line.
-  marks(w, c, itemsOf('p08'), IL(2026, 10, 12, 9));
-  none(due(w, IL(2026, 10, 13, 8, 30)), 'blockers');
+  // The Highlights (8) are late: that is Ofir's own lateness, not a blocker of the shoot day.
+  none(due(w, IL(2026, 10, 12, 8, 30)), 'blockers');
   none(due(w, IL(2026, 10, 13, 10)), 'blockers');
 });
 
@@ -893,16 +883,14 @@ test('after the shoot: the rest of the graphics; the cards once Eli handed the d
   assert.equal(one(due(w, IL(2026, 10, 15, 17)), 'cards', 'eli', 'eli').level, 'quiet');
 });
 
-test('editing paused: Ofir quietly and Lior\'s list; still paused next morning, Lior decides', () => {
+test('an old editing pause rings nobody (5.11.2026: nothing stops the editing)', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nirel', shoot_type: 'natali' });
   importTo(w, c, 'post');
   for (const k of itemsOf('p22')) delete w.checks[c.id][k];
   mark(w, c, 'p22.pause', IL(2026, 10, 18, 11), JSON.stringify({ reason: 'משימה דחופה' }));
-  const now = due(w, IL(2026, 10, 18, 11));
-  assert.match(one(now, 'paused', 'ofir', 'ofir').title, /ניראל/);
-  one(now, 'paused', 'lior', 'lior');
-  one(due(w, IL(2026, 10, 19, 8, 30)), 'paused', 'morning', 'lior');
+  none(due(w, IL(2026, 10, 18, 11)), 'paused');
+  none(due(w, IL(2026, 10, 19, 8, 30)), 'paused');
 });
 
 test('client notes by day 4 (Irit), campaign the next business day and Tuesday\'s campaign check (Lior); no call follow-up since v12', () => {

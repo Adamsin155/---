@@ -392,7 +392,7 @@ await step('mid-editing, "חסר לוגו / טלפון / חומר": the chip com
   await page.click('label[for="miss-upload"]');
   await typeKeys(page, '#miss-upload-note', 'נתקע באמצעע', 'ע');
   assert.equal(await page.inputValue('#miss-upload-note'), 'נתקע באמצע');
-  assert.equal(await text(page, '#miss-hint'), 'ההודעה יוצאת עכשיו למי שבחרת. לעצור רק כשאי אפשר להמשיך בלי זה: אז המועד מסומן ״חסום״ עד שזה מגיע.');
+  assert.equal(await text(page, '#miss-hint'), 'ההודעה יוצאת עכשיו למי שבחרת. העריכה ממשיכה, והמועד שלך רץ כרגיל.');
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), []);
   await shots(page, 'missing-to-lior', '#miss-to');

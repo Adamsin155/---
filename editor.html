@@ -132,7 +132,6 @@
       <div class="dlg-foot ed-start-foot">
         <button type="submit" class="btn btn-primary" id="start-submit" aria-describedby="start-hint">קיבלתי את הכונן והתחלתי</button>
         <p class="hint" id="start-hint"></p>
-        <button type="button" class="btn btn-ghost" id="start-missing">אי אפשר להתחיל בכלל</button>
       </div>
     </form>
   </dialog>
@@ -159,7 +158,6 @@
       </div>
       <div class="dlg-foot ed-miss-foot">
         <button type="button" class="btn btn-primary" id="miss-go">לדווח, והעריכה ממשיכה</button>
-        <button type="button" class="btn" id="miss-submit">אי אפשר להמשיך: לעצור את העריכה</button>
         <button type="button" class="btn btn-ghost" id="miss-cancel" data-close>ביטול</button>
       </div>
     </form>
@@ -193,48 +191,6 @@
       <div class="dlg-foot">
         <button type="button" class="btn btn-ghost" data-close>ביטול</button>
         <button type="submit" class="btn btn-primary" id="ready-submit">מוכן לבדיקה: לאופיר</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Pausing the editing for another task. -->
-  <dialog id="dlg-pause" class="ed-dlg" aria-labelledby="pause-h">
-    <form id="pause-form" novalidate>
-      <div class="dlg-head">
-        <h2 id="pause-h">עצירת העריכה</h2>
-        <button type="button" class="close" data-close aria-label="סגירה">×</button>
-      </div>
-      <div class="dlg-body">
-        <p class="muted" id="pause-ctx"></p>
-        <div class="field"><label for="pause-stage">באיזה שלב העריכה</label><input class="input" id="pause-stage" maxlength="200" autocomplete="off" required></div>
-        <div class="field"><label for="pause-left">מה נשאר</label><input class="input" id="pause-left" maxlength="200" autocomplete="off" required></div>
-        <div class="field"><label for="pause-why">בגלל איזו משימה (לא חובה)</label><input class="input" id="pause-why" maxlength="200" autocomplete="off"></div>
-        <p class="hint">ליאור ואופיר מקבלים עדכון. כשחוזרים לעריכה, העדכונים נסגרים לבד.</p>
-        <div class="err" id="pause-err" role="alert" hidden></div>
-      </div>
-      <div class="dlg-foot">
-        <button type="button" class="btn btn-ghost" data-close>ביטול</button>
-        <button type="submit" class="btn btn-primary" id="pause-submit">לעצור את העריכה</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- An urgent task taken while editing: pause it first? -->
-  <dialog id="dlg-urgent" class="ed-dlg" aria-labelledby="urg-h">
-    <form id="urg-form" novalidate>
-      <div class="dlg-head">
-        <h2 id="urg-h">לעצור את העריכה?</h2>
-        <button type="button" class="close" data-close aria-label="סגירה">×</button>
-      </div>
-      <div class="dlg-body">
-        <p id="urg-ctx"></p>
-        <div id="urg-jobs"></div>
-        <p class="hint">זמן העצירה לא נספר נגדך: הוא מסומן ״עצירה לבקשת״ מי שביקש את המשימה.</p>
-        <div class="err" id="urg-err" role="alert" hidden></div>
-      </div>
-      <div class="dlg-foot">
-        <button type="button" class="btn btn-ghost" id="urg-nopause">להתחיל בלי לעצור</button>
-        <button type="submit" class="btn btn-primary" id="urg-submit">לעצור ולהתחיל</button>
       </div>
     </form>
   </dialog>

@@ -385,9 +385,9 @@ try {
     assert.deepEqual(JSON.parse(checkOf(db, SOON, 'p14.day').note), { ok: true });
     assert.match(await text(page.locator(`#fu-${SOON}-1`)), /הכול תקין/);
     assert.equal(await text(page.locator('#fu-h')), 'מעקב לפני צילום · 3 לקוחות להיום');
-    // Something is stuck: the eight topics, a few words, and Lior is told.
+    // Something is stuck: the seven topics (access is not the shoot day's since 5.11.2026), a few words, and Lior is told.
     await page.click(`#fu-${GFX}-1-stuck`);
-    assert.equal(await page.locator(`#fu-${GFX}-1 .pp-topics .chip`).count(), 8);
+    assert.equal(await page.locator(`#fu-${GFX}-1 .pp-topics .chip`).count(), 7);
     assert.ok(await page.locator(`#fu-${GFX}-1-save`).isDisabled(), 'nothing chosen yet');
     await page.click(`#fu-${GFX}-1-t-graphics`);
     await page.fill(`#fu-${GFX}-1-note`, 'הלקוח לא עונה על הגרפיקות');

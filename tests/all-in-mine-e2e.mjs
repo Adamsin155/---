@@ -78,7 +78,8 @@ const EXPECTED = {
   // lines of other pages ("אלי עוד לא מסר זמינות").
   lior: {
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'shoot.html'],
-    decisions: ['5 החלטות מחכות לך', 'urgent', 'decisions.html'],
+    // 4, not 5: a paused editing is no decision since 5.11.2026.
+    decisions: ['4 החלטות מחכות לך', 'urgent', 'decisions.html'],
     renewals: ['חידושים ב־90 יום: 1', 'today', 'year.html#renewals'],
     'availability-missing': ['אלי עוד לא מסר זמינות לנובמבר', 'overdue', 'prep.html#availability'],
   },
@@ -240,18 +241,16 @@ try {
     db.client_access.push({ id: 'a0000000-0000-4000-8000-000000000002', client_id: cid(36), network: 'facebook', label: null, username: 'noy', status: 'broken', note: null, updated_by: emailOf('ilai'), updated_at: '2026-10-19T14:00:00+03:00' });
     const { page, ctx } = await signedIn('lior', { db });
     const mine = await lines(page);
-    assert.equal(mine['landing-paused'].text, `עריכה אחת עצורה ומחכה להחלטה שלך · ${NO_CLOCK}`);
+    // An old pause stops nothing since 5.11.2026: no line for it.
+    assert.equal(mine['landing-paused'], undefined);
     // The paused editing and the broken logins are in the one decisions line (the owner, 20.10.2026).
     assert.match(mine.decisions.text, /^\d+ החלטות מחכות לך$/);
     assert.equal(mine.paused, undefined);
     assert.equal(mine.access, undefined);
-    await page.evaluate(() => { const d = document.getElementById('land-fold'); if (d) d.open = true; });
-    await page.click('#flow-landing-paused');
-    await page.waitForSelector('#dc-page:not([hidden]) #pz-list li.of-card');
+    await page.goto(`${BASE}decisions.html`);
+    await page.waitForSelector('#dc-page:not([hidden]) #ac-list li.of-card');
     await settle(page);
-    assert.equal(await page.locator('#pz-list li.of-card').count(), 2);
-    assert.equal(await page.locator('#pz-list li.of-card:has(.tag-landing)').count(), 1);
-    assert.match(await page.locator('#pz-list li.of-card:has(.tag-landing)').innerText(), /נוי מסגרות/);
+    assert.equal(await page.locator('#pz-list').count(), 0, 'no "עריכה שעדיין עצורה" queue');
     assert.equal(await page.locator('#ac-list li.of-card:has(.tag-landing)').count(), 1);
     assert.match(await page.locator('#ac-list li.of-card:has(.tag-landing)').innerText(), /נוי מסגרות/);
     // The lists of 12:00 and 16:00: nothing of a client in landing is "late" there.
