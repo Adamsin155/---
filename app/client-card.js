@@ -90,7 +90,7 @@ import { freshText } from './protocol-versions.js';
 import { mountClientFiles, workFilesState, uploadClientFile, downloadClientFile } from './files-ui.js';
 import { uploadStepOf, isManager as managesFiles, fileNameOf, uploadError } from './files-logic.js';
 // The client's signed contract as a file (27.10.2026): 'material_other' labelled "חוזה חתום".
-import { CONTRACT_KIND, CONTRACT_LABEL, CONTRACT_ACCEPT, contractFiles, contractFileProblem } from './contract-file.js';
+import { CONTRACT_KIND, CONTRACT_LABEL, CONTRACT_ACCEPT, MANUAL_CONTRACT_NOTE, contractFiles, contractFileProblem, p01ToMark } from './contract-file.js';
 // The manager's features: the contract summary, and archiving (the owner and Ofir).
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
@@ -1096,7 +1096,18 @@ async function addContract(input) {
   renderKeepingFocus();
   try {
     await uploadClientFile(client.id, CONTRACT_KIND, file, { label: CONTRACT_LABEL });
-    toast('קובץ החוזה נשמר בכרטיס ובתיק הלקוח.');
+    // The signed contract covers process 1 (5.11.2026): what of it is still open is marked.
+    const keys = p01ToMark(checks);
+    if (keys.length) {
+      try {
+        const rows = await setChecksBulk(id, keys, 'done', MANUAL_CONTRACT_NOTE);
+        for (const r of rows) checks[r.item_key] = r;
+      } catch (err) {
+        toast(`קובץ החוזה נשמר, אבל ״הכנת חוזה״ לא סומן: ${errorText(err)}`);
+        contractBusy = false; renderKeepingFocus(); return;
+      }
+    }
+    toast(keys.length ? 'קובץ החוזה נשמר, ו״הכנת חוזה״ סומן כבוצע.' : 'קובץ החוזה נשמר בכרטיס ובתיק הלקוח.');
   } catch (err) {
     toast(`החוזה לא הועלה: ${uploadError(err)}`);
   }
