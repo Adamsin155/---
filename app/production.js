@@ -159,8 +159,10 @@ export const clientFixedNote = (videos) => JSON.stringify({ videos: nums(videos)
 //   - going: the editing goes on and its clock runs ("קיבלתי את הכונן והתחלתי" with a
 //     line answered "חסר", or "לדווח, והעריכה ממשיכה"); no wait. Irit is rung, and for
 //     part of the footage Lior gets a task (materialTask).
-//   - blocked: "לעצור את העריכה", the real can't-start case; the process waits (its wait
-//     holds the report), so the deadline is "חסום", not late.
+//   - blocked ("לעצור את העריכה", until 5.11.2026): gone. Nothing stops the editing (the owner:
+//     "כל אחד יש לו את המשימה שלו לעשות ואף אחד לא חוסם אף אחד"); a report made that way
+//     before reads as one made while the editing goes on, and its old wait does not hold the
+//     deadline (protocol-logic.js waitOf).
 // `notes` is what the editor wrote under each missing thing ({ logo: 'מטושטש' });
 // `have`/`of`: the footage there is for `have` of the editor's `of` videos.
 // 'upload': a video does not go up into the system (uploading there is optional: the
@@ -192,12 +194,9 @@ function readReport(m) {
     have, of: have === null ? null : videoCount(v.of) || null, going: v.going === true, to: reportTo(v.to), by_email: m.by_email,
   };
 }
-// The blocking report, while its wait holds the process.
-export function missingOf(checks, pre = '') {
-  const m = checks?.[`${pre}p22.missing`];
-  if (!m || m.state !== 'done' || !done(checks, `${pre}p22.wait`)) return null;
-  const r = readReport(m);
-  return r.going ? null : r;
+// A report that stopped the editing: none since 5.11.2026 (kept for the callers: always null).
+export function missingOf() {
+  return null;
 }
 // The report made while the editing goes on, until it is closed ("הגיע הכול", or "מוכן לבדיקה").
 // A thing whose start check is marked since (its row's "סיימתי" on the client card, 29.10.2026)
@@ -206,7 +205,6 @@ export function reportOf(checks, pre = '') {
   const m = checks?.[`${pre}p22.missing`];
   if (!m || m.state !== 'done') return null;
   const r = readReport(m);
-  if (!r.going) return null;
   const what = r.what.filter((k) => !CHECK_OF[k] || checks?.[pre + CHECK_OF[k]]?.state !== 'done');
   if (!what.length) return null;
   if (what.length === r.what.length) return r;
@@ -321,8 +319,8 @@ export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p2
 export function editorState(job, checks) {
   const k = (x) => `${job.pre}${x}`;
   const is = (x) => done(checks, k(x));
-  const pause = checks?.[k('p22.pause')]?.state === 'done' ? (json(checks[k('p22.pause')].note) || {}) : null;
-  const base = { blocked: missingOf(checks, job.pre), report: reportOf(checks, job.pre), paused: pause ? { ...pause, at: checks[k('p22.pause')].at, by_email: checks[k('p22.pause')].by_email } : null };
+  // Nothing is blocked or paused since 5.11.2026: an old p22.pause mark or blocking report is ignored.
+  const base = { blocked: null, report: reportOf(checks, job.pre), paused: null };
   if (ilaiGot(checks, job.pre)) return { ...base, key: 'done', blocked: null, report: null, paused: null };
   if (is('p27.final')) return { ...base, key: 'ilai' };
   if (!is('p22.received')) return { ...base, key: 'waiting' };

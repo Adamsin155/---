@@ -34,7 +34,7 @@ import { checkMark } from './mark-guards.js';
 import {
   accessStatusesFor, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
   endedClientFields, formProblems, isComplete, missingFields, filledCount, missingMaterials, formChecks, missingTask, blockingTask,
-  MISSING_TITLE, BLOCKING_TITLE, DRAFT_KEY, readDraft, draftText, draftWins, validUrl, CAMPAIGN_FIELDS, campaignValue,
+  MISSING_TITLE, isBlockingTitle, DRAFT_KEY, readDraft, draftText, draftWins, validUrl, CAMPAIGN_FIELDS, campaignValue,
 } from './characterization.js';
 import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_RAISED, SUMMARY, BRIEF_KEYS } from './briefs.js';
 import { loadCharacterization, saveCharacterization, loadBriefs, saveBrief, missingTable } from './intake-data.js';
@@ -461,11 +461,11 @@ function renderForm() {
       filesSlot()),
     // Apart from the meeting (27.10.2026) nothing rings: no "missing today" question.
     charOnly ? null : h('fieldset', { class: 'ik-group' },
-      h('legend', {}, 'משהו חסר שחוסם עבודה היום?'),
+      h('legend', {}, 'חסר משהו לעבודה היום?'),
       h('label', { class: 'ik-check' },
         h('input', { type: 'checkbox', id: 'form-blocking', checked: !!formV.blocking, onchange: (e) => { formV.blocking = e.currentTarget.checked; writeDraft(); render('form-blocking'); } }),
-        h('span', {}, 'כן, חסר מידע או חומר שבלעדיו אי אפשר לעבוד היום (ליאור יקבל הודעה מיד)')),
-      formV.blocking ? field({ fid: 'form-blocking_what', label: 'מה חסר ולמי זה חוסם', control: textInput(formV.blocking_what, onField('blocking_what')) }) : null),
+        h('span', {}, 'כן, חסר מידע או חומר לעבודה היום (ליאור יקבל הודעה מיד)')),
+      formV.blocking ? field({ fid: 'form-blocking_what', label: 'מה חסר ולמי', control: textInput(formV.blocking_what, onField('blocking_what')) }) : null),
     h('div', { class: 'ik-actions ik-sticky' },
       h('span', { class: 'hint', id: 'form-draft', 'aria-live': 'off' }),
       h('button', { type: 'submit', class: 'btn btn-primary ik-big', id: 'form-save', disabled: busy }, busy ? 'שומר…' : saveLabel())));
@@ -520,7 +520,7 @@ async function submitForm() {
   const missing = missingMaterials(f, client.has_logo).filter((m) => !(logoFile && m === 'לוגו'));
   try {
     if (missing.length && !open(MISSING_TITLE)) { tasks.push(await addTask(missingTask(client, missing))); notes.push('נפתחה משימה לעירית להשלים מהלקוח'); }
-    if (f.blocking && !open(BLOCKING_TITLE)) { tasks.push(await addTask(blockingTask(client, f.blocking_what, missing))); notes.push('ליאור קיבל הודעה שחסר מידע שחוסם עבודה היום'); }
+    if (f.blocking && !tasks.some((t) => !t.done_at && isBlockingTitle(t.title))) { tasks.push(await addTask(blockingTask(client, f.blocking_what, missing))); notes.push('ליאור קיבל הודעה שחסר מידע לעבודה היום'); }
   } catch (err) { notes.push(`המשימה לא נפתחה (${errorText(err)})`); }
   store.set(DRAFT_KEY(id), '');
   formDraftAt = null;

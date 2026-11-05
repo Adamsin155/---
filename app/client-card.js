@@ -1389,18 +1389,10 @@ async function endReport(x) {
   toast('סומן שהכול הגיע לעריכה.');
 }
 
-// Editing paused for another task: who, at what stage, what is left, and for what.
-function pauseLine(x) {
-  const p = pauseOf(x.proc, checks);
-  // The assigned editor pauses (any editor while none is assigned); Lior and Ofir can too.
-  const owners = x.proc.owners;
-  const canPause = me && (owners.includes(me) || ['lior', 'ofir'].includes(me) || (owners.includes('editor') && PEOPLE[me]?.editor));
-  if (!p) {
-    return !x.complete && canPause ? h('button', { type: 'button', class: 'btn-text', onclick: () => openPause(x) }, 'עצירת העריכה למשימה אחרת') : null;
-  }
-  return h('div', { class: 'wait-line pause-line' },
-    h('span', {}, `העריכה נעצרה · ${who(p.by_email)} · ${formatStamp(p.at)}${p.stage ? ` · שלב: ${p.stage}` : ''}${p.left ? ` · נשאר: ${p.left}` : ''}${p.why ? ` · בגלל: ${p.why}` : ''}`),
-    h('button', { type: 'button', class: 'btn-text', onclick: () => resumeEditing(x) }, 'חזרה לעריכה'));
+// Editing paused for another task: gone on 5.11.2026 (nothing stops the editing; an old pause
+// is ignored, protocol-logic.js pauseOf). The line stays empty.
+function pauseLine() {
+  return null;
 }
 
 // ── One button, "בוצע" (the owner, 3.11.2026: "יש אלף סעיפים לרשום כן כן כן") ──

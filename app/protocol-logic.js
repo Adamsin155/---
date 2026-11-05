@@ -561,14 +561,12 @@ export const WAIT = (proc) => markKey(proc, 'wait');
 // The client answered after work was sent to them (processes 7, 23, 26): stops
 // the "client did not answer" clock of that sending (app/clocks.js).
 export const ANSWERED = (proc) => markKey(proc, 'answered');
-// Editing paused for another task (Nirel and the editors must say so first).
+// Editing paused for another task: until 5.11.2026. Nothing pauses a process since (the owner:
+// "כל אחד יש לו את המשימה שלו לעשות ואף אחד לא חוסם אף אחד"), and a pause recorded before
+// no longer stops anything: pauseOf is always null. The key stays for the history's words.
 export const PAUSE = (proc) => markKey(proc, 'pause');
-export function pauseOf(proc, checks) {
-  const c = checks[PAUSE(proc)];
-  if (!c || c.state !== 'done') return null;
-  let v = {};
-  try { v = JSON.parse(c.note) || {}; } catch { /* plain text */ }
-  return { ...v, at: c.at, by_email: c.by_email };
+export function pauseOf() {
+  return null;
 }
 export function claimOf(proc, checks) {
   if (proc.owners.length < 2) return null;
@@ -593,9 +591,14 @@ export function parseWaitNote(note) {
 }
 export const waitNote = (reason, recheck, since = null) => JSON.stringify({ reason, recheck: recheck || null, ...(since ? { since } : {}) });
 // `since` keeps the start of the wait when its reason or date is edited later.
+// The editor's report that stopped the editing (until 5.11.2026) put a wait with this reason
+// on 22, 24 and 27. It no longer holds anything: such a wait is read as none, so the deadline
+// runs as if it had not been there (and is late when it passed).
+export const MISSING_WAIT = 'חסר לעורך';
 export function waitOf(proc, checks) {
   const c = checks[WAIT(proc)];
   if (!c || c.state !== 'done') return null;
+  if (String(parseWaitNote(c.note).reason || '').startsWith(MISSING_WAIT)) return null;
   let since = null;
   try { since = JSON.parse(c.note)?.since || null; } catch { /* plain text */ }
   return { ...parseWaitNote(c.note), at: since || c.at, by_email: c.by_email };
