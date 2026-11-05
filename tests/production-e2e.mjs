@@ -492,7 +492,9 @@ await step('"מה חסר?" while editing offers only what was not "יש"; "לד�
   assert.equal(await page.inputValue('#miss-footage-have'), '2');
   assert.equal(await page.inputValue('#miss-phone-note'), 'המספר בכרטיס לא עונה');
   assert.equal(await text(page, '#miss-go'), 'לדווח, והעריכה ממשיכה');
-  assert.equal(await text(page, '#miss-submit'), 'אי אפשר להמשיך: לעצור את העריכה');
+  // One way out since 5.11.2026: nothing stops the editing.
+  assert.equal(await page.locator('#miss-submit').count(), 0);
+  assert.match(await text(page, '#miss-hint'), /העריכה ממשיכה, והמועד שלך רץ כרגיל/);
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await phone390(page, 'editor-missing-only-open-390');
@@ -518,31 +520,30 @@ await step('"מה חסר?" while editing offers only what was not "יש"; "לד�
   assert.equal(await page.locator(`${card}-report`).count(), 0);
 });
 
-await step('"אי אפשר להמשיך: לעצור את העריכה": Irit is told, the deadline shows "חסום"; "הגיע, ממשיכים" ends it and moves the dates', async () => {
+await step('"מה חסר?" has one way out (5.11.2026): the report goes, the editing goes on, and nothing is "חסום"', async () => {
   const { page } = nadia;
   await page.click(`#${A_ID}-missing`);
   await page.waitForSelector('#dlg-missing[open]');
   // All four are "יש" by now: only the upload is left to report.
   assert.deepEqual(await page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-upload']);
-  await page.click('#miss-submit');
+  await page.click('#miss-go');
   assert.match(await text(page, '#miss-err'), /סמנו מה חסר/);
   await page.click('#miss-upload');
-  await page.fill('#miss-upload-note', 'נעצר באמצע');
-  await page.click('#miss-submit');
-  await toastHas(page, 'עירית קיבלה הודעה');
-  assert.deepEqual(JSON.parse(checkOf(A, 'p22.missing').note), { what: ['upload'], note: '', notes: { upload: 'נעצר באמצע' } });
-  for (const k of ['p22.wait', 'p24.wait', 'p27.wait']) assert.match(JSON.parse(checkOf(A, k).note).reason, /^חסר לעורך: העלאה למערכת \(לא עובדת\)$/, k);
-  assert.equal(await text(page, `${card} .ed-state`), 'חסום');
-  assert.match(await text(page, `${card} .ed-dates`), /^חסום · חסר העלאה למערכת/);
-  await shot(page, 'editor-blocked');
-  // Two office hours later it works again.
-  clockNow = new Date(clockNow.getTime() + 2 * 36e5);
-  clockSetAt = Date.now();
-  await page.click(`#${A_ID}-unblock`);
-  await toastHas(page, 'ממשיכים');
-  for (const k of ['p22.wait', 'p24.wait', 'p27.wait', 'p22.missing']) assert.equal(checkOf(A, k), null, k);
-  for (const k of ['p22.waited', 'p24.waited']) assert.ok(checkOf(A, k), k);
+  // Typed key by key and taken back, as people type.
+  await page.locator('#miss-upload-note').pressSequentially('נעצר באמצעX', { delay: 10 });
+  await page.keyboard.press('Backspace');
+  assert.equal(await page.inputValue('#miss-upload-note'), 'נעצר באמצע');
+  await phone390(page, 'editor-missing-one-way-390');
+  await page.click('#miss-go');
+  await toastHas(page, 'העריכה ממשיכה');
+  const r = JSON.parse(checkOf(A, 'p22.missing').note);
+  assert.deepEqual([r.what, r.going], [['upload'], true]);
+  for (const k of ['p22.wait', 'p24.wait', 'p27.wait']) assert.equal(checkOf(A, k), null, k);
   assert.equal(await text(page, `${card} .ed-state`), 'בעריכה');
+  assert.doesNotMatch(await text(page, card), /חסום/);
+  await page.click(`${card}-arrived`);
+  await toastHas(page, 'סומן שהכול הגיע');
+  assert.equal(checkOf(A, 'p22.missing'), null);
 });
 
 await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofir is told and his clock starts', async () => {
@@ -654,7 +655,7 @@ await step('the client\'s fixes, then (4) the final versions go to Ilai; the car
 });
 
 // ── Nirel: her Natali client and the briefs ──
-await step('Nirel: an urgent brief while editing asks to pause, prefilled; the pause says "עצירה לבקשת ליאור"', async () => {
+await step('Nirel: an urgent brief while editing: "התחלתי" records the start and stops nothing (5.11.2026)', async () => {
   const { page, ctx } = await scene('2026-10-19T11:00:00');
   await signIn(page, 'editor.html', 'nirel');
   await page.waitForSelector('#c-cccccccc-0000-4000-8000-000000000003');
@@ -674,20 +675,13 @@ await step('Nirel: an urgent brief while editing asks to pause, prefilled; the p
   await toastHas(page, 'התחלת');
   const t = db.client_tasks[0];
   await page.click(`#t-${t.id}-start`);
-  await page.waitForSelector('#dlg-urgent[open]');
-  assert.match(await text(page, '#urg-ctx'), /לעצור את העריכה של סטודיו נטלי\?/);
-  assert.equal(await page.inputValue('#urg-0-stage'), 'בעריכה · יום 1 מתוך 2');
-  assert.equal(await page.inputValue('#urg-0-left'), '4 סרטונים, אצל אופיר עד מחר 18:00');
-  await shot(page, 'nirel-urgent');
-  await page.click('#urg-submit');
-  await toastHas(page, 'העריכה נעצרה לבקשת ליאור');
-  const pause = JSON.parse(checkOf(N, 'p22.pause').note);
-  assert.deepEqual([pause.for, pause.task, pause.why], ['lior', t.id, t.title]);
+  await toastHas(page, 'נרשם שהתחלת');
+  assert.equal(await page.locator('#dlg-urgent').count(), 0, 'no "לעצור את העריכה?"');
   assert.ok(t.started_at, 'the task is started');
-  const notices = db.client_tasks.filter((x) => x.source === 'pause' && x.client_id === N.id);
-  assert.deepEqual(notices.map((x) => x.owner).sort(), ['lior', 'ofir']);
-  assert.match(notices[0].title, /\(לבקשת ליאור\)$/);
-  assert.match(await text(page, `#${nc} .ed-pause`), /^עצירה לבקשת ליאור/);
+  assert.equal(checkOf(N, 'p22.pause'), null);
+  assert.equal(db.client_tasks.filter((x) => x.source === 'pause').length, 0);
+  assert.equal(await page.locator(`#${nc}-pause`).count(), 0, 'no "עצירת העריכה למשימה אחרת"');
+  await shot(page, 'nirel-urgent');
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   nirelPage = { page, ctx, nc, t };
@@ -717,21 +711,10 @@ await step('Nirel finishes the brief: done, left and the Drive link; the request
   assert.match(await text(page, '#ed-briefs'), /אין בריפים פתוחים/);
 });
 
-await step('resuming the editing closes the pause notices by themselves', async () => {
-  const { page, nc } = nirelPage;
-  await page.click(`#${nc}-resume`);
-  await toastHas(page, 'חזרת לעריכה');
-  assert.equal(checkOf(N, 'p22.pause'), null);
-  // Lior's and Ofir's notices: theirs, and closed by the editor who opened them.
-  const notices = db.client_tasks.filter((x) => x.source === 'pause');
-  assert.ok(notices.length === 2 && notices.every((x) => x.done_at && x.done_by_email === 'nirel@astrateg.test' && x.created_by_email === 'nirel@astrateg.test'));
-  assert.equal(await text(page, `#${nc} .ed-state`), 'בעריכה');
-});
-
 // Security audit, 6.10.2026 (ops.md 36): outside the office a task is changed only by its
 // owner or by whoever opened it. Everything the editor's screen did above went through
 // the stricter database untouched (the brief started and finished with its result, the
-// pause notices to Lior and Ofir opened and closed again, the follow-ups opened).
+// follow-ups opened).
 await step('an editor\'s tasks: everything her screens do is allowed; a colleague\'s task is not hers to close or rewrite', async () => {
   const { page, ctx } = nirelPage;
   assert.deepEqual(taskRefusals, [], 'no change of the screens above was refused');
@@ -860,19 +843,9 @@ await step('the editor gets the uploaded logo FILE through a signed link; with n
   assert.ok(await noHScroll(yariv.page));
   await yariv.page.click('#start-some');
   assert.match(await text(yariv.page, '#start-nologo'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״חסר״ בשורת הלוגו\./);
-  // "אי אפשר להתחיל בכלל": "מה חסר?" without what is "יש", the "חסר" ticked with its words, and
-  // only the stop (no upload to report before there are videos).
-  await yariv.page.click('label[for="start-0-yes"]');
-  await yariv.page.click('label[for="start-2-no"]');
-  await yariv.page.fill('#start-logo-note', 'אין לוגו בכלל');
-  await yariv.page.click('#start-missing');
-  await yariv.page.waitForSelector('#dlg-missing[open]');
-  assert.deepEqual(await yariv.page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-logo', 'miss-phone', 'miss-scripts']);
-  assert.equal(await yariv.page.isChecked('#miss-logo'), true);
-  assert.equal(await yariv.page.inputValue('#miss-logo-note'), 'אין לוגו בכלל');
-  assert.equal(await text(yariv.page, '#miss-submit'), 'אי אפשר להתחיל: לעצור את העריכה');
-  assert.equal(await yariv.page.locator('#miss-go').isHidden(), true);
-  await yariv.page.click('#dlg-missing [data-close]');
+  // "אי אפשר להתחיל בכלל" left on 5.11.2026: a line answered "חסר" is reported and the editing starts.
+  assert.equal(await yariv.page.locator('#start-missing').count(), 0);
+  await yariv.page.click('#dlg-start [data-close]');
   assert.equal(checkOf(B, 'p22.received'), null, 'closing changes nothing');
   file.deleted_at = null;
   await yariv.ctx.close();

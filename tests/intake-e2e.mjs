@@ -422,7 +422,7 @@ await step('saving the complete form checks process 4, closes Irit\'s follow-up,
   assert.equal(irit.title, 'להשלים מהלקוח: סרטונים קיימים'); // no logo: Ilai makes one, so it is not asked for
   assert.equal(irit.due_on, '2026-10-14');
   const lior = db.client_tasks.find((t) => t.client_id === A.id && t.owner === 'lior');
-  assert.deepEqual([lior.source, lior.title], ['escalation', 'חסר מידע שחוסם עבודה היום: אין תמונות של המקום לגרפיקות של היום']);
+  assert.deepEqual([lior.source, lior.title], ['escalation', 'חסר מידע לעבודה היום: אין תמונות של המקום לגרפיקות של היום']);
   // The draft is gone; saving again opens no second task.
   assert.equal(await ofir.evaluate(() => localStorage.getItem('astrateg.charform.aaaaaaaa-0000-4000-8000-000000000001')), '');
   await ofir.click('#form-save');
@@ -616,62 +616,38 @@ await step('the coordinator (11): a separate approval for each side; the day is 
   await shot(irit, '07-coordinator-360');
 });
 
-await step('the blockers (14): computed from what the system knows; "עברתי" for today, "דווח לליאור" opens an exception at once', async () => {
+await step('no blockers (5.11.2026): no "חוסמי יום צילום", no "חוסם" anywhere on the page; clear topics still close by themselves', async () => {
   const card = `#shoot-${B.id.replace(/[^\w-]/g, '_')}-1`;
-  const list = await irit.locator(`${card} .pp-blocker`).allInnerTexts();
-  assert.deepEqual(list.length, 1, list.join(' | '));
-  assert.match(list[0], /גישות · ליאור\s*גישה לא עובדת: Instagram/);
-  const row = `${card} .pp-blocker`;
-  await irit.click(`${row} button:has-text("עברתי")`);
-  await irit.waitForFunction((sel) => document.querySelector(sel)?.classList.contains('is-seen'), row);
-  assert.deepEqual(JSON.parse(checkOf(B, 'p14.seen').note), { day: '2026-10-13', ids: ['access:acc-b-ig'] });
-  await irit.click(`${row} button:has-text("דווח לליאור")`);
-  await toastHas(irit, 'דווח לליאור');
-  const esc = db.client_tasks.find((t) => t.client_id === B.id && t.brief?.blocker === 'access:acc-b-ig');
-  assert.deepEqual([esc.owner, esc.source, esc.urgent], ['lior', 'escalation', true]); // the shoot is two business days away
-  assert.equal(esc.title, 'חוסם ליום הצילום (יום ה׳ 15.10): גישה לא עובדת: Instagram');
-  await irit.waitForFunction((sel) => /דווח לליאור .*נשאר כאן עד שהחריגה תיסגר/.test(document.querySelector(sel)?.textContent || ''), `${card} .pp-blocker.is-reported`);
+  await irit.waitForSelector(card);
+  assert.equal(await irit.locator(`${card} .pp-blocker`).count(), 0);
+  assert.doesNotMatch(await irit.locator('main').innerText(), /חוסם|חוסמים|חוסמי/);
+  // B's broken Instagram login is not the shoot day's: no word of it here.
+  assert.doesNotMatch(await irit.locator(card).innerText(), /גישה/);
   // Topics that are clear closed their item by themselves (the graphics were imported done).
+  await irit.waitForFunction(() => true);
   assert.equal(checkOf(B, 'p14.graphics')?.note, 'נסגר אוטומטית: אין חוסם');
-  await shot(irit, '08-blockers-360');
+  await shot(irit, '08-no-blockers-360');
   await shotOf(irit, card, '08b-card-B-360');
-  // A has no card here, rightly: since protocol v6 the shoot-date process (11) belongs to the
-  // first station, so A's import at the characterization station marked it done, and A has no
-  // shoot ahead (prep.js entries()). A screenshot of that card used to wait here until it timed out.
   assert.equal(await irit.locator(`#shoot-${A.id.replace(/[^\w-]/g, '_')}-1`).count(), 0);
 });
 
-await step('the day-before check (15): what the system knows is filled in, Irit answers the rest, a failure goes to Lior', async () => {
+await step('"הכנות ליום צילום" (15): one row and one "בוצע" (5.11.2026); the card says it in words', async () => {
   const k = `${C.id.replace(/[^\w-]/g, '_')}-1`;
   await irit.waitForSelector(`#db-done-${k}`);
-  const items = await irit.locator(`#shoot-${k} .pp-check`).allInnerTexts();
-  assert.ok(items.some((t) => /הלקוח אישר את התוכן\s*✓ המערכת יודעת/.test(t)), items.join(' | '));
-  assert.ok(items.some((t) => /הצלם והצוות עודכנו\s*✗ לא בוצע/.test(t)));
-  assert.ok(items.some((t) => /המאפרת וההסעה של נטלי אישרו\s*✓/.test(t)));
-  assert.equal(await irit.isDisabled(`#db-done-${k}`), true); // two things only she can know
-  await irit.check(`#db-${k}-address-ok`);
-  await irit.check(`#db-${k}-remembers-ok`);
-  await irit.waitForSelector(`#db-done-${k}:not([disabled])`);
-  assert.match(await irit.locator(`#db-done-${k}`).innerText(), /שליחה לליאור \(1\)/);
+  assert.equal(await irit.locator(`#db-${k}`).innerText(), 'הכנות ליום צילום');
+  assert.equal(await irit.locator(`#shoot-${k} .pp-check`).count(), 0, 'no list of items');
+  assert.equal(await irit.locator(`#db-done-${k}`).innerText(), 'בוצע');
+  assert.equal(await irit.isDisabled(`#db-done-${k}`), false);
   await irit.click(`#db-done-${k}`);
-  await toastHas(irit, 'עברו לליאור');
-  const note = JSON.parse(checkOf(C, 'p15.irit').note);
-  assert.deepEqual(note.failed, ['crew']);
-  const t = db.client_tasks.find((x) => x.client_id === C.id && x.owner === 'lior');
-  assert.deepEqual([t.source, t.urgent], ['escalation', true]);
-  assert.match(t.title, /^בדיקת יום לפני הצילום \(יום ד׳ 14\.10\) נכשלה: הצלם והצוות עודכנו$/);
-  await irit.waitForFunction((sel) => /נכשלו ועברו לליאור: הצלם והצוות עודכנו/.test(document.querySelector(sel)?.textContent || ''), `#shoot-${k}`);
-  // In the client card the result is a line of words under her item, never the JSON (found live, 6.10.2026).
+  await toastHas(irit, 'ההכנות ליום הצילום סומנו כבוצע');
+  assert.deepEqual(JSON.parse(checkOf(C, 'p15.irit').note), { ok: [], failed: [] });
+  assert.equal(db.client_tasks.filter((x) => x.client_id === C.id && x.owner === 'lior' && /בדיקת יום לפני/.test(x.title)).length, 0);
+  await irit.waitForFunction((sel) => /בוצע .*·/.test(document.querySelector(sel)?.textContent || ''), `#shoot-${k}`);
   const cardPage = await irit.context().newPage();
   await cardPage.goto(`${BASE}client.html?id=${C.id}`);
-  await cardPage.waitForSelector('#p15', { state: 'attached' });
-  await cardPage.waitForFunction(() => /נבדקו \d+ פריטים/.test(document.querySelector('#p15')?.textContent || ''));
-  const p15 = await cardPage.locator('#p15').textContent();
-  assert.match(p15, /נבדקו 8 פריטים\. לא תקין: הצלם והצוות עודכנו/);
+  await cardPage.waitForSelector('#cc-head h1');
   assert.doesNotMatch(await cardPage.locator('main').textContent(), /\{"ok"|"failed"/);
   await cardPage.close();
-  // Its exception is Lior's now; it is not offered to her again as a blocker.
-  assert.doesNotMatch(await irit.locator(`#shoot-${k}`).innerText(), /משימה דחופה: בדיקת יום לפני/);
   await shot(irit, '09-day-before-360');
   await shotOf(irit, `#shoot-${k}`, '09b-card-C-360');
 });
