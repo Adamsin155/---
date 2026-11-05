@@ -26,7 +26,21 @@ export const INFLUENCERS = {
   simeon: { id: 'simeon', name: 'סמיון, מישל ודניס', shootType: 'dms' },
   niro: { id: 'niro', name: 'נירו לוי', short: 'נירו', shootType: 'niro' },
   hatzel: { id: 'hatzel', name: 'הצל (יואב אליאסי)', short: 'הצל', shootType: 'hatzel' },
+  // "משפיען לבחירה" (the owner, 5.11.2026; the old system's "ALL IN ONE · משפיען לבחירה מרשימת
+  // המשפיענים של אסטרטג"): the client signs now and the influencer is chosen later with the
+  // business. Natali's packages and quantities, with no add-on at an influencer (nobody is
+  // chosen yet). No shoot type: the signed agreement opens the client without one, and the
+  // office sets it in the card once chosen. `inText`: the words inside a sentence.
+  choice: {
+    id: 'choice', name: 'משפיען לבחירה מרשימת המשפיענים של אסטרטג', label: 'משפיען לבחירה', short: 'משפיען לבחירה',
+    inText: 'משפיען מרשימת המשפיענים של אסטרטג שייבחר בתיאום עם בית העסק', shootType: null, choice: true,
+  },
 };
+// An influencer said inside a sentence ("יום צילום ... עם X").
+export const infText = (inf) => INFLUENCERS[inf]?.inText || INFLUENCERS[inf]?.name || '';
+// The name on a picker's button ("משפיען לבחירה"; the others their name).
+export const infLabel = (inf) => INFLUENCERS[inf]?.label || INFLUENCERS[inf]?.name || '';
+export const isChoice = (inf) => INFLUENCERS[inf]?.choice === true;
 // Niro Levi and "הצל" (Yoav Eliasi), the owner's decision of 28.10.2026: each exactly as Natali
 // Dadon. The same three packages with the same prices and quantities, the same paid add-ons (a
 // reel and a story at the influencer), and a shoot day that runs as hers (app/protocol.js
@@ -124,6 +138,15 @@ for (const inf of STARS.slice(1)) {
     PACKAGES[`${tier}-${inf}`] = { ...p, influencer: inf, includes: p.includes.map((l) => ({ ...l, label: inName(l.label, inf) })) };
   }
 }
+// "משפיען לבחירה": Natali's packages too, the influencer said as one still to be chosen
+// ("יום צילום בבית העסק, עם משפיען מרשימת המשפיענים של אסטרטג שייבחר בתיאום עם בית העסק").
+for (const tier of STAR_TIERS) {
+  const p = PACKAGES[`${tier}-natali`];
+  PACKAGES[`${tier}-choice`] = {
+    ...p, influencer: 'choice',
+    includes: p.includes.map((l) => ({ ...l, label: l.label.replace(` עם ${INFLUENCERS.natali.name}`, `, עם ${INFLUENCERS.choice.inText}`) })),
+  };
+}
 
 export const PAID_ADDONS = [
   {
@@ -187,7 +210,7 @@ export const SPECS = {
   'social-natali': { videos: 36, graphics: 36, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 0 },
   'social-tv-natali': { videos: 36, graphics: 36, shootDays: 1, photographers: 2, collabs: 0, stories: 0, ch14: 1 },
 };
-for (const inf of STARS.slice(1)) for (const tier of STAR_TIERS) SPECS[`${tier}-${inf}`] = { ...SPECS[`${tier}-natali`] };
+for (const inf of [...STARS.slice(1), 'choice']) for (const tier of STAR_TIERS) SPECS[`${tier}-${inf}`] = { ...SPECS[`${tier}-natali`] };
 
 export function packageId(tier, influencer) {
   return `${tier}-${influencer}`;
@@ -204,7 +227,7 @@ export function packageId(tier, influencer) {
 // most the server accepts; `label(n, sel)`: the line in the document; `name`: the words
 // in the list of deviations. `monthly` is the monthly photographer's contents each
 // month (only with that add-on).
-const INF_NAME = (inf) => INFLUENCERS[inf]?.name || '';
+const INF_NAME = (inf) => infText(inf);
 export const MONTHLY_CONTENTS = 8;
 export const CUSTOM_QTY = [
   { key: 'videos', max: 200, name: 'סרטונים', base: (s) => s.videos,
@@ -233,7 +256,7 @@ export const INCLUDES_KEYS = {
   'social-natali': ['shootDays', null, null, 'videos', 'graphics', null],
   'social-tv-natali': ['shootDays', null, null, 'videos', 'graphics', null, 'ch14'],
 };
-for (const inf of STARS.slice(1)) for (const tier of STAR_TIERS) INCLUDES_KEYS[`${tier}-${inf}`] = [...INCLUDES_KEYS[`${tier}-natali`]];
+for (const inf of [...STARS.slice(1), 'choice']) for (const tier of STAR_TIERS) INCLUDES_KEYS[`${tier}-${inf}`] = [...INCLUDES_KEYS[`${tier}-natali`]];
 // The limits of everything typed by hand (the server refuses anything outside them).
 export const CUSTOM_LIMITS = {
   termMin: 1, termMax: 36,
