@@ -38,7 +38,7 @@ test('the influencers: Niro Levi and "הצל" (Yoav Eliasi), each with a shoot d
   assert.deepEqual(STARS, ['natali', 'niro', 'hatzel']);
   assert.equal(INFLUENCERS.niro.name, 'נירו לוי');
   assert.equal(INFLUENCERS.hatzel.name, 'הצל (יואב אליאסי)');
-  assert.deepEqual(Object.keys(INFLUENCERS), ['natali', 'simeon', 'niro', 'hatzel']);
+  assert.deepEqual(Object.keys(INFLUENCERS), ['natali', 'simeon', 'niro', 'hatzel', 'choice']); // "משפיען לבחירה" (5.11.2026)
 });
 
 test('six new packages: Natali\'s prices, quantities and lines, in the influencer\'s own name', () => {

@@ -504,7 +504,8 @@ const FREE_DEFAULT = { videos: 36, graphics: 36, photoDays: 0, ch14: 0 };
 const FREE_ZERO = Object.keys(FREE_DEFAULT);
 
 export function freeCatalogText() {
-  const infl = FREE_INFLUENCERS.map((k) => `- \`${k}\`: ${INFLUENCERS[k].name}`).join('\n');
+  // "משפיען לבחירה" (5.11.2026): the text says the influencer is chosen later, with the client.
+  const infl = FREE_INFLUENCERS.map((k) => `- \`${k}\`: ${INFLUENCERS[k].name}${INFLUENCERS[k].choice ? ' (when the text says the influencer is not chosen yet, "משפיען לבחירה": chosen later with the client)' : ''}`).join('\n');
   const tiers = TIERS.map((t) => `- \`${t.id}\`: ${t.name}`).join('\n');
   const addons = FREE_ADDON_IDS.map((id) => { const a = PAID_ADDONS.find((x) => x.id === id); return `- \`${id}\`: ${a.name} (${ELIGIBILITY[a.eligibility]})`; }).join('\n');
   const qty = CUSTOM_QTY.filter((q) => FREE_QTY.includes(q.key)).map((q) => `- \`${q.key}\`: ${q.name}, 0–${q.max}, for the whole contract`).join('\n');

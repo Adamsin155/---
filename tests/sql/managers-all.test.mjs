@@ -124,7 +124,7 @@ before(async () => {
 
 test('the file: the newest, none of the refused words, runs twice, leaves sees_money() and purge_client() alone', () => {
   const files = migrationFiles();
-  assert.equal(files.at(-1), FILE);
+  assert.deepEqual(files.slice(files.indexOf(FILE) + 1), ['20261129100000_influencer_choice.sql']); // the influencer of choice (5.11.2026)
   const sql = migrationSql(FILE);
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   const code = sql.replace(/--[^\n]*/g, '');
