@@ -187,11 +187,11 @@ test('11. the access check (6): when its 30 minutes pass Ofir is rung himself, a
   assert.deepEqual([own.level, own.title], ['ring', 'באיחור: לבדוק את הגישות של אלפא']);
   assert.match(own.body, /עברו 30 דקות מקבלת הגישות.*ליאור קיבל הודעה/);
   // No second "באיחור" ring to Ofir from the ladder of a late item that day (6 keeps its own ladder),
-  // and to Lior exactly what he got before: his ring, and the note of every late item.
+  // and to Lior his ring only (since 5.11.2026, docs/ops.md, section 100, no note of every late item).
   assert.deepEqual(rows.filter((r) => r.person === 'ofir' && r.rule === 'lateOwn'), []);
   // Ilai hears nothing of the accesses any more.
   assert.deepEqual(rows.filter((r) => r.person === 'ilai' && /גישות|6 ·/.test(r.title)), []);
-  assert.deepEqual(rows.filter((r) => r.person === 'lior' && /6 · בדיקת הגישות|גישות לא נבדקו/.test(r.title)).map((r) => `${r.at} ${r.rule}.${r.step}`), ['5.10 13:00 access.lior', '5.10 13:15 late.lior']);
+  assert.deepEqual(rows.filter((r) => r.person === 'lior' && /6 · בדיקת הגישות|גישות לא נבדקו/.test(r.title)).map((r) => `${r.at} ${r.rule}.${r.step}`), ['5.10 13:00 access.lior']);
   // He checked the logins in time (what the ring is about): nobody is rung at the deadline, as before.
   const w2 = world();
   const { c: c2 } = afterMeeting(w2);
@@ -306,9 +306,9 @@ test('2. a fix the office wrote down is the same task: the same person, the same
   // A request is an answer: no "the client did not answer" and no daily "עוד לא אישר" for it.
   assert.deepEqual(due(w, IL(2026, 10, 7, 10)).filter((r) => ['answer', 'clientWaits', 'clientWaitsLine'].includes(r.rule) && r.clientId === c.id), []);
   assert.deepEqual(waiting(w, IL(2026, 10, 7, 10)), []);
-  // The fix is late (its due day passed): the ladder of every late item, on the task. Ilai rings; Irit, who waits, is told.
+  // The fix is late (its due day passed): the ladder of every late item, on the task. Ilai rings (Irit, who waits, is not told since 5.11.2026).
   const late = due(w, IL(2026, 10, 8, 9, 15), rows.map((r) => ({ key: r.key }))).filter((r) => r.rule === 'lateOwn');
-  assert.deepEqual(late.map((r) => `${r.step}@${r.person}:${r.level}`).sort(), ['own@ilai:ring', 'wait@irit:quiet']);
+  assert.deepEqual(late.map((r) => `${r.step}@${r.person}:${r.level}`).sort(), ['own@ilai:ring']);
 });
 
 test('2. the videos: the fix is due from the moment the request was recorded, the same day by 13:00 and the next business day after it, on both ways in', () => {
@@ -501,8 +501,8 @@ test('5. the renewal (34) is due 14 days after it opens; a client that started b
   assert.match(open.body, /להתחיל לדבר על ההמשך, עד 28\.1\.2027\./);
   assert.deepEqual(due(w, IL(2027, 1, 20, 14)).filter((r) => ['late', 'lateOwn', 'lateNag'].includes(r.rule)), [], 'not late inside its 14 days');
   const after = walk(w, IL(2027, 1, 28, 18), IL(2027, 1, 31, 9, 20)).filter((r) => ['late', 'lateOwn'].includes(r.rule));
-  // (Lior hears of his own late process once, through the note of every late item, as Ofir does: docs/ops.md, section 48.)
-  assert.deepEqual(after.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['31.1 09:15 late.lior@lior', '31.1 09:15 late.ofir@ofir']);
+  // (Since 5.11.2026, docs/ops.md, section 100: Lior rings for his own late process as everyone does; no note to Ofir.)
+  assert.deepEqual(after.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['31.1 09:15 lateOwn.own@lior']);
   assert.deepEqual(lateAt(w, IL(2027, 1, 31, 9, 20)).find((x) => x.procId === 'p34').holders, ['lior']);
   const nag = due(w, IL(2027, 1, 31, 14)).find((r) => r.rule === 'lateNag' && r.person === 'lior');
   assert.match(nag.title, /עדיין באיחור: חידוש · 34 · חידוש חוזה/);
@@ -654,12 +654,12 @@ test('7. Ilai\'s final check (29ב): it opens when the Gantt was sent, 13 points
   const done = walk(w, IL(2026, 10, 26, 14, 5), IL(2026, 10, 26, 14, 7), log).filter((r) => r.rule === 'finalCheck');
   assert.deepEqual(done.map((r) => `${r.step}@${r.person}:${r.level}`), ['irit@irit:quiet']);
   assert.deepEqual([done[0].title, done[0].body], ['עילאי סיים את העבודה על גאנט', 'הרשתות, הגרפיקות, התזמון והגאנט נבדקו (13 סעיפים).']);
-  // Not done by the deadline: the ladder of every late item (he rings; Ofir and Lior get the note).
+  // Not done by the deadline: the ladder of every late item (he rings; no note to Ofir and Lior since 5.11.2026).
   const lw = world();
   const { c: lc } = publishing(lw);
   mark(lw, lc, 'p29.sent', IL(2026, 10, 26, 11, 20));
   const late = walk(lw, IL(2026, 10, 27, 18), IL(2026, 10, 28, 9, 20)).filter((r) => ['lateOwn', 'late'].includes(r.rule) && /29ב/.test(r.title));
-  assert.deepEqual(late.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['28.10 09:15 late.lior@lior', '28.10 09:15 late.ofir@ofir', '28.10 09:15 lateOwn.own@ilai']);
+  assert.deepEqual(late.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['28.10 09:15 lateOwn.own@ilai']);
 });
 
 test('7. existing clients: the final check is never late for a client that started before; history that was brought in, and a Gantt sent before version 10, are never asked', () => {
@@ -779,8 +779,8 @@ test('12. sending the Gantt (29): Irit\'s 30 office minutes start when Ilai mark
   assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 26, 17, 55)).filter((k) => k.startsWith('p29.')), ['p29.sent']);
   // Not sent by then: she holds it, and the usual ladder rings her (15 office minutes past the deadline).
   const rows = walk(w, IL(2026, 10, 27, 9, 0), IL(2026, 10, 27, 9, 40)).filter((r) => ['lateOwn', 'late'].includes(r.rule) && /29 · /.test(r.title));
-  // (Ilai waits for it: his final check, 29ב, opens when she sends. He is told once whose work holds his card.)
-  assert.deepEqual(rows.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['27.10 09:35 late.lior@lior', '27.10 09:35 late.ofir@ofir', '27.10 09:35 lateOwn.own@irit', '27.10 09:35 lateOwn.wait@ilai']);
+  // (Ilai waits for it: his final check, 29ב, opens when she sends. Since 5.11.2026 he is not told, nor Ofir and Lior.)
+  assert.deepEqual(rows.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`).sort(), ['27.10 09:35 lateOwn.own@irit']);
   assert.deepEqual(lateAt(w, IL(2026, 10, 27, 9, 40)).find((x) => x.procId === 'p29').holders, ['irit']);
   // Filled early: a client that started before version 10 keeps the later of the two (the two hours it had).
   const old = world();

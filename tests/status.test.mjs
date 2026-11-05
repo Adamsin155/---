@@ -189,7 +189,7 @@ test('a fix request rings whoever fixes and Irit, once; the ordinary task rule l
   // The due day passes (Tuesday): Wednesday 08:30, Lior's list; at 09:15 Ilai rings "באיחור" (the ladder of every late item).
   const late = computeReminders({ ...w, now: IL(2026, 10, 14, 9, 15), log: got.map((r) => ({ key: r.key })) });
   assert.deepEqual(of(late, 'clientFix'), ['lior@lior:digest']);
-  assert.deepEqual(late.filter((r) => r.rule === 'lateOwn' && r.x?.kind !== 'proc' && /תיקון לבקשת הלקוח/.test(r.title)).map((r) => `${r.step}@${r.person}:${r.level}`), ['own@ilai:ring', 'wait@irit:quiet']);
+  assert.deepEqual(late.filter((r) => r.rule === 'lateOwn' && r.x?.kind !== 'proc' && /תיקון לבקשת הלקוח/.test(r.title)).map((r) => `${r.step}@${r.person}:${r.level}`), ['own@ilai:ring']); // no "מתעכב אצל" to Irit since 5.11.2026
   // Done: nothing more.
   w.tasks[0].done_at = IL(2026, 10, 13, 15).toISOString();
   assert.deepEqual(of(computeReminders({ ...w, now: IL(2026, 10, 14, 8, 31) }), 'clientFix'), []);

@@ -6,7 +6,7 @@
 // lateness quietly; a client that started before version 7 is never late on it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeReminders, planDelivery } from '../app/reminder-engine.js';
+import { computeReminders, planDelivery, candidates, buildEnv } from '../app/reminder-engine.js';
 import { LATE_RUNG, LATE_WATCHERS, lateRungOf } from '../app/reminder-rules.js';
 import { clocksFor } from '../app/clocks.js';
 import { PROCESSES, STATIONS, PROTOCOL_VERSION, WORK_HOURS } from '../app/protocol.js';
@@ -37,6 +37,8 @@ const mark = (w, c, key, at, note = null) => { (w.checks[c.id] ||= {})[key] = { 
 const marks = (w, c, keys, at, note = null) => keys.forEach((k) => mark(w, c, k, at, note));
 const itemsOf = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => i.key);
 const due = (w, now, log = []) => computeReminders({ ...w, now, log });
+// What only Lior's "החלטות" reads (the rule `late` since 5.11.2026, docs/ops.md, section 100): never sent.
+const onScreen = (w, now) => candidates(buildEnv({ ...w, now })).filter((r) => r.screen);
 const of = (list, rule, person = null) => list.filter((r) => r.rule === rule && (!person || r.person === person));
 const P8B = (r) => r.key.includes(':p08b@');
 // A client in the characterization station: everything up to it is imported history,
@@ -142,9 +144,10 @@ test('the reminders: a quiet note to Ofir when it starts, a ring when 30 office 
   const full = Array.from({ length: 12 }, (_, n) => ({ key: `x${n}`, person: 'ofir', level: 'ring', channel: 'push', status: 'sent', exempt: null, sent_at: IL(2026, 10, 5, 10).toISOString() }));
   assert.deepEqual(planDelivery({ reminders: ring, now: IL(2026, 10, 5, 13, 30), log: full }).map((r) => [r.channel, r.status]), [['push', 'sent']]);
   assert.equal(templateFor({ rule: 'highlightsUpload', key: ring[0].key, person: 'ofir' }), 'late');
-  // The general lateness rule, after its 15-minute grace: Lior, quietly. Ofir already rang for this deadline.
-  assert.equal(due(w, IL(2026, 10, 5, 13, 44)).filter((r) => r.rule === 'late' && P8B(r)).length, 0);
-  const late = due(w, IL(2026, 10, 5, 13, 46)).filter((r) => r.rule === 'late' && P8B(r));
+  // The general lateness rule, after its 15-minute grace: on Lior's screen only, sent to nobody (since 5.11.2026).
+  assert.equal(onScreen(w, IL(2026, 10, 5, 13, 44)).filter((r) => r.rule === 'late' && P8B(r)).length, 0);
+  assert.equal(due(w, IL(2026, 10, 5, 13, 46)).filter((r) => r.rule === 'late').length, 0);
+  const late = onScreen(w, IL(2026, 10, 5, 13, 46)).filter((r) => r.rule === 'late' && P8B(r));
   assert.deepEqual(late.map((r) => [r.person, r.level]), [['lior', 'quiet']]);
   assert.match(late[0].title, /^באיחור: .*פיצה רון.* · 8ב · העלאת ה־Highlights לרשתות · אופיר$/);
   assert.deepEqual(Object.keys(LATE_RUNG), ['p08b']);
@@ -159,12 +162,13 @@ test('the reminders: a quiet note to Ofir when it starts, a ring when 30 office 
     assert.equal(new Set(minutes).size, minutes.length, JSON.stringify(mine.map((r) => r.key)));
     assert.deepEqual(mine.map((r) => r.step).sort(), ['due', 'now']);
   }
-  // Every other late process still reaches both watchers (process 8 itself, when late).
+  // Every other late process is on Lior's screen (process 8 itself, when late); since 5.11.2026 nobody is sent a note.
   const w2 = world();
   const c2 = inChar(w2);
   mark(w2, c2, 'p04.ended', IL(2026, 10, 5, 11), '{}');
-  const late8 = due(w2, IL(2026, 10, 5, 13, 20)).filter((r) => r.rule === 'late' && r.key.includes(':p08@'));
-  assert.deepEqual(late8.map((r) => r.person).sort(), ['lior', 'ofir']);
+  const late8 = onScreen(w2, IL(2026, 10, 5, 13, 20)).filter((r) => r.rule === 'late' && r.key.includes(':p08@'));
+  assert.ok(!due(w2, IL(2026, 10, 5, 13, 20)).some((r) => r.rule === 'late'));
+  assert.deepEqual(late8.map((r) => r.person).sort(), ['lior']);
   // Marked in time: nothing more.
   mark(w, c, 'p08b.posted', IL(2026, 10, 5, 13, 20));
   const after = due(w, IL(2026, 10, 5, 13, 46), start);

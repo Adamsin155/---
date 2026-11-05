@@ -19,7 +19,7 @@ import {
 import { clientState, CHAR_ENDED, resolveTime, applicableProcesses, openItemsFor } from '../app/protocol-logic.js';
 import { clocksFor } from '../app/clocks.js';
 import { PROCESSES } from '../app/protocol.js';
-import { computeReminders, buildEnv } from '../app/reminder-engine.js';
+import { computeReminders, buildEnv, candidates } from '../app/reminder-engine.js';
 import { qaClock } from '../app/reminder-rules.js';
 import { importKeys } from '../app/client-open.js';
 import { suggestFor } from '../app/messages-logic.js';
@@ -163,9 +163,10 @@ test('after "האפיון הסתיים" process 4 has no clock: no deadline, no 
   assert.equal(clocksFor('lior', [c], { [c.id]: before }, { now: IL(2026, 10, 6, 11, 6) }).filter((k) => k.proc?.id === 'p04').length, 1);
   // Undoing the mark ("סימנתי בטעות") brings the two hours back.
   assert.equal(p4(IL(2026, 10, 6, 12, 30), { ...checks, [CHAR_ENDED]: { ...checks[CHAR_ENDED], state: 'na' } }).status, 'overdue');
-  // Without the tap, a late process 4 is still reported the usual way (3.10.2026: Ofir and Lior, quietly).
+  // Without the tap, a late process 4 is still reported the usual way (since 5.11.2026 on Lior's screen only, sent to nobody).
   const w3 = world(c, imported('char'));
-  for (const who of ['ofir', 'lior']) assert.ok(pick(due(w3, IL(2026, 10, 6, 12, 16)), 'late', who).some((r) => r.key.includes(':p04@') && r.level === 'quiet'), who);
+  assert.ok(pick(candidates(buildEnv({ ...w3, now: IL(2026, 10, 6, 12, 16) })).filter((r) => r.screen), 'late', 'lior').some((r) => r.key.includes(':p04@')));
+  assert.ok(!due(w3, IL(2026, 10, 6, 12, 16)).some((r) => r.rule === 'late'));
 });
 
 test('the complete form checks process 4\'s items and closes Irit\'s follow-up by itself', () => {
