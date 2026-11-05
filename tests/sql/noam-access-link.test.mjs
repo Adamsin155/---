@@ -29,7 +29,7 @@ before(async () => {
 const q = (who, sql, params = []) => as(db, users[who], async (tx) => (await tx.query(sql, params)).rows);
 
 test('the file: the newest, only replaces, runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261126100000_lior_four.sql', '20261128100000_managers_all.sql', '20261129100000_influencer_choice.sql']); // Lior's four things (3.11.2026)
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261126100000_lior_four.sql', '20261128100000_managers_all.sql', '20261129100000_influencer_choice.sql', '20261130100000_manual_contracts.sql']); // Lior's four things (3.11.2026)
   assert.doesNotMatch(SQL, /\b(drop|delete|truncate)\b/i);
   await db.exec(migrationSql(FILE));
   await db.exec(migrationSql(FILE));

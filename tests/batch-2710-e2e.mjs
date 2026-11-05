@@ -19,6 +19,8 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { withClientColumns } from './fake-clients.mjs';
 import { uploadKinds, isManager, galleryMessage, KINDS, GALLERY_KINDS } from '../app/files-logic.js';
+import { validateReadResult, manualAmounts } from '../app/contract-read-logic.js';
+import { isContractFile } from '../app/contract-file.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:5515/';
 const OUT = process.argv[2] || null;
@@ -51,10 +53,16 @@ const D = {
   links: {}, deliverables: { videos: 20 }, rounds: [], verified_at: null, verified_by: null, closed_reason: null,
 };
 const check = (key, at = '2026-10-13T09:00:00+03:00') => ({ client_id: D.id, item_key: key, state: 'done', note: null, by_email: 'ilai@astrateg.test', at });
+// What the AI "reads" from a contract (the shape of the model's strict answer, app/contract-read-logic.js READ_SCHEMA).
+const READ_ANSWER = { business: 'מספרת אבי בע״מ', company_id: '515151515', contact_name: 'אבי כהן', package_id: 'social-choice', monthly_net: 3900, term_months: 12, signed_on: '2026-10-12', notes: ['החתימה בעמוד האחרון קשה לקריאה'] };
+const reads = [];
+// public.sees_quote_money(): the owners (staff with no person), Irit, Ofir and Lior.
+const seesMoney = (u) => !!u && (staff.find((r) => r.email === u.email)?.person === null || ['irit', 'ofir', 'lior'].includes(personOf(u)));
 const db = {
   staff,
   clients: [D],
   protocol_checks: [check('p04.ended'), check('p07.sent')],
+  manual_contracts: [],
   client_tasks: [], protocol_log: [], client_access: [], client_access_log: [], client_status_notes: [], office_reviews: [], quotes: [],
   client_messages: [], message_templates: [], client_questions: [], client_date_changes: [], reminder_log: [], push_subscriptions: [],
   characterizations: [], content_briefs: [], client_status_links: [], client_status_views: [], client_approvals: [], client_surveys: [], client_consents: [],
@@ -171,6 +179,17 @@ async function fakeSupabase(route) {
 
   // ── The edge function ──
   if (p === '/functions/v1/client-media') return json(200, media(body));
+  // "קריאת חוזה חתום" (5.11.2026): the server's own shape; the answer checked by the real validateReadResult.
+  if (p === '/functions/v1/contract-ai' && body?.mode === 'read') {
+    if (!me) return json(401, { error: 'not signed in' });
+    if (!isOffice(me)) return json(403, { error: 'not staff: contracts are prepared by the office' });
+    const file = db.client_files.find((x) => x.id === body.fileId);
+    if (!file || !isContractFile(file)) return json(404, { error: 'file_not_found' });
+    if (!isManager(personOf(me)) || !visibleClient(me, file.client_id)) return json(403, { error: 'not_allowed' });
+    reads.push({ fileId: file.id, by: me.email });
+    const { result, dropped } = validateReadResult(READ_ANSWER, serverNow());
+    return json(200, { mode: 'read', runId: randomUUID(), clientId: file.client_id, fileId: file.id, result, dropped, model: 'claude-sonnet-5-5' });
+  }
 
   // ── Storage ──
   const refuse = () => json(400, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' });
@@ -271,7 +290,7 @@ async function fakeSupabase(route) {
   if (!me) return json(401, { message: 'permission denied' });
   const single = (headers.accept || '').includes('vnd.pgrst.object');
   const reply = (rows) => (single ? (rows.length ? json(200, rows[0]) : json(406, { code: 'PGRST116', message: 'no rows', details: 'The result contains 0 rows' })) : json(200, rows));
-  const seen = (rows) => (t === 'clients' ? rows.filter((r) => visibleClient(me, r.id))
+  const seen = (rows) => (t === 'manual_contracts' ? (seesMoney(me) ? rows : []) : t === 'clients' ? rows.filter((r) => visibleClient(me, r.id))
     : CLIENT_TABLES.has(t) ? rows.filter((r) => visibleClient(me, r.client_id)) : OFFICE_TABLES.has(t) && !isOffice(me) ? [] : rows);
   if (req.method() === 'GET') {
     let rows = seen(applyFilters(db[t], url.searchParams));
@@ -331,6 +350,29 @@ async function fakeSupabase(route) {
       db.protocol_checks = db.protocol_checks.filter((x) => !(x.client_id === r.client_id && x.item_key === r.item_key));
       db.protocol_checks.push({ ...r, note: r.note ?? null, by_email: me.email, at: now });
     }
+    return reply(rows);
+  }
+  // public.manual_contracts (20261130100000_manual_contracts.sql): the money viewers read and write,
+  // only for a signed contract file of the same client; who and when from the session.
+  if (t === 'manual_contracts' && req.method() === 'POST') {
+    const r = Array.isArray(body) ? body[0] : body;
+    const file = db.client_files.find((x) => x.id === r.file_id && x.client_id === r.client_id);
+    if (!seesMoney(me) || !file || !isContractFile(file) || !isManager(personOf(me))) return rls();
+    if (db.manual_contracts.some((x) => x.file_id === r.file_id)) return json(409, { code: '23505', message: 'duplicate key value violates unique constraint "manual_contracts_file_id_key"' });
+    const row = { ...r, id: randomUUID(), created_by_email: me.email, created_at: now, updated_by_email: null, updated_at: null };
+    db.manual_contracts.push(row);
+    return reply([row]);
+  }
+  if (t === 'manual_contracts' && req.method() === 'PATCH') {
+    if (!seesMoney(me)) return reply([]);
+    const rows = applyFilters(db.manual_contracts, url.searchParams);
+    for (const r of rows) Object.assign(r, body, { client_id: r.client_id, file_id: r.file_id, updated_by_email: me.email, updated_at: now });
+    return reply(rows);
+  }
+  if (t === 'clients' && req.method() === 'PATCH') {
+    if (!isOffice(me)) return reply([]);
+    const rows = seen(applyFilters(db.clients, url.searchParams));
+    for (const r of rows) Object.assign(r, body);
     return reply(rows);
   }
   if (req.method() === 'POST' && t === 'characterizations') {
@@ -495,10 +537,44 @@ await step('Ofir opens a client by hand on the phone and attaches the signed con
   assert.ok(objects.has(files[0].storage_path), 'the object is in the bucket');
   // The signed contract covers process 1 (5.11.2026): the client does not stay at "הכנת חוזה".
   assert.deepEqual(db.protocol_checks.filter((x) => x.client_id === avi.id).map((x) => [x.item_key, x.note]).sort(), [['p01.prepared', 'חוזה חתום שהועלה ידנית'], ['p01.sent', 'חוזה חתום שהועלה ידנית'], ['p01.signed', 'חוזה חתום שהועלה ידנית']]);
-  // The card: "החוזה החתום" under "החוזה והחבילה", with the file.
+  // The card reads the contract at once and shows what was found (5.11.2026): nothing kept yet.
+  await p.waitForSelector('#dlg-cread[open]');
+  await p.waitForFunction(() => document.getElementById('cr-monthly')?.value === '3900');
+  assert.deepEqual(reads.map((r) => r.fileId), [files[0].id]);
+  assert.equal(await p.inputValue('#cr-business'), 'מספרת אבי בע״מ');
+  assert.equal(await p.inputValue('#cr-company'), '515151515');
+  assert.equal(await p.inputValue('#cr-package'), 'social-choice');
+  assert.equal(await p.inputValue('#cr-term'), '12');
+  assert.equal(await p.inputValue('#cr-signed'), '2026-10-12');
+  assert.match(await p.innerText('#cr-notes'), /החתימה בעמוד האחרון/);
+  assert.equal(db.manual_contracts.length, 0, 'nothing kept before the confirmation');
+  assert.deepEqual(await unlabeled(p, '#dlg-cread'), []);
+  assert.ok(await noHScroll(p));
+  await shot(p, 'b03a-read-review-390', { fullPage: false });
+  // A wrong company id is said on its field; then a correction typed key by key, and the price.
+  await clearKeys(p, '#cr-company');
+  await typeKeys(p, '#cr-company', '12345');
+  await p.click('#cr-submit');
+  await p.waitForSelector('#cr-company-err:not([hidden])');
+  assert.equal(db.manual_contracts.length, 0);
+  await clearKeys(p, '#cr-company');
+  await typeKeys(p, '#cr-company', '515151516', 2);
+  await clearKeys(p, '#cr-monthly');
+  await typeKeys(p, '#cr-monthly', '3500');
+  await p.click('#cr-submit');
+  await toastHas(p, 'החוזה נשמר');
+  await p.waitForSelector('#dlg-cread', { state: 'hidden' });
+  assert.equal(db.manual_contracts.length, 1);
+  const mc = db.manual_contracts[0];
+  assert.deepEqual([mc.client_id, mc.file_id, mc.company_id, mc.monthly_net_agorot, mc.term_months, mc.signed_on, mc.package_id, mc.read_by_ai, mc.created_by_email],
+    [avi.id, files[0].id, '515151516', 350000, 12, '2026-10-12', 'social-choice', true, 'ofir@astrateg.test']);
+  // The client: what was missing is filled; the business typed on the form stays.
+  assert.deepEqual([avi.business, avi.company_id, avi.contract_end, avi.package_name], ['מספרת אבי', '515151516', '2027-10-12', 'Social all in one · משפיען לבחירה מרשימת המשפיענים של אסטרטג']);
+  // The card: "החוזה החתום" under "החוזה והחבילה", with the file and what was read.
   await p.waitForSelector('#cd-h');
   await p.waitForSelector('#contract-docs .cd-row');
   assert.match(await p.innerText('#contract-docs'), /קובץ חוזה חתום[^]*\.pdf[^]*הועלה 13\.10\.2026/);
+  assert.match(await p.innerText('#contract-docs .cd-read'), /משפיען לבחירה מרשימת המשפיענים של אסטרטג · 3,500 ₪ לחודש \+ מע״מ · 12 חודשים · נחתם 12\.10\.2026/);
   assert.equal(await p.isVisible('#cd-add'), true);
   assert.ok(await noHScroll(p));
   const small = await p.locator('#contract-docs button').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).length);
@@ -556,7 +632,15 @@ await step('Irit adds a contract\'s picture from the card; it is in the client\'
   assert.equal(await p.innerText('#cd-none'), 'לא צורף חוזה חתום ללקוח.');
   await p.setInputFiles('#cd-file', { name: 'scan.jpg', mimeType: 'image/jpeg', buffer: png(3000) });
   await toastHas(p, 'קובץ החוזה נשמר');
+  // It is read at once; "לא עכשיו" keeps nothing, and "קריאת החוזה" stays on the file.
+  await p.waitForSelector('#dlg-cread[open]');
+  await p.waitForFunction(() => document.getElementById('cr-monthly')?.value === '3900');
+  await shot(p, 'b04a-read-review-irit', { fullPage: false });
+  await p.click('#dlg-cread [data-close].btn');
+  await p.waitForSelector('#dlg-cread', { state: 'hidden' });
+  assert.equal(db.manual_contracts.filter((m) => m.client_id === D.id).length, 0);
   await p.waitForSelector('#contract-docs .cd-row');
+  await p.waitForSelector('#contract-docs .cd-read-go');
   assert.equal(contractRows(D.id).length, 1);
   assert.equal(contractRows(D.id)[0].uploaded_by, 'irit@astrateg.test');
   // And from the card too, what of process 1 was open is marked (5.11.2026).
@@ -642,6 +726,54 @@ async function iphone(wk, who, path) {
   if (OUT) await p.waitForTimeout(800);
   return { ctx, p };
 }
+await step('"הצעות שנשלחו": the manual contract as "נחתם · חוזה ידני", with its amounts, on desktop and phone', async () => {
+  for (const [viewport, name] of [[{ width: 1280, height: 900 }, 'b12-quotes-manual-1280'], [PHONE390, 'b13-quotes-manual-390']]) {
+    const ctx = await newContext(viewport);
+    const p = await newPage(ctx);
+    // quotes.html has its own sign-in (no #app): the list opens after it.
+    await p.goto(`${BASE}quotes.html`);
+    await p.fill('#lg-email', 'owner@astrateg.test');
+    await p.fill('#lg-pass', 'correct-horse');
+    await p.click('#lg-submit');
+    await p.waitForSelector('#list-block:not([hidden])');
+    await p.waitForSelector('#rows tr.is-manual',);
+    if (OUT) await p.waitForTimeout(800);
+    const row = await p.innerText('#rows tr.is-manual');
+    assert.match(row, /ידני/);
+    assert.match(row, /מספרת אבי בע״מ/);
+    assert.match(row, /נחתם · חוזה ידני/);
+    const { monthly_gross_agorot: m, term_gross_agorot: tg } = manualAmounts(db.manual_contracts[0]);
+    assert.deepEqual([m, tg], [413000, 4956000]);
+    assert.match(row, /49,560/);
+    assert.match(row, /4,130/);
+    assert.ok(await noHScroll(p));
+    await shot(p, name);
+    await ctx.close();
+  }
+});
+
+await step('WebKit (iPhone 13): the review of a read contract takes typing and deleting key by key', async () => {
+  const wk = await webkit.launch();
+  const { ctx, p } = await iphone(wk, 'irit@astrateg.test', `client.html?id=${D.id}`);
+  await p.waitForSelector('#contract-docs .cd-read-go');
+  await p.click('#contract-docs .cd-read-go');
+  await p.waitForSelector('#dlg-cread[open]');
+  await p.waitForFunction(() => document.getElementById('cr-monthly')?.value === '3900');
+  await clearKeys(p, '#cr-contact');
+  await typeKeys(p, '#cr-contact', 'דנה לוי', 2);
+  await clearKeys(p, '#cr-term');
+  await typeKeys(p, '#cr-term', '24');
+  assert.equal(await p.inputValue('#cr-contact'), 'דנה לוי');
+  assert.ok(await noHScroll(p));
+  await shot(p, 'b14-webkit-read-review', { fullPage: false });
+  await p.click('#cr-submit');
+  await toastHas(p, 'החוזה נשמר');
+  const mc = db.manual_contracts.find((m) => m.client_id === D.id);
+  assert.deepEqual([mc.contact_name, mc.term_months, mc.created_by_email], ['דנה לוי', 24, 'irit@astrateg.test']);
+  await ctx.close();
+  await wk.close();
+});
+
 await step('WebKit (iPhone 13): "לקוח חדש", the client search and the form alone take typing and deleting key by key', async () => {
   const wk = await webkit.launch();
   // "לקוח חדש": the name, the business (all of it taken back and typed again), the contract's file.
