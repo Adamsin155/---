@@ -12,7 +12,7 @@
 //   8    the station-change message (app/messages-logic.js stationChange): Irit, quietly.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeReminders, buildEnv, summaryOf, planDigests, planDelivery } from '../app/reminder-engine.js';
+import { computeReminders, candidates, buildEnv, summaryOf, planDigests, planDelivery } from '../app/reminder-engine.js';
 import { headline, pushLines, EMPTY_DAY } from '../app/day-summary.js';
 import { REMINDER_PEOPLE, LATE_GRACE_MINUTES } from '../app/reminder-rules.js';
 import { clocksFor, ANSWER_CLOCKS } from '../app/clocks.js';
@@ -52,6 +52,8 @@ const marks = (w, c, keys, at, note = null) => keys.forEach((k) => mark(w, c, k,
 const itemsOf = (id, pre = '') => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional).map((i) => pre + i.key);
 const importTo = (w, c, station, at = IL(2026, 9, 1, 9)) => marks(w, c, importKeys(station), at, IMPORT_NOTE);
 const due = (w, now, log = []) => computeReminders({ ...w, now, log });
+// What only Lior's "החלטות" reads (the rule `late` since 5.11.2026, docs/ops.md, section 100): never sent.
+const onScreen = (w, now) => candidates(buildEnv({ ...w, now })).filter((r) => r.screen);
 const pick = (list, rule, step, person = null) => list.filter((r) => r.rule === rule && r.step === step && (!person || r.person === person));
 const one = (list, rule, step, person = null) => {
   const got = pick(list, rule, step, person);
@@ -310,10 +312,10 @@ test('graphics approved (the status page or Irit): Ilai rings at once with 30 of
   assert.equal(r.title, 'הגרפיקות של גרפיקה אושרו — להעלות לרשתות');
   assert.equal(r.exempt, 'clock');
   assert.match(r.body, /יעד היום 13:30/);
-  // Late at 13:30; Ofir and Lior hear 15 office minutes after that, not in the same minute.
-  assert.ok(!due(w, IL(2026, 10, 5, 13, 44)).some((x) => x.rule === 'late' && x.key.includes(':p07b@')));
-  const late = due(w, IL(2026, 10, 5, 13, 46));
-  for (const who of ['ofir', 'lior']) assert.equal(pick(late, 'late', who).find((x) => x.key.includes(':p07b@')).level, 'quiet', who);
+  // Late at 13:30; on Lior's screen 15 office minutes after that, not in the same minute; sent to nobody (5.11.2026).
+  assert.ok(!onScreen(w, IL(2026, 10, 5, 13, 44)).some((x) => x.rule === 'late' && x.key.includes(':p07b@')));
+  assert.ok(pick(onScreen(w, IL(2026, 10, 5, 13, 46)), 'late', 'lior').some((x) => x.key.includes(':p07b@')));
+  assert.ok(!due(w, IL(2026, 10, 5, 13, 46)).some((x) => x.rule === 'late'));
   mark(w, c, 'p07b.posted', IL(2026, 10, 5, 13, 20));
   none(due(w, IL(2026, 10, 5, 13, 31)), 'graphicsUpload');
   // The rest of the graphics: Irit marks "אושר" in the app (p23.approved).
@@ -338,7 +340,7 @@ test('the client moved to the next station: the ready text for Irit (quiet) and 
   assert.equal(m.text, 'היי, אנחנו כרגע לאחר שלב הצטרפות, ומתקדמים לשלב אפיון');
   assert.equal(stationChangeText('אפיון', 'תוכן ואישור'), 'היי, אנחנו כרגע לאחר שלב אפיון, ומתקדמים לשלב תוכן ואישור');
   const r = one(due(w, now), 'stationChange', 'irit', 'irit');
-  assert.equal(r.level, 'quiet');
+  assert.equal(r.level, 'digest'); // her morning list, not a push per client (5.11.2026)
   assert.equal(r.title, 'דנה עבר/ה לשלב אפיון');
   assert.equal(r.body, 'לשלוח בקבוצה: היי, אנחנו כרגע לאחר שלב הצטרפות, ומתקדמים לשלב אפיון');
   assert.equal(r.url, 'messages.html');
@@ -380,10 +382,11 @@ test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior 
   // Irit's "עכשיו" clock: 14 minutes left a minute after the approval, not "נגמר לפני 1 דק׳".
   const clock = clocksFor('irit', [c], w.checks, { now: IL(2026, 10, 20, 10, 1) }).find((k) => k.proc.id === 'p26');
   assert.deepEqual([clock.state, Math.round(clock.remaining / 6e4), clock.office], ['running', 14, true]);
-  // The quiet note to Ofir and Lior: not when the handoff lands, not when the allowance ends, only 15 office minutes later.
-  const lateOf = (now) => due(w, now).filter((r) => r.rule === 'late' && r.key.includes(':p26@'));
+  // On Lior's screen: not when the handoff lands, not when the allowance ends, only 15 office minutes later (sent to nobody since 5.11.2026).
+  const lateOf = (now) => onScreen(w, now).filter((r) => r.rule === 'late' && r.key.includes(':p26@'));
+  assert.ok(!due(w, IL(2026, 10, 20, 10, 30)).some((r) => r.rule === 'late'));
   for (const m of [0, 1, 14, 16, 29]) assert.deepEqual(lateOf(IL(2026, 10, 20, 10, m)), [], `10:${m}`);
-  assert.deepEqual(lateOf(IL(2026, 10, 20, 10, 30)).map((r) => [r.person, r.level]).sort(), [['lior', 'quiet'], ['ofir', 'quiet']]);
+  assert.deepEqual(lateOf(IL(2026, 10, 20, 10, 30)).map((r) => [r.person, r.level]).sort(), [['lior', 'quiet']]);
   // Sent in time: never a note.
   mark(w, c, 'p26.sent', IL(2026, 10, 20, 10, 12));
   assert.deepEqual(lateOf(IL(2026, 10, 20, 11)), []);

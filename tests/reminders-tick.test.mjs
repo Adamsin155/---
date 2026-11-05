@@ -370,7 +370,8 @@ test('a tick no longer assigns an editor when the shoot day was closed: nothing 
   assert.deepEqual([ring.level, ring.title, ring.url, ring.status], ['ring', 'לקוח אחד מחכה לשיוך עורך', 'qa.html#assign-h', 'sent']);
   const t3 = IL(2026, 10, 19, 12, 1);
   await runTick({ db: db.at(t3), push, now: t3 });
-  assert.equal(db.log.filter((r) => r.rule === 'assign12' && r.key.includes('2026-10-19')).length, 1);
+  // One for Ofir and one for Irit (5.11.2026: she assigns too), each once.
+  assert.deepEqual(db.log.filter((r) => r.rule === 'assign12' && r.key.includes('2026-10-19')).map((r) => r.person).sort(), ['irit', 'ofir']);
   assert.deepEqual(writes, []);
 });
 
@@ -427,7 +428,7 @@ test('a burst in a tick: six rings for Irit in one minute are one push that list
   assert.deepEqual(sent.map((s) => s.payload.title), ['6 הודעות חדשות', '6 הודעות חדשות']);
 });
 
-test('lateness notes in a tick: three late items are one push to Ofir and one to Lior, each item its own row; overlapping ticks send a batch once', async () => {
+test('lateness in a tick (since 5.11.2026): no note to the managers; Ofir own late item is one batch, sent once by overlapping ticks', async () => {
   // The characterization ended at 12:00: Ilai's graphics (7), Ofir's Highlights (8) and
   // Lior's part (10) are due two office hours later, and nobody did them.
   const c = { ...deal(IL(2026, 9, 1, 10), 'מאחר'), char_at: IL(2026, 10, 6, 10).toISOString() };
@@ -440,24 +441,14 @@ test('lateness notes in a tick: three late items are one push to Ofir and one to
     const now = new Date(t);
     await Promise.all([runTick({ db: db.at(now), push, now }), runTick({ db: db.at(now), push, now })]);
   }
-  const lateRows = (who) => db.log.filter((r) => r.rule === 'late' && r.person === who);
-  const batches = (who) => db.log.filter((r) => r.key.startsWith(`digest:late:${who}:`));
-  for (const who of ['ofir', 'lior']) {
-    // Each late item is its own row of the log (and of "התראות"), sent in a batch.
-    assert.ok(lateRows(who).length >= 3, `${who}: ${lateRows(who).length}`);
-    assert.ok(lateRows(who).every((r) => r.level === 'quiet' && r.status === 'sent' && r.channel === 'digest' && r.reason === 'batch' && batches(who).some((b) => b.key === r.digest_key)), who);
-    // One push for all of them, not one each; no note was pushed by itself.
-    const pushes = sent.filter((s) => s.endpoint === `https://push.test/${who}` && s.payload.tag === `digest:late:${who}`);
-    assert.equal(pushes.length, batches(who).length);
-    assert.ok(pushes.length <= 2 && pushes.length < lateRows(who).length, `${who}: ${pushes.length} pushes for ${lateRows(who).length} notes`);
-    assert.ok(pushes.every((p) => /^\d+ איחורים חדשים$/.test(p.payload.title) && p.payload.renotify === true), JSON.stringify(pushes.map((p) => p.payload.title)));
-    assert.ok(pushes.some((p) => /מאחר · 7 · /.test(p.payload.body)), JSON.stringify(pushes.map((p) => p.payload.body)));
-    // The batches are at least half an hour apart.
-    const times = batches(who).map((b) => +new Date(b.created_at));
-    assert.ok(times.every((t, i) => i === 0 || t - times[i - 1] >= 30 * 6e4), who);
-    assert.equal(sent.filter((s) => s.endpoint === `https://push.test/${who}` && s.payload.title.startsWith('באיחור:')).length, 0);
-    // None was lost: every note belongs to exactly one batch that went out.
-    assert.ok(batches(who).every((b) => b.status === 'sent' && b.channel === 'push'));
-    assert.equal(batches(who).reduce((sum, b) => sum + lateRows(who).filter((r) => r.digest_key === b.key).length, 0), lateRows(who).length);
-  }
+  // Since 5.11.2026 (docs/ops.md, section 100) nobody gets a note of someone else's lateness:
+  // no row of the rule `late` at all. Ofir's own Highlights (8) rings him as everyone's own
+  // lateness does (`lateOwn.own`), in one batch; Lior hears nothing.
+  assert.deepEqual(db.log.filter((r) => r.rule === 'late'), []);
+  const own = db.log.filter((r) => r.rule === 'lateOwn' && r.person === 'ofir');
+  assert.ok(own.length >= 1 && own.every((r) => r.status === 'sent' && r.channel === 'digest' && r.reason === 'batch'), JSON.stringify(own.map((r) => r.key)));
+  const batches = db.log.filter((r) => r.key.startsWith('digest:late:ofir:'));
+  assert.equal(batches.length, 1);
+  assert.equal(sent.filter((s) => s.endpoint === 'https://push.test/ofir' && s.payload.tag === 'digest:late:ofir').length, 1);
+  assert.deepEqual(sent.filter((s) => s.endpoint === 'https://push.test/lior' && /איחור/.test(`${s.payload.title} ${s.payload.body}`)), []);
 });

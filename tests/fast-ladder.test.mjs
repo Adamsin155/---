@@ -197,7 +197,7 @@ test('the first 9 graphics, approved in time: one ring to Ofir, no lateness ring
   assert.equal(hhmm(proc(w, c, 'p07', IL(2026, 10, 6, 10, 8)).dueAt), '6.10 12:07');
 });
 
-test('the first 9 graphics, ignored: a ring at T0, lateness at 10 minutes, Lior at 15, then Ofir every 10 minutes until he approves; nobody else, and no other ladder', () => {
+test('the first 9 graphics, ignored: a ring at T0, lateness at 10 minutes, Lior at 15, then Ofir every 10 minutes, 3 times at most; nobody else, and no other ladder', () => {
   const { w, c } = afterMeeting();
   mark(w, c, 'p07.made', IL(2026, 10, 6, 10, 0));
   const log = [];
@@ -210,7 +210,7 @@ test('the first 9 graphics, ignored: a ring at T0, lateness at 10 minutes, Lior 
     '6.10 10:25 again.1@ofir:ring',
     '6.10 10:35 again.2@ofir:ring',
     '6.10 10:45 again.3@ofir:ring',
-    '6.10 10:55 again.4@ofir:ring',
+    // No more than 3 repeats (5.11.2026, docs/ops.md, section 100: one reached 71 live).
   ]);
   assert.equal(rows[1].title, 'באיחור: לעבור על הגרפיקות של אלפא ולאשר — עוד 5 דקות');
   assert.equal(rows[1].body, '9 הגרפיקות הראשונות. היעד היה 10:10. אם זה לא נסגר עד 10:15, ליאור מקבל הודעה.');
@@ -223,12 +223,12 @@ test('the first 9 graphics, ignored: a ring at T0, lateness at 10 minutes, Lior 
   // Irit hears nothing of the check; neither the generic ladder nor the note of the rule `late` adds a word.
   assert.deepEqual(all.filter((r) => r.person === 'irit' && /גרפיקות/.test(r.title)), []);
   assert.deepEqual(all.filter((r) => /^late/.test(r.rule) && / 7 · /.test(`${r.title} ${r.body}`)), []);
-  // The next day: no 09:00 or 14:00 reminder about it, no "manager after a business day"; his ring goes on every 10 minutes.
+  // The next day: no 09:00 or 14:00 reminder about it, no "manager after a business day", and no
+  // more repeats (3 at most since 5.11.2026, docs/ops.md, section 100).
   // (Wednesday morning; the evening before is walked too, so the log is what the engine's would be.)
   walk(w, IL(2026, 10, 6, 11, 1), IL(2026, 10, 7, 8, 29), log);
   const next = walk(w, IL(2026, 10, 7, 8, 30), IL(2026, 10, 7, 14, 5), log).filter((r) => / 7 · /.test(`${r.title} ${r.body}`) || r.rule === 'fast');
-  assert.ok(next.every((r) => r.rule === 'fast' && r.person === 'ofir' && /^again\./.test(r.step)), JSON.stringify(next.filter((r) => r.rule !== 'fast').map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`)));
-  assert.deepEqual(next.slice(0, 3).map((r) => r.at), ['7.10 08:35', '7.10 08:45', '7.10 08:55']);
+  assert.deepEqual(next.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}`), []);
   // He approves: everything stops.
   marks(w, c, REVIEW_KEYS('p07'), IL(2026, 10, 7, 9, 12));
   assert.deepEqual(fastOf(due(w, IL(2026, 10, 7, 9, 25))), []);
