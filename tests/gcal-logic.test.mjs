@@ -68,7 +68,7 @@ test('times: UTC, TZID=Asia/Jerusalem across the clock change, floating, other z
     ['UID:f', 'DTSTART:20261105T140000', 'DURATION:PT45M', 'SUMMARY:צף'],
     ['UID:d', 'DTSTART;VALUE=DATE:20261106', 'DTEND;VALUE=DATE:20261108', 'SUMMARY:חופש'],
     ['UID:n', 'DTSTART;VALUE=DATE:20261110', 'SUMMARY:יום הולדת'],
-  ), { now: NOW });
+  ), { now: NOW, onlyClients: false });
   const by = Object.fromEntries(rows.map((r) => [r.uid, r]));
   assert.deepEqual([by.z.starts_at, by.z.ends_at, by.z.all_day], ['2026-11-05T08:00:00.000Z', '2026-11-05T09:00:00.000Z', false]);
   assert.deepEqual([by.j.starts_at, by.j.ends_at], ['2026-11-05T08:00:00.000Z', '2026-11-05T10:00:00.000Z']);
@@ -88,7 +88,7 @@ test('the window: 7 days back to 120 ahead; cancelled events and alarms are not 
     ['UID:far', 'DTSTART:20270301T080000Z', 'SUMMARY:רחוק'],
     ['UID:x', 'DTSTART:20261105T080000Z', 'STATUS:CANCELLED', 'SUMMARY:בוטל'],
     ['UID:al', 'DTSTART:20261105T080000Z', 'SUMMARY:עם תזכורת', 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:not the summary', 'TRIGGER:-PT10M', 'END:VALARM'],
-  ), { now: NOW });
+  ), { now: NOW, onlyClients: false });
   assert.deepEqual(rows.map((r) => r.uid), ['back', 'al']);
   assert.equal(rows[1].summary, 'עם תזכורת');
   assert.equal(stats.cancelled, 1);
@@ -102,7 +102,7 @@ test('recurrences: weekly at the same Israel hour across the clock change, daily
       'EXDATE;TZID=Asia/Jerusalem:20261027T090000'],
     ['UID:w', 'RECURRENCE-ID;TZID=Asia/Jerusalem:20261103T090000', 'DTSTART;TZID=Asia/Jerusalem:20261104T120000', 'DTEND;TZID=Asia/Jerusalem:20261104T123000', 'SUMMARY:ישיבת צוות (הוזזה)'],
     ['UID:dly', 'DTSTART:20261022T050000Z', 'RRULE:FREQ=DAILY;INTERVAL=2;COUNT=3', 'SUMMARY:כל יומיים'],
-  ), { now: NOW });
+  ), { now: NOW, onlyClients: false });
   const weekly = rows.filter((r) => r.uid.startsWith('w#')).map((r) => [r.uid, r.starts_at]);
   assert.deepEqual(weekly, [
     ['w#20261020T060000Z', '2026-10-20T06:00:00.000Z'],   // 09:00 summer time
@@ -116,7 +116,7 @@ test('recurrences: weekly at the same Israel hour across the clock change, daily
   const off = googleRows(cal(
     ['UID:w', 'DTSTART;TZID=Asia/Jerusalem:20261022T090000', 'RRULE:FREQ=WEEKLY;COUNT=2', 'SUMMARY:ש'],
     ['UID:w', 'RECURRENCE-ID;TZID=Asia/Jerusalem:20261029T090000', 'DTSTART;TZID=Asia/Jerusalem:20261029T090000', 'STATUS:CANCELLED', 'SUMMARY:ש'],
-  ), { now: NOW });
+  ), { now: NOW, onlyClients: false });
   assert.equal(off.rows.length, 1);
 });
 
@@ -127,7 +127,7 @@ test('recurrences: weekly BYDAY, whole-day yearly, and what is not walked keeps 
   const { rows, stats } = googleRows(cal(
     ['UID:y', 'DTSTART;VALUE=DATE:20101102', 'DTEND;VALUE=DATE:20101103', 'RRULE:FREQ=YEARLY', 'SUMMARY:יום הולדת לעירית'],
     ['UID:m', 'DTSTART:20261023T080000Z', 'RRULE:FREQ=MONTHLY;BYDAY=2MO', 'SUMMARY:חודשי מסובך'],
-  ), { now: NOW });
+  ), { now: NOW, onlyClients: false });
   assert.deepEqual(rows.filter((r) => r.uid.startsWith('y#')).map((r) => [r.uid, r.starts_at]), [['y#20261102', '2026-11-01T22:00:00.000Z']]);
   assert.deepEqual(rows.filter((r) => r.uid.startsWith('m#')).map((r) => r.starts_at), ['2026-10-23T08:00:00.000Z']);
   assert.equal(stats.unwalked, 1);
@@ -170,7 +170,7 @@ test('whose: the business or the contact in the title, with a Hebrew prefix; two
 test('the suggestion: a coming meeting or shoot day of a client that the system does not hold', () => {
   const row = (fields) => ({ uid: 'u', starts_at: '2026-11-05T08:00:00.000Z', all_day: false, client_id: 'c1', kind_guess: 'char', dismissed_at: null, ...fields });
   const c = (fields) => ({ id: 'c1', name: 'דנה לוי', business: 'קפה דנה', status: 'active', char_at: null, shoot_at: null, rounds: [], ...fields });
-  const s = suggestionOf(row(), c(), { now: NOW });
+  const s = suggestionOf(row(), c(), { now: NOW, onlyClients: false });
   assert.equal(s.kind, 'char');
   assert.equal(s.at.toISOString(), '2026-11-05T08:00:00.000Z');
   assert.equal(suggestionText(s, c()), 'לקבוע במערכת כפגישת אפיון של קפה דנה?');
@@ -194,4 +194,15 @@ test('the suggestion: a coming meeting or shoot day of a client that the system 
   assert.equal(suggestionOf(sh, c({ shoot_at: '2026-11-05T09:00:00+02:00' }), { now: NOW }), null);
   assert.equal(suggestionOf(sh, c({ shoot_at: '2026-10-10T09:00:00+03:00', rounds: [{ n: 2, shoot_at: '2026-11-05T12:00:00+02:00' }] }), { now: NOW }), null);
   assert.equal(suggestionOf(sh, c({ shoot_at: '2026-10-10T09:00:00+03:00' }), { now: NOW }), null);
+});
+
+test('only a meeting with one of our clients is kept; a private one never reaches the database (5.11.2026)', () => {
+  const { rows, stats } = googleRows(cal(
+    ['UID:c', 'DTSTART;TZID=Asia/Jerusalem:20261105T100000', 'SUMMARY:פגישת אפיון\, קפה דנה'],
+    ['UID:p', 'DTSTART;TZID=Asia/Jerusalem:20261105T120000', 'SUMMARY:רופא שיניים'],
+    ['UID:z', 'DTSTART;TZID=Asia/Jerusalem:20261105T150000', 'SUMMARY:זום'],
+  ), { clients: CLIENTS, now: NOW });
+  assert.deepEqual(rows.map((r) => r.uid), ['c']);
+  assert.ok(rows[0].client_id);
+  assert.equal(stats.private, 2);
 });

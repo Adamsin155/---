@@ -4369,3 +4369,7 @@ select email, checked_at, read_until from public.whatsapp_poll order by email;
 
 - **הבדיקות:** `tests/reminder-engine`, `late-ladder`, `reminders-tick`, `fast-ladder`, `owner-decisions`, `audit-gaps-v10`, `highlights-upload`, `intake`, `status`, `flow-fixes` ו־`reminder-delivery`. בכולן נוסף העוזר `onScreen` לשורות שרק המסך קורא.
 - **נכנס לתוקף** אחרי פריסת הפונקציה `reminders`. אין צורך ב־SQL.
+
+## 101. היומן של Google: נשמרות רק פגישות עם לקוח שלנו (בקשת הבעלים, 5.11.2026)
+
+"שיעתיק רק מה שרלוונטי למערכת שלנו". מעכשיו `googleRows` (`app/gcal-logic.js`) שומר רק פגישה שהכותרת או המקום שלה מתאימים ללקוח פעיל (`matchClient`). פגישה פרטית לא נכתבת למסד בכלל. פגישה שנשמרה לפני השינוי מסומנת "יצאה" (`gone_at`) בקריאה הבאה ומוסתרת. ההצעות, "לקבוע" ו"לא קשור" לא השתנו. בדיקה: `tests/gcal-logic.test.mjs`. הדלקה: פריסת הפונקציה `calendar` בלבד.

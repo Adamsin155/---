@@ -296,7 +296,8 @@ const clip = (s, n) => String(s || '').replace(/[\u0000-\u0008\u000b-\u001f\u007
 // The events of a feed in the window around `now`, as rows of
 // public.calendar_external_events: { uid, starts_at, ends_at, all_day, summary, location,
 // client_id, kind_guess }, with { stats }. `clients`: [{ id, name, business }].
-export function googleRows(text, { clients = [], now = new Date() } = {}) {
+// `onlyClients` (default): keep only the meetings with a client of ours; false keeps all (the parsing tests).
+export function googleRows(text, { clients = [], now = new Date(), onlyClients = true } = {}) {
   const { events } = parseIcs(text);
   const from = new Date(+now - WINDOW.back * DAY);
   const until = new Date(+now + WINDOW.ahead * DAY);
@@ -323,6 +324,9 @@ export function googleRows(text, { clients = [], now = new Date() } = {}) {
     const summary = clip(e.summary, 200);
     const location = clip(e.location, 200);
     const match = matchClient(summary, clients, location);
+    // Only a meeting with one of our clients is kept (the owner, 5.11.2026: "רק מה שרלוונטי"):
+    // a private meeting never reaches the database. One kept before is marked gone and hidden.
+    if (onlyClients && !match) { stats.private = (stats.private || 0) + 1; return; }
     out.set(uid, {
       uid: clip(uid, 400), starts_at: start.toISOString(), ends_at: end ? end.toISOString() : null, all_day: allDay,
       summary, location, client_id: match?.id || null, kind_guess: kindGuess(summary),
