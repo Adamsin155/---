@@ -46,3 +46,6 @@ verify_jwt = false
 # check); each is checked in code. See supabase/functions/metricool/index.ts.
 [functions.metricool]
 verify_jwt = false
+
+[functions.sales-samples]
+verify_jwt = false

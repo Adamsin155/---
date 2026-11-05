@@ -32,7 +32,7 @@ export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'w
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
-export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'drive-scan', 'mcp', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook'];
+export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'drive-scan', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook'];
 export const FUNCTIONS_DIR = join(ROOT, 'supabase/functions');
 
 export const MARK = '// generated — edit app/ instead.';

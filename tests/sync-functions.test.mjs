@@ -171,6 +171,12 @@ const DEPLOY = {
     'reminders/webpush.js',
     'reminders/whatsapp.js',
   ],
+  // The sales CRM's videos (docs/ops.md, "סרטונים לדוגמה"): server to server, the Drive robot only.
+  'sales-samples': [
+    '_shared/drive.js',
+    'sales-samples/handler.js',
+    'sales-samples/index.ts',
+  ],
   'staff-admin': [
     '_shared/oauth-token.js',
     'staff-admin/index.ts',
@@ -206,7 +212,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
 test('verify_jwt: off for the functions that check their caller themselves', () => {
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
-  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'mcp', 'metricool', 'reminders', 'staff-admin', 'whatsapp-webhook']);
+  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {
