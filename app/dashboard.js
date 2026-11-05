@@ -208,7 +208,7 @@ function manualRow(q) {
       q.monthly_gross_agorot ? h('small', { class: 'by', dir: 'rtl' }, `${formatILS(q.monthly_gross_agorot)} לחודש`) : null) : null,
     h('td', { 'data-label': 'נוצר' }, formatDate(q.created_at), h('small', { class: 'by' }, q.created_by_email || '')),
     h('td', { 'data-label': 'סטטוס' }, h('span', { class: 'pill k-pill k-pill-ok signed' }, 'נחתם · חוזה ידני'),
-      q.signed_at ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at, true)) : null),
+      q.signed_at ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at)) : null),
     h('td', { 'data-label': 'שינויים מהחבילה' }, h('span', { class: 'apv-cell' }, '—')),
     h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
       q.path ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'data-act': 'manual-open', onclick: () => openManual(q) }, 'פתיחה') : null,

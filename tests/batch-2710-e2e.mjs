@@ -736,8 +736,11 @@ await step('"הצעות שנשלחו": the manual contract as "נחתם · חו�
     await p.fill('#lg-pass', 'correct-horse');
     await p.click('#lg-submit');
     await p.waitForSelector('#list-block:not([hidden])');
-    await p.waitForSelector('#rows tr.is-manual',);
-    if (OUT) await p.waitForTimeout(800);
+    await p.waitForSelector('#rows tr.is-manual');
+    // Opened again, signed in: no sign-in screen fading over the screenshots.
+    await p.reload();
+    await p.waitForSelector('#rows tr.is-manual');
+    if (OUT) await p.waitForTimeout(600);
     const row = await p.innerText('#rows tr.is-manual');
     assert.match(row, /ידני/);
     assert.match(row, /מספרת אבי בע״מ/);
@@ -747,7 +750,7 @@ await step('"הצעות שנשלחו": the manual contract as "נחתם · חו�
     assert.match(row, /49,560/);
     assert.match(row, /4,130/);
     assert.ok(await noHScroll(p));
-    await shot(p, name);
+    if (OUT) await p.locator('#rows tr.is-manual').screenshot({ path: `${OUT}/${name}.png` });
     await ctx.close();
   }
 });
