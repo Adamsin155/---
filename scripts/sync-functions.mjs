@@ -28,7 +28,7 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   contract-summary.js                ask (content_owed: what each client is still owed, as the card)
 //   mcp-logic.js, mcp-draft.js         mcp (Claude accounts: who may connect, prepare_contract_draft)
 //   monthly-rounds.js                  reminders (a monthly client's editing round, opened every month)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js'];
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
