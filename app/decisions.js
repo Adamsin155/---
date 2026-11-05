@@ -132,7 +132,7 @@ function render() {
       ' עד מסירת הכונן החריגות עוברות לאופיר, ושאר ההודעות מחכות לסיכום אחרי היום (החלטה 8).') : null,
     decisions === null ? h('p', { class: 'of-banner is-warn', role: 'status' }, 'שמירת ההחלטות עוד לא זמינה במסד הנתונים (מיגרציה 20260930150000). אפשר לסגור חריגות, בלי המסלול.') : null);
   fill($('dc-jump'), h('ul', { class: 'chips-row' },
-    ...[['ex-h', 'חריגות', exceptions.length], ['cq-h', 'בקשות שינוי', openReq.length], ['ur-h', 'דחוף', urgent.length], access !== null ? ['ac-h', 'גישות', broken.length] : null, ['pz-h', 'עריכה עצורה', paused.length],
+    ...[['ex-h', 'חריגות', exceptions.length], ['cq-h', 'בקשות שינוי', openReq.length], ['ur-h', 'דחוף', urgent.length], access !== null ? ['ac-h', 'גישות', broken.length] : null,
       cc.show ? ['cp-h', 'קמפיינים', cc.done ? 0 : 1] : null, ['ls-h', 'רשימות', list.length]].filter(Boolean)
       .map(([id, label, n]) => h('li', {}, h('button', {
         type: 'button', class: 'chip', onclick: () => { const el = $(id); el.scrollIntoView({ block: 'start' }); el.focus({ preventScroll: true }); },
@@ -144,9 +144,7 @@ function render() {
   $('ac-sec').hidden = access === null;
   $('ac-n').textContent = String(broken.length);
   fill($('ac-list'), ...(broken.length ? broken.map((a) => accessCard(a, now)) : [emptyItem('אין גישות שבורות.')]));
-  $('pz-n').textContent = String(paused.length);
-  const load = editorLoad({ clients, stateOf, checks, tasks, now });
-  fill($('pz-list'), ...(paused.length ? paused.map((p) => pausedCard(p, load, now)) : [emptyItem('אין עריכה שעצורה מאתמול.')]));
+  // "עריכה שעדיין עצורה" left on 5.11.2026: nothing stops the editing.
   $('cp-sec').hidden = !cc.show;
   if (cc.show) renderCampaigns(cc, now);
   $('ls-n').textContent = String(list.length);
@@ -155,7 +153,7 @@ function render() {
     r.body ? h('p', { class: 'of-line' }, r.body) : null)) : [emptyItem('אין כרגע הסלמות שמחכות להחלטה שלך.')]));
   renderListRest(lists);
   // Long queues are short on the screen: the first five and "הצג עוד" (the count stays whole).
-  for (const id of ['ex-list', 'ur-list', 'ac-list', 'pz-list', 'ls-list']) capList($(id), 5, `dc:${id}`);
+  for (const id of ['ex-list', 'ur-list', 'ac-list', 'ls-list']) capList($(id), 5, `dc:${id}`);
   $('cq-n').textContent = String(openReq.length);
   fill($('cq-list'), ...(requests === null ? [emptyItem('בקשות השינוי עוד לא זמינות במסד הנתונים.')]
     : openReq.length ? openReq.map((r) => requestCard(r)) : [emptyItem('אין בקשות שינוי פתוחות.')]));
@@ -477,9 +475,9 @@ setInterval(() => {
 }, 60e3);
 
 // The kit (docs/ops.md, section 52): each section's heading and each card take an icon square.
-dress($('app'), [['#ex-h', 'flag', 'pink', 'md'], ['#ur-h', 'bolt', 'orange', 'md'], ['#ac-h', 'key', 'purple', 'md'], ['#pz-h', 'pause', 'navy', 'md'], ['#cp-h', 'megaphone', 'teal', 'md'], ['#ls-h', 'list', 'blue', 'md'], ['#cq-h', 'edit', 'purple', 'md'],
+dress($('app'), [['#ex-h', 'flag', 'pink', 'md'], ['#ur-h', 'bolt', 'orange', 'md'], ['#ac-h', 'key', 'purple', 'md'], ['#cp-h', 'megaphone', 'teal', 'md'], ['#ls-h', 'list', 'blue', 'md'], ['#cq-h', 'edit', 'purple', 'md'],
   ['#approvals-h', 'file', 'blue'], ['#myq-h', 'question', 'purple'], ['#na-h', 'lock', 'navy'],
-  ['#ex-list .of-head', 'flag', 'pink', 'md'], ['#ur-list .of-head', 'bolt', 'orange', 'md'], ['#ac-list .of-head', 'key', 'purple', 'md'], ['#pz-list .of-head', 'pause', 'navy', 'md'], ['#ls-list .of-head', 'bell', 'blue', 'md'], ['#cq-list .of-head', 'edit', 'purple', 'md']]);
+  ['#ex-list .of-head', 'flag', 'pink', 'md'], ['#ur-list .of-head', 'bolt', 'orange', 'md'], ['#ac-list .of-head', 'key', 'purple', 'md'], ['#ls-list .of-head', 'bell', 'blue', 'md'], ['#cq-list .of-head', 'edit', 'purple', 'md']]);
 
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
