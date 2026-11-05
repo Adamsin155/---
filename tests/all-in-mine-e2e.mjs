@@ -78,7 +78,8 @@ const EXPECTED = {
   // lines of other pages ("אלי עוד לא מסר זמינות").
   lior: {
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'shoot.html'],
-    decisions: ['5 החלטות מחכות לך', 'urgent', 'decisions.html'],
+    // 4, not 5: a paused editing is no decision since 5.11.2026.
+    decisions: ['4 החלטות מחכות לך', 'urgent', 'decisions.html'],
     renewals: ['חידושים ב־90 יום: 1', 'today', 'year.html#renewals'],
     'availability-missing': ['אלי עוד לא מסר זמינות לנובמבר', 'overdue', 'prep.html#availability'],
   },

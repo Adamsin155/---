@@ -710,12 +710,12 @@ await step('Irit\'s card for a client: the request and the shoot-day screens are
   await irit.goto(`${BASE}client.html?id=${B.id}`);
   await irit.waitForSelector('#ik-request');
   assert.match(await irit.getAttribute('#ik-request', 'href'), /^prep\.html\?id=.*#requests$/);
-  // Process 14 (still running) links to the blockers. Since protocol v8 it is a daily follow-up
+  // Process 14 (still running) links to the daily follow-up. Since protocol v8 it is a daily follow-up
   // and never late, so its phase is no longer opened by a lateness of its own: open the phase.
   await irit.waitForSelector('#p14', { state: 'attached' });
   if (!await irit.locator('#p14 a.ik-go').isVisible()) await irit.locator('details.phase:has(#p14) > summary').click();
   await irit.waitForSelector('#p14 a.ik-go');
-  assert.equal(await irit.locator('#p14 a.ik-go').innerText(), 'חוסמי יום צילום');
+  assert.equal(await irit.locator('#p14 a.ik-go').innerText(), 'מעקב לפני צילום'); // no blockers since 5.11.2026
   assert.match(await irit.getAttribute('#p14 a.ik-go', 'href'), /^prep\.html\?id=/);
   // The client's approval of the scripts has no "not relevant" button.
   assert.equal(await irit.locator('#i-p13-approved-na').count(), 0);
