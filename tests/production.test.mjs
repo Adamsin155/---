@@ -404,7 +404,8 @@ function world(o = {}) {
   return { clients: [c], checks: { [c.id]: checks }, tasks: [], access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [], staff: STAFF, c, cs: checks };
 }
 const due = (w, now) => computeReminders({ ...w, now, log: [] });
-const pick = (list, rule, step) => list.filter((r) => r.rule === rule && (!step || r.step === step));
+// Irit gets the QA rings as Ofir (5.11.2026): one person is enough to follow the ladder.
+const pick = (list, rule, step) => list.filter((r) => r.rule === rule && (!step || r.step === step) && !(rule === 'qa' && r.person === 'irit'));
 const one = (list, rule, step) => { const x = pick(list, rule, step); assert.equal(x.length, 1, `${rule}.${step}: ${JSON.stringify(list.map((r) => r.key))}`); return x[0]; };
 const none = (list, rule, step) => assert.equal(pick(list, rule, step).length, 0, `${rule}.${step || ''} should not be due`);
 

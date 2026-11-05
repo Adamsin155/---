@@ -4343,3 +4343,12 @@ select email, checked_at, read_until from public.whatsapp_poll order by email;
   - `tests/influencer-choice.test.mjs`
   - `tests/sql/influencer-choice.test.mjs`
   - `tests/influencer-choice-e2e.mjs`, עם צילומי טלפון ומחשב.
+## 99. עירית מקבלת את ההתראות של בקרה ושיוך, כמו אופיר (בקשת הבעלים, 5.11.2026)
+
+"עירית צריכה לקבל התראות על בקרה ושיוך... היא עושה את זה בנוסף לאופיר".
+
+- **מוכן לבדיקה (הכלל `qa`):** כשעורך מסמן "מוכן לבדיקה", עירית ואופיר מקבלים התראה מיד, ושוב אחרי 40 דקות אם עדיין לא בדקו.
+- **מחכים לשיוך עורך (הכלל `assign12`):** ב־12:00 בימי עבודה, לשניהם.
+- **ההתראה נפסקת לשניהם** ברגע שאחד מהם אישר, החזיר לתיקון או שייך עורך, כי ההתראה נקבעת לפי מצב הלקוח ולא לפי מי שקיבל אותה.
+- הקוד: `QA_PAIR` ב־`app/reminder-rules.js`. הבדיקות: `tests/reminder-engine.test.mjs`, `tests/assign-no-clock.test.mjs`.
+- נכנס לתוקף אחרי פריסת הפונקציה `reminders`. אין צורך ב־SQL ובפרסום האתר.

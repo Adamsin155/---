@@ -297,6 +297,7 @@ const dayOfThree = (from, now) => Math.max(1, businessDaysBetween(from, now));
 // with an assignment waiting, it is a late item like any other.)
 export const OWN_LATE = new Set(['p01', 'p02', 'p03', 'p06', 'p11b', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p25', 'p31']);
 // Quality and editing (principle 5).
+export const QA_PAIR = ['ofir', 'irit'];
 export const QUALITY = new Set(['p22', 'p23', 'p24', 'p25', 'p27']);
 // Who hears of every late item (the owner's decision of 3.10.2026), quietly.
 export const LATE_WATCHERS = ['ofir', 'lior'];
@@ -774,6 +775,7 @@ export const RULES = [
     ],
   },
 
+  // Irit gets the review and the assignment rings as Ofir (the owner, 5.11.2026: "היא עושה את זה בנוסף לאופיר").
   // 24→25: ready for quality control. Ofir at once and again after 40 office
   // minutes (the clock stops while he is in a characterization, decision 11);
   // Lior's list after an office hour.
@@ -790,8 +792,8 @@ export const RULES = [
       });
     },
     steps: [
-      { id: 'now', to: 'ofir', level: 'ring', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'מוכן לבדיקה'}: ${i.name}`, body: (i, env) => `הסרטונים בדרייב. בקרה עד ${whenText(i.anchors.due60, env.now)}.` },
-      { id: 'again', from: 'due40', to: 'ofir', level: 'ring', title: (i) => `מחכה לבקרה 40 דקות: ${i.name}`, body: () => 'העורך מחכה לבקרת האיכות.' },
+      { id: 'now', to: QA_PAIR, level: 'ring', title: (i) => `${i.round > 1 ? `התיקונים מוכנים לבדיקה (סבב ${i.round - 1})` : 'מוכן לבדיקה'}: ${i.name}`, body: (i, env) => `הסרטונים בדרייב. בקרה עד ${whenText(i.anchors.due60, env.now)}.` },
+      { id: 'again', from: 'due40', to: QA_PAIR, level: 'ring', title: (i) => `מחכה לבקרה 40 דקות: ${i.name}`, body: () => 'העורך מחכה לבקרת האיכות.' },
       { id: 'lior', from: 'due60', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `בקרת איכות לא בוצעה תוך שעה: ${i.name}`, body: () => 'אופיר עוד לא אישר או החזיר לתיקון.' },
     ],
   },
@@ -921,7 +923,7 @@ export const RULES = [
       return [{ id: dayKeyIL(env.now), cid: null, name: '', n, url: 'qa.html#assign-h', anchors: { event: atTimeIL(env.now, 0), until: atTimeIL(env.now, 12, 30) } }];
     },
     steps: [
-      { id: '1200', at: '12:00', to: 'ofir', level: 'ring', expires: 'until', title: (i) => (i.n === 1 ? 'לקוח אחד מחכה לשיוך עורך' : `${i.n} לקוחות מחכים לשיוך עורך`), body: () => 'בוחרים עורך וזמן עריכה בעמוד בקרה ושיוך.' },
+      { id: '1200', at: '12:00', to: QA_PAIR, level: 'ring', expires: 'until', title: (i) => (i.n === 1 ? 'לקוח אחד מחכה לשיוך עורך' : `${i.n} לקוחות מחכים לשיוך עורך`), body: () => 'בוחרים עורך וזמן עריכה בעמוד בקרה ושיוך.' },
     ],
   },
 
