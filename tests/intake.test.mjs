@@ -12,7 +12,7 @@ import {
 } from '../app/characterization.js';
 import { FOCUS_TOPICS, briefChecks, highlightsOf, emptyTopics, NOT_RAISED } from '../app/briefs.js';
 import {
-  coordinatorOf, shootContexts, shootPrep, topicsToClose, seenToday, seenNote, reportedOf, blockerTask, eveOf, checkAt,
+  coordinatorOf, shootContexts, shootPrep, topicsToClose, eveOf, checkAt,
   dayBefore, dayBeforeResult, dayBeforeNote, readDayBefore, dayBeforeText, DAY_BEFORE_LABELS, dayBeforeTask, shootDateConcerns, shootDateQuestion, shootDateNote, requestTask, requestDue, requestProblems,
   ackMessage, tellMessage, requestOf, TOPICS,
 } from '../app/shoot-prep.js';
@@ -313,24 +313,23 @@ test('the shoot-day coordinator (11): closed only when all four approved and it 
   assert.deepEqual(coordinatorOf(client(), {}, shootContexts(client())[0]).needs, ['תאריך ושעה']);
 });
 
-// ── 14: blockers ───────────────────────────
-test('shoot blockers (14) are computed from what the system knows, by the 8 topics of process 14', () => {
+// ── 14: the topics (no blockers since 5.11.2026) ──
+test('process 14’s topics are computed from what the system knows; access is not one of them (5.11.2026)', () => {
   const c = client({ char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   // Everything before the shoot done, except: the scripts (late), the client's approval, a broken login.
   const checks = without(imported('shoot'), [...itemsOf('p12'), ...itemsOf('p13'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]);
   const now = IL(2026, 10, 12, 9);
-  const access = [{ id: 'a1', client_id: c.id, network: 'instagram', status: 'broken', updated_at: IL(2026, 10, 10).toISOString() }];
   const tasks = [
     { id: 't1', client_id: c.id, title: 'להביא מחירון', owner: 'irit', due_on: '2026-10-11', done_at: null, source: null, urgent: false },
     { id: 't2', client_id: c.id, title: 'לתאם חניה', owner: 'irit', due_on: '2026-10-20', done_at: null, source: null, urgent: false },
     { id: 't3', client_id: c.id, title: 'לעדכן את הלקוח: x', owner: 'irit', due_on: '2026-10-01', done_at: null, source: 'tell', urgent: false },
   ];
-  const [p] = shootPrep(c, checks, clientState(c, checks, now), { tasks, access, now });
+  const [p] = shootPrep(c, checks, clientState(c, checks, now), { tasks, now });
   assert.deepEqual(p.topics.map((t) => t.item), TOPICS.map((t) => `p14.${t.key}`));
   const ids = p.blockers.map((b) => b.id);
-  assert.deepEqual(ids, ['approvals:p13', 'scripts:p12', 'access:a1', 'team:t1']);
+  assert.deepEqual(ids, ['approvals:p13', 'scripts:p12', 'team:t1']);
+  assert.ok(!TOPICS.some((t) => t.key === 'access'), 'access is not the shoot day’s');
   assert.match(p.blockers[1].text, /התסריטים לא מוכנים \(היעד: יום ג׳ 6\.10 18:00\)/);
-  assert.equal(p.blockers.find((b) => b.id === 'access:a1').who, 'lior');
   // An approval not late yet blocks from two business days before the shoot.
   const d = client({ char_at: IL(2026, 10, 11, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   const dc = { ...checks, ...all(itemsOf('p12'), IL(2026, 10, 12, 12)) };
@@ -343,7 +342,7 @@ test('shoot blockers (14) are computed from what the system knows, by the 8 topi
   assert.ok(close.includes('p14.graphics') && close.includes('p14.shootday') && close.includes('p14.missing'));
   assert.ok(!close.includes('p14.delays') && !close.includes('p14.scripts') && !close.includes('p14.access'));
   const eve = IL(2026, 10, 14, 9);
-  const pe = shootPrep(c, checks, clientState(c, checks, eve), { tasks: [], access: [], now: eve })[0];
+  const pe = shootPrep(c, checks, clientState(c, checks, eve), { tasks: [], now: eve })[0];
   assert.ok(topicsToClose(pe, checks, eve).includes('p14.delays'));
   assert.ok(topicsToClose(pe, checks, eve).includes('p14.team'));
   // A past shoot, or a client not live: nothing.
@@ -351,36 +350,13 @@ test('shoot blockers (14) are computed from what the system knows, by the 8 topi
   assert.deepEqual(shootPrep({ ...c, status: 'cancelled' }, checks, clientState(c, checks, now), { now }), []);
 });
 
-test('blockers: "עברתי" is for today only; "דווח לליאור" opens an exception that keeps it on her list until closed', () => {
-  const c = client({ shoot_at: IL(2026, 10, 15, 11).toISOString() });
-  const now = IL(2026, 10, 12, 9);
-  const note = seenNote({}, '', 'scripts:p12', now);
-  const checks = done('p14.seen', now, note);
-  assert.deepEqual([...seenToday(checks, '', now)], ['scripts:p12']);
-  assert.deepEqual([...seenToday(checks, '', IL(2026, 10, 13, 9))], []); // the next morning it is back
-  const more = seenNote(checks, '', 'team:t1', now);
-  assert.deepEqual(JSON.parse(more).ids, ['scripts:p12', 'team:t1']);
-  const prep = { shootAt: IL(2026, 10, 15, 11) };
-  const t = blockerTask(c, prep, { id: 'scripts:p12', text: 'התסריטים לא מוכנים' }, now);
-  assert.deepEqual([t.owner, t.source, t.urgent, t.brief.blocker], ['lior', 'escalation', false, 'scripts:p12']);
-  assert.match(t.title, /^חוסם ליום הצילום \(יום ה׳ 15\.10\): התסריטים לא מוכנים$/);
-  assert.equal(blockerTask(c, prep, { id: 'x', text: 'y' }, IL(2026, 10, 13, 9)).urgent, true); // 2 business days before
-  // An open exception about the client is Lior's already: a known blocker, not reported again
-  // (the day-before check's own exception is shown in that check, not here).
+test('nothing blocks a shoot day (5.11.2026): no "חוסמי יום צילום" line or ring, whatever is late', () => {
   const cc = client({ char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   const ch = imported('shoot');
-  const tk = [
-    { id: 'e1', client_id: cc.id, title: 'חסר מידע', owner: 'lior', source: 'escalation', urgent: false, done_at: null },
-    { id: 'e2', client_id: cc.id, title: 'בדיקת יום לפני נכשלה', owner: 'lior', source: 'escalation', urgent: true, done_at: null, brief: { dayBefore: 'p15' } },
-  ];
-  const [pp] = shootPrep(cc, ch, clientState(cc, ch, now), { tasks: tk, now });
-  assert.deepEqual(pp.blockers.map((x) => [x.id, !!x.known]), [['team:e1', true]]);
-  const w = world(cc, ch, { tasks: tk.map((x) => ({ ...x, created_at: IL(2026, 10, 12, 9).toISOString() })) });
-  one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');
-  none(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior');
-  const reported = reportedOf([{ ...t, id: 'e1', done_at: null }, { ...t, id: 'e2', client_id: 'other' }], c.id);
-  assert.deepEqual([...reported.keys()], ['scripts:p12']);
-  assert.equal(reportedOf([{ ...t, done_at: now.toISOString() }], c.id).size, 0);
+  const tk = [{ id: 'e1', client_id: cc.id, title: 'חסר מידע', owner: 'lior', source: 'escalation', urgent: false, done_at: null, created_at: IL(2026, 10, 12, 9).toISOString() }];
+  const w = world(cc, ch, { tasks: tk });
+  none(due(w, IL(2026, 10, 12, 8, 30)), 'blockers');
+  none(due(w, IL(2026, 10, 13, 10)), 'blockers');
 });
 
 // ── 15: the day before ─────────────────────

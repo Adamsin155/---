@@ -345,24 +345,24 @@ test('14 is asked once every working day from the end of the characterization un
   assert.equal(proc(open.w, open.c, 'p14', IL(2026, 10, 20, 10)).status, 'due');
 });
 
-test('something is stuck: which of the eight topics, a short note, and Lior is told; the row says so', () => {
+test('something is stuck: which of the topics (access is not one since 5.11.2026), a short note, and Lior is told; the row says so', () => {
   const { w, c } = afterMeeting(world(), { shoot_at: IL(2026, 10, 13, 10).toISOString() });
   const now = IL(2026, 10, 8, 10);
   const note = followupNote({ stuck: ['scripts', 'access', 'nonsense', 'scripts'], note: `  הלקוח לא עונה  ${'x'.repeat(400)}` });
   const v = JSON.parse(note);
-  assert.deepEqual(v.stuck, ['scripts', 'access']);
+  assert.deepEqual(v.stuck, ['scripts']);
   assert.equal(v.note.length, 200);
-  mark(w, c, FOLLOWUP_KEY(), now, followupNote({ stuck: ['scripts', 'access'], note: 'הלקוח לא עונה' }));
+  mark(w, c, FOLLOWUP_KEY(), now, followupNote({ stuck: ['scripts', 'graphics'], note: 'הלקוח לא עונה' }));
   const [row] = followupRows({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, now), now });
-  assert.deepEqual([row.status, row.answer.ok, row.answer.stuck], ['done', false, ['scripts', 'access']]);
-  assert.equal(followupText(row.answer), 'תקוע: תסריטים, גישות · הלקוח לא עונה');
+  assert.deepEqual([row.status, row.answer.ok, row.answer.stuck], ['done', false, ['scripts', 'graphics']]);
+  assert.equal(followupText(row.answer), 'תקוע: תסריטים, גרפיקות · הלקוח לא עונה');
   assert.equal(followupText(readFollowup({ state: 'done', at: now.toISOString(), note: '{"ok":true}' })), 'הכול תקין');
   assert.equal(readFollowup({ state: 'done', at: now.toISOString(), note: 'טקסט חופשי' }).ok, true);
   assert.equal(readFollowup(null), null);
   // The message to Lior is an exception, urgent when the shoot is two business days away or less.
-  const t = followupTask(c, row, { stuck: ['scripts', 'access'], note: 'הלקוח לא עונה' }, now);
+  const t = followupTask(c, row, { stuck: ['scripts', 'graphics'], note: 'הלקוח לא עונה' }, now);
   assert.deepEqual([t.owner, t.source, t.urgent, t.client_id, t.due_on], ['lior', 'escalation', false, c.id, null]);
-  assert.match(t.title, /^תקוע לפני יום הצילום \(.*13\.10.*\): תסריטים, גישות · הלקוח לא עונה$/);
+  assert.match(t.title, /^תקוע לפני יום הצילום \(.*13\.10.*\): תסריטים, גרפיקות · הלקוח לא עונה$/);
   assert.equal(t.brief.blocker, 'followup:2026-10-08');
   assert.equal(followupTask(c, row, { stuck: ['scripts'] }, IL(2026, 10, 11, 10)).urgent, true);
   // He is rung by the rule that already rings him for every exception.
@@ -373,7 +373,7 @@ test('something is stuck: which of the eight topics, a short note, and Lior is t
   assert.ok(!p.blockers.some((b) => /תקוע לפני יום הצילום/.test(b.text)));
   // The next day it is asked again, and the row remembers what was stuck.
   const next = followupRows({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, IL(2026, 10, 11, 9)), now: IL(2026, 10, 11, 9) })[0];
-  assert.deepEqual([next.status, next.answer, next.last.stuck], ['due', null, ['scripts', 'access']]);
+  assert.deepEqual([next.status, next.answer, next.last.stuck], ['due', null, ['scripts', 'graphics']]);
 });
 
 test('Irit gets ONE counted line for all the clients, a line in her morning digest and one ring at 12:00 while a client is unanswered', () => {

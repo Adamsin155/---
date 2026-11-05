@@ -858,25 +858,14 @@ test('Natali (11ב) left the protocol in v12 with Lior\'s shoot day: no ring to 
   none(due(w, IL(2026, 10, 12, 10)), 'natali');
 });
 
-test('focus call (12א) left in v12; shoot blockers (14) every morning and Lior two days before', () => {
+test('focus call (12א) left in v12; shoot blockers (14) left on 5.11.2026: no line, no ring', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), shoot_at: IL(2026, 10, 15, 11).toISOString() });
   importTo(w, c, 'shoot');
   for (const k of [...itemsOf('p08'), ...PROCESSES.find((p) => p.id === 'p14').items.map((i) => i.key)]) delete w.checks[c.id][k];
   none(due(w, IL(2026, 10, 5, 8, 30)), 'focusCall');
-  // The blockers are computed (shoot-prep.js): the Highlights (8) are late, an employee's delay.
-  const mon = one(due(w, IL(2026, 10, 12, 8, 30)), 'blockers', 'd2026-10-12', 'irit');
-  assert.match(mon.title, /חוסמי יום צילום: .* · חוסם אחד/);
-  assert.match(mon.body, /באיחור: 8 · הכנת Highlights/);
-  assert.equal(mon.url, `prep.html?id=${c.id}`);
-  one(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior', 'lior');
-  // Reported to Lior from Irit's list: it is his exception now, no second ring.
-  w.tasks.push({ id: 'b1', client_id: c.id, title: 'חוסם ליום הצילום: באיחור', owner: 'lior', source: 'escalation', urgent: true, brief: { blocker: 'delays:p08' }, created_at: IL(2026, 10, 13, 9).toISOString() });
-  none(due(w, IL(2026, 10, 13, 10)), 'blockers', 'lior');
-  w.tasks.length = 0;
-  // Nothing blocks any more (the open p14 items alone are not blockers): no line.
-  marks(w, c, itemsOf('p08'), IL(2026, 10, 12, 9));
-  none(due(w, IL(2026, 10, 13, 8, 30)), 'blockers');
+  // The Highlights (8) are late: that is Ofir's own lateness, not a blocker of the shoot day.
+  none(due(w, IL(2026, 10, 12, 8, 30)), 'blockers');
   none(due(w, IL(2026, 10, 13, 10)), 'blockers');
 });
 
