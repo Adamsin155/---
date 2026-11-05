@@ -177,6 +177,7 @@ legend { padding: 0; }
 
 /* ── Influencers ─────────────────────────── */
 .influencers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.inf.inf-choice { grid-column: 1 / -1; }
 .inf { position: relative; }
 .inf input, .tier input { position: absolute; opacity: 0; pointer-events: none; }
 .inf label {

@@ -9,7 +9,7 @@
 // Pure, no DOM and no network: deal.html, Irit's block in "המשימות שלי", the builder
 // and the reminder rules (app/reminder-rules.js, also on the server) share it. The
 // table is public.deal_requests (supabase/migrations/20261003100000_sales_deals.sql).
-import { TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, maxDiscountFor, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS, PACKAGES, packageId } from './catalog.js';
+import { infLabel, TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, maxDiscountFor, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS, PACKAGES, packageId } from './catalog.js';
 import { emptySelection, reconcile, formatILS } from './pricing.js';
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
 import { isSales, PEOPLE } from './protocol.js';
@@ -206,7 +206,7 @@ export function dealSummary(d) {
     return ['הצעה אחרת', `${formatILS(c.price_agorot)} לחודש`, c.term_months === 1 ? 'חודש אחד' : `${c.term_months} חודשים`, ...qty, text.length > 80 ? `${text.slice(0, 80)}…` : text].filter(Boolean).join(' · ');
   }
   const tier = TIERS.find((t) => t.id === d?.tier);
-  const parts = [[tier?.short, INFLUENCERS[d?.influencer]?.name].filter(Boolean).join(' · ')];
+  const parts = [[tier?.short, infLabel(d?.influencer)].filter(Boolean).join(' · ')];
   const extras = addonNames(d);
   if (extras.length) parts.push(`תוספות: ${extras.join(', ')}`);
   const discount = discountOfDeal(d);

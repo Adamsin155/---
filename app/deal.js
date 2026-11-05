@@ -9,7 +9,7 @@
 // database lets him read and add only his own deals (deal_requests, row level
 // security), and no client, item, vault, quote or payout. The logic is
 // app/deal-logic.js; Irit's side is in "המשימות שלי" (app/deal-ui.js) and the builder.
-import { TIERS, INFLUENCERS, FREE_ADDONS, PACKAGES, packageId } from './catalog.js';
+import { TIERS, INFLUENCERS, FREE_ADDONS, PACKAGES, packageId, infLabel } from './catalog.js';
 import { formatILS } from './pricing.js';
 import { PEOPLE, isSales } from './protocol.js';
 import {
@@ -81,7 +81,7 @@ const picked = (name) => document.querySelector(`input[name="${name}"]:checked`)
 const tierSub = (t, inf) => (inf ? `${t.name} · ${formatILS(PACKAGES[packageId(t.id, inf)].price)} לחודש` : t.name);
 function renderChoices() {
   fill($('d-tiers'), ...TIERS.map((t) => choice('radio', 'tier', t.id, t.short, tierSub(t, null), false)));
-  fill($('d-influencers'), ...Object.values(INFLUENCERS).map((i) => choice('radio', 'influencer', i.id, i.name, null, false)));
+  fill($('d-influencers'), ...Object.values(INFLUENCERS).map((i) => choice('radio', 'influencer', i.id, infLabel(i.id), null, false)));
   renderAddons();
 }
 // A choice changed: the prices and the add-ons follow, in place (the focus stays on the radio).

@@ -2,7 +2,7 @@
 // shoot type, quantities), and importing a client that is already mid-way.
 // Pure logic, shared by the new-client dialog and the unit tests.
 import { PACKAGES, TIERS, INFLUENCERS } from './catalog.js';
-import { STATIONS, PROCESSES } from './protocol.js';
+import { STATIONS, PROCESSES, isSolo } from './protocol.js';
 import { packageDeliverables, IMPORT_NOTE } from './protocol-logic.js';
 
 // Every check an import makes carries exactly this note, so reports can leave it out.
@@ -28,6 +28,13 @@ export const PACKAGE_OPTIONS = Object.keys(PACKAGES).map((id) => ({ id, name: pa
 // Who comes to the shoot follows from the package itself, never from a guess on a name.
 // (app/catalog.js INFLUENCERS shootType: Natali, Niro and "הצל" their own day, Simeon 'dms'.)
 export const shootTypeOf = (id) => INFLUENCERS[PACKAGES[id]?.influencer]?.shootType || null;
+
+// "משפיען לבחירה" (5.11.2026): the agreement left the influencer to be chosen with the client,
+// and nobody set the shoot day's influencer yet (nor a solo day with a photographer). The card
+// says "משפיען: עוד לא נבחר" until the office sets "סוג יום הצילום".
+export const CHOICE_PACKAGE_WORDS = INFLUENCERS.choice.name;
+export const influencerToChoose = (client) => !!client && !client.shoot_type && !isSolo(client)
+  && String(client.package_name || '').includes(CHOICE_PACKAGE_WORDS);
 
 // Quantities for a package: with the agreement's add-ons when it has them
 // (the same numbers the signing trigger stores), otherwise the package alone.
