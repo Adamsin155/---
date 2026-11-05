@@ -60,7 +60,7 @@ import { DEAL_MINUTES, DEAL_PREPARERS, contractTitle, dealSummary, dealUrl, deal
 import { stationChange } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
 import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
-import { shootPrep, reportedOf, TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
+import { TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
 import { BLOCKING_TITLE } from './characterization.js';
 import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
 import {
@@ -637,7 +637,7 @@ export const RULES = [
     },
     steps: [
       { id: '1030', prevBusinessDays: 1, at: '10:30', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => openItems(i, eveSent(i)).length > 0, title: (i, env) => `צילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => (isSolo(i.ctx) ? 'הנוסחים מוכנים: ללקוח ולצוות (יום בלי משפיענים). לשלוח ולסמן בכרטיס.' : 'הנוסחים מוכנים: ללקוח, למשפיענים ולצוות. לשלוח ולסמן בכרטיס.') },
-      { id: '1115', prevBusinessDays: 1, at: '11:15', to: 'irit', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p15.irit'), title: (i) => `בדיקת יום לפני: ${i.name}`, body: () => 'לוודא שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה. כל פריט שנכשל: לליאור.' },
+      { id: '1115', prevBusinessDays: 1, at: '11:15', to: 'irit', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p15.irit'), title: (i) => `הכנות ליום צילום: ${i.name}`, body: () => 'לוודא שהכול מוכן ליום הצילום וללחוץ ״בוצע״.' },
       { id: '1200', prevBusinessDays: 1, at: '12:00', to: 'lior', level: 'ring', exempt: 'urgent', shoot: true, expires: 'shoot', when: (i) => openOf(i, 'lior').length > 0, title: (i) => `דחוף: יום לפני הצילום עוד פתוח · ${i.name}`, body: (i) => `עוד פתוח: ${openOf(i, 'lior').length} פריטים בתהליך 15.` },
       { id: '1500', prevBusinessDays: 1, at: '15:00', to: OWNER, level: 'ring', shoot: true, expires: 'shoot', when: (i) => openItems(i, eveSent(i)).length > 0, title: (i) => `צילום בסיכון: ${i.name}`, body: (i, env) => `התזכורות של יום לפני הצילום עוד לא נשלחו. הצילום ${whenText(i.anchors.shoot, env.now)}.` },
     ],
@@ -1150,33 +1150,7 @@ export const RULES = [
     ],
   },
 
-  // 14: shoot-day blockers, computed from what the system knows (shoot-prep.js,
-  // the same list Irit sees in prep.html). Irit's digest every morning while there
-  // are any; blockers still not reported to Lior two business days before the
-  // shoot: Lior (ring). A blocker Irit reported is an exception of its own.
-  {
-    id: 'blockers', event: 'חוסמי יום צילום (14)', procs: ['p14'],
-    instances(env) {
-      const out = [];
-      for (const c of env.clients) {
-        const reported = reportedOf(env.tasks, c.id);
-        for (const p of shootPrep(c, env.checksOf(c), env.stateOf(c), { tasks: env.tasks, access: env.access, now: env.now })) {
-          if (!p.shootAt || !p.blockers.length) continue;
-          const open = p.blockers.filter((b) => !reported.has(b.id) && !b.known);
-          out.push({
-            id: `${p.pid}p14@${p.shootAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: `${p.pre}p14`,
-            url: `prep.html?id=${encodeURIComponent(c.id)}`, all: p.blockers.length, open: open.length, first: open[0]?.text || p.blockers[0].text,
-            anchors: { event: p.shootAt, shoot: p.shootAt },
-          });
-        }
-      }
-      return out;
-    },
-    steps: (i, env) => [
-      ...(isBusinessDay(env.now) ? [{ id: `d${dayKeyIL(env.now)}`, from: 'today', at: '08:30', to: 'irit', level: 'digest', expires: 'shoot', title: () => `חוסמי יום צילום: ${i.name} · ${i.all === 1 ? 'חוסם אחד' : `${i.all} חוסמים`}`, body: () => i.first }] : []),
-      { id: 'lior', from: 'shoot', prevBusinessDays: 2, at: '10:00', to: 'lior', level: 'ring', expires: 'shoot', when: () => i.open > 0, title: () => `חוסם ביום צילום עדיין פתוח: ${i.name}`, body: (x, e) => `הצילום ${whenText(i.anchors.shoot, e.now)}. ${i.first}${i.open > 1 ? ` ועוד ${i.open - 1}` : ''}.` },
-    ],
-  },
+  // 14: shoot-day blockers (the rule `blockers`) left on 5.11.2026: nothing blocks a shoot day.
 
   // 19: the shoot day was not closed: Lior's digest the next business day, and the owner's screen.
   {

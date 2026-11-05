@@ -8,20 +8,17 @@
 //   coordinatorOf  process 11: a separate approval for the client, the influencers,
 //                  Lior and Eli; the day is "closed" only when all four approved and
 //                  it is in the calendar. Natali: the makeup artist and the ride (11ב).
-//   shootPrep      process 14: the shoot-day blockers, computed from what the system
-//                  knows (late or stuck processes, broken access, missing material,
-//                  open urgent or late tasks), by the 8 topics of process 14. Each
-//                  gets "עברתי" (seen today: it comes back tomorrow if still there)
-//                  or "דווח לליאור" (an exception at once; it stays on her list until
-//                  that exception is closed).
-//   dayBefore      process 15, Irit's check at 11:15 on the business day before the
-//                  shoot (a Sunday shoot: Thursday, decision 15): what the system
-//                  knows is filled in; she confirms only the rest; every failed item
-//                  goes to Lior at once (an urgent exception).
+//   shootPrep      process 14: by its topics, what the system knows is clear (a clear
+//                  topic closes its item by itself). Since 5.11.2026 nothing here blocks
+//                  the shoot day or is shown as a blocker ("כל אחד יש לו את המשימה שלו
+//                  לעשות ואף אחד לא חוסם אף אחד"), and access is not one of the topics.
+//   dayBefore      process 15, "הכנות ליום צילום": Irit's one "בוצע" from 11:15 on the
+//                  business day before the shoot (a Sunday shoot: Thursday, decision
+//                  15). Its items are what the mark stood for until 5.11.2026.
 //   requests       her section 17: a client's request opens a task with an owner and
 //                  a due day in one tap; when it is done she gets "לעדכן את הלקוח"
 //                  (a database trigger opens it) with a ready message.
-import { PEOPLE, NETWORKS, PHOTOGRAPHERS, isSolo, crewOf, hasShootType, shootTypeName, isStarDay, starShort, starWords } from './protocol.js';
+import { PEOPLE, PHOTOGRAPHERS, isSolo, crewOf, hasShootType, shootTypeName, isStarDay, starShort, starWords } from './protocol.js';
 import {
   parseDate, roundsOf, roundContext, isMonthlyRound, isBusinessDay, businessDaysBetween, addBusinessDays, isDaily, inLanding,
 } from './protocol-logic.js';
@@ -32,7 +29,6 @@ const clean = (v) => String(v ?? '').trim();
 const done = (checks, key) => checks[key]?.state === 'done';
 const resolved = (checks, key) => checks[key]?.state === 'done' || checks[key]?.state === 'na';
 const live = (c) => c.status === 'active' || c.status === 'ending';
-const networkName = (k) => NETWORKS.find(([n]) => n === k)?.[1] || k;
 
 // The shoot of the client and of each extra round: { n, pre ('' or 'r2.'), pid ('' or 'r2-'), ctx }.
 // A monthly editing round (app/monthly-rounds.js) has no shoot day and is not one of them.
@@ -98,7 +94,6 @@ export const TOPICS = [
   { key: 'approvals', label: 'אישורי לקוח' },
   { key: 'scripts', label: 'תסריטים' },
   { key: 'graphics', label: 'גרפיקות' },
-  { key: 'access', label: 'גישות' },
   { key: 'shootday', label: 'יום צילום' },
   { key: 'team', label: 'משימות צוות' },
   { key: 'missing', label: 'חוסרים מהלקוח' },
@@ -112,29 +107,8 @@ const DELAY_PROCS = ['p04', 'p08', 'p09', 'p10', 'p12a'];
 // A client's request answered, telling the client, and blocker reports are not "team tasks".
 const NOT_TEAM = new Set(['tell']);
 
+// "עברתי" on a shoot-day blocker (until 5.11.2026): only the history still names the mark.
 export const SEEN = (pre = '') => `${pre}p14.seen`;
-// "עברתי": the blockers seen today, from the mark's note { day, ids }.
-export function seenToday(checks, pre, now = new Date()) {
-  const c = checks[SEEN(pre)];
-  if (!c || c.state !== 'done') return new Set();
-  try {
-    const v = JSON.parse(c.note);
-    return v?.day === dayKeyIL(now) && Array.isArray(v.ids) ? new Set(v.ids) : new Set();
-  } catch { return new Set(); }
-}
-export function seenNote(checks, pre, id, now = new Date()) {
-  const ids = seenToday(checks, pre, now);
-  ids.add(id);
-  return JSON.stringify({ day: dayKeyIL(now), ids: [...ids] });
-}
-// Open exceptions Irit reported from this list, by the blocker they name.
-export function reportedOf(tasks, clientId) {
-  const out = new Map();
-  for (const t of tasks || []) {
-    if (t.client_id === clientId && !t.done_at && t.source === 'escalation' && t.brief?.blocker) out.set(t.brief.blocker, t);
-  }
-  return out;
-}
 
 const whenWords = (d, now) => {
   const days = daysBetweenIL(now, d);
@@ -149,7 +123,7 @@ const procText = (s) => `${s.proc.num} · ${s.proc.title}`;
 // 14 is ready: from the end of the characterization, or a round's start) and until
 // the shoot. The client-wide topics (graphics, access, missing material, tasks) are
 // counted once, in the nearest shoot.
-export function shootPrep(client, checks, state, { tasks = [], access = [], now = new Date() } = {}) {
+export function shootPrep(client, checks, state, { tasks = [], now = new Date() } = {}) {
   if (!live(client)) return [];
   const out = [];
   const byId = new Map(state.states.map((s) => [s.proc.id, s]));
@@ -187,17 +161,7 @@ export function shootPrep(client, checks, state, { tasks = [], access = [], now 
     if (wide && p07 && stuck(p07) && !done(checks, 'p07.sent')) topics.graphics.blockers.push(block('graphics', 'p07', `9 הגרפיקות הראשונות לא מוכנות${dueWords(p07)}`, ownerOf(p07)));
     topics.graphics.clear = x.n > 1 || !p07 || p07.complete;
 
-    // Access (6): broken logins, and the check itself late. Once per client.
-    const p06 = st('p06');
-    const broken = (access || []).filter((a) => a.client_id === client.id && a.status === 'broken');
-    // A login the client filled in the form and nobody checked yet ('new').
-    const unchecked = (access || []).filter((a) => a.client_id === client.id && a.status === 'new');
-    if (wide) {
-      for (const a of broken) topics.access.blockers.push(block('access', a.id, `גישה לא עובדת: ${networkName(a.network)}`, 'lior'));
-      for (const a of unchecked) topics.access.blockers.push(block('access', a.id || `new-${a.network}`, `גישה מהלקוח שעוד לא נבדקה: ${networkName(a.network)}`, 'ilai'));
-      if (stuck(p06)) topics.access.blockers.push(block('access', 'p06', `בדיקת הגישות וסידור העמודים באיחור${dueWords(p06)}`, ownerOf(p06)));
-    }
-    topics.access.clear = x.n > 1 || (!!p06?.complete && !broken.length && !unchecked.length);
+    // (Access is not part of the shoot day since 5.11.2026: it stays in its own process, 5–6.)
 
     // The shoot day itself (11, and Natali's 11ב).
     const p11 = st('p11');
@@ -249,17 +213,8 @@ export function topicsToClose(prep, checks, now = new Date()) {
   const eveStarted = prep.shootAt && now >= startOfDayIL(eveOf(prep.shootAt));
   return prep.topics.filter((t) => t.clear && !resolved(checks, t.item) && (!CONTINUOUS.has(t.key) || eveStarted)).map((t) => t.item);
 }
-export const TOPIC_NOTE = 'נסגר אוטומטית: אין חוסם';
+export const TOPIC_NOTE = 'נסגר אוטומטית: אין חוסם'; // (the wording of old marks; nothing blocks since 5.11.2026)
 
-// "דווח לליאור": an exception at once (urgent when the shoot is two business days away or less).
-export const BLOCKER_TITLE = 'חוסם ליום הצילום';
-export function blockerTask(client, prep, blocker, now = new Date()) {
-  const when = prep.shootAt ? ` (${dayText(prep.shootAt)})` : '';
-  return {
-    client_id: client.id, owner: 'lior', source: 'escalation', urgent: !!(prep.shootAt && businessDaysBetween(now, prep.shootAt) <= 2),
-    title: `${BLOCKER_TITLE}${when}: ${blocker.text}`.slice(0, 500), due_on: null, brief: { blocker: blocker.id },
-  };
-}
 
 // ── 14 (protocol v8): the daily follow-up until the shoot day ──
 // Once every working day, from the end of the characterization until the shoot day,
