@@ -49,7 +49,7 @@ import { landingNow, officeLinks } from './office-ui.js';
 import { hasProfiles, modeOf } from './manager-rules.js';
 import { profileOf, managerTabs, opensClients, writesChar, listsAllClients } from './shell-rules.js';
 // The signed contract's file in "לקוח חדש" (27.10.2026); the upload itself (app/files-ui.js) loads only when one is chosen.
-import { CONTRACT_KIND, CONTRACT_LABEL, contractFileProblem } from './contract-file.js';
+import { CONTRACT_KIND, CONTRACT_LABEL, MANUAL_CONTRACT_NOTE, contractFileProblem } from './contract-file.js';
 import { folderItemOf } from './qa-logic.js';
 import { uploadStepOf } from './files-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
@@ -3584,10 +3584,10 @@ $('new-form').addEventListener('submit', async (e) => {
     $('new-submit').disabled = false;
     return fail(errorText(err));
   }
-  // An agreement signed in the system already covers process 1.
-  const signed = q ? P01 : [];
+  // An agreement signed in the system covers process 1; so does a signed contract uploaded by hand (5.11.2026).
+  const signed = q || contract ? P01 : [];
   pendingChecks = {
-    row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : null, contract,
+    row, signed, signedNote: q ? `נחתם במערכת: ${q.number}` : contract ? MANUAL_CONTRACT_NOTE : null, contract,
     imported: importing ? importKeys(station, { shootSet: !!fields.shoot_at }).filter((k) => !signed.includes(k)) : [],
   };
   return done();

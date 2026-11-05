@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { CONTRACT_KIND, CONTRACT_LABEL, isContractFile, contractFiles, contractFileProblem, CONTRACT_MAX } from '../app/contract-file.js';
+import { CONTRACT_KIND, CONTRACT_LABEL, isContractFile, contractFiles, contractFileProblem, CONTRACT_MAX, p01ToMark } from '../app/contract-file.js';
 import { clientLabel, searchWords, searchClients } from '../app/client-search.js';
 import { charEditHref } from '../app/intake-ui.js';
 import { KINDS } from '../app/files-logic.js';
@@ -61,4 +61,10 @@ test('the form alone: its address; the button and the page are the four writers\
   const only = page.slice(page.indexOf('async function submitCharOnly'), page.indexOf('// ── "אפיון חדש"'));
   assert.match(only, /saveCharacterization\(/);
   assert.doesNotMatch(only, /saveChecks|setCheck|addTask|formChecks/);
+});
+
+test('a signed contract uploaded by hand marks what is open of process 1 (5.11.2026)', () => {
+  assert.deepEqual(p01ToMark({}), ['p01.prepared', 'p01.sent', 'p01.signed']);
+  assert.deepEqual(p01ToMark({ 'p01.prepared': { state: 'done' }, 'p01.sent': { state: 'na' } }), ['p01.signed']);
+  assert.deepEqual(p01ToMark({ 'p01.prepared': { state: 'done' }, 'p01.sent': { state: 'done' }, 'p01.signed': { state: 'done' } }), []);
 });

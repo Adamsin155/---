@@ -446,7 +446,7 @@ await step('Ilai: no "לקוח חדש" and no "אפיון חדש"; no "אפיו�
   await p.waitForSelector('#ik-sum-h');
   assert.equal(await p.locator('#ik-char-edit').count(), 0);
   await p.goto(`${BASE}intake.html?id=${D.id}&only=char`);
-  await p.waitForFunction(() => /עדכון האפיון פתוח לבעלים, לעירית, לליאור ולאופיר/.test(document.getElementById('state')?.textContent || ''));
+  await p.waitForFunction(() => /עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר ולנעם/.test(document.getElementById('state')?.textContent || ''));
   await ctx.close();
 });
 
@@ -493,6 +493,8 @@ await step('Ofir opens a client by hand on the phone and attaches the signed con
   assert.equal(files[0].uploaded_by, 'ofir@astrateg.test');
   assert.match(files[0].storage_path, new RegExp(`^${avi.id}/material_other/[0-9a-f-]{36}-`));
   assert.ok(objects.has(files[0].storage_path), 'the object is in the bucket');
+  // The signed contract covers process 1 (5.11.2026): the client does not stay at "הכנת חוזה".
+  assert.deepEqual(db.protocol_checks.filter((x) => x.client_id === avi.id).map((x) => [x.item_key, x.note]).sort(), [['p01.prepared', 'חוזה חתום שהועלה ידנית'], ['p01.sent', 'חוזה חתום שהועלה ידנית'], ['p01.signed', 'חוזה חתום שהועלה ידנית']]);
   // The card: "החוזה החתום" under "החוזה והחבילה", with the file.
   await p.waitForSelector('#cd-h');
   await p.waitForSelector('#contract-docs .cd-row');
@@ -557,6 +559,8 @@ await step('Irit adds a contract\'s picture from the card; it is in the client\'
   await p.waitForSelector('#contract-docs .cd-row');
   assert.equal(contractRows(D.id).length, 1);
   assert.equal(contractRows(D.id)[0].uploaded_by, 'irit@astrateg.test');
+  // And from the card too, what of process 1 was open is marked (5.11.2026).
+  assert.deepEqual(['p01.prepared', 'p01.sent', 'p01.signed'].map((k) => db.protocol_checks.find((x) => x.client_id === D.id && x.item_key === k)?.state), ['done', 'done', 'done']);
   assert.equal(await p.innerText('#cd-add'), 'העלאת קובץ חוזה נוסף');
   // And in "תיק לקוח", among the materials (a custom addition named "חוזה חתום").
   await p.waitForFunction(() => /חוזה חתום/.test(document.querySelector('#fl-materials')?.textContent || ''));

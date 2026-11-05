@@ -25,3 +25,9 @@ export function contractFileProblem(file) {
   if (file.size > CONTRACT_MAX) return 'הקובץ גדול מ־25MB. אפשר לסרוק שוב באיכות נמוכה יותר.';
   return null;
 }
+
+// A signed contract uploaded by hand covers process 1 (the owner, 5.11.2026: Best Car stayed at
+// "הכנת חוזה" after Ofir uploaded its contract): its three items, those not marked yet.
+export const P01_KEYS = ['p01.prepared', 'p01.sent', 'p01.signed'];
+export const MANUAL_CONTRACT_NOTE = 'חוזה חתום שהועלה ידנית';
+export const p01ToMark = (checks = {}) => P01_KEYS.filter((k) => !['done', 'na'].includes(checks?.[k]?.state));
