@@ -59,8 +59,8 @@ import { DEAL_MINUTES, DEAL_PREPARERS, contractTitle, dealSummary, dealUrl, deal
 import { stationChange } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
 import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
-import { shootPrep, reportedOf, TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
-import { BLOCKING_TITLE } from './characterization.js';
+import { TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
+import { isBlockingTitle } from './characterization.js';
 import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
 import {
   QA_KINDS, qaState, qaDue, SHIFT_KEY, readShift, ACCESS_FIXED, readAccessFix,
@@ -636,7 +636,7 @@ export const RULES = [
     },
     steps: [
       { id: '1030', prevBusinessDays: 1, at: '10:30', to: 'lior', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => openItems(i, eveSent(i)).length > 0, title: (i, env) => `צילום ${whenText(i.anchors.shoot, env.now)}: ${i.name}`, body: (i) => (isSolo(i.ctx) ? 'הנוסחים מוכנים: ללקוח ולצוות (יום בלי משפיענים). לשלוח ולסמן בכרטיס.' : 'הנוסחים מוכנים: ללקוח, למשפיענים ולצוות. לשלוח ולסמן בכרטיס.') },
-      { id: '1115', prevBusinessDays: 1, at: '11:15', to: 'irit', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p15.irit'), title: (i) => `בדיקת יום לפני: ${i.name}`, body: () => 'לוודא שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה. כל פריט שנכשל: לליאור.' },
+      { id: '1115', prevBusinessDays: 1, at: '11:15', to: 'irit', level: 'ring', exempt: 'shoot', shoot: true, expires: 'shoot', when: (i) => !i.resolved('p15.irit'), title: (i) => `הכנות ליום צילום: ${i.name}`, body: () => 'לוודא שהכול מוכן ליום הצילום וללחוץ ״בוצע״.' },
       { id: '1200', prevBusinessDays: 1, at: '12:00', to: 'lior', level: 'ring', exempt: 'urgent', shoot: true, expires: 'shoot', when: (i) => openOf(i, 'lior').length > 0, title: (i) => `דחוף: יום לפני הצילום עוד פתוח · ${i.name}`, body: (i) => `עוד פתוח: ${openOf(i, 'lior').length} פריטים בתהליך 15.` },
       { id: '1500', prevBusinessDays: 1, at: '15:00', to: OWNER, level: 'ring', shoot: true, expires: 'shoot', when: (i) => openItems(i, eveSent(i)).length > 0, title: (i) => `צילום בסיכון: ${i.name}`, body: (i, env) => `התזכורות של יום לפני הצילום עוד לא נשלחו. הצילום ${whenText(i.anchors.shoot, env.now)}.` },
     ],
@@ -999,8 +999,8 @@ export const RULES = [
       // "אין מי שייצא לאפיון" and missing information that blocks today's work ring at
       // once (the matrix); every other exception goes to his list.
       { id: 'nobody', to: (i) => i.who, level: 'ring', exception: true, when: (i) => i.task.title.startsWith(NO_CHARACTERIZER), title: (i) => `אין מי שייצא לאפיון: ${i.name}`, body: (i) => i.task.title.slice(NO_CHARACTERIZER.length).replace(/^[\s:(]+/, '') },
-      { id: 'blocking', to: (i) => i.who, level: 'ring', exception: true, when: (i) => i.task.title.startsWith(BLOCKING_TITLE), title: (i) => `${BLOCKING_TITLE}: ${i.name}`, body: (i) => i.task.title.slice(BLOCKING_TITLE.length).replace(/^[\s:]+/, '') },
-      { id: 'list', to: (i) => i.who, level: 'digest', list: true, when: (i) => !RINGING.some((t) => i.task.title.startsWith(t)), title: (i) => `חריגה: ${i.name}`, body: (i) => i.task.title },
+      { id: 'blocking', to: (i) => i.who, level: 'ring', exception: true, when: (i) => isBlockingTitle(i.task.title), title: (i) => `חסר מידע לעבודה היום: ${i.name}`, body: (i) => i.task.title.replace(/^חסר מידע (שחוסם עבודה|לעבודה) היום[\s:]*/, '') },
+      { id: 'list', to: (i) => i.who, level: 'digest', list: true, when: (i) => !ringsAtOnce(i.task.title), title: (i) => `חריגה: ${i.name}`, body: (i) => i.task.title },
       // The matrix: when nobody can go, Irit is told too (quiet).
       { id: 'nobodyIrit', to: 'irit', level: 'quiet', when: (i) => i.task.title.startsWith(NO_CHARACTERIZER) && i.who !== 'irit', title: (i) => `אין מי שייצא לאפיון: ${i.name}`, body: (i) => `עבר לליאור. ${i.task.title.slice(NO_CHARACTERIZER.length).replace(/^[\s:(]+/, '')}` },
       { id: 'board', businessDays: 1, to: OWNER, level: 'board', overdue: true, title: (i) => `חריגה פתוחה יותר מיום עסקים: ${i.name}`, body: (i) => i.task.title },
@@ -1149,33 +1149,7 @@ export const RULES = [
     ],
   },
 
-  // 14: shoot-day blockers, computed from what the system knows (shoot-prep.js,
-  // the same list Irit sees in prep.html). Irit's digest every morning while there
-  // are any; blockers still not reported to Lior two business days before the
-  // shoot: Lior (ring). A blocker Irit reported is an exception of its own.
-  {
-    id: 'blockers', event: 'חוסמי יום צילום (14)', procs: ['p14'],
-    instances(env) {
-      const out = [];
-      for (const c of env.clients) {
-        const reported = reportedOf(env.tasks, c.id);
-        for (const p of shootPrep(c, env.checksOf(c), env.stateOf(c), { tasks: env.tasks, access: env.access, now: env.now })) {
-          if (!p.shootAt || !p.blockers.length) continue;
-          const open = p.blockers.filter((b) => !reported.has(b.id) && !b.known);
-          out.push({
-            id: `${p.pid}p14@${p.shootAt.toISOString()}`, cid: c.id, client: c, name: clientLabel(c), ref: `${p.pre}p14`,
-            url: `prep.html?id=${encodeURIComponent(c.id)}`, all: p.blockers.length, open: open.length, first: open[0]?.text || p.blockers[0].text,
-            anchors: { event: p.shootAt, shoot: p.shootAt },
-          });
-        }
-      }
-      return out;
-    },
-    steps: (i, env) => [
-      ...(isBusinessDay(env.now) ? [{ id: `d${dayKeyIL(env.now)}`, from: 'today', at: '08:30', to: 'irit', level: 'digest', expires: 'shoot', title: () => `חוסמי יום צילום: ${i.name} · ${i.all === 1 ? 'חוסם אחד' : `${i.all} חוסמים`}`, body: () => i.first }] : []),
-      { id: 'lior', from: 'shoot', prevBusinessDays: 2, at: '10:00', to: 'lior', level: 'ring', expires: 'shoot', when: () => i.open > 0, title: () => `חוסם ביום צילום עדיין פתוח: ${i.name}`, body: (x, e) => `הצילום ${whenText(i.anchors.shoot, e.now)}. ${i.first}${i.open > 1 ? ` ועוד ${i.open - 1}` : ''}.` },
-    ],
-  },
+  // 14: shoot-day blockers (the rule `blockers`) left on 5.11.2026: nothing blocks a shoot day.
 
   // 19: the shoot day was not closed: Lior's digest the next business day, and the owner's screen.
   {
@@ -1217,23 +1191,7 @@ export const RULES = [
     ],
   },
 
-  // 22: editing paused or resumed: Ofir (quiet) and Lior's list; still paused the
-  // next morning, Lior decides (his digest).
-  {
-    id: 'paused', event: 'עריכה נעצרה (22)', procs: ['p22'],
-    instances(env) {
-      return casesOf(env, 'p22', (i) => !!pauseOf(i.proc, i.checks) && !i.s.complete).map((i) => {
-        const p = pauseOf(i.proc, i.checks);
-        const at = new Date(p.at);
-        return { ...i, id: `${i.proc.id}@${at.toISOString()}`, who: editorsOf(i.ctx), why: p.for ? pauseText(p) : 'עריכה נעצרה', anchors: { event: at } };
-      });
-    },
-    steps: [
-      { id: 'ofir', to: 'ofir', level: 'quiet', title: (i) => `${i.why}: ${i.name}${i.who.length ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
-      { id: 'lior', to: 'lior', level: 'digest', list: true, title: (i) => `${i.why}: ${i.name}${i.who.length ? ` · ${personName(i.who)}` : ''}`, body: () => '' },
-      { id: 'morning', businessDays: 1, at: '08:30', to: 'lior', level: 'digest', overdue: true, title: (i) => `העריכה עדיין עצורה: ${i.name} · להחליט`, body: () => 'להזיז מועדים או להעביר לעורך אחר.' },
-    ],
-  },
+  // 22: editing paused (the rule `paused`) left on 5.11.2026: nothing stops the editing.
 
   // 23: the rest of the graphics, in Ilai's digest the morning after the shoot.
   {
@@ -1311,27 +1269,22 @@ export const RULES = [
     ],
   },
 
-  // 22: the editor reported something missing (p22.missing). Stopped ("לעצור את העריכה":
-  // the editing waits, its deadline is "חסום", not late): Irit at once (or Lior or Ofir,
-  // whom the editor chose, 29.10.2026); Lior after 3
-  // office hours (decision 7); it stops when the wait ends. Going on ("קיבלתי את הכונן
-  // והתחלתי" with a line answered "חסר", 22.10.2026): Irit at once, with what the editor
-  // wrote under each line; the clock runs, and part of the footage is Lior's own task
-  // (app/production.js materialTask), so no 3-hour ring.
+  // 22: the editor reported something missing (p22.missing): whom the editor chose (Irit, or
+  // Lior or Ofir, 29.10.2026) at once, with what the editor wrote under each line. The editing
+  // goes on and its clock runs (5.11.2026: nothing is "חסום" any more); part of the footage is
+  // Lior's own task (app/production.js materialTask).
   {
     id: 'editorMissing', event: 'חסר לוגו, טלפון או חומר (22)', procs: ['p22'],
     instances(env) {
-      return casesOf(env, 'p22', (i) => !!(missingOf(i.checks, i.pre) || reportOf(i.checks, i.pre))).map((i) => {
-        const m = missingOf(i.checks, i.pre) || reportOf(i.checks, i.pre);
+      return casesOf(env, 'p22', (i) => !!reportOf(i.checks, i.pre)).map((i) => {
+        const m = reportOf(i.checks, i.pre);
         return { ...i, id: `${i.proc.id}@${m.at.toISOString()}`, who: editorNames(i.ctx), missing: m, going: m.going, anchors: { event: m.at } };
       });
     },
     steps: [
       // To whom the editor chose (Irit, Lior or Ofir; production.js reportTo keeps it to
       // those three). The step keeps its id 'irit' so a report already rung is not rung again.
-      { id: 'irit', to: (i) => reportTo(i.missing.to), level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingWords(i.missing) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. ${i.going ? 'העריכה ממשיכה.' : 'העריכה חסומה עד שזה מגיע.'}` },
-      // Sent to Lior himself: he has it already, so no second ring to him.
-      { id: 'lior', officeMinutes: 180, to: 'lior', level: 'ring', exception: true, when: (i) => !i.going && reportTo(i.missing.to) !== 'lior', title: (i) => `עריכה חסומה 3 שעות: ${i.name}`, body: (i) => `חסר ${missingText(i.missing.what) || 'חומר'}${i.who ? ` אצל ${i.who}` : ''}. ${reportToName(i.missing.to)} עוד לא ${reportTo(i.missing.to) === 'irit' ? 'סגרה' : 'סגר'} את זה.` },
+      { id: 'irit', to: (i) => reportTo(i.missing.to), level: 'ring', title: (i) => `חסר לעורך: ${i.name}`, body: (i) => `${i.who ? `${i.who}: ` : ''}חסר ${missingWords(i.missing) || 'חומר'}${i.missing.note ? ` (${i.missing.note})` : ''}. העריכה ממשיכה.` },
     ],
   },
 
@@ -1826,7 +1779,8 @@ export const arrivalText = (shootAt, solo = false) => (solo
   : `ההגעה שלך ב־${clock(arrivalOf(shootAt))}, שעה לפני הצילום (${clock(shootAt)})`);
 const NO_CHARACTERIZER = 'אין מי שייצא לאפיון';
 // Exceptions that ring Lior at once instead of waiting for his 12:00 and 16:00 lists.
-const RINGING = [NO_CHARACTERIZER, BLOCKING_TITLE];
+const RINGING = [NO_CHARACTERIZER];
+const ringsAtOnce = (title) => RINGING.some((t) => title.startsWith(t)) || isBlockingTitle(title);
 const NETWORK_NAME = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', google: 'Google Business', meta: 'Meta Business', other: 'רשת אחרת' };
 const EVE_SENT = ['p15.influencers', 'p15.client', 'p15.crew'];
 // A day without influencers has nobody to remind but the client and the crew (25.10.2026).

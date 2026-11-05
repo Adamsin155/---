@@ -66,7 +66,7 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   }
   if (b === 'p12' && writesScripts(me, scope)) return go(scriptsHref(clientId, round), 'כתיבת תסריטים');
   if (b === 'p12' || b === 'p13') return go(`intake.html?id=${enc(clientId)}${r}#scripts`, 'תסריטים וזום');
-  if (['p11', 'p11b', 'p14', 'p15'].includes(b)) return go(`prep.html?id=${enc(clientId)}`, b === 'p15' ? 'בדיקת יום לפני' : b === 'p14' ? 'חוסמי יום צילום' : 'סגירת יום הצילום');
+  if (['p11', 'p11b', 'p14', 'p15'].includes(b)) return go(`prep.html?id=${enc(clientId)}`, b === 'p15' ? 'הכנות ליום צילום' : b === 'p14' ? 'מעקב לפני צילום' : 'סגירת יום הצילום');
   return null;
 }
 
@@ -137,6 +137,8 @@ export function describeIntakeMark(base, row) {
   if (base === 'p13.zoomat') return clear ? 'ביטל/ה את מועד הזום' : `קבע/ה זום לאישור התסריטים${row.note ? ` ל־${new Date(row.note).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'short', timeStyle: 'short' })}` : ''}`;
   if (base === DAY_BEFORE_KEY('') && !clear && row.note?.startsWith('{')) {
     const r = readDayBefore(row.note);
+    // One "בוצע" since 5.11.2026 (no items in the note); the older checks said what failed.
+    if (!r.ok.length && !r.failed.length) return 'סימן/ה ״בוצע״ על ההכנות ליום הצילום';
     return `ביצע/ה את בדיקת יום לפני הצילום${r.failed.length ? ` (${r.failed.length} פריטים נכשלו ועברו לליאור)` : ' (הכול תקין)'}`;
   }
   return null;

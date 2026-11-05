@@ -200,7 +200,7 @@ export const PROTOCOL_HISTORY = [
     always: ['p36.form', 'p12.link'],
     retired: [
       'p02.deal', 'p02.team', 'p06.recovered', 'p10', 'p11b', 'p12a', 'p12.scripts', 'p12.numbered', 'p12.docs',
-      'p13.approved', 'p13.fixes', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22a.drive', 'p30.picked', 'p31',
+      'p13.approved', 'p13.fixes', 'p14.access', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22a.drive', 'p30.picked', 'p31',
     ],
   },
 ];

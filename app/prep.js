@@ -4,12 +4,10 @@
 //   - the coordinator (11): a separate approval for the client, the influencers,
 //     Lior and Eli; "closed" only with all four and the calendar; Natali's makeup
 //     artist and ride (11ב);
-//   - the blockers (14), computed from what the system knows, each with "עברתי"
-//     (for today) or "דווח לליאור" (an exception at once, shown here until closed);
-//     topics that are clear close their process-14 item by themselves;
-//   - the day-before check (15) from the business day before the shoot (reminded at
-//     11:15; a Sunday shoot: Thursday): what the system knows is filled in, she
-//     answers the rest, and every failed item goes to Lior at once;
+//   - process 14's topics that are clear close their item by themselves (since 5.11.2026
+//     nothing is shown as a blocker: "אף אחד לא חוסם אף אחד");
+//   - "הכנות ליום צילום" (15) from the business day before the shoot (reminded at
+//     11:15; a Sunday shoot: Thursday): one "בוצע" (the owner, 5.11.2026: no long list);
 //   - a client's request (her section 17): one tap opens a task with an owner and a
 //     due day, with a ready "we got it" message; when that task is done, the database
 //     opens "לעדכן את הלקוח" for her, shown here with a ready message.
@@ -27,14 +25,14 @@ import {
 } from './protocol-ui.js';
 import { noteDateChange } from './owner-data.js';
 import {
-  shootContexts, coordinatorOf, shootPrep, topicsToClose, TOPIC_NOTE, TOPICS, seenToday, seenNote, SEEN, reportedOf, blockerTask,
-  dayBefore, dayBeforeResult, dayBeforeNote, dayBeforeTask, DAY_BEFORE_KEY, requestTask, requestDue, requestProblems, ackMessage,
+  shootContexts, coordinatorOf, shootPrep, topicsToClose, TOPIC_NOTE, TOPICS,
+  dayBefore, dayBeforeNote, DAY_BEFORE_KEY, requestTask, requestDue, requestProblems, ackMessage,
   tellMessage, requestOf, REQUEST, TELL,
   followupRows, followupNote, followupText, followupTask, FOLLOWUP_KEY, FOLLOWUP_NOTE_MAX,
 } from './shoot-prep.js';
 import { MISSING_TITLE, missingMessage } from './characterization.js';
 import { materialsOf, waLink, dayText } from './messages-logic.js';
-import { loadRequestTasks, insertTask, loadAccessStatuses } from './intake-data.js';
+import { loadRequestTasks, insertTask } from './intake-data.js';
 // "שליחת זימון": the shoot day in Google Calendar with its guests (app/calendar-view.js, as on calendar.html).
 import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.js';
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
@@ -47,11 +45,9 @@ let clients = [];
 let checks = {};
 let tasks = [];          // open tasks of every client
 let requests = [];       // request and "tell" tasks, open or finished lately
-let access = [];         // broken or missing logins
 let clientMail = {};     // client id → email, from the agreements (for "שליחת זימון")
 let me = null;
 let busy = false;
-const answers = new Map();   // day-before answers being given, by `${client}:${pre}`
 const shootDraft = new Map(); // a shoot date being typed, by shoot (the card's key)
 const crewDraft = new Map();  // "עם מי מצלמים" being chosen, by shoot: the approvals follow it before it is saved
 const editOpen = new Set();   // shoots whose date and crew are being changed here, by the card's key
@@ -76,7 +72,7 @@ async function load() {
   } catch (err) { $('state').textContent = errorText(err); return; }
   const quoteIds = [...new Set(clients.map((c) => c.quote_id).filter(Boolean))];
   let facts;
-  [requests, access, facts] = await Promise.all([loadRequestTasks().catch(() => []), loadAccessStatuses(), quoteIds.length ? quoteFacts(quoteIds) : null]);
+  [requests, facts] = await Promise.all([loadRequestTasks().catch(() => []), quoteIds.length ? quoteFacts(quoteIds) : null]);
   clientMail = clientEmails(clients, facts);
   $('state').textContent = '';
   render();
@@ -113,7 +109,7 @@ function entries(now = new Date()) {
     if (!live(c) || (only && c.id !== only)) continue;
     const ch = checks[c.id] || {};
     const state = clientState(c, ch, now);
-    const preps = shootPrep(c, ch, state, { tasks, access, now });
+    const preps = shootPrep(c, ch, state, { tasks, now });
     for (const x of shootContexts(c)) {
       const p11 = state.states.find((s) => s.proc.id === `${x.pid}p11`);
       const shoot = parseDate(x.ctx.shoot_at);
@@ -147,13 +143,12 @@ async function closeClearTopics() {
 // ── Rendering ─────────────────────────────
 function render(focusId = document.activeElement?.id) {
   const list = entries();
-  const blockers = list.reduce((n, e) => n + (e.prep?.blockers.length || 0), 0);
   const open = list.filter((e) => !e.coord.fullyClosed).length;
   const summary = [only && clientOf(only) ? clientLabel(clientOf(only)) : null,
     list.length ? `${list.length === 1 ? 'יום צילום אחד' : `${list.length} ימי צילום`} בהכנה` : 'אין ימי צילום בהכנה',
-    open ? `${open} עוד לא סגורים מול כולם` : null, blockers ? `${blockers === 1 ? 'חוסם אחד' : `${blockers} חוסמים`}` : null].filter(Boolean).join(' · ');
+    open ? `${open} עוד לא סגורים מול כולם` : null].filter(Boolean).join(' · ');
   if ($('pp-summary').textContent !== summary) $('pp-summary').textContent = summary;
-  if (!$('pp-summary').querySelector('.k-ico')) noteIcon($('pp-summary'), blockers ? 'warn' : 'info', blockers ? 'alert' : 'camera');
+  if (!$('pp-summary').querySelector('.k-ico')) noteIcon($('pp-summary'), 'info', 'camera');
   fill($('pp-filter'), only ? h('a', { class: 'btn btn-sm btn-ghost', href: 'prep.html' }, 'כל הלקוחות') : null,
     only ? h('a', { class: 'btn btn-sm btn-ghost', href: cardUrl(only) }, 'לכרטיס הלקוח') : null);
   renderFollowup(list);
@@ -163,28 +158,26 @@ function render(focusId = document.activeElement?.id) {
 }
 
 function shootCard(e) {
-  const { c, x, coord, prep, eve } = e;
+  const { c, x, coord, eve } = e;
   const round = x.n > 1 ? ` · סבב ${x.n}` : '';
   const k = `${safeId(c.id)}-${x.n}`;
-  const blocked = !!prep?.blockers.length;
-  return h('li', { class: `pp-card${coord.fullyClosed && !blocked ? ' is-closed' : ''}${blocked ? ' has-block' : ''}`, id: `shoot-${k}` },
+  return h('li', { class: `pp-card${coord.fullyClosed ? ' is-closed' : ''}`, id: `shoot-${k}` },
     // The day of the shoot as a leaf of the calendar (docs/ops.md, section 62), in the colour the
-    // camera had: pink while something blocks, green once it is closed with everyone. No date yet: the camera stays.
+    // camera had: green once it is closed with everyone. No date yet: the camera stays.
     h('div', { class: `pp-head${e.shoot ? ' has-leaf' : ''}` },
-      e.shoot ? dateLeaf({ ...leafOf(e.shoot), ...(blocked ? { tone: 'pink' } : coord.fullyClosed ? { tone: 'green' } : {}) }) : null,
-      ((h2) => (e.shoot ? h2 : headIcon(h2, 'camera', blocked ? 'pink' : coord.fullyClosed ? 'green' : 'teal', { size: 'md' })))(
+      e.shoot ? dateLeaf({ ...leafOf(e.shoot), ...(coord.fullyClosed ? { tone: 'green' } : {}) }) : null,
+      ((h2) => (e.shoot ? h2 : headIcon(h2, 'camera', coord.fullyClosed ? 'green' : 'teal', { size: 'md' })))(
         h('h2', {}, h('a', { href: cardUrl(c.id, `#${x.pid}p11`) }, clientLabel(c)), round, c.landing === true ? [' ', landingTag(c)] : null)),
       // "נטלי דדון", or "בלי משפיענים · ליאור + אליאל" (25.10.2026).
       h('span', { class: 'pp-when' }, [e.shoot ? `יום צילום ${formatStamp(e.shoot)}` : 'יום הצילום טרם נקבע', coord.typeName || null].filter(Boolean).join(' · '))),
     coordinatorBlock(e, k),
-    prep ? blockersBlock(e, k) : null,
     eve ? dayBeforeBlock(e, k) : null);
 }
 
 // ── 14 (protocol v8): the daily follow-up, one row per client ──
 // "הכול תקין" closes today's follow-up of that client in one tap. "משהו תקוע" opens the
-// eight topics: she picks what is stuck, writes a few words, and Lior is told (an
-// exception, as a blocker reported from this page). Nothing is ticked topic by topic.
+// topics: she picks what is stuck, writes a few words, and Lior is told (an exception).
+// Nothing is ticked topic by topic.
 function renderFollowup(list, now = new Date()) {
   const rows = followupRows({
     clients: clients.filter((c) => !only || c.id === only), checksOf: (c) => checks[c.id] || {},
@@ -200,7 +193,6 @@ function followRow(r, list, now) {
   const c = r.client;
   const k = `${safeId(c.id)}-${r.n}`;
   const key = `${c.id}:${r.pre}`;
-  const found = list.find((e) => e.c.id === c.id && e.x.n === r.n)?.prep?.blockers.length || 0;
   const when = r.shootAt ? `צילום ${dayText(r.shootAt)}` : 'יום הצילום טרם נקבע';
   const open = stuckOpen === key;
   const draft = stuckDraft.get(key) || { stuck: [], note: '' };
@@ -208,8 +200,7 @@ function followRow(r, list, now) {
   const head = h('div', { class: 'pp-follow-h has-leaf' },
     r.shootAt ? dateLeaf(leafOf(r.shootAt, now)) : iconSquare('calendar', 'orange', { size: 'lg' }),
     h('strong', {}, h('a', { href: `#shoot-${k}` }, clientLabel(c)), r.n > 1 ? ` · סבב ${r.n}` : ''),
-    h('span', { class: 'muted' }, when),
-    found ? h('a', { class: 'pp-follow-found', href: `#bl-${k}` }, `המערכת מצאה ${found === 1 ? 'חוסם אחד' : `${found} חוסמים`}`) : null);
+    h('span', { class: 'muted' }, when));
   if (open) {
     return h('li', { class: 'pp-follow-row is-open', id: `fu-${k}` }, head,
       h('fieldset', { class: 'pp-topics' }, h('legend', {}, 'מה תקוע?'),
@@ -402,91 +393,32 @@ async function toggleCheck(cid, key, on, focusId, note = null) {
   render(focusId);
 }
 
-// ── 14: blockers ──────────────────────────
-function blockersBlock(e, k) {
-  const { c, prep } = e;
-  const now = new Date();
-  const seen = seenToday(checks[c.id] || {}, prep.pre, now);
-  const reported = reportedOf(tasks, c.id);
-  const clear = prep.topics.filter((t) => t.clear).length;
-  const row = (b) => {
-    const rep = reported.get(b.id);
-    const isSeen = seen.has(b.id);
-    const bid = `blk-${k}-${safeId(b.id)}`;
-    const seenBtn = isSeen ? h('span', { class: 'hint' }, 'עברת היום') : h('button', { type: 'button', class: 'btn btn-sm', id: `${bid}-seen`, disabled: busy, onclick: () => markSeen(c, prep, b, b.known ? `bl-${k}` : `${bid}-report`) }, 'עברתי');
-    return h('li', { class: `pp-blocker${rep ? ' is-reported' : isSeen ? ' is-seen' : ''}`, id: bid },
-      h('span', { class: 'pp-topic' }, `${TOPICS.find((t) => t.key === b.topic)?.label}${b.who ? ` · ${PEOPLE[b.who]?.name || b.who}` : ''}`),
-      h('p', {}, b.text),
-      rep ? h('p', { class: 'hint' }, `דווח לליאור ${formatStamp(rep.created_at)}${rep.urgent ? ' · דחוף' : ''}. נשאר כאן עד שהחריגה תיסגר.`)
-        : b.known ? h('div', { class: 'pp-acts' }, seenBtn, h('span', { class: 'hint' }, 'כבר אצל ליאור כחריגה.'))
-          : h('div', { class: 'pp-acts' }, seenBtn,
-            h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: `${bid}-report`, disabled: busy, onclick: () => report(c, prep, b, `${bid}-report`) }, 'דווח לליאור')));
-  };
-  return h('section', { class: 'pp-sub', 'aria-labelledby': `bl-${k}` },
-    headIcon(h('h3', { id: `bl-${k}`, tabindex: '-1' }, `חוסמי יום צילום (14)${prep.blockers.length ? ` · ${prep.blockers.length}` : ''}`), prep.blockers.length ? 'alert' : 'shield', prep.blockers.length ? 'pink' : 'green'),
-    prep.blockers.length ? h('ul', { class: 'pp-blockers' }, ...prep.blockers.map(row))
-      : h('p', { class: 'pp-clear' }, `אין חוסמים. ${clear} מתוך ${prep.topics.length} נושאים סגורים.`));
-}
-async function markSeen(c, prep, b, focusId) {
-  await toggleCheck(c.id, SEEN(prep.pre), true, focusId, seenNote(checks[c.id] || {}, prep.pre, b.id));
-}
-async function report(c, prep, b, focusId) {
-  if (busy) return;
-  busy = true;
-  try {
-    tasks.push(await insertTask(blockerTask(c, prep, b)));
-    toast('דווח לליאור. החוסם נשאר ברשימה עד שהחריגה תיסגר.');
-  } catch (err) { toast(`הדיווח לא נשלח. ${errorText(err)}`); }
-  busy = false;
-  render(focusId);
-}
-
-// ── 15: the day-before check ──────────────
+// ── 15: "הכנות ליום צילום" ──────────────
+// One row and one "בוצע" (the owner, 5.11.2026: "תעשה פשוט הכנות ליום צילום וסימן לבוצע").
+// The mark is the same as before (p15.irit), so its reminder and the history read it as they did.
 function dayBeforeBlock(e, k) {
-  const { c, eve } = e;
-  const akey = `${c.id}:${eve.pre}`;
-  const given = answers.get(akey) || {};
-  if (!eve.open && !eve.done) {
-    return h('section', { class: 'pp-sub' }, headIcon(h('h3', {}, 'בדיקת יום לפני (15)'), 'calendar-check', 'blue'),
-      h('p', { class: 'hint' }, `נפתחת ב${dayText(eve.eve)}, עם תזכורת ב־11:15.`));
-  }
+  const { eve } = e;
+  const head = headIcon(h('h3', { id: `db-${k}` }, 'הכנות ליום צילום'), 'calendar-check', 'blue');
   if (eve.done) {
-    const failed = eve.items.filter((i) => eve.done.failed.includes(i.id)).map((i) => i.label);
-    return h('section', { class: 'pp-sub' }, headIcon(h('h3', {}, 'בדיקת יום לפני (15)'), 'calendar-check', 'blue'),
-      h('p', { class: `pp-status ${failed.length ? 'is-open' : 'is-ok'}` },
-        `בוצעה ${formatStamp(eve.done.at)} · ${who(eve.done.by_email)}${failed.length ? ` · נכשלו ועברו לליאור: ${failed.join(', ')}` : ' · הכול תקין'}`));
+    return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` }, head,
+      h('p', { class: 'pp-status is-ok' }, `בוצע ${formatStamp(eve.done.at)} · ${who(eve.done.by_email)}`));
   }
-  const item = (it) => {
-    const nm = `db-${k}-${it.id}`;
-    return h('li', { class: 'pp-check' },
-      h('div', { class: 'pp-check-h' },
-        h('strong', {}, it.label),
-        it.auto === 'ok' ? h('span', { class: 'pp-sys is-ok' }, '✓ המערכת יודעת: בוצע') : it.auto === 'fail' ? h('span', { class: 'pp-sys is-fail' }, '✗ לא בוצע: יעבור לליאור') : null),
-      it.why ? h('p', { class: 'hint' }, it.why) : null,
-      it.auto ? null : h('fieldset', { class: 'ik-seg' }, h('legend', { class: 'sr-only' }, it.label),
-        h('div', { class: 'ik-seg-opts' }, ...[['ok', 'תקין'], ['fail', 'נכשל']].map(([v, label]) => h('label', { class: 'ik-opt' },
-          h('input', { type: 'radio', name: nm, id: `${nm}-${v}`, value: v, checked: given[it.id] === v, onchange: () => { answers.set(akey, { ...given, [it.id]: v }); render(`${nm}-${v}`); } }),
-          h('span', {}, label))))));
-  };
-  const res = dayBeforeResult(eve, given);
-  return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` },
-    headIcon(h('h3', { id: `db-${k}` }, `בדיקת יום לפני (15) · עד ${formatWhen(eve.at)}`), 'calendar-check', 'blue'),
-    h('ul', { class: 'pp-checks' }, ...eve.items.map(item)),
-    h('button', { type: 'button', class: 'btn k-btn-navy ik-big', id: `db-done-${k}`, disabled: busy || !res, 'aria-describedby': `db-done-${k}-d`, onclick: () => submitDayBefore(e, k) },
-      res?.failed.length ? `סיום הבדיקה ושליחה לליאור (${res.failed.length})` : 'סיום הבדיקה'),
-    h('p', { class: 'hint', id: `db-done-${k}-d` }, res ? 'כל פריט שנכשל עובר לליאור מיד, כחריגה דחופה.' : 'לענות קודם על מה שהמערכת לא יודעת.'));
+  if (!eve.open) {
+    return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` }, head,
+      h('p', { class: 'hint' }, `נפתח ב${dayText(eve.eve)}, עם תזכורת ב־11:15.`));
+  }
+  return h('section', { class: 'pp-sub', 'aria-labelledby': `db-${k}` }, head,
+    h('div', { class: 'pp-acts' },
+      h('button', { type: 'button', class: 'btn k-btn-navy', id: `db-done-${k}`, disabled: busy, onclick: () => submitDayBefore(e, k) }, 'בוצע')));
 }
 async function submitDayBefore(e, k) {
   const { c, eve } = e;
-  const res = dayBeforeResult(eve, answers.get(`${c.id}:${eve.pre}`) || {});
-  if (!res || busy) return;
+  if (busy) return;
   busy = true;
   render();
   try {
-    if (res.failed.length) tasks.push(await insertTask(dayBeforeTask(c, eve, res.failed)));
-    (checks[c.id] ||= {})[DAY_BEFORE_KEY(eve.pre)] = await setCheck(c.id, DAY_BEFORE_KEY(eve.pre), 'done', dayBeforeNote(res));
-    answers.delete(`${c.id}:${eve.pre}`);
-    toast(res.failed.length ? 'הבדיקה נשמרה, והפריטים שנכשלו עברו לליאור.' : 'הבדיקה נשמרה: הכול תקין.');
+    (checks[c.id] ||= {})[DAY_BEFORE_KEY(eve.pre)] = await setCheck(c.id, DAY_BEFORE_KEY(eve.pre), 'done', dayBeforeNote({ ok: [], failed: [] }));
+    toast(`${clientLabel(c)}: ההכנות ליום הצילום סומנו כבוצע.`);
   } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
   busy = false;
   render(`db-${k}`);

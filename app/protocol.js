@@ -827,7 +827,8 @@ export const PROCESSES = [
       { key: 'p14.approvals', label: 'אישורי לקוח', optional: true, topic: true },
       { key: 'p14.scripts', label: 'תסריטים', optional: true, topic: true },
       { key: 'p14.graphics', label: 'גרפיקות', optional: true, topic: true },
-      { key: 'p14.access', label: 'גישות', optional: true, topic: true },
+      // Access is not the shoot day's (the owner, 5.11.2026): it stays in its own processes (5, 6).
+      { key: 'p14.access', label: 'גישות', optional: true, topic: true, retired: 12 },
       { key: 'p14.shootday', label: 'יום צילום', optional: true, topic: true },
       { key: 'p14.team', label: 'משימות צוות', optional: true, topic: true },
       { key: 'p14.missing', label: 'חוסרים מהלקוח', optional: true, topic: true },

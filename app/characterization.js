@@ -217,8 +217,12 @@ export function missingTask(client, missing, now = new Date()) {
     due_on: dayKeyIL(addBusinessDays(now, 1)), urgent: false,
   };
 }
-// When it blocks today's work: an exception that rings Lior at once (reminder-rules.js).
-export const BLOCKING_TITLE = 'חסר מידע שחוסם עבודה היום';
+// Missing for today's work: an exception that rings Lior at once (reminder-rules.js). Since
+// 5.11.2026 nothing "blocks" (the owner: "אף אחד לא חוסם אף אחד"): the words changed, and a task
+// opened under the old title (OLD_BLOCKING_TITLE) is still the same exception.
+export const BLOCKING_TITLE = 'חסר מידע לעבודה היום';
+export const OLD_BLOCKING_TITLE = 'חסר מידע שחוסם עבודה היום';
+export const isBlockingTitle = (title) => [BLOCKING_TITLE, OLD_BLOCKING_TITLE].some((t) => String(title || '').startsWith(t));
 export function blockingTask(client, what, missing) {
   const detail = clean(what) || listText(missing);
   return {
