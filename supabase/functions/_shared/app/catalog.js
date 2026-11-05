@@ -235,7 +235,7 @@ export const CUSTOM_QTY = [
     label: (n, sel) => (sel.tier === 'podcast' ? 'סרטוני פודקאסט' : 'סרטונים בבית העסק') },
   { key: 'graphics', max: 300, name: 'גרפיקות', base: (s) => s.graphics, label: () => 'גרפיקות' },
   { key: 'shootDays', max: 12, name: 'ימי צילום עם המשפיענים', base: (s) => s.shootDays,
-    label: (n, sel) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} בבית העסק עם ${INF_NAME(sel.influencer)}` },
+    label: (n, sel) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} בבית העסק${isChoice(sel.influencer) ? ',' : ''} עם ${INF_NAME(sel.influencer)}` },
   { key: 'photoDays', max: 12, name: 'ימי צילום עם צלם', base: (s, pkg) => (pkg.tier === 'podcast' ? 1 : 0),
     label: (n) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} עם צלם בבית העסק, וידאו וסטילס` },
   { key: 'collabs', max: 24, name: 'קולאבים באינסטגרם', base: (s) => s.collabs,
