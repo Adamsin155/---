@@ -30,10 +30,18 @@
 //    name (someone else signed in on this device meanwhile) is not sent: the page is
 //    hidden and loads again.
 import { supabase, SUPABASE_URL, useFetchLayer, requestsIdle, redraws, clearKept, ACCOUNT_CHOSEN } from './supa.js';
-import { sessionCache, planOf, tokenUser, CACHE_KEY } from './data-cache.js';
+import { sessionCache, planOf, tokenUser, CACHE_KEY, gzipSqueeze } from './data-cache.js';
 import { quietPage } from './feel.js';
 
-const kept = sessionCache((() => { try { return globalThis.sessionStorage || null; } catch { return null; } })());
+// Long answers are kept squeezed where the browser can, and the store is written once the page
+// is idle, not while it draws (docs/ops.md, section 102). A page that is left first writes nothing.
+const whenIdle = (job) => {
+  try {
+    if (typeof requestIdleCallback === 'function') { requestIdleCallback(() => job(), { timeout: 4000 }); return; }
+  } catch { /* none */ }
+  setTimeout(job, 1500);
+};
+const kept = sessionCache((() => { try { return globalThis.sessionStorage || null; } catch { return null; } })(), { squeeze: gzipSqueeze(), later: whenIdle });
 const PAGE = typeof location === 'undefined' ? '' : (location.pathname.split('/').pop() || 'index.html');
 const flying = new Map();  // key -> the server's answer on its way
 const shown = new Map();   // key -> what this page was shown from the store: { shape, identity, differs, done, now: the server's answer }
@@ -92,17 +100,19 @@ function fromStore(plan, uid, input, init) {
   shown.set(plan.key, mark);
   checking += 1;
   setStale(true);
-  askServer(plan, uid, input, init).then(async (res) => ({
+  // A squeezed answer is read back first (a few milliseconds); one that cannot be is a question for the server.
+  const body = typeof entry.z === 'string' ? kept.bodyOf(entry) : Promise.resolve(entry.body);
+  Promise.all([askServer(plan, uid, input, init).then(async (res) => ({
     ok: res.status === 200 || res.status === 206, status: res.status, type: res.headers.get('content-type'), range: res.headers.get('content-range'), body: await res.text(),
-  })).catch(() => null).then((got) => {
+  })).catch(() => null), body]).then(([got, was]) => {
     // The server was not reached: what is on the screen stays, like a page left open with no network.
-    mark.differs = !!got && (!got.ok || got.body !== entry.body);
+    mark.differs = !!got && (!got.ok || got.body !== was);
     mark.now = got?.ok ? got : null;
     checking -= 1;
     if (checking === 0) nextTurn().then(confirmShown);
   });
   if (!identity) drawn = true;
-  return answerOf(entry);
+  return body.then((text) => (text === null ? askServer(plan, uid, input, init) : answerOf({ ...entry, body: text })));
 }
 let confirming = false;
 async function confirmShown() {

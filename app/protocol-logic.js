@@ -23,8 +23,30 @@ const closeAt = (d) => atTimeIL(d, erevOn(d) ? WORK_HOURS.erevEnd : WORK_HOURS.e
 // Walks whole days from noon, far from any clock change (Israel changes at 02:00).
 const nextDay = (d, step = 1) => addDaysIL(atTimeIL(d, 12), step);
 
+// Pure functions of a moment, asked again and again for the same moments when every client's
+// state is worked out (docs/ops.md, section 102): the answers are kept, a fresh Date is handed out.
+const memo = (limit) => {
+  const kept = new Map();
+  return (key, make) => {
+    let v = kept.get(key);
+    if (v === undefined) {
+      v = +make();
+      if (kept.size > limit) kept.clear();
+      kept.set(key, v);
+    }
+    return new Date(v);
+  };
+};
+const workMoments = memo(20000);
+const workAdds = memo(20000);
+
 // The next moment inside office hours (the moment itself when it already is).
 export function nextWorkMoment(date) {
+  const t = +new Date(date);
+  if (Number.isNaN(t)) return nextWorkMomentOf(date);
+  return workMoments(t, () => nextWorkMomentOf(t));
+}
+function nextWorkMomentOf(date) {
   const d = new Date(date);
   if (isBusinessDay(d) && d < closeAt(d)) return d < openAt(d) ? openAt(d) : d;
   let n = d;
@@ -34,6 +56,11 @@ export function nextWorkMoment(date) {
 
 // Adds minutes of office time: the clock stops at night, on weekends and holidays.
 export function addWorkingMinutes(date, minutes) {
+  const t = +new Date(date);
+  if (Number.isNaN(t) || typeof minutes !== 'number') return addWorkingMinutesOf(date, minutes);
+  return workAdds(String(t) + "|" + minutes, () => addWorkingMinutesOf(t, minutes));
+}
+function addWorkingMinutesOf(date, minutes) {
   let d = nextWorkMoment(date);
   let left = minutes;
   while (left > 0) {

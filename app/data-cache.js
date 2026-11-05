@@ -26,7 +26,31 @@
 export const CACHE_KEY = 'astrateg.cache';
 export const MAX_AGE = 10 * 60e3;     // older than this is never shown
 export const MAX_ENTRY = 400_000;     // characters of one answer
-export const MAX_TOTAL = 1_500_000;   // characters of all of them
+export const MAX_TOTAL = 1_500_000;   // characters of all of them (as kept: a squeezed answer counts its squeezed size)
+// An answer longer than this is kept squeezed (gzip, in base64) when the browser can squeeze
+// (docs/ops.md, section 102): the marks of ninety clients are about 2.7 million characters as
+// text and a tenth of that squeezed, so the whole screen fits and is shown from the store.
+export const SQUEEZE_FROM = 8_000;
+
+// gzip in base64 with the browser's own streams (CompressionStream), or null where there are none.
+const B64_CHUNK = 0x8000;
+export function gzipSqueeze(g = globalThis) {
+  if (typeof g.CompressionStream !== 'function' || typeof g.DecompressionStream !== 'function' || typeof g.Blob !== 'function' || typeof g.Response !== 'function' || typeof g.btoa !== 'function') return null;
+  return {
+    async pack(text) {
+      const bytes = new Uint8Array(await new g.Response(new g.Blob([text]).stream().pipeThrough(new g.CompressionStream('gzip'))).arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += B64_CHUNK) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + B64_CHUNK));
+      return g.btoa(bin);
+    },
+    async unpack(b64) {
+      const bin = g.atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+      return new g.Response(new g.Blob([bytes]).stream().pipeThrough(new g.DecompressionStream('gzip'))).text();
+    },
+  };
+}
 
 export const KEPT_TABLES = new Set([
   'clients', 'protocol_checks', 'client_tasks', 'staff', 'client_month_marks', 'client_messages', 'client_status_notes',
@@ -110,12 +134,20 @@ const idOf = (key) => {
 
 // The store of one tab. `storage` is the tab's sessionStorage (or anything with its
 // methods); with none, nothing is kept and every question goes to the server.
-export function sessionCache(storage, { now = () => Date.now() } = {}) {
+// `squeeze`: { pack(text) → Promise<string>, unpack(string) → Promise<text> } (gzipSqueeze), or null:
+// a long answer is then kept squeezed, and `put` of one answers a Promise.
+// `later`: (job) → runs job once the page is idle (the writing of the store is not on the way of
+// the screen; docs/ops.md, section 102); `put` then answers a Promise. Without it, at once.
+export function sessionCache(storage, { now = () => Date.now(), squeeze = null, later = null } = {}) {
   let index = null; // { uid, e: { id: [at, size, identity] }, ns: { page: [shape] } }
+  // Counts what removes kept answers (a write, signing out, another account, a forgotten
+  // question): a squeezed answer that was on its way when one happened is not kept.
+  let era = 0;
   const blank = (uid) => ({ uid, e: {}, ns: {} });
   const save = () => { try { storage.setItem(CACHE_KEY, JSON.stringify(index)); return true; } catch { return false; } };
   const drop = (id) => { try { storage.removeItem(`${CACHE_KEY}.${id}`); } catch { /* no storage */ } delete index?.e[id]; };
   function clear() {
+    era += 1;
     try {
       const gone = [];
       for (let i = 0; i < storage.length; i += 1) { const k = storage.key(i) || ''; if (k === CACHE_KEY || k.startsWith(`${CACHE_KEY}.`)) gone.push(k); }
@@ -133,7 +165,8 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
     index = { ...blank(uid), ...kept };
     return true;
   }
-  // The kept answer to a question: { at, status, type, range, body }, or null.
+  // The kept answer to a question: { at, status, type, range, body } (or `z`, the body squeezed:
+  // read it with bodyOf), or null.
   function get(uid, key) {
     if (!open(uid)) return null;
     const id = idOf(key);
@@ -143,13 +176,40 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
     try {
       const entry = JSON.parse(storage.getItem(`${CACHE_KEY}.${id}`) || 'null');
       if (!entry || entry.uid !== uid || entry.key !== key) { drop(id); save(); return null; }
+      if (typeof entry.z === 'string' && !squeeze) { drop(id); save(); return null; }
       return entry;
     } catch { drop(id); save(); return null; }
   }
+  // The body of a kept answer (null: it cannot be read back; the question then goes to the server).
+  async function bodyOf(entry) {
+    if (!entry) return null;
+    if (typeof entry.z !== 'string') return String(entry.body ?? '');
+    try { return await squeeze.unpack(entry.z); } catch { return null; }
+  }
   function put(uid, plan, answer) {
     if (!open(uid) || plan.kind !== 'keep') return false;
-    const id = idOf(plan.key);
     const body = String(answer.body ?? '');
+    // Whatever removes kept answers meanwhile (a write, signing out) wins: this one is then not kept.
+    const was = era;
+    const still = () => was === era && index?.uid === uid;
+    const keep = () => {
+      if (!still()) return false;
+      if (squeeze && body.length > SQUEEZE_FROM) {
+        return squeeze.pack(body).then(
+          (z) => (still() ? store(uid, plan, answer, { z }) : false),
+          () => (still() ? store(uid, plan, answer, { body }) : false),
+        );
+      }
+      return store(uid, plan, answer, { body });
+    };
+    if (!later) return keep();
+    return new Promise((done) => { later(() => { Promise.resolve().then(keep).then(done, () => done(false)); }); });
+  }
+  // `kept`: { body } or { z } (the body squeezed); the size of the store counts what is kept.
+  function store(uid, plan, answer, kept) {
+    if (!open(uid)) return false;
+    const id = idOf(plan.key);
+    const body = kept.z ?? kept.body;
     if (body.length > MAX_ENTRY) { drop(id); save(); return false; }
     const at = now();
     for (const [old, meta] of Object.entries(index.e)) if (at - meta[0] > MAX_AGE) drop(old);
@@ -161,7 +221,7 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
       drop(old);
     }
     try {
-      storage.setItem(`${CACHE_KEY}.${id}`, JSON.stringify({ uid, key: plan.key, at, status: answer.status, type: answer.type || '', range: answer.range || '', body }));
+      storage.setItem(`${CACHE_KEY}.${id}`, JSON.stringify({ uid, key: plan.key, at, status: answer.status, type: answer.type || '', range: answer.range || '', ...kept }));
     } catch { clear(); return false; } // the tab's storage is full: nothing is kept
     index.e[id] = [at, body.length, IDENTITY(plan.path) ? 1 : 0];
     if (!save()) { clear(); return false; }
@@ -170,6 +230,7 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
   // Something was written: what was kept before it may be old. Who the person is stays,
   // unless the write was to the team itself (or went through a function).
   function wrote(uid, path = '') {
+    era += 1;
     if (!open(uid)) return;
     const all = path === 'staff' || path === 'functions';
     for (const [id, meta] of Object.entries(index.e)) if (all || !meta[2]) drop(id);
@@ -185,5 +246,5 @@ export function sessionCache(storage, { now = () => Date.now() } = {}) {
     save();
   }
   const keys = () => { try { return Array.from({ length: storage.length }, (_, i) => storage.key(i)).filter((k) => k === CACHE_KEY || String(k).startsWith(`${CACHE_KEY}.`)); } catch { return []; } };
-  return { get, put, wrote, forget, clear, unsteady, markUnsteady, keys, isIdentity: IDENTITY };
+  return { get, bodyOf, put, wrote, forget, clear, unsteady, markUnsteady, keys, isIdentity: IDENTITY };
 }

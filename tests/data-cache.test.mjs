@@ -190,7 +190,7 @@ test('the store is the tab\'s sessionStorage and nothing else; signing out and t
   const supa = readFileSync(new URL('../app/supa.js', import.meta.url), 'utf8');
   const rules = readFileSync(new URL('../app/data-cache.js', import.meta.url), 'utf8');
   const layer = readFileSync(new URL('../app/session-store.js', import.meta.url), 'utf8');
-  assert.match(layer, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\)\)/);
+  assert.match(layer, /sessionCache\(\(\(\) => \{ try \{ return globalThis\.sessionStorage \|\| null; \} catch \{ return null; \} \}\)\(\), \{ squeeze: gzipSqueeze\(\), later: whenIdle \}\)/); // squeezed, written when idle (section 102)
   // What keeps and hands out answers, and the rules: nowhere but the tab. (The one read of
   // localStorage is of the sign-in client's own session: whose device this is now.)
   for (const [name, src] of [['session-store.js', layer.replace('localStorage.getItem(supabase.auth.storageKey)', '')], ['data-cache.js', rules]]) {
