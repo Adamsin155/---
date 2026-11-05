@@ -1451,7 +1451,7 @@ export const RULES = [
   // owners' end-of-day table (app/day-summary.js), and whoever holds it follows the
   // ladder of a late item (`lateOwn`, `lateNag` at the end of this file).
   {
-    id: 'late', event: 'איחור', procs: [],
+    id: 'late', event: 'איחור (רק ברשימה של ליאור, לא נשלח)', procs: [],
     instances(env) {
       const out = [];
       for (const c of env.clients) {
@@ -2318,7 +2318,7 @@ const justLate = (i, env) => env.now - i.x.lateAt <= LATE_LADDER.tellWithinMinut
 const DAY_WORDS = (n) => (n === 1 ? 'יום עסקים' : n === 2 ? 'יומיים' : `${n} ימי עסקים`);
 const LADDER_RULES = [
   {
-    id: 'lateOwn', event: 'איחור: למי שמאחר, למי שמחכה לו, למנהלים ולבעלים', procs: [],
+    id: 'lateOwn', event: 'איחור: למי שמאחר', procs: [],
     instances(env) {
       return lateOf(env).map((x) => ({
         id: x.id, cid: x.cid, client: x.client, name: x.name, ref: x.ref, url: lateUrl(x), x, snooze: x.snooze,
