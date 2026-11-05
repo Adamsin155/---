@@ -999,7 +999,7 @@ export const RULES = [
       // "אין מי שייצא לאפיון" and missing information that blocks today's work ring at
       // once (the matrix); every other exception goes to his list.
       { id: 'nobody', to: (i) => i.who, level: 'ring', exception: true, when: (i) => i.task.title.startsWith(NO_CHARACTERIZER), title: (i) => `אין מי שייצא לאפיון: ${i.name}`, body: (i) => i.task.title.slice(NO_CHARACTERIZER.length).replace(/^[\s:(]+/, '') },
-      { id: 'blocking', to: (i) => i.who, level: 'ring', exception: true, when: (i) => isBlockingTitle(i.task.title), title: (i) => `חסר מידע לעבודה היום: ${i.name}`, body: (i) => i.task.title.replace(/^חסר מידע (שחוסם עבודה|לעבודה) היום[s:]*/, '') },
+      { id: 'blocking', to: (i) => i.who, level: 'ring', exception: true, when: (i) => isBlockingTitle(i.task.title), title: (i) => `חסר מידע לעבודה היום: ${i.name}`, body: (i) => i.task.title.replace(/^חסר מידע (שחוסם עבודה|לעבודה) היום[\s:]*/, '') },
       { id: 'list', to: (i) => i.who, level: 'digest', list: true, when: (i) => !ringsAtOnce(i.task.title), title: (i) => `חריגה: ${i.name}`, body: (i) => i.task.title },
       // The matrix: when nobody can go, Irit is told too (quiet).
       { id: 'nobodyIrit', to: 'irit', level: 'quiet', when: (i) => i.task.title.startsWith(NO_CHARACTERIZER) && i.who !== 'irit', title: (i) => `אין מי שייצא לאפיון: ${i.name}`, body: (i) => `עבר לליאור. ${i.task.title.slice(NO_CHARACTERIZER.length).replace(/^[\s:(]+/, '')}` },
