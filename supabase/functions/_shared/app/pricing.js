@@ -5,7 +5,7 @@
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
   PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, maxDiscountFor, packageId,
-  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar,
+  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar, infText,
 } from './catalog.js';
 import { PROVIDER, agreementSections, LEGAL_VERSION } from './legal.js';
 
@@ -276,7 +276,7 @@ function effectiveIncludes(sel) {
   const seen = new Set();
   const out = [];
   const line = (q, n) => ({ qty: n, label: q.label(n, sel) });
-  const infName = INFLUENCERS[sel.influencer]?.name || '';
+  const infName = infText(sel.influencer);
   for (const [i, inc] of PACKAGES[pid].includes.entries()) {
     const q = CUSTOM_QTY.find((x) => x.key === keys[i]);
     // No influencer: the lines of the influencer's day go (its crew, and anything in its name).
@@ -359,7 +359,8 @@ function agreementContext(sel, { tier, paid, free, totals }) {
     validHours: DOC_TYPES.agreement.validHours,
     totals,
     packageName: tier.name,
-    influencer: noInfluencer(sel) ? '' : INFLUENCERS[sel.influencer].name,
+    // "משפיען לבחירה": said as the one to be chosen, never as a name.
+    influencer: noInfluencer(sel) ? '' : infText(sel.influencer),
     noInfluencer: noInfluencer(sel),
     tier: sel.tier,
     shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),

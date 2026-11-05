@@ -54,7 +54,7 @@ before(async () => {
 });
 
 test('the migration: the newest, only adds, runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql', '20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql', '20261126100000_lior_four.sql', '20261128100000_managers_all.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql', '20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql', '20261126100000_lior_four.sql', '20261128100000_managers_all.sql', '20261129100000_influencer_choice.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));
@@ -74,7 +74,9 @@ test('the pending file: only the four checks, each taken away by name and added 
 
 test('before the approval: Niro and "הצל" are refused where a check lists the values; a signature is kept', async () => {
   await assert.rejects(db.query("insert into public.clients (name, shoot_type) values ('x', 'hatzel')"), /check/);
-  await assert.rejects(deal('niro', []), /check/);
+  // The deal's influencer check takes Niro since 20261129100000_influencer_choice.sql ("משפיען לבחירה", 5.11.2026);
+  // his add-ons still wait for the pending file.
+  await assert.rejects(deal('niro', ['niro-reel']), /check/);
   const { quote, client } = await sign(modelOf('social-niro', ['niro-reel']));
   assert.equal(quote.status, 'signed');
   // The client opens anyway, with its package and quantities, and no shoot type yet.

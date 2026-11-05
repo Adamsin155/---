@@ -95,7 +95,7 @@ import { CONTRACT_KIND, CONTRACT_LABEL, CONTRACT_ACCEPT, contractFiles, contract
 import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
 import { canArchive, isManager } from './manager-rules.js';
-import { openedBySigning } from './client-open.js';
+import { openedBySigning, influencerToChoose } from './client-open.js';
 import { warm, taken, onFresh } from './supa.js';
 import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
 // Protocol v10 (docs/ops.md, section 58): a fix the client asked for outside the status page.
@@ -982,6 +982,10 @@ function renderHead(s) {
   const prog = own()
     ? { done: counted.filter((x) => x.complete).length, total: counted.length, label: 'התהליכים שלי שהושלמו', overdue: counted.filter((x) => x.status === 'overdue').length, waiting: counted.filter((x) => x.status === 'client').length }
     : { done: s.procsDone, total: s.procsTotal, label: 'תהליכים שהושלמו', overdue: s.overdue, waiting: s.waitingOnClient };
+  // "משפיען לבחירה" (5.11.2026): until the office sets who comes, the card says so.
+  const choiceFact = influencerToChoose(c)
+    ? fact('משפיען', h('span', { class: 'cc-noeditor' }, 'עוד לא נבחר'), own() ? null : h('button', { type: 'button', class: 'btn btn-sm k-btn-navy', id: 'cc-choose-inf', onclick: () => openEdit('ed-shoot-type') }, 'בחירת משפיען'))
+    : null;
   const shootFact = fact('יום צילום', [shootTypeName(c) || null, c.shoot_at ? formatStamp(c.shoot_at) : null].filter(Boolean).join(' · ') || null, calendarMenu('shoot'));
   const editorFact = fact(c.editor && c.editor2 ? 'עורכים' : 'עורך',
     c.editor ? editorNames(c) : c.editor_name || (assignMode(s) ? h('span', { class: 'cc-noeditor' }, 'אין עורך') : null), [assignButton(s), unassignButton(c)].filter(Boolean));
@@ -1019,7 +1023,7 @@ function renderHead(s) {
         next.status === 'client' ? null : statusBadge(next.status, next.dueAt, new Date()))
         : null,
     // 'own': only the details that serve the work (where, when, who edits).
-    own() ? h('dl', { class: 'facts cc-facts' }, fact('כתובת העסק', c.address), shootFact, editorFact)
+    own() ? h('dl', { class: 'facts cc-facts' }, fact('כתובת העסק', c.address), choiceFact, shootFact, editorFact)
       : h('dl', { class: 'facts cc-facts' },
         fact('טלפון', phone),
         // The client's email and company number (28.10.2026): the office's, with the phone.
@@ -1028,6 +1032,7 @@ function renderHead(s) {
         fact('כתובת העסק', c.address),
         fact('פרטי העסקה התקבלו', c.deal_at ? formatStamp(c.deal_at) : null),
         fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
+        choiceFact,
         shootFact,
         fact('לוגו', c.has_logo === true ? 'יש' : c.has_logo === false ? 'אין, עילאי מכין' : null),
         editorFact,

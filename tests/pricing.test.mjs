@@ -41,7 +41,8 @@ test('free add-ons never change the price', () => {
 });
 
 // 34 until 28.10.2026; Niro and "הצל" add Natali's 24 each (3 tiers × 8: the photographer, a reel, a story).
-test('coverage: every package x every eligible paid combination = 82', () => {
+// 88 since 5.11.2026: "משפיען לבחירה" adds 3 packages, each with or without the monthly photographer.
+test('coverage: every package x every eligible paid combination = 88', () => {
   let count = 0;
   for (const tier of TIERS) {
     for (const inf of Object.keys(INFLUENCERS)) {
@@ -61,7 +62,7 @@ test('coverage: every package x every eligible paid combination = 82', () => {
       }
     }
   }
-  assert.equal(count, 82);
+  assert.equal(count, 88);
 });
 
 test('eligibility: natali add-ons only in natali packages (incl. podcast)', () => {
@@ -142,7 +143,7 @@ test('catalog: comparison specs match the included items', async () => {
     assert.ok(s, `specs for ${id}`);
     assert.equal(s.videos, find(pkg, /סרטונ/), `${id} videos`);
     assert.equal(s.graphics, find(pkg, /^גרפיקות$/), `${id} graphics`);
-    assert.equal(s.shootDays, find(pkg, /(יום|ימי) צילום.*(סמיון|נטלי|נירו|הצל)/), `${id} shootDays`);
+    assert.equal(s.shootDays, find(pkg, /(יום|ימי) צילום.*(סמיון|נטלי|נירו|הצל|משפיען מרשימת)/), `${id} shootDays`);
     assert.equal(s.collabs, find(pkg, /קולאב/), `${id} collabs`);
     assert.equal(s.stories, find(pkg, /^סטורי/), `${id} stories`);
     assert.equal(s.ch14, find(pkg, /ערוץ 14/), `${id} ch14`);

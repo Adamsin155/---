@@ -1,5 +1,5 @@
 import {
-  INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS,
+  INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS, infLabel,
   VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, maxDiscountFor, packageId,
   CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS,
 } from './catalog.js';
@@ -89,7 +89,9 @@ async function getSupa() {
 /* ── Rendering ─────────────────────────────── */
 
 // Niro Levi and "הצל" (Yoav Eliasi) since 28.10.2026: the picker is two by two.
-const MONOGRAM = { natali: 'נד', simeon: 'סמד', niro: 'נל', hatzel: 'הצל' };
+// "משפיען לבחירה" (5.11.2026): the fifth, across the whole row.
+const MONOGRAM = { natali: 'נד', simeon: 'סמד', niro: 'נל', hatzel: 'הצל', choice: '?' };
+const INF_SUB = { choice: 'נבחר עם הלקוח אחרי החתימה' };
 const TIER_INDEX = { podcast: 'P', social: 'S', 'social-tv': 'S+TV' };
 // Largest value of each comparison row across all packages, for the meters.
 const SPEC_MAX = Object.fromEntries(SPEC_ROWS.map((r) => [r.key, Math.max(...Object.values(SPECS).map((s) => s[r.key]))]));
@@ -103,7 +105,7 @@ function renderInfluencers() {
   box.replaceChildren(...Object.values(INFLUENCERS).map((inf) => {
     const id = `inf-${inf.id}`;
     const on = state.influencer === inf.id;
-    return h('div', { class: 'inf' },
+    return h('div', { class: 'inf' + (inf.choice ? ' inf-choice' : '') },
       h('input', {
         type: 'radio', name: 'influencer', id, value: inf.id, checked: on,
         onchange: () => update({ influencer: inf.id }, { focus: id }),
@@ -111,8 +113,8 @@ function renderInfluencers() {
       h('label', { for: id },
         h('span', { class: 'mono', 'aria-hidden': 'true' }, MONOGRAM[inf.id]),
         h('span', { class: 'inf-text' },
-          h('span', { class: 'inf-name' }, inf.name),
-          h('span', { class: 'inf-sub' }, '3 חבילות זמינות'),
+          h('span', { class: 'inf-name' }, infLabel(inf.id)),
+          h('span', { class: 'inf-sub' }, INF_SUB[inf.id] || '3 חבילות זמינות'),
           on && aiLive.has('package') ? aiTag() : null,
         ),
         h('span', { class: 'radio-dot', 'aria-hidden': 'true' }),
@@ -175,7 +177,7 @@ function renderIncluded() {
   const includes = customOn() ? currentModel().package.includes : PACKAGES[pid].includes;
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
-      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, none ? 'בלי משפיענים' : INFLUENCERS[state.influencer].name)),
+      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, none ? 'בלי משפיענים' : infLabel(state.influencer))),
       h('span', { class: 'tag' }, customOn() ? 'כמו שנכתב בחוזה' : 'כמויות לשנה'),
     ),
     h('ul', {}, includes.map((i) => h('li', {},
