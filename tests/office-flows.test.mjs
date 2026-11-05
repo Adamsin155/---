@@ -216,7 +216,7 @@ test('waiting for an editor: from the evening of the shoot day (v12: nobody clos
   assert.deepEqual(waiting(IL(2026, 10, 19, 10)).map((x) => [x.pre, x.n]), [['', null]]);
 });
 
-test('editor load: "יום X מתוך 3", 4 once the videos are with Ofir; paused jobs; tasks; Ofir\'s proposal', () => {
+test('editor load: "יום X מתוך 3", 4 once the videos are with Ofir; an old pause counts for nothing (5.11.2026); tasks; Ofir\'s proposal', () => {
   const w = world();
   const now = IL(2026, 10, 21, 10); // Wednesday: day 3 of an assignment on Sunday
   // Clients from before protocol v11 (3 editing days; tests/two-editors.test.mjs and production.test.mjs have the 2).
@@ -228,10 +228,10 @@ test('editor load: "יום X מתוך 3", 4 once the videos are with Ofir; pause
   w.tasks.push({ id: 't1', client_id: a.id, owner: 'anna', title: 'x', done_at: null });
   const load = editorLoad({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, tasks: w.tasks, now });
   assert.deepEqual(load.nadia.jobs.map((j) => [j.client.name, j.day, j.of]), [['א', 3, 3]]);
-  assert.deepEqual(load.yariv.jobs.map((j) => [j.client.name, j.of, !!j.paused]).sort(), [['ב', 4, false], ['ג', 3, true]]);
-  assert.equal(load.yariv.paused, 1);
+  assert.deepEqual(load.yariv.jobs.map((j) => [j.client.name, j.of, !!j.paused]).sort(), [['ב', 4, false], ['ג', 3, false]]);
+  assert.equal(load.yariv.paused, 0);
   assert.equal(load.anna.tasks, 1);
-  assert.equal(loadText(load.yariv), '2 לקוחות בעריכה · אחת עצורה');
+  assert.equal(loadText(load.yariv), '2 לקוחות בעריכה');
   assert.equal(proposeEditor(load, 'dms', ['yariv']), 'anna');
   assert.equal(proposeEditor(load, 'natali', ['yariv']), 'nirel');
   assert.equal(dayText(0, 3), 'שויך היום');
@@ -375,7 +375,7 @@ test('an exception\'s fixed path: reason → decision → next action (a linked 
   assert.equal(linkedTitle('להתקשר ללקוח', task), 'להתקשר ללקוח (בעקבות חריגה: משימה תקועה)');
 });
 
-test('editing still paused the next morning: Lior decides; a round\'s editor changes in its rounds', () => {
+test('an old pause is nobody\'s decision any more (5.11.2026); a round\'s editor changes in its rounds', () => {
   const w = world();
   const c = editingClient(w, { name: 'עצור' });
   mark(w, c, 'p22.pause', IL(2026, 10, 20, 15), JSON.stringify({ stage: 'x', left: 'y' }));
@@ -383,9 +383,7 @@ test('editing still paused the next morning: Lior decides; a round\'s editor cha
   mark(w, d, 'p22.pause', IL(2026, 10, 21, 8), JSON.stringify({ stage: 'x', left: 'y' }));
   const now = IL(2026, 10, 21, 9);
   const list = pausedSinceYesterday({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now });
-  assert.deepEqual(list.map((x) => [x.client.name, x.pre, x.editor, x.decidedToday]), [['עצור', '', 'nadia', false]]);
-  mark(w, c, 'p22.decision', IL(2026, 10, 21, 9, 5), '{}');
-  assert.equal(pausedSinceYesterday({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now })[0].decidedToday, true);
+  assert.deepEqual(list, []);
   assert.deepEqual(withEditor({ rounds: [{ n: 2, editor: 'nadia' }, { n: 3, editor: 'anna' }] }, 2, 'yariv'), { rounds: [{ n: 2, editor: 'yariv' }, { n: 3, editor: 'anna' }] });
   assert.deepEqual(withEditor({}, null, 'yariv'), { editor: 'yariv' });
 });

@@ -46,9 +46,9 @@ test('each queue with work gives one counted line, in its group, to its page', (
 
   const lior = byId(linesOf(db, 'lior'));
   // Protocol v9: the editor's assignment is Ofir's alone, so "מחכים לשיוך עורך" is not a line of Lior's.
-  assert.deepEqual(Object.keys(lior).sort(), ['access', 'availability-missing', 'campaigns', 'changes', 'landing-shoot', 'paused', 'urgent-back']);
+  // No "paused" line since 5.11.2026: nothing stops the editing (an old pause is ignored).
+  assert.deepEqual(Object.keys(lior).sort(), ['access', 'availability-missing', 'campaigns', 'changes', 'landing-shoot', 'urgent-back']);
   assert.deepEqual([lior['urgent-back'].n, lior['urgent-back'].bucket, lior['urgent-back'].href], [COUNTS.urgentBack, 'urgent', 'decisions.html#ur-h']);
-  assert.deepEqual([lior.paused.n, lior.paused.bucket, lior.paused.href], [COUNTS.paused, 'today', 'decisions.html#pz-h']);
   assert.deepEqual([lior.access.n, lior.access.href], [COUNTS.broken, 'decisions.html#ac-h']);
   assert.deepEqual([lior.changes.n, lior.changes.href], [COUNTS.changes, 'decisions.html#cq-h']);
   assert.deepEqual([lior.campaigns.n, lior.campaigns.bucket, lior.campaigns.href], [1, 'today', 'decisions.html#cp-h']); // Tuesday: today
@@ -94,7 +94,8 @@ test('the numbers are the numbers of the pages themselves', () => {
   assert.equal(queue.filter((q) => q.landing).length, byId(linesOf(db, 'ofir'))['landing-qa'].n);
   assert.equal(waiting.length, COUNTS.assign.clock + COUNTS.assign.landing);
   assert.equal(waiting.filter((a) => a.client.landing).length, byId(linesOf(db, 'ofir'))['landing-assign'].n);
-  assert.equal(pausedSinceYesterday({ clients: live, stateOf: x.stateOf, checks: x.checks, now: NOW }).length, byId(linesOf(db, 'lior')).paused.n);
+  assert.equal(pausedSinceYesterday({ clients: live, stateOf: x.stateOf, checks: x.checks, now: NOW }).length, 0);
+  assert.equal(byId(linesOf(db, 'lior')).paused, undefined);
 });
 
 test('an empty queue gives no line', () => {
@@ -117,8 +118,8 @@ test('an empty queue gives no line', () => {
 test('rows that could not be read give no line, and nothing breaks', () => {
   const db = flowWorld();
   const none = { access: null, requests: null, messages: null, availability: null, liorShoot: null };
-  assert.deepEqual(linesOf(db, 'lior', { extra: none }).map((l) => l.id).sort(), ['landing-shoot', 'paused', 'urgent-back', 'campaigns'].sort());
-  assert.deepEqual(flowLines({ ...inputs(db, 'lior', { extra: none }), reviews: null }).map((l) => l.id).sort(), ['landing-shoot', 'paused', 'urgent-back'].sort());
+  assert.deepEqual(linesOf(db, 'lior', { extra: none }).map((l) => l.id).sort(), ['landing-shoot', 'urgent-back', 'campaigns'].sort());
+  assert.deepEqual(flowLines({ ...inputs(db, 'lior', { extra: none }), reviews: null }).map((l) => l.id).sort(), ['landing-shoot', 'urgent-back'].sort());
   assert.deepEqual(linesOf(db, 'irit', { extra: none }).map((l) => l.id).sort(), ['followup', 'landing-shoot']); // the follow-up is counted from the page's own rows
   assert.deepEqual(linesOf(db, 'eli', { extra: none }), []);
   // The owners, a field agent and somebody the app could not identify: no lines.
@@ -182,12 +183,12 @@ test('landing means no clock: its lines say so, sit apart, and name no reminder;
     }
   }
   assert.deepEqual([...seen].sort(), ['access', 'availability', 'availability-missing', 'campaigns', 'changes', 'exceptions', 'fixes', 'followup', 'landing-assign', 'landing-editing',
-    'landing-qa', 'landing-shoot', 'messages', 'paused', 'urgent-back']);
-  // A paused editing of a client in landing is counted apart from the ones with a clock.
+    'landing-qa', 'landing-shoot', 'messages', 'urgent-back']);
+  // A paused editing of a client in landing: no line either (5.11.2026).
   db.clients.find((c) => c.id === cid(14)).landing = true;
   const lior = byId(linesOf(db, 'lior'));
   assert.equal(lior.paused, undefined);
-  assert.equal(lior['landing-paused'].text, `עריכה אחת עצורה ומחכה להחלטה שלך · ${LANDING_WORDS}`);
+  assert.equal(lior['landing-paused'], undefined);
   // When every open client is in landing, the day's messages are one quiet line.
   for (const c of db.clients) c.landing = true;
   const irit = byId(linesOf(db, 'irit'));

@@ -343,7 +343,8 @@ export function dayBeforeText(note, shootType = null) {
   const ok = Array.isArray(v.ok) ? v.ok : [];
   const n = ok.length + v.failed.length;
   const count = n === 1 ? 'נבדק פריט אחד' : `נבדקו ${n} פריטים`;
-  if (!v.failed.length) return n ? `${count}, הכול תקין` : '';
+  // One "בוצע" since 5.11.2026: no items in the note.
+  if (!v.failed.length) return n ? `${count}, הכול תקין` : 'ההכנות ליום הצילום בוצעו';
   return `${count}. לא תקין: ${v.failed.map((id) => starWords(DAY_BEFORE_LABELS[id], shootType) || String(id)).join(', ')}`;
 }
 export function readDayBefore(note) {

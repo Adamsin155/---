@@ -83,11 +83,13 @@ test('editor states: waiting → editing → QA → fixes → QA → client → 
   // Blocked: reported and the process waits.
   checks['p22.missing'] = done(IL(2026, 10, 18, 12), P.missingNote(['logo', 'phone'], 'אין לוגו'));
   assert.equal(stOf(c, checks).blocked, null, 'a report without the wait is not a block (it was resolved)');
+  // Nothing blocks since 5.11.2026: the old wait of a stopping report holds nothing, and the report reads as one.
   checks['p22.wait'] = done(IL(2026, 10, 18, 12), JSON.stringify({ reason: P.blockedReason(['logo', 'phone']) }));
   const blocked = stOf(c, checks);
   assert.equal(blocked.key, 'editing');
-  assert.deepEqual(blocked.blocked.what, ['logo', 'phone']);
-  assert.equal(P.missingText(blocked.blocked.what), 'לוגו, טלפון העסק');
+  assert.equal(blocked.blocked, null);
+  assert.deepEqual(blocked.report.what, ['logo', 'phone']);
+  assert.equal(P.missingText(blocked.report.what), 'לוגו, טלפון העסק');
   delete checks['p22.wait'];
   delete checks['p22.missing'];
   // (2) Ready for QA.
@@ -354,10 +356,10 @@ test('a report made while the editing goes on: "חסר" lines with their words, 
   checks['p22.wait'] = done(IL(2026, 10, 19, 11), JSON.stringify({ reason: 'ממתין ללקוח' }));
   assert.equal(P.missingOf(checks), null);
   assert.ok(P.reportOf(checks));
-  // A stop: the same mark without `going`, held by the wait.
+  // An old stop (the same mark without `going`, until 5.11.2026) reads as a report; nothing is a block.
   checks['p22.missing'] = done(IL(2026, 10, 19, 12), P.missingNote(['footage'], '', { have: 0, of: 36 }));
-  assert.equal(P.reportOf(checks), null);
-  assert.deepEqual([P.missingOf(checks).what, P.missingOf(checks).have], [['footage'], 0]);
+  assert.deepEqual([P.reportOf(checks).what, P.reportOf(checks).have], [['footage'], 0]);
+  assert.equal(P.missingOf(checks), null);
   // Each check and what it reports; "מה חסר?" offers the scripts too now.
   assert.deepEqual(P.START_CHECKS.map(([k]) => P.missingKeyOf(k)), ['footage', 'scripts', 'logo', 'phone']);
   assert.equal(P.missingText(['scripts', 'logo']), 'לוגו, תסריטים וסדר הסרטונים');
@@ -409,22 +411,19 @@ const pick = (list, rule, step) => list.filter((r) => r.rule === rule && (!step 
 const one = (list, rule, step) => { const x = pick(list, rule, step); assert.equal(x.length, 1, `${rule}.${step}: ${JSON.stringify(list.map((r) => r.key))}`); return x[0]; };
 const none = (list, rule, step) => assert.equal(pick(list, rule, step).length, 0, `${rule}.${step || ''} should not be due`);
 
-test('missing logo / phone / footage: Irit at once, Lior after 3 office hours; the editing ladder waits; it ends with the wait', () => {
+test('an old stopping report (until 5.11.2026): one ring to whom it was sent, no 3-hour ring, and the old wait holds nothing', () => {
   const w = world();
   w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   w.cs['p22.received'] = done(IL(2026, 10, 18, 10, 30));
   w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['logo'], 'לא נפתח'));
   w.cs['p22.wait'] = done(IL(2026, 10, 18, 11), JSON.stringify({ reason: P.blockedReason(['logo']) }));
   const at = one(due(w, IL(2026, 10, 18, 11)), 'editorMissing', 'irit');
-  assert.equal(at.level, 'ring');
-  assert.match(at.body, /^נדיה: חסר לוגו \(לא נפתח\)\. העריכה חסומה/);
-  none(due(w, IL(2026, 10, 18, 13, 59)), 'editorMissing', 'lior');
-  const lior = one(due(w, IL(2026, 10, 18, 14)), 'editorMissing', 'lior');
-  assert.equal(lior.exception, true); // on his shoot day it goes to Ofir (decision 8)
-  none(due(w, IL(2026, 10, 18, 14)), 'editing'); // "not started" and the day digests wait while blocked
-  delete w.cs['p22.wait'];
-  none(due(w, IL(2026, 10, 18, 14)), 'editorMissing');
+  assert.match(at.body, /^נדיה: חסר לוגו \(לא נפתח\)\. העריכה ממשיכה\.$/);
+  none(due(w, IL(2026, 10, 18, 14)), 'editorMissing', 'lior');
+  // The editing's own day rings come as on any editing day.
+  assert.ok(pick(due(w, IL(2026, 10, 21, 15)), 'editing').length > 0);
 });
+
 
 test('missing while the editing goes on: Irit at once with the words; no 3-hour ring to Lior; the editing ladder runs', () => {
   const w = world();
@@ -495,18 +494,17 @@ for (const editor of ['nadia', 'yariv', 'anna', 'nirel']) {
   });
 }
 
-test('stopped and sent to Lior: no second ring to him after 3 hours; sent to Ofir: Lior after 3 hours, "אופיר עוד לא סגר"', () => {
-  const w = world();
-  w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
-  w.cs['p22.received'] = done(IL(2026, 10, 18, 10, 30));
-  w.cs['p22.wait'] = done(IL(2026, 10, 18, 11), JSON.stringify({ reason: P.blockedReason(['logo']) }));
-  w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['logo'], '', { to: 'lior' }));
-  assert.equal(one(due(w, IL(2026, 10, 18, 11)), 'editorMissing', 'irit').person, 'lior');
-  assert.deepEqual(pick(due(w, IL(2026, 10, 18, 16)), 'editorMissing').map((x) => x.person), ['lior']);
-  w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['logo'], '', { to: 'ofir' }));
-  assert.equal(one(due(w, IL(2026, 10, 18, 11)), 'editorMissing', 'irit').person, 'ofir');
-  assert.match(one(due(w, IL(2026, 10, 18, 14)), 'editorMissing', 'lior').body, /אופיר עוד לא סגר את זה\.$/);
+test('a report sent to Lior or to Ofir rings that person; nobody gets a 3-hour "עריכה חסומה" (5.11.2026)', () => {
+  for (const to of ['lior', 'ofir']) {
+    const w = world();
+    w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
+    w.cs['p22.received'] = done(IL(2026, 10, 18, 10, 30));
+    w.cs['p22.missing'] = done(IL(2026, 10, 18, 11), P.missingNote(['logo'], '', { going: true, to }));
+    assert.equal(one(due(w, IL(2026, 10, 18, 11)), 'editorMissing', 'irit').person, to);
+    none(due(w, IL(2026, 10, 18, 14, 30)), 'editorMissing', 'lior');
+  }
 });
+
 
 test('QA return (the office\'s rule, one per event): the editor at once on their page; the QA clock stops; fixed starts a new one; the owner from round 2', () => {
   const w = world();
@@ -584,7 +582,8 @@ test('a paused edit for someone else\'s urgent task says so; a finished brief re
   w.cs['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   w.cs['p22.received'] = done(IL(2026, 10, 18, 11));
   w.cs['p22.pause'] = done(IL(2026, 10, 19, 10), P.pauseNote({ stage: 'עריכה', left: '2', for: 'lior', task: 't1' }));
-  assert.equal(one(due(w, IL(2026, 10, 19, 10)), 'paused', 'ofir').title, 'עצירה לבקשת ליאור: מספרת רון · ניראל');
+  // An old pause (until 5.11.2026) rings nobody: nothing stops the editing.
+  none(due(w, IL(2026, 10, 19, 10)), 'paused');
   const result = P.briefResult({ done: 'הבאנר מוכן', left: '', drive: 'https://drive.google.com/x' }, IL(2026, 10, 19, 12));
   w.tasks.push({ id: 't1', client_id: 'c1', title: 'באנר', owner: 'nirel', urgent: true, created_by_email: 'lior@x', created_at: IL(2026, 10, 19, 9).toISOString(), done_at: IL(2026, 10, 19, 12).toISOString(), result });
   w.tasks.push({ id: 't2', client_id: 'c1', title: 'לוגו', owner: 'nirel', urgent: false, created_by_email: 'irit@x', created_at: IL(2026, 10, 19, 9).toISOString(), done_at: IL(2026, 10, 19, 12).toISOString(), result: { ...result, left: 'גרסה לבנה', client: true } });
