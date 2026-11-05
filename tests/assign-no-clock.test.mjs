@@ -22,7 +22,8 @@ const itemsOf = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !
 const due = (w, now, log = []) => computeReminders({ ...w, now, log });
 const stateOf = (w, c, now) => clientState(c, w.checks[c.id] || {}, now);
 const proc = (w, c, id, now) => stateOf(w, c, now).states.find((s) => s.proc.id === id);
-const rows = (w, now) => due(w, now).filter((r) => r.rule === 'assign12');
+// Ofir's; Irit gets the same ring (5.11.2026), checked once below.
+const rows = (w, now) => due(w, now).filter((r) => r.rule === 'assign12' && r.person === 'ofir');
 
 // A client whose shoot day was closed on Thursday 15.10.2026 at 17:00, waiting for an editor.
 function waiting(w, o = {}) {
@@ -49,7 +50,7 @@ test('22א has no due and is never late, however long it waits', () => {
   assert.deepEqual(due(w, IL(2026, 10, 15, 17, 1)).filter((r) => r.rule === 'fast'), []);
 });
 
-test('12:00: one ring to Ofir on a working day with the count; none on the weekend, none with an empty queue', () => {
+test('12:00: one ring to Ofir (and one to Irit) on a working day with the count; none on the weekend, none with an empty queue', () => {
   const w = world();
   assert.deepEqual(rows(w, IL(2026, 10, 18, 12)), [], 'nobody waits');
   waiting(w);
@@ -58,13 +59,14 @@ test('12:00: one ring to Ofir on a working day with the count; none on the weeke
   const [r] = rows(w, sunday);
   assert.deepEqual([r.person, r.level, r.title, r.url, r.clientId ?? null], ['ofir', 'ring', 'לקוח אחד מחכה לשיוך עורך', 'qa.html#assign-h', null]);
   assert.equal(rows(w, sunday).length, 1);
+  assert.deepEqual(due(w, sunday).filter((x) => x.rule === 'assign12').map((x) => x.person).sort(), ['irit', 'ofir'], 'Irit too');
   // Friday and Saturday: nothing.
   for (const t of [IL(2026, 10, 16, 12), IL(2026, 10, 17, 12)]) assert.deepEqual(rows(w, t), []);
   // Several clients are one ring, and it is said once a day.
   waiting(w);
   const [two] = rows(w, sunday);
   assert.equal(two.title, '2 לקוחות מחכים לשיוך עורך');
-  assert.deepEqual(due(w, IL(2026, 10, 18, 12, 1), [{ key: two.key }]).filter((x) => x.rule === 'assign12'), []);
+  assert.deepEqual(due(w, IL(2026, 10, 18, 12, 1), [{ key: two.key }]).filter((x) => x.rule === 'assign12' && x.person === 'ofir'), []);
   assert.equal(rows(w, IL(2026, 10, 19, 12)).length, 1, 'the next working day again');
   // All assigned: nothing.
   for (const c of w.clients) assign(w, c, 'anna', IL(2026, 10, 18, 11));

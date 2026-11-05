@@ -503,15 +503,18 @@ test('ready for QA (24→25): Ofir at once and after 40 office minutes, paused w
   mark(w, c, 'p24.notify', IL(2026, 10, 21, 11));
   one(due(w, IL(2026, 10, 21, 11)), 'qa', 'now', 'ofir');
   one(due(w, IL(2026, 10, 21, 11, 40)), 'qa', 'again', 'ofir');
+  // Irit hears both too (5.11.2026: she reviews as Ofir does).
+  one(due(w, IL(2026, 10, 21, 11)), 'qa', 'now', 'irit');
+  one(due(w, IL(2026, 10, 21, 11, 40)), 'qa', 'again', 'irit');
   assert.equal(one(due(w, IL(2026, 10, 21, 12)), 'qa', 'lior', 'lior').list, true);
   // Ofir characterizes another client 11:20–13:20: the 40 minutes end at 13:40.
   const other = client(w, { char_at: IL(2026, 10, 21, 11, 20).toISOString() });
   importTo(w, other, 'char');
   none(due(w, IL(2026, 10, 21, 13, 39)), 'qa', 'again');
-  assert.equal(hhmm(one(due(w, IL(2026, 10, 21, 13, 40)), 'qa', 'again').at), '21.10 13:40');
+  assert.equal(hhmm(one(due(w, IL(2026, 10, 21, 13, 40)), 'qa', 'again', 'ofir').at), '21.10 13:40');
   // He marked the meeting done at 12:20: the clock runs again from then (12:40).
   marks(w, other, itemsOf('p04'), IL(2026, 10, 21, 12, 20));
-  assert.equal(hhmm(one(due(w, IL(2026, 10, 21, 12, 40)), 'qa', 'again').at), '21.10 12:40');
+  assert.equal(hhmm(one(due(w, IL(2026, 10, 21, 12, 40)), 'qa', 'again', 'ofir').at), '21.10 12:40');
   mark(w, c, 'p25.approved', IL(2026, 10, 21, 11, 30));
   none(due(w, IL(2026, 10, 21, 12)), 'qa');
 });
