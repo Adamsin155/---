@@ -545,7 +545,9 @@ function workOf(person) {
   const late = lateState(now);
   const held = late.held(person);
   for (const g of groups.values()) { g.late = held.has(g.key); g.turn = !g.late && late.turn.has(g.key); g.send = !g.late && late.send.has(g.key); }
-  return [...groups.values()].sort(byUrgency);
+  // The client's fixes (27) before the client answered are nobody's work (the owner, 8.11.2026: once the
+  // editor marked the editing done, nothing is hers until the client asks for fixes): not listed at all.
+  return [...groups.values()].filter((g) => !g.send).sort(byUrgency);
 }
 // Every late item of the office now, as the reminders and the owners' table read it.
 const lateState = (now = new Date()) => once('late', () => {
