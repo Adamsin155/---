@@ -1,6 +1,6 @@
 // "משפיען לבחירה" in the browser (the owner, 5.11.2026; docs/ops.md, section 98), against the
-// in-memory fake of Supabase of tests/custom-contract-e2e.mjs: the builder offers it across the
-// row, the document says "to be chosen", the signed client's card says "משפיען: עוד לא נבחר" with
+// in-memory fake of Supabase of tests/custom-contract-e2e.mjs: the builder offers it last (beside
+// Arik Mishali since 8.11.2026), the document says "to be chosen", the signed client's card says "משפיען: עוד לא נבחר" with
 // "בחירת משפיען", and Stav's deal form offers it. Phone and desktop screenshots.
 // Run: npx http-server -p 8094 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8094/ node tests/influencer-choice-e2e.mjs [outDir]
@@ -243,6 +243,12 @@ async function fakeSupabase(route) {
     return answer(req, json)(eq?.startsWith('eq.') ? staff.filter((s) => s.email === eq.slice(3)) : staff);
   }
   if (m[1] === 'reminder_log') return json(200, []);
+  // A client's details saved (the card's "עריכת פרטים"; Arik's step): the row takes them.
+  if (req.method() === 'PATCH' && m[1] === 'clients' && isOffice(me)) {
+    const hit = tables.clients.filter(matcher(filtersOf(url)));
+    for (const r of hit) Object.assign(r, body);
+    return answer(req, json)(hit);
+  }
   const rows = (tables[m[1]] || []).filter(matcher(filtersOf(url).filter(([k]) => k === 'id' || k === 'client_id')));
   return answer(req, json)(rows);
 }
@@ -305,7 +311,7 @@ try {
   await signIn(irit, 'quotes.html', 'irit');
   await irit.locator('#list-block').waitFor();
   let q;
-  await step('the builder: "משפיען לבחירה" across the row; Natali\'s package said as one to be chosen; only the monthly photographer to add', async () => {
+  await step('the builder: "משפיען לבחירה" last (beside Arik since 8.11.2026); Natali\'s package said as one to be chosen; only the monthly photographer to add', async () => {
     await irit.goto(`${BASE}index.html`);
     await irit.locator('#start-agreement').click();
     await irit.locator('#c-name').fill('סיוון פנסו');
@@ -313,7 +319,7 @@ try {
     await irit.locator('#c-companyid').fill('514729938');
     await irit.locator('#c-phone').fill('050-1234567');
     const names = await texts(irit, '#influencers .inf-name');
-    assert.deepEqual(names, ['נטלי דדון', 'סמיון, מישל ודניס', 'נירו לוי', 'הצל (יואב אליאסי)', 'משפיען לבחירה']);
+    assert.deepEqual(names, ['נטלי דדון', 'סמיון, מישל ודניס', 'נירו לוי', 'הצל (יואב אליאסי)', 'אריק משעלי', 'משפיען לבחירה']);
     await irit.locator('label[for="inf-choice"]').click();
     assert.equal(await irit.locator('#inf-choice').isChecked(), true);
     assert.match(await text(irit, '#included .included-title'), /משפיען לבחירה/);
@@ -411,6 +417,69 @@ try {
     assert.equal(calls.filter((x) => x.dealInsert).at(-1).dealInsert.influencer, 'choice');
     assert.match(await stav.locator('#deal-list .deal-item').first().innerText(), /משפיען לבחירה/);
     await stav.context().close();
+  });
+
+  // Arik Mishali (the owner, 8.11.2026; docs/ops.md, section 109): Natali's packages in his name.
+  await step('Arik Mishali: the builder, Stav\'s form, and the card\'s "עם מי"', async () => {
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+      const page = await newPage(viewport);
+      await signIn(page, 'quotes.html', 'irit');
+      await page.locator('#list-block').waitFor();
+      await page.goto(`${BASE}index.html`);
+      await page.locator('#start-agreement').click();
+      await page.locator('label[for="inf-arik"]').click();
+      assert.equal(await page.locator('#inf-arik').isChecked(), true);
+      assert.match(await text(page, '#included .included-title'), /אריק משעלי/);
+      assert.match(await text(page, '#included ul'), /יום צילום בבית העסק עם אריק משעלי/);
+      assert.doesNotMatch(await text(page, '#included ul'), /נטלי/);
+      assert.deepEqual(await page.locator('#paid input').evaluateAll((els) => els.map((e) => e.id)), ['paid-photographer', 'paid-arik-reel', 'paid-arik-story']);
+      assert.equal(await text(page, '#t-mnet'), '3,900 ₪');
+      assert.equal(await noSideScroll(page), true);
+      await page.locator('#influencers').scrollIntoViewIfNeeded();
+      await shot(page, `10-builder-arik-${viewport.width}`, false);
+      await page.locator('#paid').scrollIntoViewIfNeeded();
+      await shot(page, `11-builder-arik-paid-${viewport.width}`, false);
+      await page.context().close();
+    }
+    const stav = await newPage({ width: 360, height: 780 });
+    await signIn(stav, 'clients.html', 'stav');
+    await stav.waitForURL(/deal\.html/);
+    await stav.waitForSelector('#deal-form:not([hidden])');
+    await stav.check('#d-doc-agreement');
+    await stav.click('#d-to-package');
+    assert.match(await stav.locator('label[for="d-influencer-arik"]').innerText(), /אריק משעלי/);
+    await stav.check('#d-influencer-arik');
+    await stav.locator('#d-influencer-arik').scrollIntoViewIfNeeded();
+    assert.equal(await noSideScroll(stav), true);
+    await shot(stav, '12-deal-arik-phone', false);
+    await stav.context().close();
+    // The card: "בחירת משפיען" ← "אריק משעלי", saved as his shoot type.
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+      const page = await newPage(viewport);
+      await signIn(page, 'quotes.html', 'irit');
+      await page.locator('#list-block').waitFor();
+      await page.goto(`${BASE}client.html?id=${c.id}`);
+      await page.locator('.cc-facts .fact').first().waitFor();
+      await page.waitForTimeout(2500); // the sign-in veil fades
+      if (!c.shoot_type) {
+        await page.locator('#cc-choose-inf').click();
+        await page.locator('#ed-shoot-type').waitFor({ state: 'visible' });
+        assert.ok((await page.locator('#ed-shoot-type option').allInnerTexts()).includes('אריק משעלי'));
+        await page.selectOption('#ed-shoot-type', 'arik');
+        await shot(page, `13-card-pick-arik-${viewport.width}`, false);
+        await page.locator('#ed-submit').click();
+        await page.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
+        for (let i = 0; i < 50 && tables.clients.find((x) => x.id === c.id).shoot_type !== 'arik'; i += 1) await page.waitForTimeout(100);
+        assert.equal(tables.clients.find((x) => x.id === c.id).shoot_type, 'arik');
+      }
+      await page.goto(`${BASE}client.html?id=${c.id}`);
+      await page.locator('.cc-facts').first().waitFor();
+      await page.waitForTimeout(2500);
+      assert.match(await page.locator('main').innerText(), /אריק משעלי/);
+      assert.equal(await noSideScroll(page), true);
+      await shot(page, `14-card-arik-${viewport.width}`, false);
+      await page.context().close();
+    }
   });
 
   assert.deepEqual(errors, [], 'no page errors');

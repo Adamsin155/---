@@ -4501,3 +4501,25 @@ select email, checked_at, read_until from public.whatsapp_poll order by email;
 - **הפריסה:** `supabase functions deploy sales-samples --project-ref czncjzziqrqtezpwxxpz --use-api`, אחרי שהסוד `CRM_SAMPLES_KEY` הוגדר.
 - **בדיקות:** `tests/sales-samples.test.mjs`.
 - **כדי שההתאמה לפי תחום תהיה מדויקת,** השדה "עסק" בכרטיס הלקוח צריך להיות ממולא (למשל "מוסך" או "מספרה"). כשהוא ריק, ה־AI מנחש לפי שם הלקוח.
+
+## 109. משפיען חדש: אריק משעלי, בדיוק כמו נטלי דדון (החלטת הבעלים, 8.11.2026)
+
+כמו נירו לוי והצל (סעיף 71). הבעלים אישר: אותן חבילות ואותם מחירים של נטלי.
+
+- **במחולל (`index.html`), בטופס של סתיו (`deal.html`), ב־AI וב־MCP:** "אריק משעלי" ליד שאר המשפיענים. שלוש החבילות של נטלי (פודקאסט 3,500 ₪, Social 3,900 ₪, Social + TV 4,900 ₪), אותן כמויות, ובכל שורה השם שלו. תוספות: "העלאה אצל אריק משעלי" (1,000 ₪) ו"סטורי אצל אריק משעלי" (300 ₪), רק בחבילות שלו. במחשב "משפיען לבחירה" עומד עכשיו לידו, לא בשורה משלו. בקוד: `INFLUENCERS.arik` ו־`STARS` ב־`app/catalog.js`.
+- **אחרי החתימה:** ללקוח נפתח סוג יום צילום `arik`, שרץ כמו יום של נטלי. ניראל עורכת ורואה את הלקוחות שלו. כל טקסט אומר "אריק" במקום "נטלי".
+- **בחירה ידנית:** "אריק משעלי" נוסף בכרטיס הלקוח, בסבב ובלקוח חדש, תחת "עם משפיענים".
+- **מערכת התשלומים:** לא השתנתה, כמו בנירו ובהצל. מחכה לאחוזים ולעלויות מהבעלים.
+- **המסד:** `supabase/migrations/20261202100000_influencer_arik.sql`. אפשר להריץ פעמיים.
+  - `private.is_star_day`: אריק הוא יום כמו של נטלי, ולכן ניראל רואה את הלקוחות שלו.
+  - `package_deliverables`: הכמויות של שלוש החבילות, והרילס והסטורי שלו.
+  - `open_client_on_signing`: חוזה חתום עם אריק פותח לקוח עם סוג היום `arik`.
+  - **דורש אישור מפורש של הבעלים:** שלוש בדיקות במסד מורחבות. כל אחת נמחקת לפי השם ונוספת מיד, רחבה יותר: `clients.shoot_type`, `deal_requests.influencer`, `deal_requests.paid`. שורות ועמודות לא נוגעים בהן.
+- **הדלקה (הבעלים):**
+  1. לאשר ולהריץ את המיגרציה.
+  2. לפרוס את הפונקציות `create-quote`, `contract-ai`, `reminders`, `whatsapp-webhook`, `calendar`, `ask` ו־`mcp`. העותקים שהשתנו ב־`supabase/functions/_shared/app/`: `catalog.js`, `protocol.js`, `reminder-rules.js`.
+  3. לפרסם את האתר.
+- **בדיקות:**
+  - `tests/new-influencers.test.mjs`, `tests/pricing.test.mjs` (112 צירופים), `tests/contract-ai.test.mjs`
+  - `tests/sql/influencer-arik.test.mjs`
+  - בדפדפן: `tests/influencer-choice-e2e.mjs`, הצעד "Arik Mishali" (המחולל, הטופס של סתיו והכרטיס, בטלפון ובמחשב).
