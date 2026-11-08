@@ -461,3 +461,15 @@ test('a shoot date against the usual order is asked about: in the past, before t
   assert.equal(shootDateNote(concerns), `אושר למרות: ${concerns[0]}`);
   assert.ok(shootDateNote(['א'.repeat(600)]).length <= 500);
 });
+
+// "האפיון הסתיים" (the owner, 8.11.2026): a network already in the vault with its status is
+// counted, as one the client filled in the form; nothing to tick again.
+test('a network already in the vault needs nothing at the end of the meeting, and the note says it', () => {
+  const base = { address: 'הרצל 1, חולון', phone: '03-1234567', has_logo: true };
+  assert.match(endedProblems({ ...base, networks: [{ network: 'instagram', status: null }] }).networks, /לבחור לפחות רשת אחת/);
+  assert.deepEqual(endedProblems({ ...base, networks: [{ network: 'instagram', status: null, inVault: 'ok' }, { network: 'tiktok', status: null }] }), {});
+  const note = endedNote({ ...base, networks: [{ network: 'instagram', status: null, inVault: 'ok' }, { network: 'facebook', status: null, fromClient: 'new' }] });
+  assert.match(note, /מהטופס של הלקוח: Facebook: /);
+  assert.match(note, /כבר בכספת: Instagram: תקינה/);
+  assert.doesNotMatch(note, / · {2}· /);
+});

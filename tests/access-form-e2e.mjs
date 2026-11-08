@@ -864,8 +864,9 @@ await step('Ofir\'s "האפיון הסתיים" form: what the client already se
   // Lior checked Instagram meanwhile: it is the vault's own status now. Facebook and TikTok are still the client's word.
   assert.match(await text(page, '#end-net-facebook-got'), /Facebook\s*הלקוח כבר מילא: אין רשת/);
   assert.match(await text(page, '#end-net-tiktok-got'), /TikTok\s*הלקוח כבר מילא: לא עובדת/);
-  assert.equal(await page.locator('#end-net-instagram-got').count(), 0);
-  assert.match(await page.locator('.ik-net:has(#end-net-instagram-none)').innerText(), /Instagram\s*כבר בכספת: תקינה/);
+  // In the vault with its status (8.11.2026): counted as there, nothing to tick again; "לשנות" if he wants.
+  assert.match(await text(page, '#end-net-instagram-got'), /Instagram\s*כבר בכספת: תקינה/);
+  assert.equal(await page.locator('#end-net-instagram-none').count(), 0);
   assert.match(await text(page, '#end-networks-client'), /מה שהלקוח כבר מילא בטופס פרטי הכניסה מסומן כאן/);
   const shownAll = await page.evaluate(() => document.getElementById('end-form').innerText);
   for (const hidden of [SECRET, 'dana.tt', 'dana_cafe']) assert.ok(!shownAll.includes(hidden), hidden);
@@ -880,7 +881,7 @@ await step('Ofir\'s "האפיון הסתיים" form: what the client already se
   await page.click('#end-submit');
   await toastHas(page, 'האפיון הסתיים');
   assert.equal(JSON.stringify(db.client_access.filter((a) => a.client_id === D.id)), before, 'nothing of the client\'s is overwritten');
-  assert.match(checkOf(D, 'p04.ended').note, /מהטופס של הלקוח: Facebook: אין רשת, TikTok: לא עובדת/);
+  assert.match(checkOf(D, 'p04.ended').note, /מהטופס של הלקוח: Facebook: אין רשת, TikTok: לא עובדת · כבר בכספת: Instagram: תקינה/);
   assert.equal(checkOf(D, 'p05.access').at, accessAt, '5 keeps the time of the client\'s submission');
   assert.equal(checkOf(D, 'p05.access').by_email, 'system');
   await ctx.close();

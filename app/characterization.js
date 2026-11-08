@@ -121,7 +121,8 @@ export function endedProblems(v) {
   const given = (v.networks || []).filter((n) => n && n.status);
   // A network the client already filled in the logins form (app/access-logic.js)
   // needs nothing from the meeting: `fromClient` is its status in the vault.
-  const fromClient = (v.networks || []).filter((n) => n && n.fromClient);
+  // The same for a network already in the vault with its status (8.11.2026): `inVault`.
+  const fromClient = (v.networks || []).filter((n) => n && (n.fromClient || n.inVault));
   if (!given.length && !fromClient.length) out.networks = 'לבחור לפחות רשת אחת ומה מצב הגישה אליה (גם ״אין רשת״).';
   return out;
 }
@@ -133,9 +134,12 @@ export function endedNote(v) {
     .map((n) => `${networkName(n.network)}: ${ACCESS_STATUS.find(([k]) => k === n.status)?.[1] || n.status}`);
   const client = (v.networks || []).filter((n) => !n.status && n.fromClient)
     .map((n) => `${networkName(n.network)}: ${accessStatusLabel(n.fromClient)}`);
+  const vault = (v.networks || []).filter((n) => !n.status && !n.fromClient && n.inVault)
+    .map((n) => `${networkName(n.network)}: ${accessStatusLabel(n.inVault)}`);
   const parts = [`${ENDED_NOTE_PREFIX} · לוגו: ${v.has_logo ? 'יש' : 'אין'}`];
-  if (nets.length || !client.length) parts.push(nets.join(', '));
+  if (nets.length || (!client.length && !vault.length)) parts.push(nets.join(', '));
   if (client.length) parts.push(`מהטופס של הלקוח: ${client.join(', ')}`);
+  if (vault.length) parts.push(`כבר בכספת: ${vault.join(', ')}`);
   return parts.join(' · ').slice(0, 2000);
 }
 
