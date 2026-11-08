@@ -246,15 +246,18 @@ function initEnd() {
     has_logo: client.has_logo === true || client.has_logo === false ? client.has_logo : null,
     // `fromClient`: the status the client's own form gave this network, still as the
     // client left it. Such a network is shown as received and asked only on "לשנות".
+    // `inVault` (8.11.2026): the status the office already gave it in the vault. The same: shown
+    // as there, counted, and asked only on "לשנות".
     nets: Object.fromEntries(nets.map((n) => [n, {
       status: '', username: '', password: '', existing: inVault.get(n) || null,
-      known: known.get(n)?.status || null, fromClient: byClient(known.get(n)) ? known.get(n).status : null, open: false,
+      known: known.get(n)?.status || null, fromClient: byClient(known.get(n)) ? known.get(n).status : null,
+      inVault: known.get(n) && !byClient(known.get(n)) ? known.get(n).status : null, open: false,
     }])),
   };
 }
 const endValue = () => ({
   address: endV.address, phone: endV.phone, has_logo: endV.has_logo,
-  networks: Object.entries(endV.nets).map(([network, n]) => ({ network, status: n.status || null, username: n.username, password: n.password, existing: n.existing, fromClient: n.fromClient })),
+  networks: Object.entries(endV.nets).map(([network, n]) => ({ network, status: n.status || null, username: n.username, password: n.password, existing: n.existing, fromClient: n.fromClient, inVault: n.inVault })),
 });
 
 function renderEnd() {
@@ -280,14 +283,14 @@ function renderEnd() {
     const showLogin = vaultOk && (v.status === 'ok' || v.status === 'broken');
     // The client already filled this network in the logins form: its status only
     // (never the login), and nothing to ask unless Ofir chooses to change it.
-    if (v.fromClient && !v.open) {
+    if ((v.fromClient || v.inVault) && !v.open) {
       return h('div', { class: 'ik-net ik-net-got', id: `${name}-got` },
-        h('p', { class: 'ik-got' }, h('strong', {}, networkName(n)), h('span', { class: 'tag' }, `הלקוח כבר מילא: ${accessStatusLabel(v.fromClient)}`)),
+        h('p', { class: 'ik-got' }, h('strong', {}, networkName(n)), h('span', { class: 'tag' }, v.fromClient ? `הלקוח כבר מילא: ${accessStatusLabel(v.fromClient)}` : `כבר בכספת: ${accessStatusLabel(v.inVault)}`)),
         h('button', { type: 'button', class: 'btn-text', id: `${name}-change`, onclick: () => { v.open = true; renderEndKeep(`${name}-none`); } },
           'לשנות', h('span', { class: 'sr-only' }, ` את ${networkName(n)}`)));
     }
     return h('div', { class: 'ik-net' },
-      radios(name, [['', v.fromClient ? 'בלי שינוי' : 'לא נבדק'], ...accessStatusesFor(n)], v.status || '', (s) => { v.status = s; renderEndKeep(`${name}-${s || 'none'}`); },
+      radios(name, [['', v.fromClient || v.inVault ? 'בלי שינוי' : 'לא נבדק'], ...accessStatusesFor(n)], v.status || '', (s) => { v.status = s; renderEndKeep(`${name}-${s || 'none'}`); },
         [networkName(n), v.fromClient ? h('span', { class: 'tag' }, `מהלקוח: ${accessStatusLabel(v.fromClient)}`)
           : v.existing || v.known ? h('span', { class: 'tag' }, v.known ? `כבר בכספת: ${accessStatusLabel(v.known)}` : 'כבר בכספת') : null]),
       showLogin ? h('div', { class: 'ik-login' },
@@ -308,8 +311,9 @@ function renderEnd() {
       h('p', { class: 'hint', id: 'end-networks-hint' }, vaultOk
         ? 'כל רשת עם הסטטוס שלה. הגישות נכנסות ישר לכספת, מוצפנות.'
         : 'אין לך הרשאה לכספת: הסטטוסים נשמרים, ועירית מכניסה את הגישות עצמן.'),
-      Object.values(endV.nets).some((v) => v.fromClient) ? h('p', { class: 'hint', id: 'end-networks-client' },
-        'מה שהלקוח כבר מילא בטופס פרטי הכניסה מסומן כאן, ואין צורך לבקש אותו שוב. משלימים רק את מה שחסר.') : null,
+      Object.values(endV.nets).some((v) => v.fromClient || v.inVault) ? h('p', { class: 'hint', id: 'end-networks-client' },
+        Object.values(endV.nets).some((v) => v.fromClient) ? 'מה שהלקוח כבר מילא בטופס פרטי הכניסה מסומן כאן, ואין צורך לבקש אותו שוב. משלימים רק את מה שחסר.'
+          : 'מה שכבר בכספת מסומן כאן, ואין צורך לסמן אותו שוב. משלימים רק את מה שחסר.') : null,
       ...Object.keys(endV.nets).map(netRow),
       others.length ? h('label', { class: 'ik-more' }, h('span', {}, 'עוד רשת:'),
         h('select', { class: 'input', id: 'end-more', onchange: (e) => { const k = e.currentTarget.value; if (!k) return; endV.nets[k] = { status: '', username: '', password: '', existing: null }; renderEndKeep(`end-net-${k}-none`); } },
