@@ -26,6 +26,8 @@ export const INFLUENCERS = {
   simeon: { id: 'simeon', name: 'סמיון, מישל ודניס', shootType: 'dms' },
   niro: { id: 'niro', name: 'נירו לוי', short: 'נירו', shootType: 'niro' },
   hatzel: { id: 'hatzel', name: 'הצל (יואב אליאסי)', short: 'הצל', shootType: 'hatzel' },
+  // Arik Mishali (the owner, 8.11.2026): as Niro and "הצל", exactly as Natali.
+  arik: { id: 'arik', name: 'אריק משעלי', short: 'אריק', shootType: 'arik' },
   // "משפיען לבחירה" (the owner, 5.11.2026; the old system's "ALL IN ONE · משפיען לבחירה מרשימת
   // המשפיענים של אסטרטג"): the client signs now and the influencer is chosen later with the
   // business. Natali's packages and quantities, with no add-on at an influencer (nobody is
@@ -45,7 +47,8 @@ export const isChoice = (inf) => INFLUENCERS[inf]?.choice === true;
 // Dadon. The same three packages with the same prices and quantities, the same paid add-ons (a
 // reel and a story at the influencer), and a shoot day that runs as hers (app/protocol.js
 // isStarDay). Only "צירוף סמיון ליום הצילום" stays Natali's. The first star is Natali herself.
-export const STARS = ['natali', 'niro', 'hatzel'];
+// Arik Mishali joined on 8.11.2026 (the owner: the same packages and prices as Natali).
+export const STARS = ['natali', 'niro', 'hatzel', 'arik'];
 export const isStar = (influencer) => STARS.includes(influencer);
 const STAR_TIERS = ['podcast', 'social', 'social-tv'];
 // Natali's words, said of another star: her full name becomes theirs.
@@ -131,7 +134,7 @@ export const PACKAGES = {
     ],
   },
 };
-// The packages of Niro and of "הצל": Natali's, line by line, in their own name.
+// The packages of Niro, of "הצל" and of Arik: Natali's, line by line, in their own name.
 for (const inf of STARS.slice(1)) {
   for (const tier of STAR_TIERS) {
     const p = PACKAGES[`${tier}-natali`];
