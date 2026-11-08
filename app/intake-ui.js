@@ -27,6 +27,8 @@ export const scriptsHref = (clientId, round = 1) => `scripts.html?id=${enc(clien
 export const CHAR_READERS = ['ilai', 'nirel'];
 export const readsChar = (me) => CHAR_READERS.includes(me);
 export const charViewHref = (clientId) => `intake.html?id=${enc(clientId)}`;
+// "מסמך אפיון" (8.11.2026): the whole characterization to copy and download (app/char-doc.js).
+export const charDocHref = (clientId) => `intake.html?id=${enc(clientId)}&doc=1`;
 // The characterization form alone, at any time (27.10.2026; intake.html, app/intake.js).
 export const charEditHref = (clientId) => `intake.html?id=${enc(clientId)}&only=char`;
 // The graphics processes (7 and 23) and Ilai's new logo (5) are made from it.
@@ -117,6 +119,7 @@ export function mountClientIntake(slot, { client, scope = 'office', toast = null
     edits ? h('a', { class: 'btn btn-sm', href: charEditHref(client.id), id: 'ik-char-edit' }, cache.char ? 'עדכון אפיון' : 'אפיון') : null,
     office ? h('a', { class: 'btn btn-sm', href: `intake.html?id=${enc(client.id)}` }, 'אפיון ותוכן') : null,
     reads ? h('a', { class: 'btn btn-sm', href: charViewHref(client.id), id: 'ik-char' }, 'האפיון המלא') : null,
+    cache.char && (office || reads || edits) ? h('a', { class: 'btn btn-sm', href: charDocHref(client.id), id: 'ik-char-doc' }, 'מסמך אפיון') : null,
     scripts ? h('a', { class: 'btn btn-sm', href: scriptsHref(client.id), id: 'ik-scripts' }, 'כתיבת תסריטים') : null,
     office ? h('a', { class: 'btn btn-sm', href: `prep.html?id=${enc(client.id)}#requests`, id: 'ik-request' }, 'בקשת לקוח') : null,
     office ? h('a', { class: 'btn btn-sm btn-ghost', href: `prep.html?id=${enc(client.id)}` }, 'לפני יום צילום') : null) : null;
