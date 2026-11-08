@@ -18,7 +18,7 @@
 // Every screen at 390px and at 1366px, with no sideways scroll on the phone.
 // Run: npx http-server -p 8421 -s -c-1 . &  then  BASE_URL=http://localhost:8421/ node tests/package1-e2e.mjs [outDir]
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
+import fs, { mkdirSync } from 'node:fs';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -378,7 +378,7 @@ await step('with the Drive link "מוכן לבדיקה" goes to Ofir, and the li
   assert.ok(checkOf(D, 'p24.notify') && checkOf(D, 'p22.edited'));
   assert.equal(checkOf(D, 'p24.drive').note, DRIVE);
   await nadia.click('#handoff-close').catch(() => {});
-  await nadia.waitForSelector(`${card}-drive`);
+  await nadia.waitForSelector(`${card}-drive`, { state: 'attached' }); // the card folds once it went to Ofir
   assert.equal(await nadia.getAttribute(`${card}-drive`, 'href'), DRIVE);
 });
 
@@ -528,6 +528,61 @@ await step('one tap from the graphics card: the client\'s characterization, read
   await ilai.goto(`${BASE}intake.html?id=${G.id}`);
   await ilai.waitForSelector('#rd-none');
   assert.match(await text(ilai, '#rd-none'), /האפיון עוד לא נשמר במערכת/);
+});
+
+// ── "מסמך אפיון" (the owner, 8.11.2026; app/char-doc.js) ──
+await step('"מסמך אפיון": the whole characterization as one document; copy puts it all as text, download gives a Word file; no login in it', async () => {
+  await ilai.goto(`${BASE}intake.html?id=${D.id}`);
+  await ilai.waitForSelector('#rd-doc');
+  await ilai.click('#rd-doc');
+  await ilai.waitForSelector('#doc-body');
+  assert.match(ilai.url(), /intake\.html\?id=.*&doc=1$/);
+  assert.equal(await text(ilai, '#ik-head .kicker'), 'מסמך אפיון');
+  assert.equal(await text(ilai, '#ik-head h1'), 'קפה דנה');
+  assert.match(await text(ilai, '#doc-meta'), /מולאו 11 מתוך 11 השדות/);
+  assert.deepEqual(await ilai.locator('#doc-char dt').allInnerTexts(), FORM_FIELDS.map((f) => f.label));
+  assert.deepEqual(await ilai.locator('#doc-body h2').allInnerTexts(), ['מה הלקוח סיפר באפיון', 'קמפיין ממומן', 'מותג וחומרים']);
+  const body = await text(ilai, '#doc-body');
+  for (const v of ['קפה, מאפים וארוחות בוקר', 'קלייה במקום', 'הרצל 1, חיפה', '04-8123456', 'חום קפה וקרם']) assert.ok(body.includes(v), v);
+  // Ilai reads: copy and download, no "עדכון אפיון", nothing to type.
+  assert.equal(await ilai.locator('#doc-edit').count(), 0);
+  assert.equal(await ilai.locator('#ik-body :is(input, textarea, select)').count(), 0);
+  for (const b of ['#doc-copy', '#doc-download']) assert.ok((await ilai.locator(b).boundingBox()).height >= 44, b);
+  await ilai.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
+  await ilai.click('#doc-copy');
+  await toastHas(ilai, 'המסמך הועתק');
+  const copied = (await ilai.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n'); // Windows reads the lines back with a CR
+  assert.match(copied, /■ מה הלקוח סיפר באפיון\nכתובת מלאה של העסק:\nהרצל 1, חיפה\n/);
+  assert.match(copied, /■ מותג וחומרים\n/);
+  const [dl] = await Promise.all([ilai.waitForEvent('download'), ilai.click('#doc-download')]);
+  assert.equal(dl.suggestedFilename(), 'אפיון - קפה דנה.doc');
+  const word = fs.readFileSync(await dl.path(), 'utf8');
+  assert.match(word, /<body dir="rtl">/);
+  assert.match(word, /קלייה במקום/);
+  for (const out of [copied, word]) assert.doesNotMatch(out, /password|סיסמה:|correct-horse/);
+  assert.ok(await noHScroll(ilai));
+  await shots(ilai, 'char-doc');
+  if (OUT) {
+    await ilai.evaluate(() => document.querySelector('#toast')?.classList.remove('on'));
+    await ilai.screenshot({ path: `${OUT}/char-doc-full-390.png`, fullPage: true });
+    // The Word file as it opens (Word reads the same HTML).
+    const view = await ilai.context().newPage();
+    await view.setContent(word.replace(/^﻿/, ''));
+    await view.screenshot({ path: `${OUT}/char-doc-word.png`, fullPage: true });
+    await view.close();
+  }
+  // From the client card: "מסמך אפיון" next to "האפיון המלא".
+  await ilai.goto(`${BASE}client.html?id=${D.id}`);
+  await ilai.waitForSelector('#ik-char-doc');
+  assert.equal(await ilai.getAttribute('#ik-char-doc', 'href'), `intake.html?id=${D.id}&doc=1`);
+  // Not saved yet: it says so, with no buttons.
+  await ilai.goto(`${BASE}intake.html?id=${G.id}&doc=1`);
+  await ilai.waitForSelector('#doc-none');
+  assert.equal(await ilai.locator('#doc-copy').count(), 0);
+  // An editor: closed, as the characterization is.
+  await nadia.goto(`${BASE}intake.html?id=${D.id}&doc=1`);
+  await nadia.waitForFunction(() => /פתוח לצוות המשרד/.test(document.querySelector('#state')?.textContent || ''));
+  assert.equal(await nadia.locator('#doc-body').count(), 0);
 });
 
 // ── Eli: the scripts of his shoot day ──

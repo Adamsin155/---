@@ -324,3 +324,9 @@ details.pp-sub[open] > summary.pp-sum::after { transform: rotate(-135deg); }
 .pk-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .pk-row .tag { flex: none; }
 .pk-row .tag.pk-has { background: var(--ds-ok-soft); color: var(--ds-ok); }
+
+/* "מסמך אפיון" (8.11.2026, app/char-doc.js): the buttons under the name, the document's sections. */
+.doc-actions { margin-top: 12px; }
+.doc-actions .btn { flex: 1 1 150px; max-width: 280px; }
+.doc-go { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
+.doc-sheet .ik-read dd.doc-val { color: var(--text); }
