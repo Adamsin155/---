@@ -89,6 +89,14 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   const own = turn && baseKey(turn.key) === 'p13.approved' && items.some((i) => baseKey(i.key) === 'p13.fixes');
   // `turnKey`: the approval that waits (the owners' table says how long: app/client-waits.js).
   if (turn && !fix && !notes && !own) return { holders: [], waiters: [], clientTurn: true, fixing: false, turnKey: turn.key };
+  // The client's fixes (27; Nirel, 8.11.2026): nothing is the editor's until the client answered
+  // (notes written down, an approval, or a fix the client asked for). Before the videos were even
+  // marked sent (26), it waits for the sending: that lateness is the sender's, in 26 itself.
+  if (baseProc(s.proc.id) === 'p27' && !turn) {
+    const pre = preOf(s.proc.keyBase || s.proc.id);
+    const said = ['p27.notes', 'p27.approved'].some((k) => checks[`${pre}${k}`]?.state === 'done') || !!openFix(tasks, client.id, `${pre}p27.approved`);
+    if (!said) return { holders: [], waiters: [], clientTurn: false, fixing: false, waitsSend: true };
+  }
   if (turn) items = items.filter((i) => i !== turn);
   const openKeys = new Set(items.map((i) => i.key));
   // Graphics that Ofir returned for fixes (7, 23; protocol v9) are with whoever fixes
