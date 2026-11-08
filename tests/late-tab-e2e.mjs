@@ -16,6 +16,7 @@ import { NOW, SUPA, emailOf, lateWorld, makeFlowFake, cid, NO_DATE, SENT } from 
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import { clientState } from '../app/protocol-logic.js';
 import { daySummary } from '../app/day-summary.js';
+import { PROCESSES } from '../app/protocol.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8080/';
 const SIZES = { 360: { width: 360, height: 780 }, 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 900 } };
@@ -373,6 +374,36 @@ try {
     assert.ok(await page.locator('#fl-slot .fl-add .k-ico').count() >= 4);
     assert.ok(await page.locator('#fl-slot .fl-add').count() >= 4);
     await ctx.close();
+  });
+
+  // E (the owner, 8.11.2026): editing done and approved by Ofir, the videos not yet marked sent to the
+  // client: nothing of 27 is the editor's. Not in "באיחור", not in "המשימות שלי", and "הלקוחות שלי"
+  // says there is nothing open for her there.
+  await step('E: an editing that is done waits for the client: nothing of 27 on the editor, anywhere', async () => {
+    const db = lateWorld();
+    const base = db.clients.find((c) => c.id === cid(12));
+    const DONE = cid(63);
+    db.clients.push({ ...base, id: DONE, name: 'דן מוסך', business: 'מוסך הדרום', editor: 'nadia', rounds: [], landing: false, landed_at: null, shoot_type: 'dms',
+      deal_at: '2026-09-20T09:00:00+03:00', char_at: '2026-09-22T10:00:00+03:00', shoot_at: '2026-10-05T10:00:00+03:00' });
+    const keys = PROCESSES.filter((p) => ['p01', 'p02', 'p03', 'p11', 'p04', 'p05', 'p05b', 'p06', 'p07a', 'p07', 'p08', 'p08b', 'p09', 'p10', 'p12', 'p12a', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p20', 'p21', 'p22a', 'p22', 'p24', 'p25'].includes(p.id))
+      .flatMap((p) => p.items.map((i) => i.key));
+    for (const k of keys) db.protocol_checks.push({ client_id: DONE, item_key: k, state: 'done', note: null, by_email: emailOf('ofir'), at: '2026-10-13T12:00:00+03:00' });
+    for (const w of [390, 1280]) {
+      const { page, ctx } = await signedIn('nadia', { db, path: 'clients.html#mine', width: w });
+      assert.doesNotMatch(await text(page.locator('#mine-list')), /דן מוסך[^]*27 ·|מוסך הדרום[^]*27 ·/, 'not in her list');
+      await page.click('#tab-clients');
+      await page.waitForSelector('#view-clients:not([hidden])');
+      await settle(page);
+      const row = page.locator('#client-list .crow', { hasText: 'מוסך הדרום' });
+      if (await row.count()) {
+        const t = await text(row);
+        assert.doesNotMatch(t, /27 ·|באיחור/, t);
+        assert.match(t, /אין כרגע משהו פתוח אצלך/);
+        await row.scrollIntoViewIfNeeded();
+      }
+      if (process.argv[2]) await page.screenshot({ path: `${process.argv[2]}/e-editing-done-${w}.png` });
+      await ctx.close();
+    }
   });
 
   assert.deepEqual(errors, [], 'no page errors');
