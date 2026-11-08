@@ -45,16 +45,20 @@ import { googleCalendarUrl } from './calendar.js';
 import { inputValueIL, fromInputIL } from './tz.js';
 // The materials themselves (logo, photos, videos) go into the client's files from the phone.
 import { mountClientFiles, fileCount } from './files-ui.js';
-import { readsChar } from './intake-ui.js';
+import { readsChar, charDocHref } from './intake-ui.js';
 import { writesChar, MEETING_PEOPLE } from './shell-rules.js';
 import { searchClients } from './client-search.js';
 import { loadCharacterizations } from './intake-data.js';
 import { supabase } from './supa.js';
+// "מסמך אפיון" (8.11.2026): the whole characterization as one document to copy and download.
+import { charDoc, docText, docWordHtml, docFileName, EMPTY } from './char-doc.js';
 
 const params = new URLSearchParams(location.search);
 const id = params.get('id');
 // The form alone, at any time, with no clock (27.10.2026).
 const charOnly = !!id && params.get('only') === 'char';
+// The characterization as a document (8.11.2026): ?id=<client>&doc=1.
+const docMode = !!id && params.get('doc') === '1';
 const SECTIONS = [
   ['end', 'סיום אפיון'], ['form', 'טופס אפיון'], ['focus', 'דגשים לקוח'], ['scripts', 'תסריטים וזום'],
 ];
@@ -446,6 +450,7 @@ function renderForm() {
     formDraftAt ? h('div', { class: 'ik-draft', role: 'status' },
       h('span', {}, `שוחזרה טיוטה מהטלפון מ־${formatStamp(formDraftAt)} שעוד לא נשמרה.`),
       h('button', { type: 'button', class: 'btn-text', id: 'draft-drop', onclick: dropDraft }, 'לבטל את הטיוטה')) : null,
+    charRow ? h('p', { class: 'doc-go' }, h('a', { class: 'btn btn-sm', id: 'form-doc', href: charDocHref(id) }, 'מסמך האפיון'), h('span', { class: 'hint' }, ' להעתקה ולהורדה של כל מה שנשמר')) : null,
     h('p', { class: 'ik-progress', id: 'form-progress', 'aria-live': 'polite' }, progressText()),
     ...FORM_FIELDS.flatMap((f) => [field({
       fid: `form-${f.key}`, label: f.label, hint: f.hint || null, error: problems[f.key],
@@ -807,7 +812,9 @@ async function showRead() {
     h('div', { class: 'kicker' }, 'האפיון של הלקוח · לקריאה'),
     h('h1', { id: 'rd-h', tabindex: '-1' }, client.name),
     h('p', { class: 'muted' }, [client.business, client.char_at ? `אפיון ${formatStamp(client.char_at)}${charBy ? ` · ${charBy}` : ''}` : null].filter(Boolean).join(' · ')),
-    h('a', { class: 'btn btn-sm btn-ghost', id: 'rd-card', href: `client.html?id=${encodeURIComponent(id)}` }, 'לכרטיס הלקוח'));
+    h('div', { class: 'ik-links' },
+      charRow ? h('a', { class: 'btn btn-sm', id: 'rd-doc', href: charDocHref(id) }, 'מסמך אפיון') : null,
+      h('a', { class: 'btn btn-sm btn-ghost', id: 'rd-card', href: `client.html?id=${encodeURIComponent(id)}` }, 'לכרטיס הלקוח')));
   const row = (label, value, { ltr = false } = {}) => [h('dt', {}, label),
     h('dd', { class: clean(value) ? '' : 'muted' }, clean(value) ? (ltr ? h('bdi', { dir: 'ltr', class: 'num' }, clean(value)) : clean(value)) : 'לא מולא')];
   const filled = FORM_FIELDS.filter((x) => clean(f[x.key])).length;
@@ -833,10 +840,86 @@ async function showRead() {
   $('rd-h').focus({ preventScroll: true });
 }
 
+// ── "מסמך אפיון" (8.11.2026) ───────────────
+// Built from what was saved, each time it opens: the 11 fields, the paid campaign, the
+// brand and materials, each network's status (never a login), and the focus calls.
+// "העתקת המסמך" puts it all as text on the clipboard; "הורדה כקובץ Word" saves a .doc.
+const DOC_DAY = new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric', year: 'numeric' });
+async function showDoc() {
+  readMode = true;
+  $('ik-tabs').hidden = true;
+  $('state').textContent = 'טוען…';
+  try {
+    client = await loadClient(id);
+  } catch (err) { $('state').textContent = errorText(err); return; }
+  if (!client) { $('state').textContent = 'הלקוח לא נמצא, או שאין לך גישה אליו.'; $('app').hidden = true; return; }
+  [charRow, briefs] = await Promise.all([
+    loadCharacterization(id).then((r) => { charError = null; return r; }).catch((err) => { charError = err; return null; }),
+    loadBriefs(id).catch(() => []),
+  ]);
+  $('state').textContent = '';
+  document.title = `${client.name} · מסמך אפיון · astrateg`;
+  $('back').href = `client.html?id=${encodeURIComponent(id)}`;
+  $('back').textContent = `→ לכרטיס של ${client.name}`;
+  const when = client.char_at || charRow?.completed_at || charRow?.at;
+  const doc = charDoc({ client, char: charRow, briefs, byName: PEOPLE[characterizerOf(client)]?.name || '', dateText: when ? DOC_DAY.format(new Date(when)) : '' });
+  const edits = writesChar({ me, scope });
+  fill($('ik-head'),
+    h('div', { class: 'kicker' }, 'מסמך אפיון'),
+    h('h1', { id: 'doc-h', tabindex: '-1' }, client.name),
+    h('p', { class: 'muted', id: 'doc-meta' }, doc.meta.join(' · ')),
+    charRow ? h('div', { class: 'ik-links doc-actions' },
+      h('button', { type: 'button', class: 'btn btn-primary', id: 'doc-copy', onclick: () => copyDoc(doc) }, 'העתקת המסמך'),
+      h('button', { type: 'button', class: 'btn', id: 'doc-download', onclick: () => downloadDoc(doc) }, 'הורדה כקובץ Word'),
+      edits ? h('a', { class: 'btn btn-ghost', id: 'doc-edit', href: `intake.html?id=${encodeURIComponent(id)}&only=char` }, 'עדכון אפיון') : null) : null);
+  if (!charRow) {
+    fill($('ik-body'), h('div', { class: 'ik-stack' }, h('section', { class: 'ik-card' },
+      h('p', { class: 'ik-note', id: 'doc-none' }, charError && !missingTable(charError) ? 'לא הצלחנו לטעון את האפיון. רעננו את הדף.' : 'האפיון עוד לא נשמר במערכת. אחרי שממלאים את טופס האפיון ושומרים, המסמך מוכן כאן.'),
+      edits ? h('a', { class: 'btn btn-primary', href: `intake.html?id=${encodeURIComponent(id)}&only=char` }, 'למילוי האפיון') : null)));
+    return;
+  }
+  fill($('ik-body'), h('div', { class: 'ik-stack doc-sheet', id: 'doc-body' },
+    ...doc.sections.map((s) => h('section', { class: 'ik-card', 'aria-labelledby': `doc-${s.key}-h` },
+      h('h2', { id: `doc-${s.key}-h` }, s.title),
+      s.note ? h('p', { class: 'muted' }, s.note) : null,
+      h('dl', { class: 'ik-read', id: `doc-${s.key}` }, ...s.rows.flatMap((r) => [h('dt', {}, r.label),
+        h('dd', { class: r.value ? 'doc-val' : 'muted' }, !r.value ? EMPTY
+          : r.link ? h('a', { href: r.value, target: '_blank', rel: 'noopener noreferrer', dir: 'ltr' }, r.value)
+            : r.ltr ? h('bdi', { dir: 'ltr', class: 'num' }, r.value) : r.value)]))))));
+  $('doc-h').focus({ preventScroll: true });
+}
+async function copyDoc(doc) {
+  const text = docText(doc);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('המסמך הועתק. אפשר להדביק בוואטסאפ, במייל או ב־Word.');
+  } catch {
+    // Older phones: a hidden text box, selected and copied.
+    const ta = h('textarea', { readonly: true, 'aria-hidden': 'true', style: 'position:fixed;inset:0 auto auto 0;opacity:0' });
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    ta.remove();
+    toast(ok ? 'המסמך הועתק. אפשר להדביק בוואטסאפ, במייל או ב־Word.' : 'ההעתקה לא הצליחה. אפשר להוריד כקובץ Word.');
+  }
+}
+function downloadDoc(doc) {
+  const url = URL.createObjectURL(new Blob([docWordHtml(doc)], { type: 'application/msword' }));
+  const a = h('a', { href: url, download: docFileName(client), hidden: true });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast('הקובץ ירד. הוא נפתח ב־Word, ב־Google Docs ובטלפון.');
+}
+
 // ── Start ─────────────────────────────────
 // The kit (docs/ops.md, section 52): each form and each read-only card opens with its icon square.
 dress($('app'), [['.ik-done > #end-h', 'check-circle', 'green', 'md'], ['#end-h', 'flag', 'green', 'md'], ['#form-h', 'file', 'purple', 'md'], ['#focus-h', 'mic', 'orange', 'md'],
-  ['#sc-h', 'edit', 'blue', 'md'], ['#zm-h', 'video', 'teal', 'md'], ['#rd-char-h', 'chat', 'purple', 'md'], ['#rd-brand-h', 'palette', 'orange', 'md']]);
+  ['#sc-h', 'edit', 'blue', 'md'], ['#zm-h', 'video', 'teal', 'md'], ['#rd-char-h', 'chat', 'purple', 'md'], ['#rd-brand-h', 'palette', 'orange', 'md'],
+  ['#doc-char-h', 'chat', 'purple', 'md'], ['#doc-ads-h', 'flag', 'blue', 'md'], ['#doc-brand-h', 'palette', 'orange', 'md'], ['#doc-nets-h', 'check-circle', 'green', 'md'], ['[id^="doc-brief-"][id$="-h"]', 'mic', 'orange', 'md']]);
 
 mountSession(async (staff) => {
   const v = await viewerOf(staff.email);
@@ -846,6 +929,13 @@ mountSession(async (staff) => {
   Object.assign(directory, await loadDirectory());
   if (v.error) { $('state').textContent = VIEWER_UNKNOWN; $('app').hidden = true; return; }
   // "אפיון חדש" and the form alone (27.10.2026): the owners, Irit, Lior and Ofir.
+  // "מסמך אפיון": whoever reads the characterization (the office, Noam, Ilai, Nirel on her clients).
+  if (docMode) {
+    if (scope === 'office' || MEETING_PEOPLE.includes(me) || readsChar(me)) { await showDoc(); return; }
+    $('app').hidden = true;
+    $('state').textContent = 'מסמך האפיון פתוח לצוות המשרד.';
+    return;
+  }
   if (!id || charOnly) {
     if (!writesChar(v)) {
       $('app').hidden = true;
