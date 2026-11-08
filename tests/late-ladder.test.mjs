@@ -384,6 +384,23 @@ test('not for a client in landing, not while "ממתין ללקוח" or a pause,
   assert.deepEqual([held.status, held.reason], ['queued', 'shoot_mode']);
 });
 
+test('the client\'s fixes (27) are not the editor\'s before the client answered, even when the videos were never marked sent (Nirel, 8.11.2026)', () => {
+  const w = world();
+  const c = client(w, { name: 'מוסך', editor: 'nirel', shoot_type: 'natali', shoot_at: IL(2026, 10, 8, 11).toISOString() });
+  importTo(w, c, 'ongoing');
+  for (const k of ['p26.sent', 'p26.call', 'p27.approved', 'p27.final', 'p27.fixes', 'p27.toilai', 'p27.notes', 'p28.scheduled', 'p29.filled', 'p29.sent']) delete w.checks[c.id][k];
+  for (const id of ['p28', 'p29']) for (const k of itemsOf(id)) delete w.checks[c.id][k];
+  mark(w, c, 'p22a.assigned', IL(2026, 10, 12, 10)); // 27's day 4 ends on Sunday 18.10
+  const now = IL(2026, 10, 21, 9, 30);
+  const p27 = lateOf(w, now).find((x) => x.num === '27');
+  assert.ok(!p27 || !p27.holders.includes('nirel'), 'nothing of 27 is Nirel\'s');
+  assert.deepEqual(due(w, now).filter((r) => r.person === 'nirel' && /27 ·/.test(`${r.title}${r.body}`)), []);
+  // The client answers with notes: the fixes are Nirel's again, with 27's own deadline.
+  mark(w, c, 'p26.sent', IL(2026, 10, 19, 9));
+  mark(w, c, 'p27.notes', IL(2026, 10, 20, 10), 'סרטון 2: לקצר');
+  assert.ok(lateOf(w, now).find((x) => x.num === '27').holders.includes('nirel'));
+});
+
 test('the client\'s turn: work that was sent and waits for the client is nobody\'s lateness, also when it is only inherited (report 4.7); a fix request makes it work again', () => {
   const w = world();
   const c = client(w, { name: 'דקל', editor: 'nadia', shoot_at: IL(2026, 10, 8, 11).toISOString() });

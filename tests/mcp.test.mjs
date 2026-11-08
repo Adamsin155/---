@@ -510,7 +510,7 @@ test('isOAuthToken: only a token with the claim; never throws', () => {
 
 // Every function that takes a user's token, and those that take none (a secret in the link, a cron secret, Meta).
 const TAKES_TOKEN = ['ask', 'contract-ai', 'create-quote', 'drive', 'metricool', 'reminders', 'staff-admin'];
-const NO_USER_TOKEN = ['calendar', 'client-media', 'drive-scan', 'whatsapp-webhook'];
+const NO_USER_TOKEN = ['calendar', 'client-media', 'drive-scan', 'sales-samples', 'whatsapp-webhook'];
 test('every function that takes a user\'s token refuses a connected app\'s, before it asks who this is', () => {
   assert.deepEqual([...TAKES_TOKEN, ...NO_USER_TOKEN, 'mcp'].sort(), [...FUNCTIONS].sort());
   const ROOT = new URL('../supabase/functions/', import.meta.url);

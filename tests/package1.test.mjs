@@ -229,13 +229,13 @@ test('the bar: a new deal is two rows, the group and the meeting date at 5 minut
   ]);
 });
 
-test('p24.folder is Ofir\'s item as before (the videos are in Drive), and the version did not move', () => {
+test('p24.folder is the editor\'s item since 3.11.2026 (docs/ops.md, section 89: marked with "מוכן לבדיקה"), and the version did not move', () => {
   assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
   assert.equal(LATEST, 12);
   const c = { id: 'c', status: 'active', editor: 'nadia', shoot_type: 'dms', rounds: [{ n: 2, editor: 'yariv', shoot_at: '2026-11-01T10:00:00+02:00', start_at: '2026-10-20T10:00:00+03:00' }], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00' };
   const items = applicableProcesses(c).flatMap((p) => p.items);
   assert.deepEqual(items.filter((i) => /p24\./.test(i.key)).map((i) => i.key), ['p24.folder', 'p24.drive', 'p24.dropbox', 'p24.notify', 'r2.p24.folder', 'r2.p24.drive', 'r2.p24.dropbox', 'r2.p24.notify']);
-  assert.deepEqual(items.find((i) => i.key === 'p24.folder').owners, ['ofir']);
+  assert.deepEqual(items.find((i) => i.key === 'p24.folder').owners, ['nadia']);
   // 24 is complete only with the folder too.
   const checks = { ...done(['p22a.assigned'], '2026-10-05T12:00:00+03:00'), ...done(keysOf('p22'), '2026-10-06T12:00:00+03:00'), ...done(['p24.drive', 'p24.notify'], '2026-10-06T13:00:00+03:00') };
   const p24 = (cs) => clientState(c, cs, at('2026-10-06T14:00:00+03:00')).states.find((s) => s.proc.id === 'p24');

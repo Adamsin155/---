@@ -544,7 +544,7 @@ function workOf(person) {
   // passed while the work waits for the client's answer, which is nobody's lateness.
   const late = lateState(now);
   const held = late.held(person);
-  for (const g of groups.values()) { g.late = held.has(g.key); g.turn = !g.late && late.turn.has(g.key); }
+  for (const g of groups.values()) { g.late = held.has(g.key); g.turn = !g.late && late.turn.has(g.key); g.send = !g.late && late.send.has(g.key); }
   return [...groups.values()].sort(byUrgency);
 }
 // Every late item of the office now, as the reminders and the owners' table read it.
@@ -555,6 +555,7 @@ const lateState = (now = new Date()) => once('late', () => {
     items: (person) => counted.filter((x) => !person || x.holders.includes(person)),
     held: (person) => new Set(counted.filter((x) => !person || x.holders.includes(person)).map(lateKey)),
     turn: new Set(items.filter((x) => x.clientTurn).map(lateKey)),
+    send: new Set(items.filter((x) => x.waitsSend).map(lateKey)),
   };
 });
 
@@ -1218,7 +1219,7 @@ function whenWords(g, now = new Date()) {
   }
   // "באיחור" is said only of what counts as late (section 50): a deadline that passed while
   // the client has the work is the client's turn, and one at today's close is still today's.
-  if (g.status === 'overdue' && g.dueAt) return g.late ? `באיחור ${lateBy(g.dueAt, now)}` : g.turn ? 'מחכה לתשובת הלקוח' : 'היעד עבר';
+  if (g.status === 'overdue' && g.dueAt) return g.late ? `באיחור ${lateBy(g.dueAt, now)}` : g.turn ? 'מחכה לתשובת הלקוח' : g.send ? 'מחכה שהסרטונים יישלחו ללקוח' : 'היעד עבר';
   if (g.status === 'client') return 'ממתין ללקוח';
   if (!g.dueAt) return g.urgent ? 'עכשיו' : '';
   const w = formatWhen(g.dueAt, now);
@@ -1342,7 +1343,7 @@ function compactCard(g, person) {
         h('div', { class: 'wc-what' },
           // A single task is named by its own check below; its kind is the line here.
           h('p', { class: 'wc-title' }, single && g.task ? h('span', { class: 'wc-sub' }, sub || 'משימה') : [what, sub ? h('span', { class: 'wc-sub' }, ` · ${sub}`) : null])),
-        when ? h('span', { class: `wc-when s-${g.turn ? 'client' : shownStatus(g)}${echoesLeaf(g, when) ? ' is-echo' : ''}` }, when) : null),
+        when ? h('span', { class: `wc-when s-${g.turn || g.send ? 'client' : shownStatus(g)}${echoesLeaf(g, when) ? ' is-echo' : ''}` }, when) : null),
       panel && !listIsAction ? toggle('פירוט', 'btn-text wc-more') : null),
     need, // a detail of the client that is still missing, set from here
     zoomFixesLine(g), // 13: were fixes left after the Zoom?
