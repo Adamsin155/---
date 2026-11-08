@@ -15,7 +15,7 @@
 import { supabase } from './supa.js';
 import { fill, h, toast, errorText, formatWhen } from './protocol-ui.js';
 import {
-  canGive, personOfViewer, ASSIGNEES, personName, validateTask, BODY_MAX, taskLists, nextNagAt, nagOpen, NAG_EVERY,
+  canGive, personOfViewer, ASSIGNEES, personName, validateTask, BODY_MAX, taskLists, nextNagAt, nextTaskAt, nagOpen, NAG_EVERY,
   needsBrief, NAG_BRIEF, BRIEF_MAX, briefLines,
 } from './staff-tasks-logic.js';
 
@@ -24,7 +24,9 @@ const STATE_TEXT = { open: 'פתוח', done: 'בוצע', cancelled: 'בוטל' }
 
 const BASE_COLS = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at, cancelled_at';
 // The brief of a task for Nirel (protocol v10; the column comes with migration 20261024100000).
-const COLS = `${BASE_COLS}, brief`;
+const COLS = `${BASE_COLS}, brief, claimed_at`;
+// Before "אני על זה" (20261203100000_staff_task_claim.sql) the column is not there: with the brief only.
+const BRIEF_COLS = `${BASE_COLS}, brief`;
 const missing = (error) => ['42P01', 'PGRST205', 'PGRST204', '42703'].includes(error?.code);
 
 let box = null;
@@ -43,6 +45,7 @@ let onChange = () => {};
 export async function loadStaffTasks() {
   let { data, error } = await supabase.from('staff_tasks').select(COLS).order('created_at', { ascending: false }).limit(300);
   // Until the migration adds the brief's column the tasks load without it (the card must not vanish).
+  if (error?.code === '42703') ({ data, error } = await supabase.from('staff_tasks').select(BRIEF_COLS).order('created_at', { ascending: false }).limit(300));
   if (error?.code === '42703') ({ data, error } = await supabase.from('staff_tasks').select(BASE_COLS).order('created_at', { ascending: false }).limit(300));
   if (error) {
     if (missing(error)) return null;
@@ -129,13 +132,16 @@ const clientOf = (t) => (t.client_name ? [' · לקוח: ',
 const briefOf = (t) => { const lines = briefLines(t); return lines.length ? h('dl', { class: 'st-brief' }, ...lines.flatMap(([l, v]) => [h('dt', {}, l), h('dd', { dir: 'auto' }, v)])) : null; };
 
 function mineItem(t, now) {
-  const next = nextNagAt(t.created_at, now);
+  const next = nextTaskAt(t, now);
+  const taken = !!t.claimed_at;
   return h('article', { class: 'st-item is-mine', 'data-task': t.id, 'aria-labelledby': `st-${t.id}` },
     h('p', { class: 'st-body', id: `st-${t.id}`, dir: 'auto' }, t.body),
     briefOf(t),
     h('p', { class: 'st-meta' }, `נשלח מ${personName(t.created_by)} · ${stamp(t.created_at)}`, clientOf(t)),
-    h('p', { class: 'st-next' }, nagOpen(now) ? `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״. הבאה: ${formatWhen(next, now)}.` : `התזכורות יתחדשו ${formatWhen(next, now)}.`),
+    h('p', { class: 'st-next' }, taken ? `בטיפול אצלך מ־${stamp(t.claimed_at)}. תזכורת כל שעתיים עד ״בוצע״. הבאה: ${formatWhen(next, now)}.`
+      : nagOpen(now) ? `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״ או ״אני על זה״. הבאה: ${formatWhen(next, now)}.` : `התזכורות יתחדשו ${formatWhen(next, now)}.`),
     h('div', { class: 'st-acts' },
+      taken ? null : h('button', { type: 'button', class: 'btn btn-ghost st-claim', 'data-act': 'claim', onclick: (e) => act('staff_task_claim', t, e.currentTarget, 'סומן ״אני על זה״. מעכשיו תזכורת כל שעתיים עד ״בוצע״.') }, 'אני על זה'),
       h('button', { type: 'button', class: 'btn st-done', 'data-act': 'done', onclick: (e) => act('staff_task_done', t, e.currentTarget, 'סומן ״בוצע״. התזכורות נעצרו.') }, 'בוצע')));
 }
 
@@ -144,11 +150,12 @@ function givenItem(t) {
   return h('article', { class: 'st-item', 'data-task': t.id, 'aria-labelledby': `sg-${t.id}` },
     h('div', { class: 'st-head' },
       h('strong', { class: 'st-who' }, personName(t.assignee)),
-      h('span', { class: `st-state is-${t.status}` }, STATE_TEXT[t.status])),
+      h('span', { class: `st-state is-${open && t.claimed_at ? 'taken' : t.status}` }, open && t.claimed_at ? 'בטיפול' : STATE_TEXT[t.status])),
     h('p', { class: 'st-body', id: `sg-${t.id}`, dir: 'auto' }, t.body),
     briefOf(t),
     h('p', { class: 'st-meta' },
       personOfViewer(viewer) !== t.created_by ? `שלח/ה ${personName(t.created_by)} · ` : '', `נשלח ${stamp(t.created_at)}`,
+      open && t.claimed_at ? ` · ${personName(t.assignee)} סימן/ה ״אני על זה״ ${stamp(t.claimed_at)}` : '',
       t.status === 'done' ? ` · בוצע ${stamp(t.done_at)}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
     open ? h('div', { class: 'st-acts' },
       h('button', {
