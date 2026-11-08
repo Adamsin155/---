@@ -96,6 +96,12 @@ function rpc(name, body, me, json) {
     const t = tasks.find((x) => x.id === body.p_id);
     if (!t || !visible(t, me)) return json(404, { code: 'P0002', message: 'task not found' });
     if (name === 'staff_task_done' && expireOnce) { expireOnce = false; return json(401, { code: 'PGRST301', message: 'JWT expired' }); }
+    if (name === 'staff_task_claim') {
+      if (t.assignee !== p) return json(403, { code: '42501', message: 'only the assignee takes a task' });
+      if (t.status !== 'open') return json(400, { code: '22023', message: 'this task is not open' });
+      t.claimed_at ||= serverNow();
+      return json(200, t);
+    }
     if (name === 'staff_task_done') {
       if (t.assignee !== p) return json(403, { code: '42501', message: 'only the assignee marks a task done' });
       if (t.status !== 'open') return json(400, { code: '22023', message: 'this task is not open' });
@@ -229,7 +235,7 @@ try {
     await irit.click('#st-new');
     await irit.locator('#st-form').waitFor();
     assert.equal(await irit.evaluate(() => document.activeElement.id), 'st-assignee');
-    assert.deepEqual(await texts(irit, '#st-assignee option'), ['בחירת עובד/ת', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי', 'סתיו', 'עמוס', 'הבעלים']);
+    assert.deepEqual(await texts(irit, '#st-assignee option'), ['בחירת עובד/ת', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי', 'נעם', 'סתיו', 'עמוס', 'הבעלים']);
     assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'פיצה רון · רון כהן', 'קפה דנה']);
     // The search narrows the list by business or person; one match is chosen (25.10.2026).
     await irit.fill('#st-client-q', 'דנה');
@@ -315,7 +321,7 @@ try {
     await nadia.locator(`${CARD}:not([hidden])`).waitFor();
     assert.equal(await text(nadia, `${CARD} h2`), 'תזכורות שקיבלת (1)');
     const item = nadia.locator(`${CARD} .st-item.is-mine`);
-    assert.match(await item.innerText(), /להעלות את הסרטון של פיצה רון לדרייב\s*נשלח מעירית · היום 10:0\d · לקוח: פיצה רון · רון כהן\s*תזכורת כל 30 דקות עד שמסמנים ״בוצע״\. הבאה: היום 10:3\d\.\s*בוצע/);
+    assert.match(await item.innerText(), /להעלות את הסרטון של פיצה רון לדרייב\s*נשלח מעירית · היום 10:0\d · לקוח: פיצה רון · רון כהן\s*תזכורת כל 30 דקות עד שמסמנים ״בוצע״ או ״אני על זה״\. הבאה: היום 10:3\d\.\s*אני על זה\s*בוצע/);
     // Not her client to open: its name is text, not a link.
     assert.equal(await item.locator('a').count(), 0);
     // She gives no tasks: no form, no list of given ones.
@@ -326,6 +332,30 @@ try {
     const box = await nadia.locator(`${CARD} [data-act="done"]`).boundingBox();
     assert.ok(box.height >= 44 && box.width >= 200, `the "בוצע" button is ${Math.round(box.width)}×${Math.round(box.height)}`);
     await shot(nadia, '04-nadia-phone');
+    await nadia.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+    await nadia.waitForTimeout(800);
+    if (process.argv[2]) await nadia.locator(CARD).screenshot({ path: process.argv[2] + '/04a-nadia-card.png' });
+  });
+
+  await step('"אני על זה" (8.11.2026): the card stays, says every two hours, the button goes; Irit sees "בטיפול"', async () => {
+    await nadia.click(`${CARD} [data-act="claim"]`);
+    await nadia.locator(`${CARD} [data-act="claim"]`).waitFor({ state: 'detached' });
+    assert.deepEqual(lastCall('staff_task_claim'), { staff_task_claim: { p_id: first.id }, by: 'nadia@astrateg.test' });
+    assert.equal(await toastOf(nadia), 'סומן ״אני על זה״. מעכשיו תזכורת כל שעתיים עד ״בוצע״.');
+    assert.match(await text(nadia, `${CARD} .st-item.is-mine`), /בטיפול אצלך מ־היום 10:\d\d\. תזכורת כל שעתיים עד ״בוצע״\. הבאה: היום 12:\d\d\./);
+    assert.equal(await noSideScroll(nadia), true);
+    await nadia.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+    await nadia.waitForTimeout(800);
+    await nadia.locator(CARD).scrollIntoViewIfNeeded();
+    if (process.argv[2]) await nadia.locator(CARD).screenshot({ path: process.argv[2] + '/04b-nadia-on-it-card.png' });
+    await irit.reload();
+    await irit.locator(CARD).waitFor();
+    const toggle = irit.locator('#st-open-toggle');
+    if (await toggle.count() && (await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
+    const given = irit.locator(`${CARD} .st-item:not(.is-mine)`, { hasText: 'להעלות את הסרטון של פיצה רון' });
+    await given.waitFor();
+    assert.match(await given.innerText(), /בטיפול[^]*נדיה סימן\/ה ״אני על זה״ היום 10:\d\d/);
+    await shot(irit, '04c-irit-sees-on-it');
   });
 
   await step('"בוצע": only this stops it; the card goes, and Irit sees it done, by whom and when', async () => {

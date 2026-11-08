@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   GIVERS, canGive, personOfViewer, ASSIGNEES, personName, homeUrl, validateTask, BODY_MAX, shortBody,
-  NAG_HOURS, NAG_EVERY, nagOpen, nextNagMoment, nagSlot, nextNagAt, taskLists, KEEP_DAYS,
+  NAG_HOURS, NAG_EVERY, nagOpen, nextNagMoment, nagSlot, nextNagAt, taskLists, KEEP_DAYS, ON_IT_EVERY, claimSlot, nextTaskAt,
 } from '../app/staff-tasks-logic.js';
 import { buildEnv, computeReminders, planDelivery, planDigests, pushPayload, summaryOf, personWork } from '../app/reminder-engine.js';
 import { RULES, RULE_BY_ID, NAG, SEND_HOURS, inSendHours, REMINDER_PEOPLE } from '../app/reminder-rules.js';
@@ -205,7 +205,7 @@ test('the assignee rings at once and then every 30 minutes until 20:00, each slo
   assert.equal(new Set(mine.map((r) => r.key)).size, 12);
   assert.equal(mine[0].key, 'nag:-:11111111-1111-4111-8111-111111111111:2026-10-06.0@nadia');
   assert.equal(mine[0].title, 'משימה מעירית: להעלות את הסרטון של פיצה רון לדרייב');
-  assert.match(mine[0].body, /^מעירית, היום 14:03 · תזכורת כל 30 דקות עד שמסמנים ״בוצע״ ב״המשימות שלי״\.$/);
+  assert.match(mine[0].body, /^מעירית, היום 14:03 · תזכורת כל 30 דקות עד שמסמנים ״בוצע״ ב״המשימות שלי״\. לחיצה על ״אני על זה״ מעבירה לתזכורת כל שעתיים.$/);
   assert.equal(mine[1].title, 'עוד לא סומן ״בוצע״: להעלות את הסרטון של פיצה רון לדרייב');
   // The gaps are exactly 30 minutes.
   for (let i = 1; i < mine.length; i += 1) assert.equal(mine[i].now - mine[i - 1].now, 30 * MIN);
@@ -301,7 +301,7 @@ test('it goes to the phone at 19:30 whatever went out before (there is no daily 
 test('sales agents and the owner get theirs; on Lior\'s shoot day his wait until it is over', () => {
   const stav = nags(run(world([task({ assignee: 'stav' })]), IL(2026, 10, 6, 14, 3), IL(2026, 10, 6, 14, 4)));
   assert.deepEqual(stav.map((r) => [r.person, r.url]), [['stav', 'deal.html']]);
-  assert.match(stav[0].body, /עד שמסמנים ״בוצע״ במערכת\.$/);
+  assert.match(stav[0].body, /עד שמסמנים ״בוצע״ במערכת\. לחיצה על ״אני על זה״ מעבירה לתזכורת כל שעתיים.$/);
   const owner = nags(run(world([task({ assignee: 'owner', client_name: 'פיצה רון' })]), IL(2026, 10, 6, 14, 3), IL(2026, 10, 6, 14, 4)));
   assert.deepEqual(owner.map((r) => r.person), ['owner']);
   assert.match(owner[0].body, / · לקוח: פיצה רון · /);
@@ -459,4 +459,27 @@ test('the card\'s lists: mine (oldest first), what I gave (the owner: everyone\'
   assert.deepEqual(taskLists(all, VIEW.unknown, now), { mine: [], given: { open: [], closed: [] } });
   // Lior gives too since 21.10.2026: he sees what he gave, not what someone else gave.
   assert.deepEqual(taskLists([task({ id: 'g', created_by: 'lior', assignee: 'eli' }), task({ id: 'h', created_by: 'irit', assignee: 'eli' })], VIEW.lior, now).given.open.map((t) => t.id), ['g']);
+});
+
+test('"אני על זה" (the owner, 8.11.2026): every two hours from the press until "בוצע", never at once; 30 minutes before it', () => {
+  assert.equal(ON_IT_EVERY, 120);
+  // Given Tuesday 14:03, taken at 15:10: the half hours until 15:10, then 17:10 and 19:10; Wednesday 09:00, 11:00 … 19:00.
+  const given = IL(2026, 10, 6, 14, 3);
+  const claimed = IL(2026, 10, 6, 15, 10);
+  const w = world([task({ claimed_at: null })]);
+  const before = nags(run(w, given, IL(2026, 10, 6, 15, 9)));
+  assert.deepEqual(before.map((r) => hhmm(r.now)), ['6.10 14:03', '6.10 14:33', '6.10 15:03']);
+  const log = new Set(before.map((r) => r.key));
+  const w2 = world([task({ claimed_at: claimed.toISOString() })]);
+  const after = nags(run(w2, claimed, IL(2026, 10, 7, 20, 0), log));
+  assert.deepEqual(after.map((r) => hhmm(r.now)), ['6.10 17:10', '6.10 19:10', '7.10 09:00', '7.10 11:00', '7.10 13:00', '7.10 15:00', '7.10 17:00', '7.10 19:00']);
+  assert.match(after[0].title, /^עדיין בטיפול\? /);
+  assert.match(after[0].body, /כל שעתיים/);
+  // The slots, and the card's "next".
+  assert.equal(claimSlot(claimed, IL(2026, 10, 6, 15, 30)), null, 'nothing at once');
+  assert.equal(claimSlot(claimed, IL(2026, 10, 6, 17, 10)).id, '2026-10-06.c1');
+  assert.equal(+nextTaskAt({ created_at: given, claimed_at: claimed }, IL(2026, 10, 6, 15, 30)), +IL(2026, 10, 6, 17, 10));
+  assert.equal(+nextTaskAt({ created_at: given, claimed_at: claimed }, IL(2026, 10, 6, 19, 30)), +IL(2026, 10, 7, 9, 0));
+  // "בוצע" stops it as before.
+  assert.deepEqual(nags(run(world([task({ claimed_at: claimed.toISOString(), status: 'done', done_at: IL(2026, 10, 6, 16).toISOString() })]), IL(2026, 10, 6, 16), IL(2026, 10, 7, 20))), []);
 });

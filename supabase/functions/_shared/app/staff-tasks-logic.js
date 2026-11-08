@@ -117,6 +117,36 @@ export function nextNagAt(createdAt, now) {
   return nextNagMoment(created > now ? created : now);
 }
 
+// ── "אני על זה" (the owner, 8.11.2026) ──────
+// The assignee took the task (public.staff_tasks.claimed_at): from then on it rings every
+// ON_IT_EVERY minutes, not every NAG_EVERY, until "בוצע". The first of these comes ON_IT_EVERY
+// after the press (never at once); on every later day from 09:00. The slot ids carry a "c"
+// ('2026-11-08.c2'), so they never meet those of before the press.
+export const ON_IT_EVERY = 120; // minutes
+export function claimSlot(claimedAt, now) {
+  const claimed = claimedAt ? new Date(claimedAt) : null;
+  if (!claimed || Number.isNaN(+claimed) || now < claimed || !nagOpen(now)) return null;
+  const open = openAt(now);
+  const sameDay = claimed > open;
+  const from = sameDay ? claimed : open;
+  const n = Math.floor((now - from) / (ON_IT_EVERY * MIN));
+  if (sameDay && n === 0) return null; // the press itself is the answer: nothing at once
+  const at = new Date(from.getTime() + n * ON_IT_EVERY * MIN);
+  return { id: `${dayKeyIL(now)}.c${n}`, at, n, first: false };
+}
+// The slot of a task now: two hours apart once it was taken, half an hour before.
+export const taskSlot = (task, now) => (task?.claimed_at ? claimSlot(task.claimed_at, now) : nagSlot(task?.created_at, now));
+// When the next reminder of a task goes out, for the card.
+export function nextTaskAt(task, now) {
+  if (!task?.claimed_at) return nextNagAt(task?.created_at, now);
+  const claimed = new Date(task.claimed_at);
+  const slot = claimSlot(claimed, now);
+  let next = slot ? new Date(slot.at.getTime() + ON_IT_EVERY * MIN)
+    : nagOpen(now) && claimed > openAt(now) ? new Date(claimed.getTime() + ON_IT_EVERY * MIN) : null;
+  if (next && nagOpen(next)) return next;
+  return nextNagMoment(next || now);
+}
+
 // ── The lists of the card ─────────────────
 const byNewest = (a, b) => new Date(b.created_at) - new Date(a.created_at);
 // How long a finished or cancelled task stays in the giver's list.

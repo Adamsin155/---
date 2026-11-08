@@ -1736,8 +1736,9 @@ RULES.push(
 //     cap or in the weekly report's rings, and not fed to the lateness notes or the
 //     owner's digest: the ringing itself is the control. On Lior's shoot day his
 //     tasks wait (decision 8, "מצב שקט") and ring again once it is over.
+//     "אני על זה" (8.11.2026; staff_tasks.claimed_at): every ON_IT_EVERY minutes instead (claimSlot).
 //   nagDone  the assignee marked "בוצע": whoever gave it hears, quietly.
-import { nagSlot, shortBody, homeUrl, NAG_EVERY } from './staff-tasks-logic.js';
+import { taskSlot, shortBody, homeUrl, NAG_EVERY } from './staff-tasks-logic.js';
 export const NAG = 'nag';
 const nagFrom = (t) => `מ${personName(t.created_by)}`;
 RULES.push(
@@ -1745,17 +1746,17 @@ RULES.push(
     id: NAG, event: 'משימה מיידית: כל 30 דקות עד ״בוצע״', procs: [],
     instances(env) {
       return (env.staffTasks || []).filter((t) => t.status === 'open' && REMINDER_PEOPLE.has(t.assignee) && !(t.assignee === 'lior' && env.liorShoot?.active)).flatMap((t) => {
-        const slot = nagSlot(parseDate(t.created_at), env.now);
+        const slot = taskSlot({ created_at: parseDate(t.created_at), claimed_at: parseDate(t.claimed_at) }, env.now);
         return slot ? [{ id: t.id, cid: null, task: t, who: t.assignee, slot, url: homeUrl(t.assignee), anchors: { event: slot.at } }] : [];
       });
     },
     steps: (i) => [{
       id: i.slot.id, to: i.who, level: 'ring', exempt: NAG, ownHours: true,
-      title: () => (i.slot.first ? `משימה ${nagFrom(i.task)}: ${shortBody(i.task.body)}` : `עוד לא סומן ״בוצע״: ${shortBody(i.task.body)}`),
+      title: () => (i.slot.first ? `משימה ${nagFrom(i.task)}: ${shortBody(i.task.body)}` : i.task.claimed_at ? `עדיין בטיפול? ${shortBody(i.task.body)}` : `עוד לא סומן ״בוצע״: ${shortBody(i.task.body)}`),
       body: (x, env) => [
         `${nagFrom(i.task)}, ${whenText(parseDate(i.task.created_at), env.now)}`,
         i.task.client_name ? `לקוח: ${i.task.client_name}` : null,
-        `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״ ב${i.url === MINE_URL ? '״המשימות שלי״' : 'מערכת'}.`,
+        i.task.claimed_at ? `סימנת ״אני על זה״: תזכורת כל שעתיים עד שמסמנים ״בוצע״ ב${i.url === MINE_URL ? '״המשימות שלי״' : 'מערכת'}.` : `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״ ב${i.url === MINE_URL ? '״המשימות שלי״' : 'מערכת'}. לחיצה על ״אני על זה״ מעבירה לתזכורת כל שעתיים.`,
       ].filter(Boolean).join(' · '),
     }],
   },

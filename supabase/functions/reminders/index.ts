@@ -248,8 +248,12 @@ async function loadUnsigned(now: Date): Promise<Row[]> {
 async function loadStaffTasks(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 2 * 864e5).toISOString();
   try {
-    return await all(() => admin.from('staff_tasks').select('id, created_at, created_by, assignee, body, client_id, client_name, status, done_at')
+    const read = (cols: string) => all(() => admin.from('staff_tasks').select(cols)
       .or(`status.eq.open,done_at.gte."${since}"`).order('id'));
+    const cols = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at';
+    // "אני על זה" (claimed_at, 20261203100000_staff_task_claim.sql): until it is there, as before.
+    try { return await read(`${cols}, claimed_at`); } catch (e) { if ((e as { code?: string })?.code !== '42703') throw e; }
+    return await read(cols);
   } catch (err) {
     const code = (err as { code?: string })?.code;
     if (code === '42P01' || code === 'PGRST205') return [];

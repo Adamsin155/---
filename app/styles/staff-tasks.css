@@ -24,6 +24,9 @@
 .st-state.is-open { color: var(--ds-amber); background: var(--ds-amber-soft); }
 .st-state.is-done { color: var(--ds-ok); background: var(--ds-ok-soft); }
 .st-state.is-cancelled { color: var(--ds-ink-2); background: var(--ds-soft); }
+/* "בטיפול": the assignee pressed "אני על זה" (8.11.2026). */
+.st-state.is-taken { color: var(--ds-navy-text); background: var(--ds-soft); }
+.st-claim { min-height: 48px; font-size: 16px; }
 .st-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
 .st-acts .btn { min-height: 44px; }
 /* "בוצע" and "שליחת המשימה": the card's own main actions, navy and filled (pink stays the page's). */
