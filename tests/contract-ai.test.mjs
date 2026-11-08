@@ -41,6 +41,9 @@ test('the prompt describes the builder from the catalog itself, the same text on
   // Niro and "הצל" (28.10.2026): their own reel and story, in their own packages only.
   assert.match(p, /`niro-reel`: העלאה אצל נירו לוי, 1,000 ₪ a month, only packages with נירו לוי\./);
   assert.ok(p.includes('`hatzel-story`: סטורי אצל הצל (יואב אליאסי), 300 ₪ a month, only packages with הצל (יואב אליאסי).'));
+  // Arik Mishali (8.11.2026), the same.
+  assert.ok(p.includes('`arik-reel`: העלאה אצל אריק משעלי, 1,000 ₪ a month, only packages with אריק משעלי.'));
+  assert.ok(p.includes('`social-arik`: Social all in one (Social) with אריק משעלי, 3,900 ₪ a month'));
   assert.match(p, /`simeon-day`.*only the Social and Social \+ TV packages with סמיון, מישל ודניס/);
   for (const q of CUSTOM_QTY) assert.match(p, new RegExp(`\`${q.key}\`: ${q.name}, ${q.min || 0}–${q.max}`), q.key);
   for (const k of Object.keys(FREE_ADDONS)) assert.match(p, new RegExp(`\`${k}\``), k);

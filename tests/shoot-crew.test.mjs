@@ -132,7 +132,7 @@ test('closing the day (19) left the protocol in v12: nobody closes a day, with o
 // ── The forms ─────────────────────────────
 test('the forms\' choice: values, the client\'s fields, a round\'s entry and the time\'s words', () => {
   // Niro and "הצל" beside Natali since 28.10.2026.
-  assert.deepEqual(CREW_GROUPS.map((g) => g.options.map(([v]) => v)), [['natali', 'niro', 'hatzel', 'dms'], ['solo:eli', 'solo:eliel']]);
+  assert.deepEqual(CREW_GROUPS.map((g) => g.options.map(([v]) => v)), [['natali', 'niro', 'hatzel', 'arik', 'dms'], ['solo:eli', 'solo:eliel']]);
   assert.deepEqual([soloOf('solo:eliel'), soloOf('solo:eli'), soloOf('solo:nadia'), soloOf('natali'), soloOf(null)], ['eliel', 'eli', null, null, null]);
   assert.deepEqual(['natali', 'dms', 'solo:eli', 'solo:eliel', '', 'solo:', 'x'].map(isChoice), [true, true, true, true, false, false, false]);
   assert.deepEqual([choiceOf(withInf), choiceOf(soloEliel), choiceOf(base({ shoot_type: null })), choiceOf({ shoot_crew: 'eli' })], ['dms', 'solo:eliel', '', 'solo:eli']);

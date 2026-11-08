@@ -44,7 +44,9 @@ const deal = (influencer, paid) => db.query(
   [influencer, paid]);
 
 before(async () => {
-  db = await freshDatabase();
+  // Up to Arik Mishali's migration (8.11.2026), which widens the same checks again
+  // (tests/sql/influencer-arik.test.mjs): "before the approval" is the database of 28.10.2026.
+  db = await freshDatabase({ upTo: '20261202100000_influencer_arik.sql' });
   for (const [key, person] of Object.entries(PEOPLE)) {
     const email = `${key}@astrateg.test`;
     const { rows } = await db.query('insert into auth.users (email, email_confirmed_at) values ($1, now()) returning id', [email]);
@@ -54,7 +56,7 @@ before(async () => {
 });
 
 test('the migration: the newest, only adds, runs twice', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql', '20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql', '20261126100000_lior_four.sql', '20261128100000_managers_all.sql', '20261129100000_influencer_choice.sql', '20261130100000_manual_contracts.sql']);
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261112200000_legacy_contracts_full.sql', '20261113100000_client_details_month.sql', '20261114100000_ofir_deals.sql', '20261117100000_speed_pages.sql', '20261118100000_no_manager_approval.sql', '20261119100000_work_history.sql', '20261120100000_drive_daily.sql', '20261121100000_mcp.sql', '20261122100000_deal_pool.sql', '20261123100000_noam.sql', '20261124100000_p24_folder_editor.sql', '20261125100000_noam_access_link.sql', '20261126100000_lior_four.sql', '20261128100000_managers_all.sql', '20261129100000_influencer_choice.sql', '20261130100000_manual_contracts.sql', '20261201100000_hidden_quotes.sql', '20261202100000_influencer_arik.sql']);
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/drop|delete|truncate/gi), null);
   await db.exec(migrationSql(FILE));
@@ -121,7 +123,7 @@ test('Nirel sees the clients of every star day, not a day with Denis, Michel and
 });
 
 test('the quantities of every star package, with and without the reel and the story, as the app counts them', async () => {
-  for (const inf of STARS) {
+  for (const inf of STARS.filter((i) => i !== 'arik')) { // Arik's in tests/sql/influencer-arik.test.mjs
     for (const id of Object.keys(PACKAGES).filter((k) => PACKAGES[k].influencer === inf)) {
       for (const paid of [[], [`${inf}-reel`], [`${inf}-reel`, `${inf}-story`, 'photographer']]) {
         const m = modelOf(id, paid);

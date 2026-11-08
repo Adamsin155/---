@@ -113,7 +113,7 @@ test('my-work buckets and business-day lateness', () => {
 test('shoot type decides which shoot-day processes apply (v12: none of Lior\'s, whatever the type; Eli\'s as before)', () => {
   const ids = (c) => applicableProcesses(c).map((p) => p.id);
   // Lior's shoot day (11ב, 15–21) left the protocol in v12, for every type and every version.
-  for (const type of ['natali', 'niro', 'hatzel', 'dms', undefined]) {
+  for (const type of ['natali', 'niro', 'hatzel', 'arik', 'dms', undefined]) {
     const list = ids({ ...base, shoot_type: type });
     for (const gone of ['p11b', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21']) assert.ok(!list.includes(gone), `${type} ${gone}`);
     for (const eli of ['p17b', 'p18b', 'p19b']) assert.ok(list.includes(eli), `${type} ${eli}`);
@@ -326,8 +326,9 @@ test('completion time is kept for the performance report', () => {
 
 test('package quantities in the database match the catalog', async () => {
   const { SPECS } = await import('../app/catalog.js');
-  // The latest definition of public.package_deliverables (with Niro's and "הצל"'s packages, 28.10.2026).
-  const sql = readFileSync(new URL('../supabase/migrations/20261112100000_new_influencers.sql', import.meta.url), 'utf8');
+  // The latest definition of public.package_deliverables (with Niro's and "הצל"'s packages, 28.10.2026,
+  // "משפיען לבחירה", 5.11.2026, and Arik Mishali's, 8.11.2026).
+  const sql = readFileSync(new URL('../supabase/migrations/20261202100000_influencer_arik.sql', import.meta.url), 'utf8');
   const rows = Object.fromEntries([...sql.matchAll(/\('([a-z-]+)', (\d+), (\d+), (\d+), (\d+), (\d+), (\d+), \d+\)/g)].map((m) => [m[1], m.slice(2, 8).map(Number)]));
   assert.deepEqual(Object.keys(rows).sort(), Object.keys(SPECS).sort());
   for (const [id, s] of Object.entries(SPECS)) assert.deepEqual(rows[id], [s.videos, s.graphics, s.shootDays, s.collabs, s.stories, s.ch14], id);

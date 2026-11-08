@@ -91,7 +91,7 @@ test('the scripts: one docs.google.com link; saving it closes the item of the cl
 });
 
 test('the pre-shoot form: date and time, address, influencers or the photographer; it writes the shoot\'s own fields', () => {
-  assert.deepEqual(INFLUENCER_CHOICES.map(([k]) => k), ['natali', 'dms', 'niro', 'hatzel']);
+  assert.deepEqual(INFLUENCER_CHOICES.map(([k]) => k), ['natali', 'dms', 'niro', 'hatzel', 'arik']);
   assert.deepEqual(PHOTOGRAPHER_CHOICES, [['eli', 'אלי'], ['eliel', 'אליאל']]);
   assert.equal(DEFAULT_PHOTOGRAPHER, 'eli');
   const at = IL(2026, 11, 20, 11);

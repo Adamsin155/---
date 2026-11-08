@@ -28,17 +28,19 @@ import { importKeys } from '../app/client-open.js';
 import { PAYOUT_FAMILIES, payoutInfluencers } from '../app/payouts/engine.js';
 import { dateIL } from '../app/tz.js';
 
-const NEW = ['niro', 'hatzel'];
+const NEW = ['niro', 'hatzel', 'arik']; // Arik Mishali since 8.11.2026
 const sel = (tier, influencer, paid = [], free = {}) => ({ ...emptySelection(), tier, influencer, paid, free: { ...emptySelection().free, ...free } });
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 
 /* ── The catalog and the prices ─────────────── */
 
 test('the influencers: Niro Levi and "הצל" (Yoav Eliasi), each with a shoot day of their own', () => {
-  assert.deepEqual(STARS, ['natali', 'niro', 'hatzel']);
+  assert.deepEqual(STARS, ['natali', 'niro', 'hatzel', 'arik']);
   assert.equal(INFLUENCERS.niro.name, 'נירו לוי');
   assert.equal(INFLUENCERS.hatzel.name, 'הצל (יואב אליאסי)');
-  assert.deepEqual(Object.keys(INFLUENCERS), ['natali', 'simeon', 'niro', 'hatzel', 'choice']); // "משפיען לבחירה" (5.11.2026)
+  assert.equal(INFLUENCERS.arik.name, 'אריק משעלי');
+  assert.equal(INFLUENCERS.arik.shootType, 'arik');
+  assert.deepEqual(Object.keys(INFLUENCERS), ['natali', 'simeon', 'niro', 'hatzel', 'arik', 'choice']); // "משפיען לבחירה" (5.11.2026)
 });
 
 test('six new packages: Natali\'s prices, quantities and lines, in the influencer\'s own name', () => {
@@ -116,10 +118,11 @@ test('what the signed client gets: Natali\'s quantities, one more collab or stor
 /* ── The shoot day ──────────────────────────── */
 
 test('the shoot types: Natali, Niro and "הצל" are star days; Denis, Michel and Semion are not', () => {
-  assert.deepEqual(STAR_TYPES, ['natali', 'niro', 'hatzel']);
-  assert.deepEqual(Object.keys(SHOOT_TYPES), ['natali', 'niro', 'hatzel', 'dms']);
-  assert.deepEqual(['natali', 'niro', 'hatzel', 'dms', null, '', 'x'].map(isStarDay), [true, true, true, false, false, false, false]);
-  assert.deepEqual(['natali', 'niro', 'hatzel', 'dms', null].map(starShort), ['נטלי', 'נירו', 'הצל', '', '']);
+  assert.deepEqual(STAR_TYPES, ['natali', 'niro', 'hatzel', 'arik']);
+  assert.deepEqual(Object.keys(SHOOT_TYPES), ['natali', 'niro', 'hatzel', 'arik', 'dms']);
+  assert.deepEqual(['natali', 'niro', 'hatzel', 'arik', 'dms', null, '', 'x'].map(isStarDay), [true, true, true, true, false, false, false, false]);
+  assert.deepEqual(['natali', 'niro', 'hatzel', 'arik', 'dms', null].map(starShort), ['נטלי', 'נירו', 'הצל', 'אריק', '', '']);
+  assert.equal(starWords('ניהול יום צילום עם נטלי דדון, המאפרת בבית של נטלי', 'arik'), 'ניהול יום צילום עם אריק משעלי, המאפרת בבית של אריק');
   assert.equal(starWords('ניהול יום צילום עם נטלי דדון, המאפרת בבית של נטלי', 'hatzel'), 'ניהול יום צילום עם הצל (יואב אליאסי), המאפרת בבית של הצל');
   assert.equal(starWords('של נטלי', 'natali'), 'של נטלי');
   assert.equal(starWords('של נטלי', 'dms'), 'של נטלי');
@@ -127,7 +130,7 @@ test('the shoot types: Natali, Niro and "הצל" are star days; Denis, Michel an
   assert.equal(starProcess(p20, 'natali'), p20);
   assert.equal(starProcess(p20, 'dms'), p20);
   assert.equal(starProcess(p20, 'niro').title, 'ניהול יום צילום עם נירו לוי');
-  assert.deepEqual(CREW_GROUPS[0].options, [['natali', 'נטלי דדון'], ['niro', 'נירו לוי'], ['hatzel', 'הצל (יואב אליאסי)'], ['dms', 'דניס, מישל וסמיון']]);
+  assert.deepEqual(CREW_GROUPS[0].options, [['natali', 'נטלי דדון'], ['niro', 'נירו לוי'], ['hatzel', 'הצל (יואב אליאסי)'], ['arik', 'אריק משעלי'], ['dms', 'דניס, מישל וסמיון']]);
 });
 
 test('no protocol text puts a letter before Natali\'s name: "הצל" takes no prefix ("לנטלי" would be "להצל")', () => {

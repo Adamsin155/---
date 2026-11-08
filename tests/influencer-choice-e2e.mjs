@@ -130,7 +130,7 @@ function rpc(name, body, me, json) {
     const m = q.model;
     tables.clients.push({
       id: randomUUID(), name: m.client.name, business: m.client.company || null, address: null, phone: m.client.phone || null,
-      package_name: `${m.package.tierName} · ${m.package.influencer}`, shoot_type: { natali: 'natali', simeon: 'dms', niro: 'niro', hatzel: 'hatzel' }[m.selection.influencer] ?? null, // as the trigger: 'choice' none characterizer: 'ofir',
+      package_name: `${m.package.tierName} · ${m.package.influencer}`, shoot_type: { natali: 'natali', simeon: 'dms', niro: 'niro', hatzel: 'hatzel', arik: 'arik' }[m.selection.influencer] ?? null, // as the trigger: 'choice' none characterizer: 'ofir',
       has_logo: null, editor_name: null, editor: null, deal_at: q.signed_at, char_at: null, shoot_at: null,
       contract_end: new Date(Date.parse(q.signed_at) + m.termMonths * 30.4 * 864e5).toISOString().slice(0, 10), status: 'active', notes: null, quote_id: q.id,
       created_at: q.signed_at, created_by_email: null, links: {}, deliverables: packageDeliverables(m), rounds: [], verified_at: null, verified_by: null,

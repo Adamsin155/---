@@ -38,11 +38,13 @@ before(async () => {
 });
 
 test('the migration: the newest, runs twice, takes away only the deal check it adds again', async () => {
-  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261130100000_manual_contracts.sql']); // the manual contracts (5.11.2026) after it
+  assert.deepEqual(migrationFiles().slice(migrationFiles().indexOf(FILE) + 1), ['20261130100000_manual_contracts.sql', '20261201100000_hidden_quotes.sql', '20261202100000_influencer_arik.sql']); // the manual contracts, the hidden quotes (5.11.2026) and Arik Mishali (8.11.2026) after it
   assert.deepEqual(SQL.replace(/--[^\n]*/g, '').match(/\b(drop|delete|truncate)\b[^\n]*/gi), ['drop constraint if exists deal_requests_influencer_check;']);
   assert.equal((SQL.replace(/--[^\n]*/g, '').match(/add constraint/g) || []).length, 1);
   await db.exec(migrationSql(FILE));
   await db.exec(migrationSql(FILE));
+  // Back to the newest definitions (Arik Mishali's packages and checks, 8.11.2026).
+  await db.exec(migrationSql('20261202100000_influencer_arik.sql'));
 });
 
 test('Stav\'s deal may leave the influencer to be chosen; an unknown one is refused', async () => {
