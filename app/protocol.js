@@ -188,7 +188,7 @@ export const PEOPLE = {
   lior: { key: 'lior', name: 'ליאור', role: 'ניהול, תוכן, קמפיינים וימי צילום' },
   ofir: { key: 'ofir', name: 'אופיר', role: 'אפיונים, פיקוח ובקרת איכות' },
   ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה, סושיאל ותזמון' },
-  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, נירו והצל, גרפיקה ומשימות מורכבות', editor: true },
+  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, נירו, הצל ואריק, גרפיקה ומשימות מורכבות', editor: true },
   nadia: { key: 'nadia', name: 'נדיה', role: 'עריכת וידאו', editor: true },
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },

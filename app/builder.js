@@ -89,8 +89,9 @@ async function getSupa() {
 /* ── Rendering ─────────────────────────────── */
 
 // Niro Levi and "הצל" (Yoav Eliasi) since 28.10.2026: the picker is two by two.
-// "משפיען לבחירה" (5.11.2026): the fifth, across the whole row.
-const MONOGRAM = { natali: 'נד', simeon: 'סמד', niro: 'נל', hatzel: 'הצל', choice: '?' };
+// "משפיען לבחירה" (5.11.2026): the last, across the whole row when it starts one (Arik Mishali,
+// 8.11.2026, the fifth with a name: it takes the free cell beside him).
+const MONOGRAM = { natali: 'נד', simeon: 'סמד', niro: 'נל', hatzel: 'הצל', arik: 'אמ', choice: '?' };
 const INF_SUB = { choice: 'נבחר עם הלקוח אחרי החתימה' };
 const TIER_INDEX = { podcast: 'P', social: 'S', 'social-tv': 'S+TV' };
 // Largest value of each comparison row across all packages, for the meters.

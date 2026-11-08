@@ -1127,7 +1127,7 @@ export const RULES = [
   // business days before the shoot, Lior and Irit ring and the owner's screen. The same
   // for Niro's and for "הצל"'s day (28.10.2026), in their own name (`star`); the rule's id stays.
   {
-    id: 'natali', event: 'מאפרת והסעה ליום של נטלי, נירו או הצל (11ב)', procs: ['p11b'],
+    id: 'natali', event: 'מאפרת והסעה ליום של נטלי, נירו, הצל או אריק (11ב)', procs: ['p11b'],
     instances(env) {
       return casesOf(env, 'p11b', (i) => !halted(i) && shootAt(i) && shootAt(i) > env.now && !!i.finishedAt('p11'))
         .map((i) => ({ ...i, id: `${i.proc.id}@${shootAt(i).toISOString()}`, star: starShort(i.ctx.shoot_type), anchors: { event: i.finishedAt('p11'), shoot: shootAt(i) } }));
