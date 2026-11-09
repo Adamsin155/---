@@ -111,10 +111,11 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
   await page.waitForSelector('#side-clients');
   assert.equal(await page.getAttribute('#side-clients', 'aria-current'), 'true');
   // Another screen: its entry is the page, and the head offers no second way to the same screens.
-  await page.click('#side-messages');
-  await page.waitForURL(/messages\.html$/);
-  await page.waitForSelector('#side-messages[aria-current="page"]');
-  await railOn('#side-messages');
+  // ("הודעות ללקוחות" left Irit's menu on 9.11.2026; "מעקב לקוחות" is another screen of hers.)
+  await page.click('#side-tracking');
+  await page.waitForURL(/tracking\.html$/);
+  await page.waitForSelector('#side-tracking[aria-current="page"]');
+  await railOn('#side-tracking');
   assert.equal(await page.locator('.head-actions a.in-menu:visible').count(), 0);
   // The keyboard: every entry is a link in the menu's order, and focus is visible.
   await page.focus('#side-mine');

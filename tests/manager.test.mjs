@@ -124,7 +124,8 @@ test('which profile a page is shown in: a manager screen by its address opens th
   assert.equal(p(OWNER, '/', '', 'manager'), 'mine');
   // Irit (7.10.2026): her part before a shoot day, the messages and the contracts are her
   // personal profile; the manager view, the Gantt, the year, the shoot days and the team are the manager's.
-  for (const page of ['/prep.html', '/messages.html', '/quotes.html', '/']) assert.equal(p(v('irit'), page, '', 'manager'), 'mine', page);
+  // ("הודעות ללקוחות" left her menu on 9.11.2026, so it is no longer one of her own pages.)
+  for (const page of ['/prep.html', '/quotes.html', '/']) assert.equal(p(v('irit'), page, '', 'manager'), 'mine', page);
   for (const page of ['/owner.html', '/gantt.html', '/year.html', '/shoot.html', '/team.html']) assert.equal(p(v('irit'), page, '', 'mine'), 'manager', page);
   // The same screens are the manager profile's for whoever does not hold them daily.
   assert.equal(p(OWNER, '/qa.html', '', 'mine'), 'manager');
