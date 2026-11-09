@@ -1,18 +1,20 @@
 .list-shell > * { min-width: 0; }
 .list-shell { padding: 22px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; }
 .head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+/* Three counts: ממתין לחתימה, נחתם, פג תוקף (docs/ops.md, section 118). */
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 /* Big-number tiles; the first one is the navy tile. */
 .stat { background: var(--panel); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; align-content: start; }
 .stat .k { font-size: 13.5px; color: var(--muted); }
 .stat { min-width: 0; }
 .stat .v { font-family: var(--font-h); font-size: clamp(28px, 3.2vw, 40px); line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat:first-child { background: var(--ds-navy-grad); color: var(--ds-on-navy); }
-/* With the month's two sums (the owners and Ofir, app/dashboard.js): the four counts in one
+/* With the month's two sums (the owners and Ofir, app/dashboard.js): the three counts in one
    row and the two sums under them, half the row each, so a sum in shekels never runs into
    the tile beside it (it did in six tiles of a row, 29.10.2026). */
-.stats.has-money { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.stats.has-money .stat-money { grid-column: span 2; }
+.stats.has-money { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.stats.has-money .stat { grid-column: span 2; }
+.stats.has-money .stat-money { grid-column: span 3; }
 .stat:first-child .k { color: inherit; opacity: .85; }
 
 .login { max-width: 400px; margin: 0 auto; padding: 32px 24px; display: grid; gap: 14px; }
@@ -84,8 +86,8 @@
 }
 @media (max-width: 760px) {
   .list-shell { padding: 14px 10px 20px; gap: 14px; }
-  .stats, .stats.has-money { grid-template-columns: 1fr 1fr; }
-  .stats .stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .stats { gap: 8px; }
+  .stat { padding: 12px; }
   .chip { min-height: 44px; }
   .page-head { flex-wrap: wrap; }
   /* Rows become cards so status and actions stay on screen. */
