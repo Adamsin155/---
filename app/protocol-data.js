@@ -191,6 +191,16 @@ export async function setChecksBulk(clientId, keys, state, note = null) {
   return data;
 }
 
+// Marks the system writes (app/editor-auto.js): inserted, never written over a mark that exists.
+// Returns only the rows this call wrote ([] when another writer was first).
+export async function addChecksOnce(clientId, keys, state, note = null) {
+  const { data, error } = await supabase.from('protocol_checks')
+    .upsert(keys.map((k) => ({ client_id: clientId, item_key: k, state, note })), { onConflict: 'client_id,item_key', ignoreDuplicates: true })
+    .select(CHECK_COLS);
+  if (error) throw error;
+  return data || [];
+}
+
 export async function clearChecksBulk(clientId, keys) {
   const { error } = await supabase.from('protocol_checks').delete().eq('client_id', clientId).in('item_key', keys);
   if (error) throw error;

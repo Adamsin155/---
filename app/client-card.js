@@ -5,8 +5,9 @@ import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
   STAFF_PEOPLE, ASSIGNABLE_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
   PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms, starWords,
-  pagesOwnerOf,
+  pagesOwnerOf, isEditorOf,
 } from './protocol.js';
+import { editorReadyKeys, NOTIFY as READY_KEY, AUTO_NOTE as READY_NOTE } from './editor-auto.js';
 // "מי מצלם" (25.10.2026): a day with influencers, or Lior and one photographer.
 import { SOLO_PREFIX, soloOf, choiceOf, roundWithCrew, timeLabel } from './shoot-crew.js';
 import { shootMinutes, shootStart } from './calendar-feed.js';
@@ -15,7 +16,7 @@ import {
   waitNote, parseWaitNote, bulkEligible, roundsOf, roundContext, isMonthlyRound, isBusinessDay, PAUSE, pauseOf, WAITED, endWaitNote, readWaited, clientLabel,
 } from './protocol-logic.js';
 import {
-  loadClient, loadClients, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk,
+  loadClient, loadClients, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addChecksOnce,
   addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls, quoteFacts,
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
@@ -1483,8 +1484,11 @@ async function markBulk(x, items, focusId = `${x.proc.id}-bulk`) {
   for (const k of keys) pending.delete(k);
   // A process completed this way no longer waits on the client (as with a single check).
   await endWaitIfComplete(keys[0]);
+  // The editor's last marks of 22 and 24: the client goes to Ofir by itself (app/editor-auto.js).
+  // "ביטול" below takes that back with the marks.
+  const ready = await handToOfirIfReady();
   render();
-  offerHandoff({ client, keys, checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
+  offerHandoff({ client, keys: [...keys, ...ready], checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
   // Focus: the first item still open in this process; else the next open process in the phase; else the phase.
   const left = document.querySelector(`#${CSS.escape(x.proc.id)} .cbx:not(:checked):not(:disabled)`);
   const phaseEl = document.getElementById(x.proc.id)?.closest('details.phase')
@@ -1494,12 +1498,13 @@ async function markBulk(x, items, focusId = `${x.proc.id}-bulk`) {
   loadHistory();
   const stillOpen = x.proc.items.filter((i) => !i.optional && !checks[i.key]).map((i) => `״${i.label}״`);
   const where = `בתהליך ${x.proc.num} · ${x.proc.title}`;
-  toast(stillOpen.length ? `סומנו ${keys.length} פריטים. ${stillOpen.join(', ')} נשאר פתוח לסימון נפרד.` : `סומנו ${keys.length} פריטים ${where}.`, {
+  const marked = stillOpen.length ? `סומנו ${keys.length} פריטים. ${stillOpen.join(', ')} נשאר פתוח לסימון נפרד.` : `סומנו ${keys.length} פריטים ${where}.`;
+  toast(ready.length ? `${marked} ${READY_TOAST}` : marked, {
     label: 'ביטול',
     run: async () => {
       try {
-        await clearChecksBulk(id, keys);
-        for (const k of keys) { delete checks[k]; dropHandoff(k); }
+        await clearChecksBulk(id, [...keys, ...ready]);
+        for (const k of [...keys, ...ready]) { delete checks[k]; dropHandoff(k); }
         renderKeepingFocus(focusId);
         loadHistory();
         toast(`הסימון של ${keys.length} הפריטים בוטל.`);
@@ -1508,6 +1513,28 @@ async function markBulk(x, items, focusId = `${x.proc.id}-bulk`) {
       }
     },
   });
+}
+
+// The editor's hand-off to Ofir by itself (docs/ops.md, section 121; app/editor-auto.js): the
+// editor (one of them, with two) marked the last of 22 and 24, so "העורך עדכן את אופיר" is written
+// now, once, never over a mark (the reminders function writes it within a minute otherwise, and
+// for a mark by anyone else in the office). Returns the keys written ([]: none, or it failed).
+const READY_TOAST = 'כל העריכה סומנה: הלקוח עבר לאופיר לבקרה.';
+async function handToOfirIfReady() {
+  if (!me || !client) return [];
+  const ctxOf = (pre) => {
+    const r = pre ? roundsOf(client).find((x) => `r${x.n}.` === pre) : null;
+    return r ? roundContext(client, r) : client;
+  };
+  const keys = editorReadyKeys(client, checks, clientState(client, checks))
+    .filter((k) => isEditorOf(ctxOf(k.slice(0, -READY_KEY.length)), me));
+  if (!keys.length) return [];
+  try {
+    const rows = await addChecksOnce(id, keys, 'done', READY_NOTE);
+    for (const r of rows) checks[r.item_key] = r;
+    if (rows.length) loadHistory();
+    return rows.map((r) => r.item_key);
+  } catch { return []; /* the reminders function writes it on its next tick */ }
 }
 
 // After WhatsApp was opened for a handoff: the "העברות" line and the history show it.
@@ -1933,8 +1960,11 @@ async function mark(key, state, focusId, note = null) {
     // and with the footage here Lior's task for the rest of it closes too.
     const row = state === 'done' ? checkRowOf(key) : null;
     if (row) await closeArrived(row);
+    // The editor's last mark of 22 and 24: the client goes to Ofir by itself (app/editor-auto.js).
+    const ready = state ? await handToOfirIfReady() : [];
+    if (ready.length) { renderKeepingFocus(focusId); toast(READY_TOAST); }
     // A handoff item: offer the ready WhatsApp message to the next person.
-    if (state === 'done') offerHandoff({ client, key, checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
+    if (state === 'done' || ready.length) offerHandoff({ client, keys: [...(state === 'done' ? [key] : []), ...ready], checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
     else dropHandoff(key);
     return true;
   } catch (err) {

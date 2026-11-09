@@ -49,6 +49,17 @@ async function withCols(fn) {
 export const loadGantt = (clientId) => orNull(() => withCols(() => all(() => supabase.from('client_gantt').select(cols)
   .eq('client_id', clientId).order('day').order('key'))));
 
+// How many graphic rows of each client's Gantt are "עלה" (posted): { clientId: n }; {} when the
+// table cannot be read (the page then counts the protocol's marks alone; app/tracking-logic.js).
+export async function loadPostedGraphics() {
+  try {
+    const rows = await all(() => supabase.from('client_gantt').select('id, client_id').eq('kind', 'graphic').eq('state', 'posted').order('id'));
+    const out = {};
+    for (const r of rows) out[r.client_id] = (out[r.client_id] || 0) + 1;
+    return out;
+  } catch { return {}; }
+}
+
 // The index: every client's entries from `from` to `to` (day keys), and which clients
 // have a Gantt at all (the template's last entry, 'end', is in every plan).
 // { rows, has: Set of client ids, plans: Set of the ones with a plan from the template
