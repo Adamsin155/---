@@ -71,7 +71,7 @@ test('the lists in the gate are exactly the code\'s: the read tools\' for everyo
   assert.deepEqual(ownerPaths('POST').filter((q) => q.startsWith('rpc/')).map((q) => q.slice(4)).sort(), [...WRITE_GATE.rpcs].sort());
   assert.deepEqual(ownerPaths('PATCH').sort(), [...WRITE_GATE.update].sort());
   assert.deepEqual(ownerPaths('DELETE').sort(), [...WRITE_GATE.delete].sort());
-  assert.match(ownerPart(), /and private\.is_owner\(\) then/);
+  assert.match(ownerPart(), /owner := coalesce\(private\.is_owner\(\), false\);[\s\S]*if owner then\s+return;/);
   const body = gateBody();
   const first = body.indexOf('return;');
   assert.ok(first > 0 && !/\bfrom\b/.test(body.slice(0, first)), 'nothing is read before the first return: browser sessions are as before');
@@ -109,6 +109,23 @@ test('an owner: anything else is refused, and without the key nothing', async ()
   ]) await refused({ who: 'owner', method, path });
   for (const [method, path] of [['POST', '/protocol_checks'], ['PATCH', '/clients'], ['POST', '/rpc/staff_task_create'], ['GET', '/clients']]) {
     await refused({ who: 'owner', method, path, key: false });
+  }
+});
+
+test('an odd token on a write path (a sub that is not a uuid, no email): refused as any other, never another error', async () => {
+  for (const claims of [{ sub: 'u1', email: 'owner@astrateg.test', role: 'authenticated', client_id: 'c' }, { sub: users.owner.id, role: 'authenticated', client_id: 'c' }]) {
+    let code = null;
+    await db.transaction(async (tx) => {
+      await tx.query('set local role authenticated');
+      const set = (k, v) => tx.query('select set_config($1, $2, true)', [k, v]);
+      await set('request.jwt.claims', JSON.stringify(claims));
+      await set('request.method', 'POST');
+      await set('request.path', '/protocol_checks');
+      await set('request.headers', JSON.stringify({ [GATE_HEADER]: KEY }));
+      try { await tx.query('select public.mcp_request_gate()'); } catch (err) { code = err.code; }
+      await tx.rollback();
+    }).catch(() => {});
+    assert.equal(code, '42501', JSON.stringify(claims));
   }
 });
 

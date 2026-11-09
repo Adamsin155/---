@@ -52,6 +52,7 @@ declare
   method text;
   path text;
   sent text;
+  owner boolean := false;
 begin
   -- Everyone but a connected app. Nothing above or on this line can raise.
   if claims is null or position('client_id' in claims) = 0 then
@@ -87,9 +88,16 @@ begin
         or (method = 'POST' and path in (
           '/rpc/staff_task_create', '/rpc/staff_task_create_brief', '/rpc/staff_task_done', '/rpc/staff_task_cancel', '/rpc/staff_note_delete',
           '/rpc/date_change_note', '/rpc/photographer_taken', '/rpc/photographer_taken_by', '/rpc/clients_private', '/rpc/clients_contact',
-          '/rpc/deal_take')))
-      and private.is_owner() then
-      return;
+          '/rpc/deal_take'))) then
+      -- Anything odd in the token (a sub that is not a uuid) is a no, never another error.
+      begin
+        owner := coalesce(private.is_owner(), false);
+      exception when others then
+        owner := false;
+      end;
+      if owner then
+        return;
+      end if;
     end if;
   end if;
   raise exception 'not available to a connected app' using errcode = '42501';
