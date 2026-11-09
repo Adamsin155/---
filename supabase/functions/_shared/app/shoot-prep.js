@@ -69,16 +69,18 @@ export function coordinatorOf(client, checks, x) {
   const solo = isSolo(x.ctx);
   const crew = crewOf(x.ctx);
   const party = (p) => (p.key === 'p11.ok.photographer' && solo ? { ...p, label: `${PHOTOGRAPHERS[crew].name} הצלם`, short: PHOTOGRAPHERS[crew].name } : p);
-  const approvals = PARTIES.filter((p) => !solo || p.key !== 'p11.ok.influencers').map((p) => item(party(p)));
-  const contract = solo ? null : item({ key: 'p11.influencers', label: 'בדקתי בחוזה אילו משפיענים נרכשו' });
-  const calendar = item({ key: 'p11.calendar', label: 'יום הצילום ביומן של כולם' });
+  // v13 (9.11.2026): the approvals, the contract's check and "in everyone's calendar" left the
+  // protocol. A date in the system is the closed shoot day (PARTIES stay for the words of old marks).
+  void party;
+  const approvals = [];
+  const contract = null;
+  const calendar = { ...item({ key: 'p11.calendar', label: 'יום הצילום ביומן של כולם' }), done: true };
   const type = x.ctx.shoot_type;
   const natali = isStarDay(type) ? NATALI.map((p) => item({ ...p, label: starWords(p.label, type) })) : [];
   const shootAt = parseDate(x.ctx.shoot_at);
   const typeSet = hasShootType(x.ctx);
   const needs = [!typeSet ? 'עם מי מצלמים' : null, !shootAt ? 'תאריך ושעה' : null].filter(Boolean);
-  const missing = [...approvals.filter((a) => !a.done).map((a) => `אישור ${a.short}`),
-    ...(!contract || contract.done ? [] : ['בדיקת המשפיענים בחוזה']), ...(calendar.done ? [] : ['הכנסה ליומן'])];
+  const missing = needs;
   const closed = !missing.length;
   const nataliMissing = natali.filter((a) => !a.done).map((a) => a.short);
   return {

@@ -9,7 +9,7 @@
 // Pure data and logic, no DOM: shared by the pages (app/handoff-ui.js) and the
 // unit tests (tests/handoffs.test.mjs). Item keys are the protocol's own
 // (app/protocol.js); they are never renamed.
-import { PEOPLE, PROCESSES, pagesOwnerOf } from './protocol.js';
+import { PEOPLE, PROCESSES, pagesOwnerOf, GANTT_READY } from './protocol.js';
 import { clientState, addWorkingMinutes, isBusinessDay, isImmediate, inLanding } from './protocol-logic.js';
 import { partsIL, daysBetweenIL, atTimeIL, addDaysIL } from './tz.js';
 
@@ -140,10 +140,11 @@ export const HANDOFFS = [
     }],
   },
   {
-    id: 'gantt', on: 'p29.filled', label: 'הגאנט מלא',
+    // v13: the system's mark once every content row of the Gantt is scheduled (it was Ilai's p29.filled).
+    id: 'gantt', on: GANTT_READY, label: 'הגאנט מוכן',
     to: [{
       id: 'irit', person: 'irit', proc: 'p29', until: 'p29.sent',
-      text: 'הגאנט של {client} מלא ותואם לתזמון. לשלוח אותו ללקוח.',
+      text: 'הגאנט של {client} מוכן: כל התכנים תוזמנו. לשלוח אותו ללקוח.',
       due: [{ label: 'יעד', proc: 'p29' }],
     }],
   },

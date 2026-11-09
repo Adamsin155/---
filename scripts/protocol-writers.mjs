@@ -48,6 +48,7 @@ export const EXTRA_MARKS = {
   'p16.photographer': { proc: 'p16', persons: ['eli'] }, // Eli: "קיבלתי" on Lior's briefing (app/shoot.js). The app always let him; the database did not.
   'p16.read': { proc: 'p16', persons: ['eli'] }, // Eli: "קראתי את התסריטים" (app/shoot.js)
   'p18b.files': 'p18b', // Eli (and Lior, who is the office): the raw material and the chosen take per script (app/shoot.js)
+  'p19b.notes': 'p19b', // Eli: his notes for the editor (app/shoot.js). An item until v13, the field stays.
 };
 
 export const EDITOR = '@editor'; // the editor of that shoot

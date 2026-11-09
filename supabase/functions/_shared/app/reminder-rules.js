@@ -49,7 +49,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf, isSilent } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf, isSilent, GANTT_READY } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -61,8 +61,9 @@ import { stationChange } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
 import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
 import { TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
+import { nextShootDay } from './shoot-plan.js';
 import { isBlockingTitle } from './characterization.js';
-import { ANSWER_CLOCKS, fixAnswered } from './clocks.js';
+import { ANSWER_CLOCKS, CALL_CLOCKS, fixAnswered } from './clocks.js';
 import {
   QA_KINDS, qaState, qaDue, SHIFT_KEY, readShift, ACCESS_FIXED, readAccessFix,
 } from './office-marks.js';
@@ -337,12 +338,10 @@ export const RULES = [
         if (workFloor(c)) continue; // taken in from the old system: it never was a "new deal" here (docs/ops.md, section 41)
         const dealAt = parseDate(c.deal_at);
         const st = env.stateOf(c).states;
-        const [p1, p2, p3] = ['p01', 'p02', 'p03'].map((id) => st.find((s) => s.proc.id === id));
+        const [p1, p3] = ['p01', 'p03'].map((id) => st.find((s) => s.proc.id === id));
         if (!dealAt || !p1) continue;
         const i = procCase(env, c, p1);
         const missing = [];
-        if (!p1.wait && openItems(i, ['p01.prepared', 'p01.sent']).length) missing.push('חוזה');
-        if (p2 && !p2.complete && !p2.wait) missing.push('קבוצה');
         if (p3 && !p3.complete && !p3.wait) missing.push('מועד אפיון');
         if (!missing.length) continue;
         out.push({ ...i, id: 'deal', ref: 'p01', url: clientUrl(c.id, 'p01'), missing, anchors: { event: dealAt, due: addWorkingMinutes(dealAt, 5), contractDue: addWorkingMinutes(dealAt, DEAL_MINUTES) } });
@@ -350,7 +349,8 @@ export const RULES = [
       return out;
     },
     steps: [
-      { id: 'now', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עסקה חדשה: ${i.name}`, body: (i, env) => `קבוצה ומועד אפיון עד ${whenText(i.anchors.due, env.now)}, חוזה עד ${whenText(i.anchors.contractDue, env.now)}.` },
+      // v13: the contract's preparing and sending and the group left the protocol: only the meeting's date is asked.
+      { id: 'now', to: 'irit', level: 'ring', exempt: 'clock', title: (i) => `עסקה חדשה: ${i.name}`, body: (i, env) => `מועד אפיון עד ${whenText(i.anchors.due, env.now)}.` },
       { id: 'due', from: 'due', to: 'irit', level: 'ring', exempt: 'clock', when: (i) => i.missing.some((m) => m !== 'חוזה'), title: (i) => `עברו 5 דקות: ${i.name}`, body: (i) => `עוד חסר: ${i.missing.filter((m) => m !== 'חוזה').join(', ')}.` },
       { id: 'contract', from: 'contractDue', to: 'irit', level: 'ring', exempt: 'clock', when: (i) => i.missing.includes('חוזה'), title: (i) => `עברו ${DEAL_MINUTES} דקות בלי חוזה: ${i.name}`, body: () => 'החוזה עוד לא נשלח ללקוח.' },
       { id: 'lior', officeMinutes: 30, to: 'lior', level: 'ring', title: (i) => `עסקה חדשה בלי טיפול: ${i.name}`, body: (i) => `עברו 30 דקות עבודה ועוד חסר: ${i.missing.join(', ')}.` },
@@ -562,7 +562,8 @@ export const RULES = [
     id: 'answer', event: 'הלקוח לא ענה (7, 23, 26)', procs: ['p07', 'p23', 'p26'],
     instances(env) {
       const out = [];
-      for (const [b, spec] of Object.entries(ANSWER_CLOCKS)) {
+      // v13: no call any more (CALL_CLOCKS in app/clocks.js): nothing rings Irit to call the client.
+      for (const [b, spec] of Object.entries(CALL_CLOCKS ? ANSWER_CLOCKS : {})) {
         for (const i of casesOf(env, b)) {
           const sentAt = i.doneAt(`${b}.sent`);
           if (!sentAt) continue;
@@ -593,9 +594,9 @@ export const RULES = [
         .map((i) => ({ ...i, id: i.proc.id, anchors: { event: i.s.startAt, due: i.s.dueAt } }));
     },
     steps: (i, env) => [
-      { id: 'start', to: 'irit', level: 'quiet', title: () => `לקבוע יום צילום: ${i.name}`, body: () => `במועד המוקדם ביותר, מול הלקוח, המשפיענים, ליאור ואלי. יעד: ${whenText(i.anchors.due, env.now)}.` },
+      { id: 'start', to: 'irit', level: 'quiet', title: () => `לקבוע יום צילום: ${i.name}`, body: () => `במועד המוקדם ביותר. כשהתאריך במערכת, זה סגור. יעד: ${whenText(i.anchors.due, env.now)}.` },
       ...dailyDigest(i, env, 'irit', (n) => `יום צילום עוד לא נסגר (יום ${n}): ${i.name}`, 99),
-      { id: 'due16', from: 'due', at: '16:00', to: 'irit', level: 'ring', title: () => `יום הצילום עוד לא נסגר: ${i.name}`, body: () => 'היעד: סוף היום. חסרים אישורים או תאריך.' },
+      { id: 'due16', from: 'due', at: '16:00', to: 'irit', level: 'ring', title: () => `יום הצילום עוד לא נסגר: ${i.name}`, body: () => 'היעד: סוף היום. עוד אין תאריך במערכת.' },
     ],
   },
 
@@ -703,7 +704,6 @@ export const RULES = [
       if (i.solo) {
         return [
           { ...s, id: 'eli2h', minutes: -60, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 60) ? `בעוד שעה ההגעה שלך לצילום: ${i.name}` : env.now < arrive ? `ההגעה שלך לצילום ${inTimeWords(arrive, env.now)}: ${i.name}` : `שעת ההגעה שלך לצילום עברה: ${i.name}`), body: () => `${arrivalText(i.anchors.shoot, true)}${i.client.address ? ` · ${i.client.address}` : ''}.` },
-          { ...s, id: 'arrived', minutes: 15, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, -15) ? 'עברו 15 דקות משעת הצילום.' : `שעת הצילום הייתה ${clock(i.anchors.shoot)}.`) },
           endLior,
           { ...s, id: 'endEli', minutes: endMin, to: 'eli', when: () => dayOpen('p19b'), title: () => `סיום יום הצילום: ${i.name}`, body: () => 'לסדר את הכונן ולמסור לליאור.' },
         ];
@@ -711,7 +711,6 @@ export const RULES = [
       return [
         { ...s, id: 'eli2h', minutes: -120, to: 'eli', expires: 'shoot', title: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 120) ? `בעוד שעה ההגעה שלך לצילום: ${i.name}` : env.now < arrivalOf(i.anchors.shoot) ? `ההגעה שלך לצילום ${inTimeWords(arrivalOf(i.anchors.shoot), env.now)}: ${i.name}` : `שעת ההגעה שלך לצילום עברה: ${i.name}`), body: () => `${arrivalText(i.anchors.shoot)}${i.client.address ? ` · ${i.client.address}` : ''}.` },
         { ...s, id: 'eli15', minutes: -15, to: 'eli', expires: 'shoot', when: () => !i.check('p17b.brollq'), title: () => `הבי־רול גמור? ${i.name}`, body: (_, env) => `המשפיענים מגיעים ${sentOnTime(i.anchors.shoot, env.now, 15) ? 'בעוד 15 דקות' : inTimeWords(i.anchors.shoot, env.now)}. לענות כן או לא במסך יום הצילום.` },
-        { ...s, id: 'arrived', minutes: -45, to: 'lior', when: () => !i.resolved('p17b.arrived'), title: () => `אלי עוד לא סימן הגעה: ${i.name}`, body: (_, env) => (sentOnTime(i.anchors.shoot, env.now, 45) ? 'עברו 15 דקות משעת ההגעה שלו.' : `שעת ההגעה שלו הייתה ${clock(new Date(i.anchors.shoot.getTime() - 36e5))}.`) },
         ...(i.star
           ? [{ ...s, id: 'hourLeft', minutes: 120, to: 'lior', when: () => dayOpen('p19'), title: () => `נותרה שעה: ${i.name}`, body: () => `צילום עם ${i.star}: עד 3 שעות.` }]
           : [
@@ -825,9 +824,10 @@ export const RULES = [
       return casesOf(env, 'p28', (i) => !!i.finishedAt('p27')).flatMap((i) => {
         const p29 = i.same('p29');
         const out = [];
-        const open = !i.s.complete || (p29 && !i.resolved('p29.filled'));
+        const open = !i.s.complete;
         if (open && !i.s.wait) out.push({ ...i, id: i.proc.id, stage: 'ilai', anchors: { event: i.finishedAt('p27'), due: i.s.dueAt } });
-        const filled = i.doneAt('p29.filled');
+        // v13: the Gantt is ready when the system closed the scheduling (GANTT_READY); before v13, Ilai's p29.filled.
+        const filled = i.doneAt(GANTT_READY) || i.doneAt('p29.filled');
         // v10: her sending has its own clock from this moment (30 office minutes, the stage of 29's deadline).
         if (filled && !i.resolved('p29.sent')) out.push({ ...i, id: `${i.proc.id}.gantt`, stage: 'irit', sendBy: p29?.dueAt || null, anchors: { event: filled } });
         return out;
@@ -836,7 +836,7 @@ export const RULES = [
     steps: [
       { id: 'start', to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => i.stage === 'ilai', title: (i) => `שעתיים לתזמון ולגאנט: ${i.name}`, body: (i, env) => `הלקוח אישר את הסרטונים. יעד ${whenText(i.anchors.due, env.now)}.` },
       { id: 'pre30', from: 'due', officeMinutes: -30, to: 'ilai', level: 'ring', exempt: 'clock', when: (i) => i.stage === 'ilai', title: (i) => `עוד 30 דקות: תזמון וגאנט · ${i.name}`, body: (i, env) => `יעד ${whenText(i.anchors.due, env.now)}.` },
-      { id: 'gantt', to: 'irit', level: 'ring', when: (i) => i.stage === 'irit', title: (i) => `לשלוח גאנט: ${i.name}`, body: (i, env) => `עילאי סיים למלא את הגאנט.${i.sendBy ? ` יעד ${whenText(i.sendBy, env.now)}.` : ''}` },
+      { id: 'gantt', to: 'irit', level: 'ring', when: (i) => i.stage === 'irit', title: (i) => `לשלוח גאנט: ${i.name}`, body: (i, env) => `כל התכנים בגאנט תוזמנו.${i.sendBy ? ` יעד ${whenText(i.sendBy, env.now)}.` : ''}` },
     ],
   },
 
@@ -1086,8 +1086,9 @@ export const RULES = [
   // Lior's list after a business day.
   {
     id: 'contract', event: 'חוזה נשלח ולא נחתם (1)', procs: ['p01'],
+    // v13: "החוזה נשלח" left the protocol, and with it this ring (the unsigned agreement has its own: 'unsigned').
     instances(env) {
-      return casesOf(env, 'p01', (i) => !!i.doneAt('p01.sent') && !i.resolved('p01.signed') && !i.s.wait)
+      return casesOf(env, 'p01', (i) => false && !!i.doneAt('p01.sent') && !i.resolved('p01.signed') && !i.s.wait)
         .map((i) => ({ ...i, id: 'p01', anchors: { event: i.doneAt('p01.sent') } }));
     },
     steps: [
@@ -1120,7 +1121,6 @@ export const RULES = [
         .map((i) => ({ ...i, id: 'p05', anchors: { event: endOf(i) } }));
     },
     steps: [
-      { id: 'irit', minutes: 30, to: 'irit', level: 'quiet', when: (i) => !i.resolved('p05.vault'), title: (i) => `הגישות עוד לא בכספת: ${i.name}`, body: () => 'עברה חצי שעה מסוף האפיון.' },
       { id: 'logo', to: 'ilai', level: 'quiet', when: (i) => i.client.has_logo === false && !i.resolved('p05.newlogo'), title: (i) => `לוגו חדש: ${i.name}`, body: () => 'אין ללקוח לוגו. הגרפיקות הראשונות תלויות בו.' },
     ],
   },
@@ -2592,3 +2592,27 @@ RULES.push({
   }],
 });
 RULE_BY_ID.set(MONTHLY_SHOOT.id, RULES.at(-1));
+
+// Protocol v13 (the owner's decision of 9.11.2026; app/shoot-plan.js nextShootDay): a package with
+// several shoot days. On the 1st of the month after the last day that was set, Irit is rung once to
+// set the next one ("יום צילום 2 מתוך 2"); its line stays in "המשימות שלי" until the day has a date.
+export const SHOOT_NEXT = { id: 'shootNext', follows: 'irit', at: '09:30' };
+RULES.push({
+  id: SHOOT_NEXT.id, event: 'חבילה עם כמה ימי צילום: לקבוע את היום הבא', procs: [],
+  instances(env) {
+    return env.clients
+      .filter((c) => liveClient(c) && c.landing !== true)
+      .map((c) => ({ c, next: nextShootDay(c, env.now) }))
+      .filter((x) => x.next)
+      .map(({ c, next }) => ({
+        id: `${c.id}@day${next.day}`, cid: c.id, client: c, name: clientLabel(c), next, url: `client.html?id=${encodeURIComponent(c.id)}#add-round`,
+        anchors: { event: atIL(next.opensAt, SHOOT_NEXT.at) },
+      }));
+  },
+  steps: [{
+    id: 'irit', to: SHOOT_NEXT.follows, level: 'ring',
+    title: (i) => `לקבוע ל${i.name} יום צילום ${i.next.day} מתוך ${i.next.total}`,
+    body: () => 'היום הקודם כבר נקבע. לקבוע את הבא ולהזין בכרטיס הלקוח.',
+  }],
+});
+RULE_BY_ID.set(SHOOT_NEXT.id, RULES.at(-1));

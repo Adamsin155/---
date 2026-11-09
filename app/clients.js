@@ -79,7 +79,7 @@ import { flowLines, flowNeeds, joinDecisions } from './mine-flow.js';
 import { checkMark } from './mark-guards.js';
 import { accessGapQuestion } from './access-logic.js';
 import { canManageAccessLinks } from './access-data.js';
-import { PARTIES } from './shoot-prep.js';
+import { setShootLine } from './shoot-plan.js';
 // "מי מצלם" (25.10.2026): with influencers, or Lior and one photographer.
 import { choiceOf, soloOf, crewPatch, isChoice } from './shoot-crew.js';
 import { loadFlowExtra } from './mine-flow-data.js';
@@ -832,14 +832,17 @@ const MEET_FIELDS = ['characterizer', 'char_at'];
 const gapOf = (g) => g.entries.find((e) => e.fields) || null;
 // v12: Lior's forms (the campaign, the pre-shoot form, the scripts' link) are not ticked: saving the
 // form in the client card marks them, and the card's one button leads there (app/intake-ui.js).
-const checkable = (g) => g.entries.filter((e) => !e.fields && !e.item?.form);
-const isFormCard = (g) => !g.task && g.entries.some((e) => e.item?.form);
+// v13: what the system closes by itself (`auto`: the meeting's and the shoot day's lines, the scheduling) is not ticked either.
+const checkable = (g) => g.entries.filter((e) => !e.fields && !e.item?.form && !e.item?.auto);
+const isFormCard = (g) => !g.task && g.entries.some((e) => e.item?.form || e.item?.auto);
 // Process 11 (protocol v8): the same shape for the shoot day. A second shoot round's
 // date is set in the client card, where the rounds are.
 const SHOOT_FIELDS = ['shoot_type', 'shoot_at'];
-const gapText = (fields) => (fields.includes('char_at') ? 'עוד לא נקבע מועד לפגישת האפיון.'
+// v13: the one line of 3 and 11 ("לקבוע אפיון ל<לקוח>", "לקבוע ל<לקוח> יום צילום 1 מתוך 2"), which
+// closes by itself once the date is saved.
+const gapText = (fields, g) => (fields.includes('char_at') ? `לקבוע אפיון ל${clientLabel(g.client)}.`
   : fields.includes('characterizer') ? 'עוד לא נקבע מי מבצע את האפיון.'
-    : fields.includes('shoot_at') ? 'עוד לא נקבע תאריך ליום הצילום.' : 'עוד לא נקבע עם מי מצלמים.');
+    : fields.includes('shoot_at') ? `${setShootLine(g.client, clientLabel(g.client), roundOf(g.proc))}.` : 'עוד לא נקבע עם מי מצלמים.');
 function needLine(g) {
   const e = gapOf(g);
   if (!e) return null;
@@ -847,11 +850,13 @@ function needLine(g) {
   const shoot = e.fields.every((f) => SHOOT_FIELDS.includes(f)) && !roundOf(g.proc);
   const id = `need-${g.key}`.replace(/[^\w-]/g, '_');
   return h('div', { class: 'need wneed', role: 'note', 'data-need': e.fields.join(',') },
-    h('span', {}, gapText(e.fields), scope === 'office' ? '' : ' המשרד משלים את זה בכרטיס הלקוח.'),
+    h('span', {}, gapText(e.fields, g), scope === 'office' ? '' : ' המשרד משלים את זה בכרטיס הלקוח.'),
     scope !== 'office' ? null : meeting
       ? h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: () => openMeet(g, id) }, e.fields.includes('char_at') ? 'קביעת מועד' : 'בחירת מבצע')
       : shoot ? h('button', { type: 'button', class: 'btn btn-sm btn-primary', id, onclick: () => openShoot(g, id) }, 'קביעת יום צילום')
-        : h('a', { class: 'btn btn-sm', id, href: clientUrl(g.client.id, `#${g.proc.id}`) }, 'לכרטיס הלקוח'));
+        // A later shoot day is a round: its date is set in the round's dialog of the client card.
+        : roundOf(g.proc) && e.fields.includes('shoot_at') ? h('a', { class: 'btn btn-sm btn-primary', id, href: clientUrl(g.client.id, `#round-${roundOf(g.proc)}`) }, 'קביעת יום צילום')
+          : h('a', { class: 'btn btn-sm', id, href: clientUrl(g.client.id, `#${g.proc.id}`) }, 'לכרטיס הלקוח'));
 }
 
 // ── The shoot date, set from the card (process 11; docs/ops.md, section 49) ──
@@ -863,17 +868,11 @@ function needLine(g) {
 const shootDlg = $('dlg-shoot');
 let shootTarget = null;
 let shootHint = null;
-const SHOOT_TICKS = [...PARTIES, { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו' }, { key: 'p11.calendar', label: 'ביומן של כולם' }];
-// The ticks that are the influencers' (a day without influencers has none of them).
-const INFLUENCER_TICKS = new Set(['p11.ok.influencers', 'p11.influencers']);
-// The dialog follows "מי מצלם": the time's words, the influencers' ticks and the photographer's line.
+// v13 (9.11.2026): a date saved here is the approved shoot day. There are no approvals to tick.
+// The dialog follows "מי מצלם": the time's words.
 function shootCrewShown() {
   const crew = soloOf($('shoot-type').value);
   $('shoot-at-l').textContent = crew ? 'מתי הצילום? (שעת הצילום)' : 'מתי מגיעים המשפיענים?';
-  for (const b of $('shoot-oks').querySelectorAll('.chip')) {
-    b.hidden = !!crew && INFLUENCER_TICKS.has(b.dataset.key);
-    if (b.dataset.key === 'p11.ok.photographer') b.textContent = crew ? `${crew === 'eli' ? 'אלי' : 'אליאל'} הצלם` : SHOOT_TICKS.find((p) => p.key === 'p11.ok.photographer').label;
-  }
   shootHint?.refresh?.();
 }
 $('shoot-type').addEventListener('change', shootCrewShown);
@@ -881,20 +880,12 @@ shootDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]')
 async function openShoot(g, focusId) {
   shootTarget = { g, focusId };
   const c = g.client;
-  const cs = checks[c.id] || {};
   $('shoot-form').reset();
   $('shoot-err').hidden = true;
   $('shoot-at').removeAttribute('aria-invalid');
   $('shoot-ctx').textContent = clientLabel(c);
   $('shoot-at').value = c.shoot_at ? inputValueIL(new Date(c.shoot_at)) : '';
   $('shoot-type').value = choiceOf(c);
-  fill($('shoot-oks'), h('legend', {}, 'מי כבר אישר? (אפשר גם אחר כך, מהכרטיס)'), ...SHOOT_TICKS.map((p) => {
-    const was = cs[p.key]?.state === 'done';
-    return h('button', {
-      type: 'button', class: 'chip', id: `shoot-ok-${p.key.replace(/\W/g, '-')}`, 'data-key': p.key, 'aria-pressed': String(was), disabled: was,
-      onclick: (ev) => ev.currentTarget.setAttribute('aria-pressed', String(ev.currentTarget.getAttribute('aria-pressed') !== 'true')),
-    }, p.label);
-  }));
   shootCrewShown();
   fill($('shoot-free'));
   $('shoot-free').hidden = true;
@@ -955,23 +946,12 @@ $('shoot-form').addEventListener('submit', async (ev) => {
     $('shoot-submit').disabled = false;
     return fail(`המועד לא נשמר. ${errorText(err)}`, $('shoot-at'));
   }
-  // The approvals pressed here are ticked with it; one that fails stays on the card.
-  const keys = [...$('shoot-oks').querySelectorAll('.chip[aria-pressed="true"]:not(:disabled):not([hidden])')].map((b) => b.dataset.key);
-  let marked = 0;
-  if (keys.length) {
-    try {
-      const rows = await setChecksBulk(cid, keys, 'done', 'סומן בקביעת יום הצילום');
-      for (const r of rows) (checks[cid] ||= {})[r.item_key] = r;
-      states.delete(cid);
-      marked = rows.length;
-    } catch { /* they stay open on the card */ }
-  }
   $('shoot-submit').disabled = false;
   shootDlg.close();
   renderKeepingFocus();
   const card = `#mine-list .wproc[data-key="${CSS.escape(g.key)}"]`;
   (document.getElementById(focusId) || document.querySelector(`${card} .cbx, ${card} button`))?.focus();
-  toast(`יום הצילום נשמר: ${formatStamp(at)}.${marked ? ` סומנו ${marked === 1 ? 'אישור אחד' : `${marked} אישורים`}.` : ''}`);
+  toast(`יום הצילום נשמר: ${formatStamp(at)}.`);
 });
 
 // ── A link to send the client, copied from the card (5ב, 7א; section 49) ──
@@ -1048,19 +1028,13 @@ $('meet-form').addEventListener('submit', async (ev) => {
     $('meet-submit').disabled = false;
     return;
   }
-  // The date is saved. "The meeting was set" is marked with it; if that mark fails it
-  // simply stays on the card as an item to tick.
-  let marked = false;
-  const item = gapOf(g)?.item;
-  if (item && !isResolved(item, checks[cid]?.[item.key])) {
-    try { (checks[cid] ||= {})[item.key] = await setCheck(cid, item.key, 'done'); states.delete(cid); marked = true; } catch { /* stays open on the card */ }
-  }
+  // (v13: the date itself closes the line; nothing is marked.)
   $('meet-submit').disabled = false;
   meetDlg.close();
   renderKeepingFocus();
   const card = `#mine-list .wproc[data-key="${CSS.escape(g.key)}"]`;
   (document.getElementById(focusId) || document.querySelector(`${card} .cbx, ${card} button`))?.focus();
-  toast(`המועד נשמר: ${formatStamp(at)} · ${PEOPLE[person].name}.${marked ? ' סומן ״נקבעה פגישה״.' : ''}`);
+  toast(`המועד נשמר: ${formatStamp(at)} · ${PEOPLE[person].name}.`);
 });
 
 // ── Waiting on the client (spec §4) ──────────

@@ -116,10 +116,23 @@
 //     17ב/18ב/19ב are unchanged, and 22א now opens on the evening of the shoot day itself (it waited
 //     for Lior's closing of the day, 19).
 //   Kept: 34 and 35. The new items are for every client (`always` in app/protocol-versions.js).
+// v13 (the owner's decisions of 9.11.2026, after the staff went over their checklists; docs/ops.md,
+// section 119): what they marked "מיותר" left (`retired: 13`; the exact list is in app/protocol-versions.js
+// and in the section). Its notifications, late lines and summary lines left with it, for every client.
+//   - 2 (the WhatsApp group) left whole; 11's clock starts at the contract's signing (anchor 'signed').
+//   - 3 and 11 have no checkboxes: one line for Irit, "לקבוע אפיון" / "לקבוע יום צילום", that closes by
+//     itself when the date is in the system (`auto` items with `setHere`). A package with more shoot days:
+//     "יום צילום 1 מתוך 2", and the next day's line opens on the 1st of the month after the last day
+//     (app/shoot-plan.js nextShootDay).
+//   - 14 is no longer a daily answer: its two topics (scripts, the shoot day) stay.
+//   - 7א left (the status page's link stays in the client card); 1 keeps only "חתם".
+//   - Ilai: 9 is one item (p09.file); 29ב keeps 4 points, "בגאנט ותואם לתזמון" one of them (ganttok);
+//     the scheduling (28) and the full Gantt (29) are one mark the system writes (GANTT_READY) when every
+//     content row of the Gantt is scheduled. Eli: two drive checks are one (p19b.checked).
 
 import { INFLUENCERS, STARS } from './catalog.js';
 
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 // The version that retired a process or an item (`retired`): what is retired applies to nobody.
 export const isRetired = (entry) => Number.isInteger(entry?.retired) && entry.retired <= PROTOCOL_VERSION;
 
@@ -147,12 +160,18 @@ export const RENEWAL_DAYS = 14;
 // Ilai's final check before his work on a client is complete (29ב; docs/protocols/ilai.md,
 // step 10), in the protocol's order. "הדרייב" of the graphics is the client's file in the
 // system (the owner's decision of 7.10.2026), and the number of graphics is the package's.
+// v13 (Ilai's review, 9.11.2026): the third field is the version that retired the point; "בגאנט" and
+// "תואם לתזמון" are one point now (ganttok).
 export const FINAL_CHECK = [
-  ['nets', 'כל הרשתות קיימות'], ['access', 'כל הגישות נמצאות במערכת'], ['metricool', 'כל הרשתות מחוברות ל־Metricool'],
-  ['look', 'הנראות של כל העמודים מסודרת'], ['logo', 'הלוגו מסודר'], ['graphics', 'כל הגרפיקות לפי החבילה מוכנות'],
-  ['gfiles', 'כל הגרפיקות נמצאות בתיק הלקוח במערכת'], ['vfiles', 'הסרטונים נמצאים בדרייב של הלקוח'], ['vsched', 'הסרטונים תוזמנו'],
-  ['gsched', 'הגרפיקות תוזמנו'], ['gantt', 'כל התוכן נמצא בגאנט'], ['match', 'הגאנט תואם לתזמון'], ['updated', 'כל הפעולות שביצעתי עודכנו במערכת'],
+  ['nets', 'כל הרשתות קיימות', 13], ['access', 'כל הגישות נמצאות במערכת', 13], ['metricool', 'כל הרשתות מחוברות ל־Metricool', 13],
+  ['look', 'הנראות של כל העמודים מסודרת', 13], ['logo', 'הלוגו מסודר', 13], ['graphics', 'כל הגרפיקות לפי החבילה מוכנות', 13],
+  ['gfiles', 'כל הגרפיקות נמצאות בתיק הלקוח במערכת', 13], ['vfiles', 'הסרטונים נמצאים בדרייב של הלקוח', 13], ['vsched', 'הסרטונים תוזמנו'],
+  ['gsched', 'הגרפיקות תוזמנו'], ['gantt', 'כל התוכן נמצא בגאנט', 13], ['match', 'הגאנט תואם לתזמון', 13],
+  ['ganttok', 'כל התוכן בגאנט ותואם לתזמון'], ['updated', 'כל הפעולות שביצעתי עודכנו במערכת'],
 ];
+// v13: the scheduling (28) is done when every content row of the client's Gantt is scheduled or posted.
+// The system writes this mark once (app/gantt-auto.js); Irit's sending (p29.sent) waits for it.
+export const GANTT_READY = 'p28.auto';
 
 // Office hours, in Israel time (decisions 1–2 in docs/plan/decisions.md).
 // Deadlines of minutes or hours that start from an office event (a deal coming
@@ -390,7 +409,7 @@ export const NO_BULK = new Set(['p18', 'p19', 'p21', 'p25', 'p31']);
 // item after which each one is expected (`after: null`: never asked for) and the
 // address it should look like (`hint`; null: any https address, with `placeholder`).
 export const LINKS = [
-  { key: 'whatsapp', label: 'קבוצת WhatsApp', after: 'p02.opened', hint: 'chat.whatsapp.com' },
+  { key: 'whatsapp', label: 'קבוצת WhatsApp', after: null, hint: 'chat.whatsapp.com' }, // v13: 2 left the protocol
   // The finished videos are in the client's Drive folder (the editor opens it: p24.folder).
   { key: 'drive', label: 'תיקיית הסרטונים ב־Drive', after: 'p24.folder', hint: 'drive.google.com' },
   { key: 'scripts', label: 'תסריטים (קישור לשיתוף)', after: 'p12.docs', hint: null, placeholder: 'הקישור לשיתוף מעמוד התסריטים' },
@@ -419,7 +438,7 @@ export const APPROVALS = new Set(['p25.approved', 'p13.approved', 'p27.approved'
 
 // The two daily reviews (processes 32 and 33) and what each one goes over.
 export const REVIEW_TOPICS = {
-  p32: ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם', 'הודעות יומיות ללקוחות'],
+  p32: ['חוזים', 'חתימות', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם', 'הודעות יומיות ללקוחות'],
   p33: ['איפה כל לקוח נמצא', 'מה כבר בוצע', 'מה חסר ולמה', 'אצל מי המשימה ומתי היא אמורה להסתיים', 'האם הלקוח מחכה לתשובה או לחומר', 'מה תקוע ולמה', 'מה צריך לעשות כדי לקדם', 'תקינות המערכת: סטטוסים, אחראים ומועדי יעד'],
 };
 
@@ -531,13 +550,13 @@ export const PROCESSES = [
     due: { from: 'deal', minutes: 10 },
     what: 'מכינים את החוזה בהתאם לחבילה ולתנאים שסגר איש המכירות, שולחים ללקוח ומוודאים שחתם בפועל במערכת.',
     items: [
-      { key: 'p01.prepared', label: 'החוזה הוכן לפי החבילה והתנאים שסגר איש המכירות' },
-      { key: 'p01.sent', label: 'החוזה נשלח ללקוח' },
+      { key: 'p01.prepared', label: 'החוזה הוכן לפי החבילה והתנאים שסגר איש המכירות', retired: 13 },
+      { key: 'p01.sent', label: 'החוזה נשלח ללקוח', retired: 13 },
       { key: 'p01.signed', label: 'הלקוח חתם בפועל על החוזה במערכת' },
     ],
   },
   {
-    id: 'p02', num: '2', phase: 'onboarding', title: 'פתיחת קבוצת WhatsApp', owners: ['irit'],
+    id: 'p02', num: '2', phase: 'onboarding', title: 'פתיחת קבוצת WhatsApp', owners: ['irit'], retired: 13,
     sla: 'עד 5 דקות מרגע קבלת פרטי הלקוח',
     due: { from: 'deal', minutes: 5 },
     what: 'פותחים קבוצת WhatsApp ללקוח. אחרי הפתיחה נשלחת הודעת היכרות מטעם ליאור ועירית.',
@@ -562,30 +581,37 @@ export const PROCESSES = [
     ownerNote: 'מבצע האפיון הוא נעם, אופיר או שיאל. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
     needs: ['characterizer', 'char_at'],
     items: [
-      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (נעם, אופיר או שיאל, או ליאור כשהם לא יכולים)' },
-      { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון' },
-      { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04', keep: ['char_at'] } },
-      { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן' },
+      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (נעם, אופיר או שיאל, או ליאור כשהם לא יכולים)', retired: 13 },
+      { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון', retired: 13 },
+      { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04', keep: ['char_at'] }, retired: 13 },
+      { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן', retired: 13 },
+      // v13: no checkbox. While the meeting has no date, Irit has this one line, and it closes by itself
+      // when the date is set (`auto`: the system's; the gap of `setHere`, fieldGap in protocol-logic.js).
+      { key: 'p03.date', label: 'לקבוע אפיון', optional: true, auto: true, requiresFields: ['char_at'], setHere: { unless: 'p04' } },
     ],
   },
   {
     id: 'p11', round: true, num: '11', phase: 'onboarding', title: 'קביעת יום צילום', owners: ['irit'],
-    sla: 'מיד אחרי פתיחת קבוצת ה־WhatsApp, במועד המוקדם ביותר; סגור עד סוף יום העסקים שאחרי פתיחת הקבוצה',
+    sla: 'מיד אחרי חתימת החוזה, במועד המוקדם ביותר; עד סוף יום העסקים שאחרי החתימה',
     // v6 (3.10.2026): right after the group is opened, not after the characterization.
-    // Lior does not set the date (he confirms he can run it, p11.ok.lior).
-    start: { from: 'group' }, due: { from: 'group', businessDays: 1 },
-    what: 'מיד אחרי פתיחת הקבוצה קובעים את יום הצילום במועד המוקדם ביותר. בודקים בחוזה אילו משפיענים הלקוח רכש ומתאמים מועד מול כל הצדדים. יום הצילום לא נחשב סגור עד שכולם אישרו והתאריך ביומן של כולם ובמערכת.',
+    // v13 (9.11.2026): the group (2) left the protocol, so the clock starts at the contract's signing
+    // (the anchor 'signed': p01.signed, else the deal; inside a round, the round's start).
+    start: { from: 'signed' }, due: { from: 'signed', businessDays: 1 },
+    what: 'קובעים את יום הצילום במועד המוקדם ביותר, ומכניסים אותו למערכת (״קביעת יום צילום״, ״לקבוע״ ביומן, או פגישה חדשה). מועד שנקבע במערכת הוא יום צילום סגור: אין אישורים לסמן.',
     needs: ['shoot_type', 'shoot_at'],
     items: [
       // A day without influencers (25.10.2026): nobody to check in the contract or to approve.
-      { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו', when: withInfluencers },
-      { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true },
-      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true, when: withInfluencers },
-      { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true },
-      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true, variant: (c) => (isSolo(c) ? { label: `הצלם (${PHOTOGRAPHERS[crewOf(c)].name}) אישר` } : null) },
+      { key: 'p11.influencers', label: 'נבדק בחוזה אילו משפיענים נרכשו', when: withInfluencers, retired: 13 },
+      { key: 'p11.ok.client', label: 'הלקוח אישר את המועד', noBulk: true, retired: 13 },
+      { key: 'p11.ok.influencers', label: 'המשפיענים אישרו', noBulk: true, when: withInfluencers, retired: 13 },
+      { key: 'p11.ok.lior', label: 'ליאור (מנהל יום הצילום) אישר', noBulk: true, retired: 13 },
+      { key: 'p11.ok.photographer', label: 'הצלם אישר', noBulk: true, variant: (c) => (isSolo(c) ? { label: `הצלם (${PHOTOGRAPHERS[crewOf(c)].name}) אישר` } : null), retired: 13 },
       // v8: no date, no closed shoot day: 11 stays on Irit's list with "קביעת יום צילום"
       // (the date is asked for until the shoot day is behind the client: 19).
-      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'], setHere: { unless: 'p19', keep: ['shoot_at'] } },
+      { key: 'p11.calendar', label: 'יום הצילום הוכנס ליומן של כולם', requiresFields: ['shoot_type', 'shoot_at'], setHere: { unless: 'p19', keep: ['shoot_at'] }, retired: 13 },
+      // v13: no checkboxes. While the shoot has no date, Irit has this one line ("לקבוע ל<לקוח> יום צילום",
+      // with "1 מתוך 2" when the package has more days: app/shoot-plan.js), closed by the date itself.
+      { key: 'p11.date', label: 'לקבוע יום צילום', optional: true, auto: true, requiresFields: ['shoot_at'], setHere: { unless: 'p19' } },
     ],
   },
   {
@@ -619,8 +645,8 @@ export const PROCESSES = [
       { key: 'p04.campaigns', label: 'צרכים לקמפיינים' },
       { key: 'p04.special', label: 'דגשים מיוחדים' },
       { key: 'p04.saved', label: 'האפיון נשמר במערכת בצורה מלאה וברורה' },
-      { key: 'p04.followup', label: 'עירית וידאה שהאפיון התקיים ונשמר ושאין מידע שחסר להמשך (חוסר: לליאור)', owners: ['irit'] },
-      { key: 'p04.tasks', label: 'עירית וידאה שנפתחו כל המשימות שצריכות להתחיל אחרי האפיון', owners: ['irit'] },
+      { key: 'p04.followup', label: 'עירית וידאה שהאפיון התקיים ונשמר ושאין מידע שחסר להמשך (חוסר: לליאור)', owners: ['irit'], retired: 13 },
+      { key: 'p04.tasks', label: 'עירית וידאה שנפתחו כל המשימות שצריכות להתחיל אחרי האפיון', owners: ['irit'], retired: 13 },
     ],
   },
   {
@@ -633,7 +659,7 @@ export const PROCESSES = [
     needs: ['characterizer', 'has_logo'],
     items: [
       { key: 'p05.access', label: 'התקבלה גישה לכל הרשתות הרלוונטיות' },
-      { key: 'p05.vault', label: 'כל הגישות הוכנסו לכספת הגישות במערכת', owners: ['irit'] },
+      { key: 'p05.vault', label: 'כל הגישות הוכנסו לכספת הגישות במערכת', owners: ['irit'], retired: 13 },
       // v8: one login saved is not "every network". The system does not hold the list of
       // the client's networks, so it asks: the card names what was saved (the note of
       // p05.access) and "אין עוד" closes it. The client's own form closes it by itself.
@@ -706,12 +732,12 @@ export const PROCESSES = [
       // it existed, nobody is asked for it (clientState: withoutPassed).
       { key: 'p07.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], passedIf: 'p07.sent', requires: ['p07.r.spelling', 'p07.r.phone', 'p07.r.address', 'p07.r.logo', 'p07.r.details', 'p07.r.wording', 'p07.r.design'] },
       { key: 'p07.sent', label: 'נשלחו ללקוח לאישור', owners: ['irit'], requires: ['p07.ofir'] },
-      { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
+      { key: 'p07.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true, retired: 13 },
       { key: 'p07.approved', label: 'הלקוח אישר את הגרפיקות', owners: ['irit'], requires: ['p07.sent'], noBulk: true },
     ],
   },
   {
-    id: 'p07a', num: '7א', phase: 'parallel', title: 'קישור ללקוח לדף הסטטוס', owners: ['irit'],
+    id: 'p07a', num: '7א', phase: 'parallel', title: 'קישור ללקוח לדף הסטטוס', owners: ['irit'], retired: 13,
     sla: 'עד 30 דקות עבודה מרגע שאופיר אישר את 9 הגרפיקות',
     // v8: without this link the client cannot approve graphics, scripts or videos.
     // v9: it opens with Ofir's approval, when there is something to show the client.
@@ -758,9 +784,10 @@ export const PROCESSES = [
     start: { from: 'charEnd' }, due: { from: 'charEnd', minutes: 5 },
     what: 'עילאי פותח את גאנט התוכן של הלקוח במערכת. בשלב זה מכינים רק את המבנה; הסרטונים נוספים אחרי העריכה.',
     items: [
-      { key: 'p09.file', label: 'נפתח גאנט התוכן של הלקוח במערכת' },
+      // v13: one item (the same key, so a gantt already opened stays done); its seven columns left.
+      { key: 'p09.file', label: 'נפתח גאנט שנתי ללקוח במערכת' },
       ...[['name', 'שם הלקוח'], ['months', 'כל חודשי השנה'], ['num', 'מספר סרטון'], ['link', 'קישור לסרטון'], ['day', 'יום'], ['date', 'תאריך'], ['time', 'שעה']]
-        .map(([k, l]) => ({ key: `p09.c.${k}`, label: `בגאנט: ${l}` })),
+        .map(([k, l]) => ({ key: `p09.c.${k}`, label: `בגאנט: ${l}`, retired: 13 })),
     ],
   },
   {
@@ -826,26 +853,27 @@ export const PROCESSES = [
   },
   {
     id: 'p14', round: true, num: '14', phase: 'prep', title: 'Follow-up עד יום הצילום', owners: ['irit'],
-    sla: 'מעקב שוטף מדי יום עד יום הצילום',
+    sla: 'עד יום הצילום',
     // v8: daily and light. One answer per client on every working day until the shoot
     // day: "הכול תקין", or which of the eight topics is stuck (then Lior is told). The
     // answer is the mark p14.day (note JSON, app/shoot-prep.js); it counts for its day.
     // The eight topics stay as they were (the system still closes a clear one by itself);
     // nobody ticks them one by one.
-    recurring: 'daily', until: 'shoot',
+    // v13 (9.11.2026): the daily answer (p14.day) and six of its topics left; it is no longer asked
+    // every day. Its two topics stay in the card, and the system closes each when it is clear.
     start: { from: 'charEnd' },
-    what: 'בכל יום עבודה עד יום הצילום מוודאים שאין דבר שיכול לעצור אותו: ״הכול תקין״, או מה תקוע. על נושא תקוע ליאור מקבל הודעה.',
+    what: 'שני נושאים עד יום הצילום: התסריטים ויום הצילום. המערכת סוגרת כל אחד מהם לבד כשהוא ברור.',
     items: [
-      { key: 'p14.day', label: 'מעקב היום: הכול תקין, או מה תקוע', recurring: 'daily' },
-      { key: 'p14.approvals', label: 'אישורי לקוח', optional: true, topic: true },
+      { key: 'p14.day', label: 'מעקב היום: הכול תקין, או מה תקוע', recurring: 'daily', retired: 13 },
+      { key: 'p14.approvals', label: 'אישורי לקוח', optional: true, topic: true, retired: 13 },
       { key: 'p14.scripts', label: 'תסריטים', optional: true, topic: true },
-      { key: 'p14.graphics', label: 'גרפיקות', optional: true, topic: true },
+      { key: 'p14.graphics', label: 'גרפיקות', optional: true, topic: true, retired: 13 },
       // Access is not the shoot day's (the owner, 5.11.2026): it stays in its own processes (5, 6).
       { key: 'p14.access', label: 'גישות', optional: true, topic: true, retired: 12 },
       { key: 'p14.shootday', label: 'יום צילום', optional: true, topic: true },
-      { key: 'p14.team', label: 'משימות צוות', optional: true, topic: true },
-      { key: 'p14.missing', label: 'חוסרים מהלקוח', optional: true, topic: true },
-      { key: 'p14.delays', label: 'אין עיכוב מצד אחד העובדים (אם יש: מתועד ועודכן ליאור)', optional: true, topic: true },
+      { key: 'p14.team', label: 'משימות צוות', optional: true, topic: true, retired: 13 },
+      { key: 'p14.missing', label: 'חוסרים מהלקוח', optional: true, topic: true, retired: 13 },
+      { key: 'p14.delays', label: 'אין עיכוב מצד אחד העובדים (אם יש: מתועד ועודכן ליאור)', optional: true, topic: true, retired: 13 },
     ],
   },
   {
@@ -920,12 +948,12 @@ export const PROCESSES = [
     what: 'הצלם מגיע שעה לפני המשפיענים בעיקר כדי לסיים את כל הבי־רול של העסק לפני שהם מגיעים, כך שכשהם מגיעים מתחילים מיד בסרטונים. ההתארגנות מהירה, כדי להשאיר את רוב השעה לבי־רול.',
     rule: 'לא משאירים את הבי־רול הכללי של העסק לזמן שבו המשפיענים כבר במקום. בי־רול נקודתי שקשור למשפיען או לסצנה מסוימת אפשר להשלים במהלך היום.',
     items: [
-      { key: 'p17b.arrived', label: 'הגעתי שעה לפני המשפיענים', variant: (c) => (isSolo(c) ? { label: 'הגעתי בשעת הצילום' } : null) },
+      { key: 'p17b.arrived', label: 'הגעתי שעה לפני המשפיענים', variant: (c) => (isSolo(c) ? { label: 'הגעתי בשעת הצילום' } : null), retired: 13 },
       { key: 'p17b.drive', label: 'קיבלתי את הכונן מליאור (באחריותי עד סוף היום)' },
       { key: 'p17b.gear', label: 'נבדקו מצלמות, סוללות, כרטיסי זיכרון, מיקרופונים ותאורה' },
-      { key: 'p17b.zones', label: 'עברתי עם ליאור על אזורי הצילום: זוויות, תאורה וסאונד, רקע נקי ובלי דברים מיותרים בפריים' },
+      { key: 'p17b.zones', label: 'עברתי עם ליאור על אזורי הצילום: זוויות, תאורה וסאונד, רקע נקי ובלי דברים מיותרים בפריים', retired: 13 },
       { key: 'p17b.broll', label: 'כל הבי־רול המרכזי של העסק צולם לפני הגעת המשפיענים: המקום, חזית ופנים, מוצרים, שירותים, עובדים, שילוט, אווירה ותהליכי עבודה', when: withInfluencers },
-      { key: 'p17b.variety', label: 'הבי־רול מגוון: תקריבים וצילומים רחבים, זוויות ומוצרים שונים, מספיק אפשרויות לעורכים' },
+      { key: 'p17b.variety', label: 'הבי־רול מגוון: תקריבים וצילומים רחבים, זוויות ומוצרים שונים, מספיק אפשרויות לעורכים', retired: 13 },
     ],
   },
   {
@@ -975,11 +1003,13 @@ export const PROCESSES = [
     rule: 'הצלם לא עוזב לפני שכל החומרים בכונן, מסודרים בתיקיות, והכונן בידיים של ליאור. אסור לפרמט או למחוק כרטיס זיכרון לפני שנבדק שכל החומר בכונן תקין.',
     items: [
       { key: 'p19b.folders', label: 'בכונן תיקיית בי־רול ותיקיית סרטונים, וכל סרטון במספר שלו לפי התסריטים' },
-      { key: 'p19b.complete', label: 'כל הסרטונים וכל הבי־רול בכונן, בלי קבצים חסרים' },
-      { key: 'p19b.opens', label: 'הקבצים נפתחים תקין והמספור תואם לסדר התסריטים' },
-      { key: 'p19b.cards', label: 'לא נשאר חומר רק על כרטיסי הזיכרון; שום כרטיס לא פורמט לפני הבדיקה' },
+      { key: 'p19b.complete', label: 'כל הסרטונים וכל הבי־רול בכונן, בלי קבצים חסרים', retired: 13 },
+      { key: 'p19b.opens', label: 'הקבצים נפתחים תקין והמספור תואם לסדר התסריטים', retired: 13 },
+      { key: 'p19b.cards', label: 'לא נשאר חומר רק על כרטיסי הזיכרון; שום כרטיס לא פורמט לפני הבדיקה', retired: 13 },
+      // v13: the two above, one item (either old mark is history that answers it: `passedIf`).
+      { key: 'p19b.checked', label: 'כל הסרטונים והבי־רול בכונן, נפתחים תקין, והמספור תואם לתסריטים', passedIf: ['p19b.complete', 'p19b.opens'] },
       { key: 'p19b.handed', label: 'מסרתי את הכונן לליאור, והוא אישר שקיבל', noBulk: true },
-      { key: 'p19b.notes', label: 'עדכנתי את ליאור על בעיה בסרטון או על גרסה או חומר שהעורך צריך לדעת עליהם', optional: true },
+      { key: 'p19b.notes', label: 'עדכנתי את ליאור על בעיה בסרטון או על גרסה או חומר שהעורך צריך לדעת עליהם', optional: true, retired: 13 },
     ],
   },
   {
@@ -1060,7 +1090,7 @@ export const PROCESSES = [
         .map(([k, l]) => ({ key: `p23.q.${k}`, label: `אופיר בדק: ${l}`, owners: ['ofir'], requires: ['p23.made'] })),
       { key: 'p23.ofir', label: 'אופיר אישר את הגרפיקות (תיקון: משימה לעילאי)', owners: ['ofir'], requires: ['p23.q.design', 'p23.q.errors', 'p23.q.logo', 'p23.q.contact', 'p23.q.match', 'p23.q.pro', 'p23.q.variety'] },
       { key: 'p23.sent', label: 'נשלחו ללקוח', owners: ['irit'], requires: ['p23.ofir'] },
-      { key: 'p23.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true },
+      { key: 'p23.call', label: 'הלקוח לא הגיב תוך 10 דקות ועירית התקשרה', owners: ['irit'], optional: true, retired: 13 },
       // v6: the client's approval, by Irit here or by the client on the status page (same key).
       { key: 'p23.approved', label: 'הלקוח אישר את יתרת הגרפיקות', owners: ['irit'], requires: ['p23.sent'], noBulk: true, optional: true },
     ],
@@ -1107,7 +1137,7 @@ export const PROCESSES = [
     start: { from: 'p25' }, due: { from: 'p25' },
     items: [
       { key: 'p26.sent', label: 'הסרטונים נשלחו ללקוח לאישור', requires: ['p25.approved'] },
-      { key: 'p26.call', label: 'הלקוח לא הגיב תוך 5 דקות ועירית התקשרה לוודא שראה', optional: true },
+      { key: 'p26.call', label: 'הלקוח לא הגיב תוך 5 דקות ועירית התקשרה לוודא שראה', optional: true, retired: 13 },
     ],
   },
   {
@@ -1117,7 +1147,7 @@ export const PROCESSES = [
     // ביקש תיקון", or the client wrote them on the status page) the deadline is the fix's own,
     // from that moment: the same day when they came by 13:00, else the end of the next
     // business day (`fix`; fixDue in app/protocol-logic.js). Until then: day 4, as before.
-    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4, afterMark: [{ key: 'p27.notes', fix: true }] },
+    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4, afterMark: [{ key: 'p27.notes', fix: true }], retired: 13 },
     what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
       { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true },
@@ -1133,20 +1163,24 @@ export const PROCESSES = [
     sla: 'עד שעתיים מרגע שהתוכן מוכן ומאושר',
     start: { from: 'p27' }, due: { from: 'p27', hours: 2 },
     items: [
-      { key: 'p28.scheduled', label: 'הסרטונים והגרפיקות תוזמנו מראש לפי הכמות והתדירות בחבילה', guard: 'scheduled' },
+      { key: 'p28.scheduled', label: 'הסרטונים והגרפיקות תוזמנו מראש לפי הכמות והתדירות בחבילה', guard: 'scheduled', retired: 13 },
+      // v13: closed by the system, once, when every content row of the client's Gantt is "תוזמן" or
+      // "עלה" (Metricool's sync or Ilai's own mark): app/gantt-auto.js. Ilai has nothing to tick.
+      { key: GANTT_READY, label: 'כל התכנים בגאנט תוזמנו (נסגר לבד)', auto: true, passedIf: ['p28.scheduled', 'p29.filled', 'p29.sent'] },
     ],
   },
   {
-    id: 'p29', round: true, num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['ilai', 'irit'],
+    id: 'p29', round: true, num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['irit'], // v13: Ilai's full Gantt left (GANTT_READY)
     sla: 'במקביל לתזמון, בתוך אותן שעתיים',
     // v10: Irit's sending has its own clock, 30 office minutes from the moment Ilai marked
     // the Gantt full (the written protocol gives it no time; the same half hour as her
     // other sendings, 5ב and 7א).
-    start: { from: 'p27' }, due: { from: 'p27', hours: 2, afterMark: [{ key: 'p29.filled', minutes: 30, office: true }] },
+    start: { from: 'p27' }, due: { from: 'p27', hours: 2, afterMark: [{ key: 'p29.filled', minutes: 30, office: true }, { key: GANTT_READY, minutes: 30, office: true }] }, // (p29.filled: before v13)
     what: 'על כל תוכן שמתוזמן מעדכנים בגאנט מספר סרטון, קישור, יום, תאריך ושעה, כך שהגאנט והתזמון תמיד תואמים.',
     items: [
-      { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'], guard: 'gantt' },
-      { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: ['p29.filled'] },
+      { key: 'p29.filled', label: 'הגאנט מלא ותואם לתזמון בפועל', owners: ['ilai'], guard: 'gantt', retired: 13 },
+      // v13: Irit sends it once every content row of the Gantt is scheduled (GANTT_READY, closed by the system).
+      { key: 'p29.sent', label: 'הגאנט הועבר ללקוח', owners: ['irit'], requires: [GANTT_READY] },
     ],
   },
   {
@@ -1158,8 +1192,8 @@ export const PROCESSES = [
     start: { from: 'p29' }, due: { from: 'p29', businessDays: 1 },
     what: 'לפני שעילאי מסיים את העבודה על הלקוח הוא עובר על 13 הסעיפים. רק אחרי שכולם בוצעו הוא מעדכן שהעבודה שלו על הלקוח הושלמה, ועירית מקבלת הודעה.',
     items: [
-      ...FINAL_CHECK.map(([k, l]) => ({ key: `p29b.c.${k}`, label: l })),
-      { key: 'p29b.done', label: 'העבודה שלי על הלקוח הושלמה', requires: FINAL_CHECK.map(([k]) => `p29b.c.${k}`), noBulk: true, word: 'הושלמה' },
+      ...FINAL_CHECK.map(([k, l, retired]) => ({ key: `p29b.c.${k}`, label: l, ...(retired ? { retired } : {}), ...(k === 'ganttok' ? { passedIf: ['p29b.c.gantt', 'p29b.c.match', 'p29b.done'] } : {}) })),
+      { key: 'p29b.done', label: 'העבודה שלי על הלקוח הושלמה', requires: FINAL_CHECK.filter((x) => !x[2]).map(([k]) => `p29b.c.${k}`), noBulk: true, word: 'הושלמה' },
     ],
   },
   {

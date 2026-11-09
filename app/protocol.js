@@ -437,7 +437,7 @@ export const APPROVALS = new Set(['p25.approved', 'p13.approved', 'p27.approved'
 
 // The two daily reviews (processes 32 and 33) and what each one goes over.
 export const REVIEW_TOPICS = {
-  p32: ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם', 'הודעות יומיות ללקוחות'],
+  p32: ['חוזים', 'חתימות', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם', 'הודעות יומיות ללקוחות'],
   p33: ['איפה כל לקוח נמצא', 'מה כבר בוצע', 'מה חסר ולמה', 'אצל מי המשימה ומתי היא אמורה להסתיים', 'האם הלקוח מחכה לתשובה או לחומר', 'מה תקוע ולמה', 'מה צריך לעשות כדי לקדם', 'תקינות המערכת: סטטוסים, אחראים ומועדי יעד'],
 };
 
@@ -1169,7 +1169,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p29', round: true, num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['ilai', 'irit'],
+    id: 'p29', round: true, num: '29', phase: 'publish', title: 'מילוי הגאנט ושליחה ללקוח', owners: ['irit'], // v13: Ilai's full Gantt left (GANTT_READY)
     sla: 'במקביל לתזמון, בתוך אותן שעתיים',
     // v10: Irit's sending has its own clock, 30 office minutes from the moment Ilai marked
     // the Gantt full (the written protocol gives it no time; the same half hour as her

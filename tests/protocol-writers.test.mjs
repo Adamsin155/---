@@ -27,7 +27,7 @@ test('the lists copied from browser modules are the same as there', () => {
   assert.deepEqual(PAUSE_PROCS, ['p22', 'p27']);
   for (const k of Object.keys(EXTRA_MARKS)) {
     // The photographer's marks (the key of the raw material per script is a constant of production.js, which shoot.js writes); the editor's.
-    const file = k === 'p18b.files' ? 'production.js' : /^p1[678]/.test(k) ? 'shoot.js' : 'editor.js';
+    const file = k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : 'editor.js';
     assert.ok(src(file).includes(`'${k}'`), `${k} is written in ${file}`);
   }
 });
@@ -69,11 +69,11 @@ const cases = [
   ['yariv', 'r2.p22.received', dana, null, true],
   ['yariv', 'r3.p22.pause', dana, null, true], // round 3 has no editor: any editor may pause
   ['yariv', 'r3.p22.received', dana, null, false],
-  ['eli', 'r2.p17b.arrived', dana, null, true],
+  ['eli', 'r2.p19b.checked', dana, null, true], ['eli', 'r2.p17b.arrived', dana, null, false],
   ['eli', 'p17b.brollq', dana, null, true],
   ['eli', 'p18.quiet', dana, null, false],
   ['ilai', 'p27.toilai', dana, null, true],
-  ['ilai', 'p29.claim', dana, null, true],
+  ['ilai', 'p28.auto', dana, null, true], ['ilai', 'p29.claim', dana, null, false],
   ['ilai', 'p23.return.1', dana, null, false],
   ['ilai', 'r2.p07.made', dana, null, false],
   ['ilai', 'p07.sent', dana, null, false],

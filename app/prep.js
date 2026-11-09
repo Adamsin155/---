@@ -266,8 +266,8 @@ function coordinatorBlock(e, k) {
   const choice = drafted ? crewDraft.get(k) : choiceOf(x.ctx);
   const set = !!e.coord.shootAt && e.coord.typeSet;
   const status = coord.closed
-    ? (coord.nataliMissing.length ? `סגור מול כולם · חסר עוד ליום של ${coord.star}: ${coord.nataliMissing.join(' ו')}` : 'היום סגור: כולם אישרו והוא ביומן')
-    : `עוד לא סגור · חסר: ${coord.missing.join(', ')}`;
+    ? (coord.nataliMissing.length ? `סגור מול כולם · חסר עוד ליום של ${coord.star}: ${coord.nataliMissing.join(' ו')}` : 'היום נקבע במערכת')
+    : `עוד לא נקבע · חסר: ${coord.missing.join(', ')}`;
   const party = (a, note = null) => h('li', { class: 'pp-party' },
     h('button', {
       type: 'button', class: 'btn', id: `pty-${k}-${a.key.replace(/\./g, '-')}`, 'aria-pressed': String(a.done), disabled: busy,
@@ -305,16 +305,10 @@ function coordinatorBlock(e, k) {
       // Set already: what it is, and "שינוי" (a day that becomes one without influencers, or moves).
       : h('p', { class: 'pp-shoot-line', id: `sh-line-${k}` }, 'עם מי מצלמים: ', h('strong', {}, coord.typeName), ' ',
         h('button', { type: 'button', class: 'btn-text', id: `sh-edit-${k}`, disabled: busy, onclick: () => { editOpen.add(k); render(`sh-type-${k}`); } }, 'שינוי')),
-    h('ul', { class: 'pp-parties', 'aria-label': 'אישורים' },
-      ...coord.approvals.map((a) => party(a, a.key === `${x.pre}p11.ok.photographer` && coord.shootAt ? eliNotes.get(noteKey(coord)) || null : null)),
-      coord.contract ? party(coord.contract) : null),
-    h('div', { class: 'ik-row' },
+    // (v13: no approvals and no "in everyone's calendar" to mark: the date is the closed day.)
+    invite ? h('div', { class: 'ik-row' },
       invite ? h('a', { class: 'btn btn-ghost', id: `inv-${k}`, href: invite.url, target: '_blank', rel: 'noopener', title: `מוזמנים: ${guestNames(invite)}`, 'data-guests': invite.guests.join(',') },
-        'שליחת זימון', h('span', { class: 'sr-only' }, ` (מוזמנים: ${guestNames(invite)}. Google Calendar נפתח בחלון חדש)`)) : null,
-      h('button', {
-        type: 'button', class: 'btn', id: `cal-${k}`, 'aria-pressed': String(coord.calendar.done), disabled: busy || !coord.shootAt || !coord.typeSet,
-        onclick: (ev) => toggleCheck(c.id, coord.calendar.key, !coord.calendar.done, ev.currentTarget.id),
-      }, coord.calendar.done ? '✓ ביומן של כולם' : 'הוכנס ליומן של כולם')),
+        'שליחת זימון', h('span', { class: 'sr-only' }, ` (מוזמנים: ${guestNames(invite)}. Google Calendar נפתח בחלון חדש)`)) : null) : null,
     coord.natali.length ? h('div', { class: 'pp-sub' },
       headIcon(h('h3', {}, `${coord.star}: מאפרת והסעה (11ב, באחריות ליאור)`), 'users', 'purple'),
       h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);

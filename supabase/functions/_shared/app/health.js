@@ -383,7 +383,7 @@ export function clientHealth(client, state, extras = {}) {
     // The shoot day's own preparation not closed close to it: red too (a default
     // waiting for the office's decision, docs/protocols/README.md), but not the alert.
     const prep = (s, whom, what) => risk(s, whom, what, 'shoot-prep', 'הכנת יום הצילום לא הושלמה');
-    if (ahead <= 2 && st('p11') && !st('p11').complete) prep(st('p11'), who(st('p11')) || 'irit', 'יום הצילום עוד לא נסגר מול כולם');
+    if (ahead <= 2 && st('p11') && !st('p11').complete) prep(st('p11'), who(st('p11')) || 'irit', 'עוד אין תאריך ליום הצילום במערכת');
     if (isStarDay(x.ctx.shoot_type) && ahead <= 3 && st('p11b') && !st('p11b').complete) prep(st('p11b'), 'lior', `המאפרת וההסעה של ${starShort(x.ctx.shoot_type)} עוד לא סודרו`);
   }
   const moves = new Map();
@@ -642,7 +642,8 @@ export function awaitedFromClient(client, state, checks = {}) {
       if (isDone(checks, `${x.pre}p26.sent`) && !isDone(checks, `${x.pre}p27.approved`)) out.push('הערות או אישור על הסרטונים');
       continue;
     }
-    if (p11?.touched && !p11.complete && !isDone(checks, `${x.pre}p11.ok.client`)) out.push('אישור מועד ליום הצילום');
+    // (v13: the client approves no shoot date any more; a date in the system is the closed day.)
+    void p11;
     if (byId.get(`${x.pid}p12`)?.complete && !isDone(checks, `${x.pre}p13.approved`)) out.push('אישור התסריטים');
     if (isDone(checks, `${x.pre}p26.sent`) && !isDone(checks, `${x.pre}p27.approved`)) out.push('הערות או אישור על הסרטונים');
   }

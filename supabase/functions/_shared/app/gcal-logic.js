@@ -18,6 +18,7 @@
 // Times are kept as moments (ISO, UTC); an Israel wall time is app/tz.js.
 import { TZ, dateIL, dayKeyIL, partsIL } from './tz.js';
 import { nameScore } from './metricool-logic.js';
+import { nextShootDay } from './shoot-plan.js';
 
 export const WINDOW = { back: 7, ahead: 120 };     // days
 export const MAX_BYTES = 3_000_000;                // a feed larger than this is not read
@@ -373,7 +374,8 @@ const ownShootDays = (c) => [c.shoot_at, ...(c.rounds || []).map((r) => r?.shoot
 //   - a meeting: the client has no meeting date, or a coming one on another day (a meeting
 //     already held is not moved from here);
 //   - a shoot day: the client has no shoot date, or a coming one on another day, and no
-//     round of it is on that day (a later round is set in the client's card).
+//     round of it is on that day; or (v13) its own day is behind it and a later day of the
+//     package is open to set.
 export function suggestionOf(row, client, { now = new Date() } = {}) {
   if (!row || !client || row.dismissed_at || row.all_day || !row.client_id || row.client_id !== client.id) return null;
   if (!['char', 'shoot'].includes(row.kind_guess)) return null;
@@ -387,7 +389,12 @@ export function suggestionOf(row, client, { now = new Date() } = {}) {
     return { kind: 'char', at };
   }
   if (ownShootDays(client).includes(day)) return null;
-  if (client.shoot_at && dayKeyIL(client.shoot_at) < today) return null;
+  // v13: the client's own day is behind it: a later day of the package that is open to set (a round
+  // with no date, or the next day's line: app/shoot-plan.js) is set from here too (app/date-set.js shootTarget).
+  if (client.shoot_at && dayKeyIL(client.shoot_at) < today) {
+    const roundOpen = (client.rounds || []).some((r) => r && r.monthly !== true && !r.shoot_at);
+    if (!roundOpen && !nextShootDay(client, now)) return null;
+  }
   return { kind: 'shoot', at };
 }
 // "לקבוע במערכת כפגישת אפיון של <client>?"

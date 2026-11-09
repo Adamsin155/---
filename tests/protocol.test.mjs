@@ -156,7 +156,9 @@ test('due dates follow the protocol anchors', () => {
   const procs = applicableProcesses(c);
   const due = (id) => resolveTime(procs.find((p) => p.id === id).due, c, procs, {}, at('2026-10-01T09:00:00+03:00'));
   assert.equal(iso(due('p01')), iso(at('2026-10-01T09:10:00+03:00'))); // the contract: 10 office minutes
-  assert.equal(iso(due('p02')), iso(at('2026-10-01T09:05:00+03:00')));
+  // v13: the group (2) left the protocol; the meeting's line (3) keeps its 5 office minutes from the deal.
+  assert.equal(procs.find((p) => p.id === 'p02'), undefined);
+  assert.equal(iso(due('p03')), iso(at('2026-10-01T09:05:00+03:00')));
   assert.equal(iso(due('p04')), iso(at('2026-10-01T12:00:00+03:00')));
   assert.equal(iso(due('p07')), iso(at('2026-10-01T14:00:00+03:00'))); // 2h after the meeting's window
   assert.equal(day(due('p12')), '2026-10-05'); // end of business day 2 (decision 14)
@@ -296,10 +298,10 @@ test('an extra shoot round repeats the shoot processes with their own keys and d
   const r2p12 = s.states.find((x) => x.proc.id === 'r2-p12');
   assert.equal(day(r2p12.dueAt), '2027-03-03'); // 2 business days from the round start (decision 14)
   // Round 1 progress is unaffected by round 2 checks and vice versa.
-  const checks = { 'r2.p11.influencers': { state: 'done', at: '2027-03-01T10:00:00+02:00' } };
+  const checks = { 'r2.p12.link': { state: 'done', at: '2027-03-01T10:00:00+02:00' } };
   const s2 = clientState(c, checks, at('2027-03-02T10:00:00+02:00'));
-  assert.equal(s2.states.find((x) => x.proc.id === 'p11').resolved, 0);
-  assert.equal(s2.states.find((x) => x.proc.id === 'r2-p11').resolved, 1);
+  assert.equal(s2.states.find((x) => x.proc.id === 'p12').resolved, 0);
+  assert.equal(s2.states.find((x) => x.proc.id === 'r2-p12').resolved, 1);
 });
 
 test('waiting on the client is shown apart from our own delays', () => {
@@ -310,7 +312,7 @@ test('waiting on the client is shown apart from our own delays', () => {
   const x = s.states.find((y) => y.proc.id === 'p01');
   assert.equal(x.status, 'client');
   assert.equal(x.late, true);
-  assert.equal(s.overdue, 2); // processes 2 and 3 are late on us; process 1 is not
+  assert.equal(s.overdue, 1); // process 3 (no meeting date) is late on us; process 1 is not (v13: 2 left)
   assert.equal(s.waitingOnClient, 1);
   assert.equal(bucketOf('client', x.dueAt), 'client');
 });
