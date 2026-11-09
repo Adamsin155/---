@@ -24,10 +24,8 @@ const addClient = async (name, fields = {}) => {
 };
 // A write as `who`: true when the database took it.
 const writes = async (who, client, key) => {
-  try {
-    await as(db, users[who], (tx) => tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, $2, 'done')", [client, key]));
-    return true;
-  } catch { return false; }
+  const r = await as(db, users[who], (tx) => tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, $2, 'done')", [client, key]));
+  return !r?.error;
 };
 
 before(async () => {

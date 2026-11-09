@@ -1146,10 +1146,10 @@ export const PROCESSES = [
     // ביקש תיקון", or the client wrote them on the status page) the deadline is the fix's own,
     // from that moment: the same day when they came by 13:00, else the end of the next
     // business day (`fix`; fixDue in app/protocol-logic.js). Until then: day 4, as before.
-    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4, afterMark: [{ key: 'p27.notes', fix: true }], retired: 13 },
+    start: { from: 'p26' }, due: { from: 'item:p22a.assigned', businessDays: 4, afterMark: [{ key: 'p27.notes', fix: true }] },
     what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
-      { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true },
+      { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true, retired: 13 },
       { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
       { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב של הלקוח, בלי גרסאות ישנות שמבלבלות', noBulk: true },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
