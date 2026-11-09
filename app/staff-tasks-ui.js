@@ -5,9 +5,10 @@
 //   - Whoever got one: "תזכורות שקיבלת (N)", each with what to do, who sent it and
 //     when, when the next reminder comes, and "בוצע". Only that stops the reminders
 //     (every 30 minutes, 09:00–20:00 on working days).
-//   - Whoever sends them (Irit, the owner): "שליחת נודניק" (to whom, what, an optional
-//     client), and "נודניקים ששלחת": the open ones with "ביטול הנודניק", and the ones
-//     done or cancelled in the last week, by whom and when.
+//   - Whoever sends them (Irit, the owner): "משימות לעובדים" (9.11.2026; it was "נודניק
+//     תזכורת לעובד"): "שליחת נודניק" (to whom, what, an optional client), the open ones with
+//     "בוצע" (the giver marks it herself, the owner's decision of 9.11.2026) and "ביטול
+//     הנודניק", and the ones done or cancelled in the last week, by whom and when.
 // The database decides who may do what (public.staff_task_create / _done / _cancel
 // and row level security on public.staff_tasks); the rules are
 // app/staff-tasks-logic.js. The page gives a section; the styles are
@@ -22,7 +23,8 @@ import {
 // The state of a "נודניק" as the sender reads it (STATUS_TEXT in the logic speaks of a task).
 const STATE_TEXT = { open: 'פתוח', done: 'בוצע', cancelled: 'בוטל' };
 
-const BASE_COLS = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at, cancelled_at';
+// created_by_email and done_by_email (both since the table came): a task the giver marked done herself says so.
+const BASE_COLS = 'id, created_at, created_by, created_by_email, assignee, body, client_id, client_name, status, done_at, done_by_email, cancelled_at';
 // The brief of a task for Nirel (protocol v10; the column comes with migration 20261024100000).
 const COLS = `${BASE_COLS}, brief, claimed_at`;
 // Before "אני על זה" (20261203100000_staff_task_claim.sql) the column is not there: with the brief only.
@@ -65,7 +67,7 @@ async function loadClients() {
 
 function explain(err) {
   const msg = String(err?.message || err || '');
-  if (/only the assignee/.test(msg)) return 'רק מי שקיבל את המשימה מסמן אותה כבוצעה.';
+  if (/only the assignee/.test(msg)) return 'רק מי שקיבל את המשימה או מי ששלח אותה מסמנים אותה כבוצעה.';
   if (/not open|task not found/.test(msg)) return 'המשימה כבר נסגרה. הרשימה רועננה.';
   if (/no login/.test(msg)) return 'לעובד הזה עוד אין כניסה למערכת, ולכן הוא לא יקבל את המשימה. מוסיפים אותו בעמוד ״צוות״.';
   if (/task text is required/.test(msg)) return `כותבים מה צריך לעשות, עד ${BODY_MAX} תווים.`;
@@ -145,6 +147,9 @@ function mineItem(t, now) {
       h('button', { type: 'button', class: 'btn st-done', 'data-act': 'done', onclick: (e) => act('staff_task_done', t, e.currentTarget, 'סומן ״בוצע״. התזכורות נעצרו.') }, 'בוצע')));
 }
 
+// Marked done by whoever gave it, not by the assignee.
+const byGiver = (t) => t.status === 'done' && !!t.done_by_email && t.done_by_email === t.created_by_email && t.assignee !== t.created_by;
+
 function givenItem(t) {
   const open = t.status === 'open';
   return h('article', { class: 'st-item', 'data-task': t.id, 'aria-labelledby': `sg-${t.id}` },
@@ -156,8 +161,14 @@ function givenItem(t) {
     h('p', { class: 'st-meta' },
       personOfViewer(viewer) !== t.created_by ? `שלח/ה ${personName(t.created_by)} · ` : '', `נשלח ${stamp(t.created_at)}`,
       open && t.claimed_at ? ` · ${personName(t.assignee)} סימן/ה ״אני על זה״ ${stamp(t.claimed_at)}` : '',
-      t.status === 'done' ? ` · בוצע ${stamp(t.done_at)}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
+      t.status === 'done' ? ` · בוצע ${stamp(t.done_at)}${byGiver(t) ? ` (${personOfViewer(viewer) === t.created_by ? 'סימנת בעצמך' : `סומן על ידי ${personName(t.created_by)}`})` : ''}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
     open ? h('div', { class: 'st-acts' },
+      // The giver marks it done herself (the owner, 9.11.2026): the reminders stop as on the assignee's "בוצע".
+      personOfViewer(viewer) === t.created_by && t.assignee !== t.created_by ? h('button', {
+        type: 'button', class: 'btn st-done', 'data-act': 'done',
+        'aria-label': `בוצע: ${personName(t.assignee)}, ${t.body.slice(0, 60)}`,
+        onclick: (e) => { if (window.confirm(`לסמן ״בוצע״ על הנודניק ל${personName(t.assignee)}? התזכורות ייעצרו.`)) act('staff_task_done', t, e.currentTarget, `סומן ״בוצע״. התזכורות ל${personName(t.assignee)} נעצרו.`); },
+      }, 'בוצע') : null,
       h('button', {
         type: 'button', class: 'btn btn-ghost', 'data-act': 'cancel',
         onclick: (e) => { if (window.confirm(`לבטל את הנודניק ל${personName(t.assignee)}? התזכורות ייעצרו והוא יסומן כמבוטל.`)) act('staff_task_cancel', t, e.currentTarget, 'הנודניק בוטל. התזכורות נעצרו.'); },
@@ -222,7 +233,7 @@ function render() {
   // The giver's part is one quiet row ("שליחת נודניק" and how many are open): the lists
   // open on demand, so the card never pushes the person's own work down the screen
   // (the simplicity pass of 6.10.2026). A task one got stays big: it is work to do now.
-  const heading = h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `תזכורות שקיבלת (${mine.length})` : 'נודניק תזכורת לעובד');
+  const heading = h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `תזכורות שקיבלת (${mine.length})` : 'משימות לעובדים');
   box.classList.toggle('is-quiet', gives && !mine.length && !formOpen);
   const newBtn = h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; render(); box.querySelector('#st-assignee')?.focus(); } }, 'שליחת נודניק');
   const none = given.open.length ? null : h('p', { class: 'hint st-empty' }, 'אין נודניקים פתוחים ששלחת.');
@@ -230,7 +241,7 @@ function render() {
     mine.length ? heading : null,
     ...mine.map((t) => mineItem(t, now)),
     gives ? [
-      mine.length ? h('h3', { class: 'st-sub' }, 'נודניקים ששלחת') : null,
+      mine.length ? h('h3', { class: 'st-sub' }, 'משימות לעובדים') : null,
       ...(formOpen ? [mine.length ? null : heading, newForm(), none]
         : [h('div', { class: 'st-top' }, h('div', { class: 'st-top-t' }, mine.length ? null : heading, none), newBtn)]),
       given.open.length || given.closed.length ? h('div', { class: 'st-folds' },

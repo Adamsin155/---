@@ -2,14 +2,17 @@
 // of 6.10.2026), against an in-memory fake of Supabase that answers as the database
 // does (who may give, mark done, cancel and read: tests/sql/staff-tasks.test.mjs holds
 // the real rules; the 30-minute reminders themselves: tests/staff-tasks.test.mjs):
-//   - Irit has "נודניק תזכורת לעובד" (it was "משימות מיידיות") right under the "now" bar: "שליחת נודניק" (to whom, what,
-//     an optional client), the checks of the form, and what the database is asked;
+//   - Irit has "משימות לעובדים" (9.11.2026; it was "נודניק תזכורת לעובד", and before that "משימות מיידיות")
+//     right under the "now" bar: "שליחת נודניק" (to whom, what, an optional client), the checks of the
+//     form, and what the database is asked;
 //   - Nadia, on a 360px phone, sees "תזכורות שקיבלת (1)" with "בוצע", when the next
 //     reminder comes, no way to give a task; "בוצע" closes it, and Irit sees it done,
 //     by whom and when;
 //   - Stav (sales) gets his on deal.html, with the phone's notifications card;
 //   - Irit cancels a task: shown as cancelled, not done, and gone from the assignee;
 //   - the owner sees everyone's; Lior gives too since 21.10.2026: his card has "שליחת נודניק" and nothing else;
+//   - the giver marks a task done herself (the owner, 9.11.2026): Irit gave Ilai one, "בוצע" on her
+//     card (390 and 1366), the database is asked, Ilai's card goes, her list says "סימנת בעצמך";
 //   - an assignee with no login is refused in words; before the migration the card
 //     is simply not there.
 // Run: npx http-server -p 8137 -s -c-1 . &  then
@@ -33,7 +36,7 @@ const serverNow = () => new Date(Date.now() + skew).toISOString();
 const minutesAgo = (n) => new Date(NOW - n * 6e4).toISOString();
 
 // Yariv and Anna have no login: a task cannot reach them.
-const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', nadia: 'nadia', eli: 'eli', stav: 'stav' };
+const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', nadia: 'nadia', eli: 'eli', stav: 'stav', ilai: 'ilai' };
 const users = new Map();
 const staff = [];
 for (const [k, person] of Object.entries(PEOPLE)) {
@@ -103,7 +106,8 @@ function rpc(name, body, me, json) {
       return json(200, t);
     }
     if (name === 'staff_task_done') {
-      if (t.assignee !== p) return json(403, { code: '42501', message: 'only the assignee marks a task done' });
+      // The assignee, or whoever gave it while they give tasks (20261208110000_staff_task_giver_done.sql).
+      if (t.assignee !== p && !(t.created_by === p && GIVERS.includes(p))) return json(403, { code: '42501', message: 'only the assignee or whoever gave it marks a task done' });
       if (t.status !== 'open') return json(400, { code: '22023', message: 'this task is not open' });
       Object.assign(t, { status: 'done', done_at: serverNow(), done_by_email: me.email });
     } else {
@@ -219,10 +223,10 @@ try {
   const irit = await newPage();
   await signIn(irit, 'clients.html#mine', 'irit');
 
-  await step('Irit: "נודניק תזכורת לעובד" right under the "now" bar, with "שליחת נודניק" and nothing open yet', async () => {
+  await step('Irit: "משימות לעובדים" right under the "now" bar, with "שליחת נודניק" and nothing open yet', async () => {
     await irit.locator(`${CARD}:not([hidden])`).waitFor();
     assert.deepEqual(await irit.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 4).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'staff-notes-card', 'deals-card']);
-    assert.equal(await text(irit, `${CARD} h2`), 'נודניק תזכורת לעובד');
+    assert.equal(await text(irit, `${CARD} h2`), 'משימות לעובדים');
     assert.equal(await text(irit, '#st-new'), 'שליחת נודניק');
     assert.match(await text(irit, CARD), /אין נודניקים פתוחים ששלחת\./);
     assert.equal(await irit.locator(`${CARD} .st-item`).count(), 0);
@@ -289,8 +293,8 @@ try {
     // The office opens the client from the task.
     assert.equal(await item.locator('.st-meta a').getAttribute('href'), `client.html?id=${tables.clients[0].id}`);
     assert.equal(await text(irit, `${CARD} [data-act="cancel"]`), 'ביטול הנודניק');
-    // The giver has no "בוצע" on a task of someone else.
-    assert.equal(await irit.locator(`${CARD} [data-act="done"]`).count(), 0);
+    // The giver marks it done herself too (9.11.2026), beside the cancel.
+    assert.equal(await text(irit, `${CARD} .st-item [data-act="done"]`), 'בוצע');
     assert.equal(calls.filter((c) => c.directWrite).length, 0);
     await shot(irit, '03-irit-open');
   });
@@ -299,7 +303,7 @@ try {
   await step('on entering, the giver\'s part is one row: "שליחת נודניק" and "פתוחים (1)", and the list opens on demand', async () => {
     await irit.reload();
     await irit.locator('#st-open-toggle').waitFor();
-    assert.equal(await text(irit, `${CARD} h2`), 'נודניק תזכורת לעובד');
+    assert.equal(await text(irit, `${CARD} h2`), 'משימות לעובדים');
     assert.equal(await text(irit, '#st-open-h'), 'פתוחים (1)');
     assert.equal(await irit.getAttribute('#st-open-toggle', 'aria-expanded'), 'false');
     assert.equal(await irit.locator(`${CARD} .st-item`).count(), 0);
@@ -474,7 +478,7 @@ try {
     assert.equal(await text(irit, `${CARD} h2`), 'תזכורות שקיבלת (1)');
     assert.match(await text(irit, `${CARD} .st-item.is-mine`), /להתקשר לרואה החשבון\s*נשלח מהבעלים · היום/);
     assert.equal(await irit.locator(`${CARD} .st-item.is-mine [data-act="cancel"]`).count(), 0);
-    assert.equal(await text(irit, `${CARD} .st-sub`), 'נודניקים ששלחת');
+    assert.equal(await text(irit, `${CARD} .st-sub`), 'משימות לעובדים');
     await shot(irit, '08-irit-both', true);
     const lior = await newPage();
     await signIn(lior, 'clients.html#mine', 'lior');
@@ -483,6 +487,61 @@ try {
     await lior.locator(`${CARD}:not([hidden]) #st-new`).waitFor();
     assert.equal(await lior.locator(`${CARD} .st-item`).count(), 0);
     await lior.context().close();
+  });
+
+  await step('the giver marks it done herself (9.11.2026): Irit gave Ilai a task, "בוצע" on her card at 390 and 1366; his card goes', async () => {
+    // Irit's task from the owner is done first, so her card is the giver's alone.
+    const fromOwner = tasks.find((t) => t.assignee === 'irit' && t.status === 'open');
+    if (fromOwner) Object.assign(fromOwner, { status: 'done', done_at: serverNow(), done_by_email: 'irit@astrateg.test' });
+    await irit.reload();
+    await irit.locator('#st-new').waitFor();
+    await give(irit, 'ilai', 'להעלות את הסרטונים של קפה דנה לדרייב');
+    await irit.locator(`${CARD} [data-act="cancel"]`).waitFor();
+    const t = tasks.at(-1);
+    assert.deepEqual([t.created_by, t.assignee, t.status], ['irit', 'ilai', 'open']);
+    const ilai = await newPage({ width: 390, height: 844 });
+    await signIn(ilai, 'clients.html#mine', 'ilai');
+    await ilai.locator(`${CARD}:not([hidden]) [data-act="done"]`).waitFor();
+    assert.equal(await text(ilai, `${CARD} h2`), 'תזכורות שקיבלת (1)');
+    for (const width of [390, 1366]) {
+      const page = await newPage({ width, height: width < 600 ? 844 : 900 });
+      await signIn(page, 'clients.html#mine', 'irit');
+      await page.locator('#st-open-toggle').waitFor();
+      assert.equal(await text(page, `${CARD} h2`), 'משימות לעובדים');
+      await page.click('#st-open-toggle');
+      const item = page.locator(`${CARD} .st-item`, { hasText: 'קפה דנה לדרייב' });
+      await item.waitFor();
+      assert.match(await item.innerText(), /עילאי\s*פתוח\s*להעלות את הסרטונים של קפה דנה לדרייב[^]*בוצע\s*ביטול הנודניק/);
+      const done = item.locator('[data-act="done"]');
+      const box = await done.boundingBox();
+      assert.ok(box.height >= 44, `the giver's "בוצע" is ${Math.round(box.height)}px tall`);
+      assert.equal(await noSideScroll(page), true);
+      assert.deepEqual(await smallTargets(page, `${CARD} .btn, ${CARD} .btn-text`), []);
+      await page.waitForFunction(() => !document.querySelector('#lg-submit')?.checkVisibility?.());
+      await page.waitForTimeout(800);
+      await page.locator(CARD).scrollIntoViewIfNeeded();
+      if (OUT) await page.locator(CARD).screenshot({ path: `${OUT}/09-giver-done-${width}.png` });
+      if (width === 1366) {
+        await done.click(); // the confirm dialog is accepted
+        await item.locator('[data-act="done"]').waitFor({ state: 'detached' });
+        assert.deepEqual(lastCall('staff_task_done'), { staff_task_done: { p_id: t.id }, by: 'irit@astrateg.test' });
+        assert.equal(await toastOf(page), 'סומן ״בוצע״. התזכורות לעילאי נעצרו.');
+        assert.deepEqual([t.status, t.done_by_email], ['done', 'irit@astrateg.test']);
+        await page.click('#st-closed-toggle');
+        const closed = page.locator(`${CARD} .st-item`, { hasText: 'קפה דנה לדרייב' });
+        assert.match(await closed.innerText(), /עילאי\s*בוצע[^]*בוצע היום \d\d:\d\d \(סימנת בעצמך\)/);
+        assert.equal(await closed.locator('[data-act]').count(), 0);
+        await page.waitForTimeout(400);
+        if (OUT) await page.locator(CARD).screenshot({ path: `${OUT}/10-giver-done-after-${width}.png` });
+      }
+      await page.context().close();
+    }
+    // Ilai's card goes: nothing left to ring.
+    await ilai.reload();
+    await ilai.locator('#mine-list').waitFor();
+    await ilai.waitForLoadState('networkidle');
+    assert.ok(await ilai.locator(CARD).isHidden());
+    await ilai.context().close();
   });
 
   await step('before the migration: the card is not there, for Irit too, and the page is whole', async () => {
