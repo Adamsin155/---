@@ -418,9 +418,12 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
   const { page, ctx } = await open('owner', { path: 'quotes.html' });
   await page.waitForSelector('#rows tr');
   await settle(page);
-  assert.equal(await page.locator('#rows tr').count(), 3);
+  // The tab "ממתין לחתימה" (docs/ops.md, section 118): the one out for signing; the signed one in
+  // "נחתם"; the one still marked 'pending' is not listed.
+  assert.equal(await page.locator('#rows tr').count(), 1);
+  assert.deepEqual(await page.locator('#filters .chip .n').allInnerTexts(), ['1', '1', '0']);
   assert.equal(await page.locator('#th-amt').isVisible(), true);
-  assert.equal(await page.locator('#rows td.amt').count(), 3);
+  assert.equal(await page.locator('#rows td.amt').count(), 1);
   assert.match(await page.innerText('#stats'), /נחתם החודש · כולל מע״מ/);
   assert.match(await page.innerText('#stats'), MONEY);
   await shot(page, 'quotes-owner-1366');
@@ -429,10 +432,10 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
   const i = await open('irit', { path: 'quotes.html' });
   await i.page.waitForSelector('#rows tr');
   await settle(i.page);
-  assert.equal(await i.page.locator('#rows tr').count(), 3, 'Irit has every quote: she sends, corrects and cancels them');
+  assert.equal(await i.page.locator('#rows tr').count(), 1, 'Irit has the list: she sends, corrects and cancels');
   // With the amounts since 4.11.2026 (a manager).
   assert.equal(await i.page.locator('#th-amt').isVisible(), true);
-  assert.equal(await i.page.locator('#rows td.amt').count(), 3);
+  assert.equal(await i.page.locator('#rows td.amt').count(), 1);
   assert.match(await i.page.innerText('#stats'), /נחתם החודש · כולל מע״מ/);
   assert.ok(await i.page.locator('#rows [data-act="edit"], #rows button').count() > 0, 'her actions are there');
   assert.equal(await i.page.locator('#no-access').isVisible(), false);
@@ -448,8 +451,8 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
     await o.page.waitForSelector('#rows tr');
     await settle(o.page);
     assert.equal(await o.page.locator('#no-access').isVisible(), false, name);
-    assert.equal(await o.page.locator('#rows tr').count(), 3, name);
-    assert.equal(await o.page.locator('#rows td.amt').count(), 3, name);
+    assert.equal(await o.page.locator('#rows tr').count(), 1, name);
+    assert.equal(await o.page.locator('#rows td.amt').count(), 1, name);
     if (viewport !== PHONE) assert.equal(await o.page.locator('#th-amt').isVisible(), true, name);
     const stats = await o.page.innerText('#stats');
     assert.match(stats, /ממתין לחתימה · כולל מע״מ/, name);

@@ -87,6 +87,8 @@ test('the card: what is left from before, the same for everyone: to send, or to 
   assert.equal(packageOf(q), 'Social all in one · סמיון, מישל ודניס');
   assert.deepEqual(deviationsOf(q), ['30 סרטונים במקום 25', 'הנחה חודשית 350 ₪ (בחוזה רגיל עד 200 ₪)']);
   assert.equal(reviseUrl(q), 'index.html?revise=q1');
+  // A week since 9.11.2026 (docs/ops.md, section 118), in days.
+  assert.match(shareText(q, 'https://x/q', 168), /אפשר לעיין ולחתום כאן בתוך 7 ימים:\n/);
   assert.equal(shareText(q, 'https://x/q', 72), 'שלום דנה לוי, מצורף הסכם ההתקשרות מאסטרטג (AST-2026-0042) ל־12 חודשים. אפשר לעיין ולחתום כאן בתוך 72 שעות:\nhttps://x/q');
 });
 
