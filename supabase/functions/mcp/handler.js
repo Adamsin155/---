@@ -16,6 +16,9 @@
 //     (public.mcp_allowed()), asked on every request, so switching someone off works at once. Anything
 //     unclear is a no; the answer holds a short code and never a database's words;
 //   - prepare_contract_draft writes nothing and sends nothing (app/mcp-draft.js);
+//   - the owners only (public.my_person() null; 9.11.2026, docs/ops.md, section 116): the write tools of
+//     ./write-tools.js, with the owner's own token through the database's gate, each with a dry run first.
+//     Lior and Ofir neither see nor run them;
 //   - public.mcp_usage keeps who, which tool, ok or a short code, and when. Never the arguments,
 //     never the answers. The log gets short codes only.
 import { TOOLS, runTool, guardDb } from '../ask/tools.js';
@@ -26,6 +29,7 @@ import { canBuildQuote } from '../_shared/app/manager-rules.js';
 import { mayUseMcp } from '../_shared/app/mcp-logic.js';
 import { MONEY_RPC, MONEY_RPC_BEFORE } from '../_shared/app/ask-logic.js';
 import { DRAFT_TOOL, DRAFT_SCHEMA, DRAFT_ERRORS, draftDescription, draftAnswer } from '../_shared/app/mcp-draft.js';
+import { MCP_WRITE_TOOLS, WRITE_NAMES, runWrite, guardWrite, mayWrite } from './write-tools.js';
 
 export const LATEST_VERSION = '2025-11-25';
 export const VERSIONS = [LATEST_VERSION, '2025-06-18', '2025-03-26'];
@@ -43,6 +47,7 @@ export const GATE_HEADER = 'x-mcp-gate';
 
 // JSON-RPC's own codes, and two of ours for "who".
 export const E = { PARSE: -32700, INVALID: -32600, NO_METHOD: -32601, PARAMS: -32602, INTERNAL: -32603, AUTH: -32001, REFUSED: -32003, LIMIT: -32029 };
+export const WRITE_REFUSED = 'שינויים במערכת מתוך Claude פתוחים לבעלים בלבד. אפשר לקרוא ולהכין טיוטת חוזה.';
 export const REFUSED_WORDS = 'החיבור למערכת של אסטרטג לא פתוח לחשבון הזה. אפשר לבקש מהבעלים להפעיל אותו.';
 
 // Claude's sites and the office's own. No Origin at all (a server, Claude Code) is fine: the token decides.
@@ -70,6 +75,7 @@ export const INSTRUCTIONS = [
   ...SYSTEM.split('\n').filter((line) => FROM_ASK.test(line)),
   'The tools read the system with the rights of the person connected: what they cannot see is simply missing.',
   `A closed deal: ${DRAFT_TOOL} gives a link to the contract builder. Never ask for the client's details for it: they are typed on the builder.`,
+  'Tools that change the system (the owners only): call each first with dry_run: true, show the owner the Hebrew preview as it is, and call again with dry_run: false only after the owner says yes to it. Never ask for or pass on phones, emails or ids.',
 ].join('\n');
 
 // The tools as MCP lists them: ask's own, as they are, and the draft.
@@ -211,7 +217,7 @@ export function makeHandler(deps) {
     // What goes into mcp_usage as the tool: a name of ours, never words the caller made up.
     const isCall = hasId && msg.method === 'tools/call';
     const asked = isCall && hasFields(msg.params) ? msg.params.name : null;
-    const toolName = asked === DRAFT_TOOL || READ_NAMES.has(asked) ? asked : 'unknown';
+    const toolName = asked === DRAFT_TOOL || READ_NAMES.has(asked) || WRITE_NAMES.has(asked) ? asked : 'unknown';
 
     // A light limit for each person, before the database is asked anything.
     if (hasId && !allow(user.id, now())) {
@@ -239,6 +245,7 @@ export function makeHandler(deps) {
     if (money.error) money = await userClient.rpc(GATE_FALLBACK_RPC).catch(() => ({ error: true }));
     const seesMoney = !money.error && money.data === true;
     const viewer = { me: me && PEOPLE[me] ? me : null, scope: scopeOf(me), error: null };
+    const owner = mayWrite({ office: office.data, person: me });
 
     if (!hasId) return noBody(202); // a notification
 
@@ -257,7 +264,7 @@ export function makeHandler(deps) {
       case 'ping':
         return rpcResult(id, {});
       case 'tools/list':
-        return rpcResult(id, { tools: [...MCP_READ_TOOLS, ...(canBuildQuote(viewer) ? [draftTool()] : [])] });
+        return rpcResult(id, { tools: [...MCP_READ_TOOLS, ...(canBuildQuote(viewer) ? [draftTool()] : []), ...(owner ? MCP_WRITE_TOOLS : [])] });
       case 'tools/call': {
         const args = hasFields(msg.params) ? msg.params.arguments ?? {} : null;
         if (!hasFields(msg.params) || typeof asked !== 'string' || !hasFields(args)) {
@@ -268,9 +275,11 @@ export function makeHandler(deps) {
           await keepUsage(user.email, 'unknown', 'unknown_tool');
           return rpcError(200, id, E.PARAMS, 'unknown tool');
         }
-        const out = toolName === DRAFT_TOOL
-          ? callDraft(viewer, args)
-          : await callRead({ userClient, viewer, seesMoney, deps, now }, toolName, args);
+        const out = WRITE_NAMES.has(toolName)
+          ? await callWrite({ userClient, owner, token, gateKey: await gateKeyOf(), deps, now, baseUrl: baseUrl() }, toolName, args)
+          : toolName === DRAFT_TOOL
+            ? callDraft(viewer, args)
+            : await callRead({ userClient, viewer, seesMoney, deps, now }, toolName, args);
         await keepUsage(user.email, toolName, out.code);
         return rpcResult(id, { content: [{ type: 'text', text: out.text }], ...(out.isError ? { isError: true } : {}) });
       }
@@ -292,6 +301,27 @@ async function callRead({ userClient, viewer, seesMoney, deps, now }, name, args
   };
   const r = await runTool(ctx, name, args);
   return { text: r.content, isError: !!r.isError, code: r.isError ? 'tool_error' : 'ok' };
+}
+
+// The owner's write tools (./write-tools.js): with the owner's own client (the gate's key on it), the
+// database deciding the rest. The contract goes to create-quote, the builder's own function, with the
+// same token and the key (that function takes a connected app's token only so: an owner's, via this one).
+async function callWrite({ userClient, owner, token, gateKey, deps, now, baseUrl }, name, args) {
+  if (!owner) return { text: JSON.stringify({ error: WRITE_REFUSED, code: 'not_allowed' }), isError: true, code: 'not_allowed' };
+  const createQuote = async (body) => {
+    try {
+      const res = await (deps.fetch || globalThis.fetch)(`${baseUrl}/functions/v1/create-quote`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, apikey: deps.env('SUPABASE_ANON_KEY'), [GATE_HEADER]: gateKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => null);
+      return { ok: res.ok, status: res.status, data: res.ok ? data : null };
+    } catch {
+      return { ok: false, status: 0, data: null };
+    }
+  };
+  return runWrite({ db: guardWrite(userClient), now: () => new Date(now()), createQuote }, name, args);
 }
 
 // The draft: for whoever builds a contract. It touches no database and sends nothing.

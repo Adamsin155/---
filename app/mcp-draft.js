@@ -72,8 +72,9 @@ export function draftDescription() {
 }
 
 const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-// An email, or a number as long as a phone or a company id.
-const PERSONAL = /@|(?:\d[\s().\-‎‏]*){8,}/;
+// An email, or a number as long as a phone or a company id (the write tools refuse the same in their text:
+// supabase/functions/mcp/write-tools.js).
+export const PERSONAL = /@|(?:\d[\s().\-‎‏]*){8,}/;
 const pickItems = (list, keys) => list.filter(isObject).map((x) => Object.fromEntries(keys.filter((k) => x[k] !== undefined).map((k) => [k, x[k]])));
 
 // { input } (only known fields, in the schema's shape) or { error, fields }. Field names only,
@@ -142,7 +143,8 @@ export function draftOf(raw) {
   }
   const { selection, marks, summary } = applied;
   // What the builder would send to create-quote (selectionToSend in app/builder.js): in a custom
-  // contract the discount goes inside `custom`. `selection` itself is the builder's own state.
+  // contract the discount goes inside `custom`. `selection` itself is the builder's own state;
+  // `toSend` is what send_contract gives create-quote (supabase/functions/mcp/write-tools.js).
   const toSend = selection.custom
     ? normalizeSelection({ ...selection, discount: 0, custom: { ...selection.custom, discount: selection.discount || 0 } })
     : selection;
@@ -153,7 +155,7 @@ export function draftOf(raw) {
   } catch (err) {
     return { error: 'invalid_selection', fields: [], details: String(err?.message || '').slice(0, 300) };
   }
-  return { input: checked.input, selection, marks, summary, check, exceptions: exceptionOf(toSend).map((x) => x.text), model };
+  return { input: checked.input, selection, toSend, marks, summary, check, exceptions: exceptionOf(toSend).map((x) => x.text), model };
 }
 
 // UTF-8 in the address's own alphabet (the same in the browser, Deno and node).

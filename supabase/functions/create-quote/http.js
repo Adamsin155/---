@@ -52,3 +52,27 @@ export function aiRunProblem(run, userId, usedBy, now = Date.now()) {
   if (!Number.isFinite(at) || now - at > AI_RUN_HOURS * 3600e3) return 'expired';
   return null;
 }
+
+// The owner's "send_contract" from Claude (docs/ops.md, section 116). The mcp function sends the key that
+// only it holds (public.mcp_gate_key(), read with the service key) with the owner's OAuth token. `sent`:
+// the header; `readKey()`: the service client's rpc. The key when they are equal, else null (never throws).
+export const MCP_GATE_HEADER = 'x-mcp-gate';
+export async function mcpGateOf(sent, readKey) {
+  if (typeof sent !== 'string' || sent.length < 32) return null;
+  try {
+    const { data, error } = await readKey();
+    return !error && typeof data === 'string' && data.length >= 32 && data === sent ? sent : null;
+  } catch {
+    return null;
+  }
+}
+// And only an owner who is switched on for Claude (public.my_person() null, public.mcp_allowed()); asked
+// after callerIsOffice. `rpc` is the caller's own client (the key on it, through the database's gate).
+export async function mcpCallerIsOwner(rpc) {
+  try {
+    const [person, on] = await Promise.all([rpc('my_person'), rpc('mcp_allowed')]);
+    return !person.error && person.data === null && !on.error && on.data === true;
+  } catch {
+    return false;
+  }
+}
