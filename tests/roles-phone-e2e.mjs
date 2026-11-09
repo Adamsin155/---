@@ -223,8 +223,8 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
   // "יומן" (calendar.html, 15.10.2026) is one of her daily screens, behind "עוד" on a phone; so is her
   // pass over the clients (pass.html, hers since 26.10.2026).
-  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['מעבר על הלקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
-  for (const id of ['side-prep', 'side-pass', 'side-messages', 'side-quote', 'side-quotes']) {
+  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['מעקב לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "מעקב לקוחות" and no messages: 9.11.2026
+  for (const id of ['side-prep', 'side-pass', 'side-tracking', 'side-quote', 'side-quotes']) {
     assert.ok(await page.locator(`#${id}`).isVisible(), id);
     assert.ok((await page.locator(`#${id}`).boundingBox()).height >= 44, id);
   }
@@ -576,7 +576,7 @@ await step('on a wide screen the screens are the side menu, with a rail on the c
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(),
     // Her personal profile: her daily screens (PERSONAL in app/shell-rules.js, 7.10.2026; "יומן" since 15.10.2026;
     // her pass over the clients since 26.10.2026).
-    ['המשימות שלי', 'לקוחות', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+    ['המשימות שלי', 'לקוחות', 'מעקב לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
   assert.equal(await page.locator('#mine-people').isVisible(), false);
   for (const id of ['cta-messages', 'cta-prep', 'cta-year']) assert.equal(await page.locator(`#${id}`).isVisible(), false, `${id} is in the menu, not in the head`);
   // The side menu floats beside the page (on the right, RTL), and the rail marks "המשימות שלי".

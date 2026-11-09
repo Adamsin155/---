@@ -1,0 +1,41 @@
+/* "מעקב לקוחות" (tracking.html): the manager table's look (manager.css), five columns.
+   A phone (760px and less): each client is a card, no sideways scroll. */
+.ct-tools { grid-template-columns: minmax(180px, 360px); }
+.ct .ct-n { white-space: nowrap; }
+.ct .ct-val { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.ct .ct-n .num { font-weight: 600; color: var(--text); }
+.ct .ct-month { color: var(--muted); font-size: 12.5px; }
+.ct .ct-ok {
+  display: inline-grid; place-items: center; inline-size: 20px; block-size: 20px; border-radius: 50%;
+  background: var(--ok, #1E8E4E); color: #fff; font-size: 12px; font-weight: 700; line-height: 1;
+}
+.ct .ct-n.is-done .num { color: var(--ok, #1E8E4E); }
+.ct .ct-dates { display: block; font-size: 12px; color: var(--text-2); margin-block-start: 2px; }
+.ct .ct-dates > span + span::before { content: ' · '; }
+.ct .ct-ed { white-space: normal; min-inline-size: 90px; }
+.ct td:first-child .mt-name { max-inline-size: 260px; }
+
+@media (max-width: 760px) {
+  .ct-tools { grid-template-columns: 1fr; }
+  .ct-tools .mt-search { grid-column: auto; }
+  .ct-wrap { overflow: visible; max-block-size: none; min-block-size: 0; background: none; }
+  .ct, .ct tbody { display: block; inline-size: 100%; min-inline-size: 0; }
+  .ct thead { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ct tbody { display: grid; gap: 8px; }
+  .ct tbody tr { display: grid; gap: 2px; padding: 4px 14px 10px; background: var(--ds-surface); border-radius: var(--ds-r-item); }
+  .ct tbody tr:hover td { background: none; }
+  .ct tbody td, .ct tbody td:first-child {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    position: static; padding: 2px 0; border: 0; box-shadow: none; background: none;
+    white-space: normal; min-inline-size: 0; max-inline-size: none; overflow-wrap: anywhere; font-size: 14px;
+  }
+  .ct tbody td::before { content: attr(data-label); font-size: 13px; color: var(--muted); }
+  .ct tbody td:first-child::before { content: none; }
+  .ct tbody td:first-child .mt-name { display: inline-flex; align-items: center; min-height: 44px; max-inline-size: none; font-size: 15px; }
+  /* The shoot days' dates: two short lines under the count. */
+  .ct .ct-dates { flex: 0 0 100%; display: grid; justify-items: end; gap: 0; margin: 0; }
+  .ct .ct-dates > span + span::before { content: none; }
+  .ct tbody tr.ct-none { padding: 0; background: none; }
+  .ct tbody tr.ct-none td { display: block; }
+  .ct tbody tr.ct-none td::before { content: none; }
+}
