@@ -224,6 +224,7 @@ for (const [w, h, tag] of [[390, 844, 'phone'], [1280, 900, 'web']]) {
     assert.ok(!mine.includes('מסעדה של אופיר'), 'only his own work');
     assert.equal(await n.locator('a[href^="gantt.html"]').count(), 0, 'no Gantt');
     assert.equal(await n.locator('#mine-connect').isHidden(), true, 'nothing to connect: he gets no notification');
+    assert.equal(await n.locator('#side-promo').count(), 0, 'no "התראות על כל משימה" card');
     assert.ok(await noSideScroll(n));
     await settled(n); await vshot(n, `shiel-01-mine-${tag}`);
     await n.click('#tab-clients');
@@ -237,7 +238,7 @@ for (const [w, h, tag] of [[390, 844, 'phone'], [1280, 900, 'web']]) {
   await step(`Shiel (${tag}): the meeting's form of his client, and "אפיון חדש"`, async () => {
     const n = await newPage({ width: w, height: h });
     await signIn(n, `intake.html?id=${SHIELS.id}#end`, 'shiel@astrateg.test');
-    await n.waitForFunction(() => !document.getElementById('app')?.hidden && /שיאל|האפיון הסתיים|אפיון/.test(document.body.innerText), null, { timeout: 15000 });
+    await n.waitForFunction(() => !document.getElementById('app')?.hidden && document.body.innerText.includes('כתובת העסק'), null, { timeout: 15000 });
     assert.doesNotMatch(await n.locator('#state').innerText().catch(() => ''), /פתוח לצוות המשרד|פתוח לבעלים/);
     assert.ok(await noSideScroll(n));
     await settled(n); await vshot(n, `shiel-03-meeting-${tag}`);
