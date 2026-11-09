@@ -216,7 +216,7 @@ function qaCard(x, ms, now) {
     me === 'lior' && x.kind !== 'videos' ? h('p', { class: 'of-line muted qa-ofir-only' }, 'אופיר בודק את הגרפיקות.') : h('div', { class: 'of-acts' },
       h('button', {
         type: 'button', class: 'btn k-btn-navy btn-sm', id: `qa-open-${x.key.replace(/\W/g, '_')}`,
-        'aria-label': `לבדיקה: ${x.client.name}, ${k.title}`, onclick: () => openQa(x),
+        'aria-label': `לבדיקה: ${clientLabel(x.client)}, ${k.title}`, onclick: () => openQa(x),
       }, 'לבדיקה')));
 }
 
@@ -231,9 +231,9 @@ function charCard(x, now) {
       x.done ? h('span', { class: 'sbadge s-done' }, h('span', { class: 'sicon', 'aria-hidden': 'true' }), 'הסתיים') : x.at <= now ? h('span', { class: 'tag' }, 'עכשיו') : null),
     h('p', { class: 'of-line' }, c.address ? `כתובת: ${c.address}` : 'אין כתובת בכרטיס', c.business ? ` · ${c.business}` : ''),
     h('div', { class: 'of-acts' },
-      nav ? h('a', { class: 'btn btn-sm', href: nav, target: '_blank', rel: 'noopener' }, 'ניווט', h('span', { class: 'sr-only' }, ` ל${c.name} (נפתח בחלון חדש)`)) : null,
-      c.phone ? h('a', { class: 'btn btn-sm', href: `tel:${String(c.phone).replace(/[^\d+]/g, '')}` }, 'התקשרות', h('span', { class: 'sr-only' }, ` ל${c.name}`)) : null,
-      h('a', { class: 'btn btn-sm btn-ghost', href: clientUrl(c.id, 'p04') }, 'לכרטיס', h('span', { class: 'sr-only' }, ` של ${c.name}`))));
+      nav ? h('a', { class: 'btn btn-sm', href: nav, target: '_blank', rel: 'noopener' }, 'ניווט', h('span', { class: 'sr-only' }, ` ל${clientLabel(c)} (נפתח בחלון חדש)`)) : null,
+      c.phone ? h('a', { class: 'btn btn-sm', href: `tel:${String(c.phone).replace(/[^\d+]/g, '')}` }, 'התקשרות', h('span', { class: 'sr-only' }, ` ל${clientLabel(c)}`)) : null,
+      h('a', { class: 'btn btn-sm btn-ghost', href: clientUrl(c.id, 'p04') }, 'לכרטיס', h('span', { class: 'sr-only' }, ` של ${clientLabel(c)}`))));
 }
 
 // The suggestion of one waiting shoot: the dialog's own (app/assign-dialog.js), so the card and the dialog never disagree.
@@ -276,7 +276,7 @@ async function quickAssign(a, editor, joint) {
   quickBusy = false;
   renderKeepingFocus();
   $('assign-h').focus({ preventScroll: true });
-  toast(`${a.client.name} שויך ל${PEOPLE[editor].name}.${saved.folder}`);
+  toast(`${clientLabel(a.client)} שויך ל${PEOPLE[editor].name}.${saved.folder}`);
   offerHandoff({ client: saved.client, key: `${a.pre}p22a.assigned`, checks: () => checks[a.client.id], me });
 }
 
@@ -295,7 +295,7 @@ function assignCard(a, load, now) {
   const id = a.key.replace(/\W/g, '_');
   if (armed?.key === a.key && (!oneTap || armed.editor !== sug.editor)) { clearTimeout(armTimer); armed = null; } // the suggestion changed under the question
   const sure = armed?.key === a.key;
-  const label = `${a.client.name}${roundText(a.ctx)}`;
+  const label = `${clientLabel(a.client)}${roundText(a.ctx)}`;
   // The day of the shoot as a leaf (a day that has passed is not "late": the camera's colour).
   const shot = a.ctx.shoot_at ? new Date(a.ctx.shoot_at) : null;
   return h('li', { class: 'of-card', 'data-key': a.key },
@@ -331,7 +331,7 @@ function assignCard(a, load, now) {
         type: 'button', class: `btn btn-sm${oneTap ? '' : ' k-btn-navy'}`, id: `as-open-${id}`, disabled: quickBusy,
         'aria-label': `${oneTap ? 'עורך אחר' : 'שיוך עורך'}: ${label}`, onclick: () => { disarm(); openAssign({ ...a, days: daysFor(a) }); },
       }, oneTap ? 'עורך אחר' : 'שיוך עורך'),
-      sure ? h('span', { class: 'sr-only', role: 'status' }, `לחיצה נוספת משייכת את ${a.client.name} ל${name}.`) : null));
+      sure ? h('span', { class: 'sr-only', role: 'status' }, `לחיצה נוספת משייכת את ${clientLabel(a.client)} ל${name}.`) : null));
 }
 
 // Each job can change hands from here ("החלפת עורך"): the notice of an automatic
@@ -350,7 +350,7 @@ function loadCard(l, now) {
   return h('li', { class: 'of-card of-editor' }, h('details', { class: 'of-load-fold', open: openFolds.has(l.editor) ? true : null, ontoggle: (e) => keepFold(l.editor, e.currentTarget.open) },
     h('summary', { class: 'of-head' }, ...head),
     h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
-      h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, j.client.name, j.n ? ` · סבב ${j.n}` : ''),
+      h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, clientLabel(j.client), j.n ? ` · סבב ${j.n}` : ''),
       j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
       j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
       editedOf(j, l.editor) ? h('span', { class: 'of-edited num', id: `${swapId(j)}-edited` }, ` · ${editedOf(j, l.editor)}`) : '',
@@ -362,7 +362,7 @@ function loadCard(l, now) {
       j.dueAt && !j.landing ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null,
       h('button', {
         type: 'button', class: 'btn-text sw-btn', id: swapId(j),
-        'aria-label': `החלפת עורך: ${j.client.name}${j.n ? `, סבב ${j.n}` : ''} (עכשיו ${PEOPLE[l.editor].name})`, onclick: () => openSwap(l.editor, j),
+        'aria-label': `החלפת עורך: ${clientLabel(j.client)}${j.n ? `, סבב ${j.n}` : ''} (עכשיו ${PEOPLE[l.editor].name})`, onclick: () => openSwap(l.editor, j),
       }, 'החלפת עורך'))))));
 }
 
@@ -385,7 +385,7 @@ function openQa(x) {
   returnTo = document.activeElement?.id || null;
   const k = QA_KINDS[x.kind];
   const now = new Date();
-  $('qa-dlg-h').textContent = `בקרת איכות · ${x.client.name}`;
+  $('qa-dlg-h').textContent = `בקרת איכות · ${clientLabel(x.client)}`;
   $('qa-meta').textContent = `${k.title}${roundText(x.ctx)} · ${x.round > 1 ? `בדיקה ${x.round}, אחרי ${x.round - 1 === 1 ? 'סבב תיקונים אחד' : `${x.round - 1} סבבי תיקונים`}` : 'בדיקה ראשונה'} · ${x.landing ? LANDING_LINE : x.fast ? `${ladderWords(x.fast, now)} · לאשר עד ${formatWhen(x.dueAt, now)}` : `מחכה ${waitWords(x.waited)} · בקרה עד ${formatWhen(x.dueAt, now)}`}`;
   const last = x.rounds.at(-1);
   fill($('qa-prev'), last ? h('details', { class: 'of-prev', open: true },
