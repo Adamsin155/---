@@ -28,7 +28,8 @@ test('regular selections are untouched: the same bytes as before custom contract
   // deliberate changes since are all in the agreement's wording: version 2 (27.10.2026) and
   // version 3 (9.11.2026, the old system's words: model.legal, model.wording, model.legalVersion;
   // app/legal.js). Without those three fields every byte is as it was before version 3 (the
-  // fingerprint below was taken from the code of 8.11.2026); with them, the fingerprint of version 3.
+  // fingerprint below was taken from the code of 8.11.2026); with them, the fingerprint of version 3
+  // with the 12 protections and the platforms chapter put back (the owner, 9.11.2026).
   // Since 28.10.2026 (the owner) Natali's Social packages give 36 videos and 36 graphics.
   const noWording = (m) => {
     const { legal, legalVersion, wording, ...rest } = m;
@@ -37,7 +38,7 @@ test('regular selections are untouched: the same bytes as before custom contract
     return rest;
   };
   assert.deepEqual(regularFingerprint(noWording), { count: 612, sha256: '8dae6344e7dd9b2e1d906a1025c955e7e9673433ab1285ec2531d062aecd457a' });
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '7a53f76f4a0f68ccea7fed1a4e99b77ae9bf4b003d0db6b7a52a47435d20d531' });
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '1b09747f6077e5cd0654d91928943c4052a64e3d3edcf08fd2b9510dd4c8812f' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);

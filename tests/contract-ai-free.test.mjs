@@ -93,7 +93,9 @@ test('the example as an agreement: the same contract, signable, and the agreemen
   const text = m.legal.map((s) => `${s.title}: ${s.items.join(' ')}`).join('\n');
   // The old wording (LEGAL_VERSION 3): the six clauses and the price; the package says no influencer.
   assert.match(text, /התמורה עבור החבילה הינה 4,900 ₪ לחודש \+ מע״מ כחוק, למשך 12 חודשים\./);
-  assert.equal(m.legal.length, 6);
+  // The six, the platforms and "הוראות נוספות" (9.11.2026); no influencer in the agreement either.
+  assert.equal(m.legal.length, 8);
+  assert.ok(!/משפיען/.test(text), 'no influencer in the clauses');
   assert.equal(m.package.influencer, 'בלי משפיענים');
   assert.ok(!/משפיען רשת|נטלי|סמיון/.test(JSON.stringify(m.wording)), 'no influencer in the words');
   assert.ok(m.wording.package.groups[0].items.includes('2 דפי נחיתה'));
