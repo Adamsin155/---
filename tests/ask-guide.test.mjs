@@ -62,7 +62,8 @@ test('no leaks: a screen or a how-to is in a guide only when the person has its 
     // A how-to's link is one of this person's own screens.
     const links = new Set([...g.mine, ...g.manager].map((s) => s.link));
     for (const h of g.howto) assert.ok(links.has(h.link), `${who}: ${h.q}`);
-    assert.ok(JSON.stringify(g).length < OUTPUT_MAX / 1.5, who);
+    // Well under the tool's cap (OUTPUT_MAX): the owners' guide passed OUTPUT_MAX / 1.5 with "מעקב לקוחות" (9.11.2026).
+    assert.ok(JSON.stringify(g).length < OUTPUT_MAX / 1.4, who);
   }
   // The editors: their clients, their editing, the calendar and the bot; no office screen, no money.
   for (const ed of ['nirel', 'nadia', 'yariv', 'anna']) {

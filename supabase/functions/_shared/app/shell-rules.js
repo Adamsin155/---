@@ -92,6 +92,10 @@ export function menuOf(viewer) {
   // The content Gantt of every client (gantt.html without a client), 6.10.2026: Ilai, whose
   // it is, always has a way in, also with no open work; the owner, Irit, Lior and Ofir read.
   if (seesGantt(viewer)) list.push({ id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
+  // "מעקב לקוחות" (the owner, 9.11.2026, for Irit): one table of the clients in work, the editor
+  // and the videos, graphics and shoot days against the package (tracking.html). The owners and
+  // the managers (Irit, Lior, Ofir); in Irit's own profile, in the others' manager profile.
+  if (isManager(viewer)) list.push({ id: 'tracking', href: 'tracking.html', label: 'מעקב לקוחות' });
   list.push(...officeScreens(viewer));
   if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום', short: 'לפני צילום' });
   if (sendsMessages(viewer) && viewer.me !== 'irit') list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
@@ -171,7 +175,8 @@ export const PERSONAL = {
   // shoot day and the clients' requests, the daily messages to clients, the calendar she
   // invites from (15.10.2026), and building and following a contract.
   // "בקרה ושיוך" since 3.11.2026 (the owner).
-  irit: ['mine', 'clients', 'qa', 'pass', 'prep', 'calendar', 'quote', 'quotes'],
+  // "מעקב לקוחות" since 9.11.2026 (the owner: it is for her).
+  irit: ['mine', 'clients', 'tracking', 'qa', 'pass', 'prep', 'calendar', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
 // Screens a person may open that are not in their menu (the page review of Ofir, Lior and
@@ -279,7 +284,7 @@ export function barOf(items, viewer) {
 // Lior's "כל הלקוחות במבט" ('overview') became "מבט מנהל" on 4.11.2026 (a manager).
 const DAILY = {
   owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
-  irit: ['mine', 'manager', 'clients', 'quote', 'quotes'],
+  irit: ['mine', 'manager', 'clients', 'tracking', 'quote', 'quotes'], // "מעקב לקוחות" (9.11.2026)
   lior: ['mine', 'manager', 'clients', 'decisions', 'messages'],
   ofir: ['mine', 'manager', 'clients', 'qa'],
 };
