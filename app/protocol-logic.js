@@ -587,6 +587,16 @@ export function fieldGap(proc, client, checks = {}, procs = [], now = new Date()
   return null;
 }
 
+// Whether the anchor a process holds until (`until`: 'shoot') is behind the client or the round:
+// its day came, or the marks say the shoot took place, or the process is imported history.
+function untilBehind(p, ctx, procs, checks, now) {
+  const round = /^(r\d+-)/.exec(p.id)?.[1] || '';
+  if (isImported(p, checks)) return true;
+  if (p.until === 'shoot' && shootBehind(round, checks)) return true;
+  const end = realAnchor(p.until, ctx, procs, checks, now);
+  return !!end && dayKeyIL(now) >= dayKeyIL(end);
+}
+
 // Process-level marks stored as checks: who took a shared process, and a
 // process waiting on the client (with the reason in the note).
 const markKey = (proc, kind) => `${proc.keyBase || proc.id}.${kind}`;
@@ -809,7 +819,10 @@ export function clientState(client, checks = {}, now = new Date()) {
     const touched = p.items.some((i) => checks[i.key]);
     // A detail the process is there to set (the meeting's date) keeps it open: fieldGap.
     const gap = p.recurring ? null : fieldGap(p, ctx, checks, procs, now);
-    const complete = p.recurring ? false : resolved === required.length && !gap;
+    // v13: a process with no required item and no date to set (14 since its daily answer left) holds
+    // until its `until` (the shoot day) is behind the client, as the daily follow-up did.
+    const holds = !p.recurring && !required.length && !p.items.some((i) => i.setHere) && !!p.until && !untilBehind(p, ctx, procs, checks, now);
+    const complete = p.recurring ? false : resolved === required.length && !gap && !holds;
     const startAt = resolveTime(p.start, ctx, procs, checks, now);
     // A deadline a later protocol version shortened keeps the one the client started under.
     // Not while the work is on the fast ladder (v9): that one is the same for every client.

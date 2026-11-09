@@ -30,8 +30,10 @@ const MIN = 6e4;
 // New deal (the plan's ה1): contract, group and characterization date. The
 // contract's clock stops once it was sent; the signature has a clock of its own.
 // v13: the contract's preparing and sending (p01.prepared, p01.sent) and the group (2) left the
-// protocol, so only the meeting's date has a deal clock.
+// protocol. The contract keeps its entry so that its signature (the client's) never runs a clock of
+// its own in the bar: nothing of `until` is left open, so it shows nothing.
 export const DEAL_CLOCKS = {
+  p01: { what: 'חוזה', until: ['p01.prepared', 'p01.sent'] },
   p03: { what: 'מועד אפיון' },
 };
 

@@ -479,7 +479,8 @@ const earlier = (a, b) => (a && b ? (a < b ? a : b) : a || b);
 // `urgent`: goes first.
 const MILESTONES = [
   // Process 2's intro message is this one: once it is checked, it went out.
-  { key: 'welcome', station: 'join', base: true, fresh: 2, at: (x) => x.doneAt('p02.opened'), when: (x) => !x.isDone('p02.intro') },
+  // v13: the group (2) left the protocol: the welcome is due from the contract's signing.
+  { key: 'welcome', station: 'join', base: true, fresh: 2, at: (x) => x.doneAt('p02.opened') || x.doneAt('p01.signed'), when: (x) => !x.isDone('p02.intro') },
   {
     key: 'access', station: 'char', base: true, fresh: 3, at: (x) => x.completed('p04'),
     when: (x) => !x.st('p05')?.complete && materialsOf(x.checks).missing.length > 0,
@@ -814,7 +815,7 @@ export function thursdayVars(client, checks, state, now = new Date()) {
     }
     // (v13: the client approves no shoot date: a date in the system is the closed day.)
     void p11;
-    if (c.st('p12')?.complete && !c.isDone('p13.approved')) need.push('אישור התסריטים');
+    if (c.st('p12')?.complete && !c.isDone('p13.approved') && !c.isDone('p13.zoom')) need.push('אישור התסריטים'); // (p13.approved left in v12: the Zoom is the approval)
     if (c.isDone('p26.sent') && !c.isDone('p27.approved')) need.push('הערות או אישור על הסרטונים');
   }
 

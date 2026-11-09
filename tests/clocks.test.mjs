@@ -27,7 +27,7 @@ test('new deal at 17:58 on Thursday: one office clock of 5 minutes (the meeting 
   const now1 = deals('irit', '2026-10-22T17:59:00+03:00');
   assert.deepEqual(brief(now1), [['deal', 'p03', due, 'running']]);
   assert.deepEqual(now1.map((x) => [x.what, x.minutes]), [['מועד אפיון', 5]]);
-  assert.deepEqual(Object.keys(DEAL_CLOCKS), ['p03']);
+  assert.deepEqual(Object.keys(DEAL_CLOCKS), ['p01', 'p03']); // p01 shows nothing: its preparing and sending left (v13)
   // One minute left on Thursday and three on Sunday; the clock runs.
   assert.deepEqual([now1[0].remaining, now1[0].paused, now1[0].office, now1[0].phone, now1[0].people], [4 * 6e4, false, true, '050-0000000', ['irit']]);
   // After 18:00 the clock stops with three minutes left, until Sunday 09:00.

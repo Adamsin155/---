@@ -545,7 +545,8 @@ export const STATIONS = [
 export const PROCESSES = [
   {
     id: 'p01', num: '1', phase: 'onboarding', title: 'הכנת חוזה', owners: ['irit'],
-    // 10 office minutes (the owner's decision of 3.10.2026; DEAL_MINUTES in deal-logic.js).
+    // 10 office minutes (the owner's decision of 3.10.2026; DEAL_MINUTES in deal-logic.js). v13: preparing
+    // and sending left the protocol; the signature is left, with the same deadline as before.
     sla: 'עד 10 דקות עבודה מרגע קבלת פרטי העסקה מאיש המכירות',
     due: { from: 'deal', minutes: 10 },
     what: 'מכינים את החוזה בהתאם לחבילה ולתנאים שסגר איש המכירות, שולחים ללקוח ומוודאים שחתם בפועל במערכת.',
@@ -860,7 +861,9 @@ export const PROCESSES = [
     // The eight topics stay as they were (the system still closes a clear one by itself);
     // nobody ticks them one by one.
     // v13 (9.11.2026): the daily answer (p14.day) and six of its topics left; it is no longer asked
-    // every day. Its two topics stay in the card, and the system closes each when it is clear.
+    // every day. Its two topics stay in the card, and the system closes each when it is clear. It has no
+    // required item, so it holds its station until the shoot day (`until`; clientState), as the daily did.
+    until: 'shoot',
     start: { from: 'charEnd' },
     what: 'שני נושאים עד יום הצילום: התסריטים ויום הצילום. המערכת סוגרת כל אחד מהם לבד כשהוא ברור.',
     items: [
@@ -1190,7 +1193,7 @@ export const PROCESSES = [
     // Gantt is full and was sent to the client (29 complete); the end of the next business
     // day is a default, a one-line change.
     start: { from: 'p29' }, due: { from: 'p29', businessDays: 1 },
-    what: 'לפני שעילאי מסיים את העבודה על הלקוח הוא עובר על 13 הסעיפים. רק אחרי שכולם בוצעו הוא מעדכן שהעבודה שלו על הלקוח הושלמה, ועירית מקבלת הודעה.',
+    what: 'לפני שעילאי מסיים את העבודה על הלקוח הוא עובר על 4 הסעיפים. רק אחרי שכולם בוצעו הוא מעדכן שהעבודה שלו על הלקוח הושלמה, ועירית מקבלת הודעה.',
     items: [
       ...FINAL_CHECK.map(([k, l, retired]) => ({ key: `p29b.c.${k}`, label: l, ...(retired ? { retired } : {}), ...(k === 'ganttok' ? { passedIf: ['p29b.c.gantt', 'p29b.c.match', 'p29b.done'] } : {}) })),
       { key: 'p29b.done', label: 'העבודה שלי על הלקוח הושלמה', requires: FINAL_CHECK.filter((x) => !x[2]).map(([k]) => `p29b.c.${k}`), noBulk: true, word: 'הושלמה' },

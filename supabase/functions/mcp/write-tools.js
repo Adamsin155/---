@@ -135,7 +135,7 @@ function itemsOf(client, checks, now) {
 const procTitle = (p) => `${p.ctx?.round ? `סבב ${p.ctx.round} · ` : ''}${p.num ? `${p.num}. ` : ''}${p.title}`;
 function itemFrom(list, words) {
   const w = String(words ?? '').trim();
-  if (!w) refuse('צריך את הפריט: המפתח שלו (למשל p03.scheduled) או המילים שלו.', 'bad_input');
+  if (!w) refuse('צריך את הפריט: המפתח שלו (למשל p05.access) או המילים שלו.', 'bad_input');
   const byKey = list.find((x) => x.item.key === w);
   if (byKey) return byKey;
   const p = plain(w);
@@ -174,6 +174,8 @@ async function markItem(ctx, a) {
   if (personalIn(note)) refuse(PERSONAL_WORDS, 'personal_details');
   // As the card: an item that is a form of its own, or a call or a daily follow-up, is done there.
   if (formOf(item.key)) refuse('את הפריט הזה סוגרים דרך הטופס שלו בכרטיס הלקוח, לא בסימון.', 'via_form');
+  // v13: what the system closes by itself (the dates' lines, the scheduling when the Gantt is all scheduled).
+  if (item.auto) refuse('הפריט הזה נסגר לבד במערכת (כשהמועד נקבע, או כשכל התכנים בגאנט תוזמנו), לא בסימון.', 'auto');
   if (item.recurring || guardOf(item.key) === 'callSummary') refuse('את הפריט הזה מתעדים בכרטיס הלקוח (השיחה או המעקב עצמם), לא בסימון.', 'via_card');
   const warn = [];
   if (state === 'done') {
@@ -329,8 +331,10 @@ async function setDateTool(ctx, a) {
     const first = !client.char_at;
     if (!first && +new Date(client.char_at) === +at && client.characterizer === person) refuse('הפגישה כבר במועד הזה ועם אותו אדם. לא שיניתי כלום.', 'nothing_to_change');
     const checks = await checksOf(ctx, client.id);
-    const marks = first && !answered(checks[SCHEDULED]);
-    const preview = `פגישת האפיון של ${label(client)} ${first ? 'תיקבע' : `תזוז מ־${whenText(new Date(client.char_at))}`} ל־${whenText(at)}, עם ${personName(person)}.${marks ? ' כמו בכרטיס, ״נקבעה פגישה״ (תהליך 3) יסומן ״בוצע״.' : ''}`;
+    // v13: the date itself closes "לקבוע אפיון" (nothing is marked; p03.scheduled left the protocol).
+    void checks; void answered; void SCHEDULED;
+    const marks = false;
+    const preview = `פגישת האפיון של ${label(client)} ${first ? 'תיקבע' : `תזוז מ־${whenText(new Date(client.char_at))}`} ל־${whenText(at)}, עם ${personName(person)}.`;
     if (a.dry_run !== false) return { preview };
     const saved = await wrote(ctx.db.from('clients').update({ char_at: at.toISOString(), characterizer: person }).eq('id', client.id).select('id'));
     if (!Array.isArray(saved) || saved.length !== 1) refuse('המועד לא נשמר (אין הרשאה לשנות את הלקוח הזה).', 'not_saved');
@@ -604,7 +608,7 @@ export const WRITE_TOOLS = [
   {
     name: 'mark_protocol_item',
     title: 'סימון פריט בפרוטוקול של לקוח',
-    description: `WRITES: marks one protocol item of one client as done ("בוצע"), not relevant ("לא רלוונטי", needs a short reason in note unless the item is optional), or clear (open again; the mark is removed, the history is kept). Exactly as the client card: items that wait for others, items closed through a form, calls and daily follow-ups, and the guards (an empty Gantt, no script, no logo file) are refused with the reason. Find the item by its key (e.g. "p03.scheduled", "r2.p11.calendar") or its words; when several match the answer lists their keys. ${SAFETY}`,
+    description: `WRITES: marks one protocol item of one client as done ("בוצע"), not relevant ("לא רלוונטי", needs a short reason in note unless the item is optional), or clear (open again; the mark is removed, the history is kept). Exactly as the client card: items that wait for others, items closed through a form, calls and daily follow-ups, and the guards (an empty Gantt, no script, no logo file) are refused with the reason. Find the item by its key (e.g. "p05.access", "r2.p22.received") or its words; when several match the answer lists their keys. ${SAFETY}`,
     input_schema: {
       type: 'object',
       properties: { client: str('The client\'s name (or part of it).'), item: str('The item\'s key, or its words.'), state: { type: 'string', enum: ['done', 'na', 'clear'] }, note: str('The reason for "na", or a short note.'), dry_run: DRY },

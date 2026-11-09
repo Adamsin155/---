@@ -231,6 +231,7 @@ export const PROTOCOL_HISTORY = [
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;
+const RETIRED_KEYS = new Set(PROTOCOL_HISTORY.flatMap((v) => v.retired || []));
 
 const SINCE = new Map();
 for (const v of PROTOCOL_HISTORY) for (const k of v.items || []) SINCE.set(k, v.version);
@@ -303,7 +304,9 @@ export function adjustForVersion(procs, client) {
     const timing = timingStartedUnder(base, v);
     let fresh = false;
     const items = p.items.map((i) => {
-      const since = itemSince(i.key);
+      // v13: an item that replaces retired ones (its `passedIf` all retired) is as new to the client as they were.
+      const replaced = i.passedIf && [].concat(i.passedIf).every((k) => RETIRED_KEYS.has(k));
+      const since = replaced ? Math.max(itemSince(i.key), Math.min(...[].concat(i.passedIf).map(itemSince))) : itemSince(i.key);
       if (since <= v) return i;
       fresh = true;
       return { ...i, fresh: since };

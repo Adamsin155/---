@@ -284,7 +284,7 @@ test('mark: what waits, a form, a call, "לא רלוונטי" without a reason, 
   const w = world();
   const r = (args) => call(w, 'owner', 'mark_protocol_item', { client: 'רון', dry_run: false, ...args });
   // (v13: "נקבעה פגישה" left; "לקבוע אפיון" closes by the date itself, and without it waits.)
-  assert.equal((await r({ item: 'p03.date', state: 'done' })).code, 'blocked', 'the meeting\'s date is missing');
+  assert.equal((await r({ item: 'p03.date', state: 'done' })).code, 'auto', 'closed by the date itself, never by hand');
   assert.equal((await r({ item: 'p03.scheduled', state: 'done' })).code, 'not_found', 'a retired item');
   assert.equal((await r({ item: 'p07.approved', state: 'done' })).code, 'blocked', 'sent to the client first');
   // (v13: the daily follow-up, p14.day, left the protocol: there is no daily answer to refuse any more.)
@@ -341,7 +341,7 @@ test('update_client: only its fields; ended waits for process 35; cancelled need
   assert.deepEqual(writes(w)[1].values, { editor: 'yariv' });
 });
 
-test('set_client_date: a first meeting marks "נקבעה פגישה"; a shoot day\'s concerns, its reason and its note; a round', async () => {
+test('set_client_date: a first meeting marks nothing (v13: the date closes "לקבוע אפיון"); a shoot day\'s concerns, its reason and its note; a round', async () => {
   const w = world();
   const s = (args) => call(w, 'owner', 'set_client_date', { client: 'רון', dry_run: false, ...args });
   assert.equal((await s({ which: 'characterization', at: '2026-13-01T10:00' })).code, 'bad_input');
@@ -350,7 +350,7 @@ test('set_client_date: a first meeting marks "נקבעה פגישה"; a shoot da
   assert.equal((await s({ which: 'shoot', at: '2026-12-01T10:00', round: 5 })).code, 'not_found');
   assert.equal((await s({ which: 'characterization', at: '2026-11-20T10:00' })).done, true);
   assert.equal(w.db.clients[0].characterizer, 'noam');
-  assert.ok(w.db.protocol_checks.some((r) => r.item_key === 'p03.scheduled' && r.state === 'done'));
+  assert.ok(!w.db.protocol_checks.some((r) => r.item_key === 'p03.scheduled'), 'v13: nothing is marked');
   // Moving it marks nothing again.
   const n = w.db.protocol_checks.length;
   assert.equal((await s({ which: 'characterization', at: '2026-11-22T10:00', characterizer: 'אופיר' })).done, true);

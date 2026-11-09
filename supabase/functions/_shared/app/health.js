@@ -931,7 +931,9 @@ export function historyKeys(clients) {
   const out = new Set();
   for (const c of clients) {
     for (const p of applicableProcesses(c)) {
-      for (const i of p.items) {
+      // (v13: p27.notes is no longer an item, and is still written: its history is read as before.)
+      const pre = (p.keyBase || p.id).slice(0, (p.keyBase || p.id).length - p.id.replace(/^r\d+-/, '').length);
+      for (const i of [...p.items, ...(p.id.endsWith('p27') ? [{ key: `${pre}p27.notes` }] : [])]) {
         const base = i.key.replace(/^r\d+\./, '');
         if (!HISTORY.includes(base)) continue;
         out.add(i.key);

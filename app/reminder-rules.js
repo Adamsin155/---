@@ -2485,8 +2485,8 @@ const V10_RULES = [
       });
     },
     steps: [
-      { id: 'open', to: 'ilai', level: 'ring', when: (i) => i.stage === 'open', title: (i) => `בדיקה סופית: ${i.name}`, body: (i, env) => `הגאנט נשלח ללקוח. 13 סעיפים, ואז ״העבודה שלי על הלקוח הושלמה״.${i.anchors.due ? ` יעד ${whenText(i.anchors.due, env.now)}.` : ''}` },
-      { id: 'irit', to: 'irit', level: 'quiet', when: (i) => i.stage === 'done', title: (i) => `עילאי סיים את העבודה על ${i.name}`, body: (i) => `הרשתות, הגרפיקות, התזמון והגאנט נבדקו (13 סעיפים)${i.pre ? `, סבב ${i.pre.slice(1, -1)}` : ''}.` },
+      { id: 'open', to: 'ilai', level: 'ring', when: (i) => i.stage === 'open', title: (i) => `בדיקה סופית: ${i.name}`, body: (i, env) => `הגאנט נשלח ללקוח. 4 סעיפים, ואז ״העבודה שלי על הלקוח הושלמה״.${i.anchors.due ? ` יעד ${whenText(i.anchors.due, env.now)}.` : ''}` },
+      { id: 'irit', to: 'irit', level: 'quiet', when: (i) => i.stage === 'done', title: (i) => `עילאי סיים את העבודה על ${i.name}`, body: (i) => `התזמון והגאנט נבדקו (4 סעיפים)${i.pre ? `, סבב ${i.pre.slice(1, -1)}` : ''}.` },
     ],
   },
 ];
