@@ -225,7 +225,8 @@ test('a ring goes by push and, for whoever agreed, once by WhatsApp; not again o
   const { wa, rows, sent } = fakeWa({ recipients: IRIT_OK });
   const t0 = IL(2026, 10, 5, 10);
   const stats = await runTick({ db: db.at(t0), push, wa, now: t0 });
-  assert.equal(stats.pushed, 1);
+  // (v13: 11 starts at the signing, here the deal, so the quiet "לקבוע יום צילום" is pushed too; push only, no WhatsApp.)
+  assert.equal(stats.pushed, 2);
   assert.equal(stats.waSent, 1);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].to, '972501111111');
@@ -696,7 +697,7 @@ test('with Jako a ring goes by push and once by WhatsApp, as "sent" with no mess
   const { wa, rows, api } = fakeJakoWa();
   const t0 = IL(2026, 10, 5, 10);
   const stats = await runTick({ db: db.at(t0), push, wa, now: t0 });
-  assert.deepEqual([stats.pushed, stats.waSent, stats.waFailed], [1, 1, 0]);
+  assert.deepEqual([stats.pushed, stats.waSent, stats.waFailed], [2, 1, 0]); // (v13: and the quiet shootDate start, push only)
   const [sent] = api.sends();
   assert.deepEqual([sent.body.user_id, sent.body.content.name, sent.body.content.namespace], ['972501111111', 'astrateg_task_update', 'ns_astrateg_task_update']);
   assert.deepEqual([sent.body.content.params['BODY_{{1}}'], sent.body.content.params['BODY_{{2}}'], sent.body.content.params.QUICK_REPLY_1], ['עירית', 'עסקה חדשה: פיצה', 'f100s201']);

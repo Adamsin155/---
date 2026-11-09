@@ -39,7 +39,7 @@ test('the office week: Sunday to Thursday of the Israel week, also on Friday and
 test('closed: done checks of protocol items by Israel day; never an import, a process mark or another week', () => {
   const join = done(base, JOIN, '2026-10-11T09:03:00+03:00');
   const n = Object.keys(join).length;
-  assert.ok(n >= 3);
+  assert.ok(n >= 1); // (v13: the group, 2, and the contract's preparing and sending left; 3 has no checkbox: the signature is left)
   const [k1, k2, k3, k4] = keysFor(base, ['p04', 'p05', 'p05b', 'p06', 'p07']);
   const checks = {
     ...join,
@@ -78,7 +78,9 @@ test('open: what is left of a process, on the day of its deadline as clientState
   assert.equal(w.max, Math.max(...w.days.map((d) => d.closed + d.open)));
 
   // Closing one of those processes today moves its items from "open" on its day to "closed" today.
-  const s = due[0];
+  // (v13: 3 and 11 have no checkbox (an `auto` line closed by the date), so the process taken has items to mark.)
+  const s = due.find((x) => x.proc.items.some((i) => !i.optional));
+  assert.ok(s, 'a process with items is due this week');
   const day = [...keys].indexOf(dayKeyIL(s.dueAt));
   const items = s.proc.items.filter((i) => !i.optional);
   const closedNow = { ...checks, ...Object.fromEntries(items.map((i) => [i.key, { state: 'done', at: TUESDAY.toISOString(), note: null }])) };

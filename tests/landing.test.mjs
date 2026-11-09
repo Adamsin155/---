@@ -218,7 +218,8 @@ test('correcting the station marks what is before it as imported, and takes back
   const fwd = stationPlan(c, checks, 'post');
   assert.deepEqual(fwd.clear, []);
   assert.deepEqual(fwd.set.sort(), importKeys('post').filter((k) => !checks[k]).sort());
-  assert.ok(fwd.set.includes('p19.done') || fwd.set.some((k) => k.startsWith('p19.')));
+  // (v13: importKeys skips retired processes, so Lior's 19, retired in v12, is no longer set: Eli's 19ב is the shoot day's end.)
+  assert.ok(fwd.set.some((k) => k.startsWith('p19b.')) && !fwd.set.some((k) => k.startsWith('p19.')));
   const back = stationPlan(c, checks, 'content');
   assert.deepEqual(back.set, []);
   assert.ok(back.clear.length > 0 && back.clear.every((k) => checks[k].note === IMPORT_NOTE && !importKeys('content').includes(k)));

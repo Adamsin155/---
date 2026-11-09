@@ -56,8 +56,9 @@ test('stuck: how long what blocks the client has been open, and with whom', () =
   mark(w2, d, 'p01.prepared', IL(2026, 10, 21, 9));
   const got = stuckOf(d, clientState(d, w2.checks[d.id], now), { checks: w2.checks[d.id] }, now);
   assert.equal(got.find((x) => x.code === 'recheck').age, 'ממתין ללקוח 5 ימי עסקים');
-  // A late process with no start of its own: only how late it is.
-  assert.equal(got.find((x) => x.code === 'late').age, '2 · פתיחת קבוצת WhatsApp: באיחור 6 ימי עסקים · אצל עירית');
+  // The late process: how long it is open and how much of it late (v13: the group, 2, which had no start of
+  // its own, left the protocol; 11 now starts at the signing, here the deal, so its age has both).
+  assert.equal(got.find((x) => x.code === 'late').age, '11 · קביעת יום צילום: פתוח 6 ימי עסקים, מהם 5 באיחור · אצל עירית');
   // No activity: the text already says how long.
   const w3 = world();
   const e = client(w3, { deal_at: IL(2026, 10, 1, 10).toISOString(), created_at: IL(2026, 10, 1, 10).toISOString(), char_at: IL(2026, 10, 5, 10).toISOString() });

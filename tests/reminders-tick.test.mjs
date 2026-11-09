@@ -76,6 +76,9 @@ function fakePush(answers = {}) {
 }
 const deal = (at, name = 'פיצה') => ({
   id: 'c1', name, status: 'active', shoot_type: 'dms', characterizer: 'ofir', has_logo: true, rounds: [], contract_end: '2027-12-31', deal_at: at.toISOString(),
+  // (v13: 11 starts at the signing, here the deal; a shoot day already in the system keeps its quiet
+  // "לקבוע יום צילום" out of these tests, which are about the deal's own steps.)
+  shoot_at: '2026-12-01T10:00:00+02:00',
 });
 
 test('a tick pushes each due step once to every device, removes a dead one and records the rest', async () => {
@@ -144,21 +147,24 @@ test('first run on old data: nothing late is sent, it is recorded as stale', asy
   // Since 8.10.2026 (section 48) also ONE reminder of what she still holds late (today's 09:00
   // slot): on the first run after a deploy a person gets one such message, never one per item.
   // (Until v12 Lior held 2 too and got his own "עדיין באיחור" about it; his items of 2 left the protocol.)
-  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title), ['עוד אין מועד לפגישת האפיון: פיצה']);
-  assert.deepEqual(sent.filter((s) => s.payload.title === '2 דברים באיחור אצלך').map((s) => s.endpoint), ['https://push.test/phone']);
+  // (v13: the group, 2, left the protocol, so what she holds late is 1 alone: its own one-line reminder.)
+  assert.deepEqual(sent.filter((s) => /פיצה/.test(s.payload.title)).map((s) => s.payload.title).sort(), ['עדיין באיחור: פיצה · 1 · הכנת חוזה', 'עוד אין מועד לפגישת האפיון: פיצה'].sort());
+  assert.deepEqual(sent.filter((s) => s.payload.title === 'עדיין באיחור: פיצה · 1 · הכנת חוזה').map((s) => s.endpoint), ['https://push.test/phone']);
   assert.ok(stats.stale >= 4);
   const today = (r) => r.key === 'meetingDate:c1:p03:d2026-10-05@irit';
   assert.ok(db.log.filter((r) => r.client_id === 'c1' && !today(r)).every((r) => r.status === 'suppressed' && r.reason === 'stale'));
   assert.equal(db.log.filter(today).length, 1);
 });
 
-test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:05 and 09:10 steps, then marks them sent', async () => {
+test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:05 step, then marks them sent', async () => {
   const db = fakeDb({ clients: [deal(IL(2026, 10, 4, 22), 'לילה')], subs: [{ email: 'irit@x', endpoint: 'https://push.test/phone' }] });
   const { push, sent } = fakePush();
   const night = IL(2026, 10, 4, 22);
   await runTick({ db: db.at(night), push, now: night });
   assert.equal(sent.length, 0);
   // The deal waits for the morning; Sunday's own digest lines, seen after hours, are over.
+  // (v13: this fails while a brand-new client is put in "תוכן ואישור": 14 has no required item left and
+  // counts as complete, so a stationChange line is queued too. An app bug, reported; not an outdated expectation.)
   assert.deepEqual(db.log.filter((r) => r.status === 'queued').map((r) => [r.key, r.reason]), [['deal:c1:deal:now@irit', 'quiet_hours']]);
   assert.ok(db.log.filter((r) => r.key.includes(':2026-10-04:')).every((r) => r.status === 'suppressed'));
   const morning = IL(2026, 10, 5, 8, 30);
@@ -167,8 +173,8 @@ test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:0
   const digest = sent.find((s) => s.payload.tag === 'digest:morning:irit:2026-10-05');
   assert.ok(digest, JSON.stringify(sent.map((s) => s.payload.tag)));
   assert.equal(digest.payload.title, 'תקציר בוקר');
-  // Both steps of the deal are in it, as one line (the latest says it).
-  assert.match(digest.payload.body, /^עברו 10 דקות בלי חוזה: לילה$/m);
+  // Both steps of the deal are in it, as one line (the latest says it; v13: no 09:10 contract step any more).
+  assert.match(digest.payload.body, /^עברו 5 דקות: לילה$/m);
   // Her pass over the clients (33) is due that day too (hers since 26.10.2026); the day's work is
   // the last line, or behind "ועוד" when the digest is full (five lines at most).
   assert.match(digest.payload.body, /^מעבר על הלקוחות \(33\) היום$/m);
@@ -451,4 +457,59 @@ test('lateness in a tick (since 5.11.2026): no note to the managers; Ofir own la
   assert.equal(batches.length, 1);
   assert.equal(sent.filter((s) => s.endpoint === 'https://push.test/ofir' && s.payload.tag === 'digest:late:ofir').length, 1);
   assert.deepEqual(sent.filter((s) => s.endpoint === 'https://push.test/lior' && /איחור/.test(`${s.payload.title} ${s.payload.body}`)), []);
+});
+
+// Protocol v13 (docs/ops.md, section 119): the tick closes the scheduling by itself (closeScheduling,
+// app/gantt-auto.js). Every content row of the Gantt scheduled, and the client approved the videos
+// (27 complete): GANTT_READY (p28.auto) is written once, and Irit's "לשלוח גאנט" goes out once.
+// A partial or an empty Gantt writes nothing.
+test('closeScheduling: an all-scheduled Gantt writes p28.auto once and Irit is rung once to send it; partial or empty: nothing', async () => {
+  const at = IL(2026, 11, 2, 10);
+  const now = IL(2026, 11, 2, 12); // Monday
+  const world = (gantt) => {
+    const c = { ...deal(IL(2026, 9, 1, 10), 'גאנט'), char_at: IL(2026, 9, 3, 10).toISOString(), shoot_at: IL(2026, 10, 10, 10).toISOString(), editor: 'nadia' };
+    const checks = importKeys('post').map((k) => ({ client_id: 'c1', item_key: k, state: 'done', note: IMPORT_NOTE, at: IL(2026, 9, 1, 9).toISOString() }));
+    for (const p of PROCESSES.filter((x) => ['p22a', 'p22', 'p23', 'p23b', 'p24', 'p25', 'p26', 'p27'].includes(x.id))) {
+      for (const i of p.items.filter((x) => !x.optional && !(Number.isInteger(x.retired) && x.retired <= 13))) checks.push({ client_id: 'c1', item_key: i.key, state: 'done', note: null, at: at.toISOString() });
+    }
+    const db = fakeDb({ clients: [c], checks, subs: [{ email: 'irit@x', endpoint: 'https://push.test/phone' }] });
+    const writes = [];
+    const load = db.load;
+    db.load = async () => ({ ...(await load()), gantt });
+    db.writeMarks = async ({ client, marks }) => {
+      for (const m of marks) {
+        if (checks.some((r) => r.client_id === client.id && r.item_key === m.item_key)) continue; // never over a mark that exists
+        writes.push(m.item_key);
+        checks.push({ client_id: client.id, ...m, at: now.toISOString() });
+      }
+    };
+    return { db, writes };
+  };
+  const rows = (states) => states.map((state, i) => ({ id: `g${i}`, client_id: 'c1', kind: i % 2 ? 'graphic' : 'video', state }));
+  const ring = (db) => db.log.filter((r) => r.rule === 'publish' && r.person === 'irit' && /:gantt@irit$/.test(r.key));
+
+  const all = world(rows(['scheduled', 'scheduled', 'posted']));
+  const { push, sent } = fakePush();
+  const s1 = await runTick({ db: all.db.at(now), push, now });
+  assert.deepEqual(all.writes, ['p28.auto']);
+  assert.equal(s1.scheduled, 1);
+  assert.equal(ring(all.db).length, 1);
+  assert.match(ring(all.db)[0].title, /^לשלוח גאנט: /);
+  assert.equal(sent.filter((s) => /^לשלוח גאנט: /.test(s.payload.title)).length, 1);
+  // The next tick: the mark is there, nothing is written, and she is not rung again.
+  const later = IL(2026, 11, 2, 12, 1);
+  const s2 = await runTick({ db: all.db.at(later), push, now: later });
+  assert.deepEqual(all.writes, ['p28.auto']);
+  assert.equal(s2.scheduled, 0);
+  assert.equal(ring(all.db).length, 1);
+  assert.equal(sent.filter((s) => /^לשלוח גאנט: /.test(s.payload.title)).length, 1);
+
+  // A row still planned, or a Gantt with no rows: nothing is written and nobody is rung.
+  for (const gantt of [rows(['scheduled', 'planned', 'posted']), []]) {
+    const w = world(gantt);
+    const s = await runTick({ db: w.db.at(now), push: fakePush().push, now });
+    assert.deepEqual(w.writes, [], JSON.stringify(gantt));
+    assert.equal(s.scheduled, 0);
+    assert.equal(ring(w.db).length, 0);
+  }
 });

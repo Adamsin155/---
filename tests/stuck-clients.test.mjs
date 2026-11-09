@@ -63,14 +63,16 @@ test('A: process 3 ticked without a meeting date stays open, late, and on Irit\'
   assert.deepEqual(s.gap.fields, ['char_at']);
   assert.equal(s.status, 'overdue');
   const entries = mine(w, c, 'irit', two);
-  assert.deepEqual(entries.map((e) => [e.item.key, e.fields]), [['p03.scheduled', ['char_at']]]);
+  // (v13: the ticks left; her one line is "לקבוע אפיון", p03.date, closed by the date itself.)
+  assert.deepEqual(entries.map((e) => [e.item.key, e.fields]), [['p03.date', ['char_at']]]);
   assert.deepEqual(mine(w, c, 'ofir', two), [], 'not Ofir\'s work');
   // Her morning digest lists it with what is late (the same list the server reads).
   const env = buildEnv({ ...w, now: two });
   assert.ok(personWork(env, 'irit').overdue.some((x) => x.what === 'קביעת פגישת אפיון'));
-  // Nobody was chosen either (the column's default is Ofir; an old row may have none): both are asked.
+  // Nobody was chosen either (the column's default is Ofir; an old row may have none): v13's line asks
+  // for the date only (p03.date requires char_at; who runs it is chosen in the same dialog).
   c.characterizer = null;
-  assert.deepEqual(p03(w, c, two).gap.fields, ['characterizer', 'char_at']);
+  assert.deepEqual(p03(w, c, two).gap.fields, ['char_at']);
 });
 
 test('A: a tick is not a date: "the meeting was set" marked with no date keeps the process open; the date closes it', () => {
@@ -90,9 +92,10 @@ test('A: a tick is not a date: "the meeting was set" marked with no date keeps t
   c.characterizer = null;
   assert.equal(p03(w, c, now).complete, true);
   c.characterizer = 'ofir';
-  // With the date and without the tick it is an ordinary open item again.
+  // With the date and without the tick nothing is open (v13: p03.scheduled left the protocol; the date closes 3).
   delete w.checks[c.id]['p03.scheduled'];
-  assert.deepEqual(mine(w, c, 'irit', now).map((e) => [e.item.key, e.fields]), [['p03.scheduled', undefined]]);
+  assert.deepEqual(mine(w, c, 'irit', now), []);
+  assert.equal(p03(w, c, now).complete, true);
 });
 
 test('A: a client in landing is asked for nothing, and imported history is never reopened', () => {

@@ -182,18 +182,16 @@ test('the first 9 graphics, approved in time: one ring to Ofir, no lateness ring
   assert.deepEqual(rows.map((r) => `${r.at} ${r.rule}.${r.step}@${r.person}:${r.level}`), [
     '6.10 10:00 fast.now@ofir:ring',
     '6.10 10:07 graphics9.irit@irit:ring',
-    '6.10 10:07 clientLink.now@irit:ring',
-  ]);
+  ]); // (v13: 7א, the status page's link, left the protocol: no clientLink ring)
   assert.equal(rows[0].title, '9 הגרפיקות הראשונות מוכנות לבדיקה: אלפא');
   assert.equal(rows[0].body, '10 דקות לעבור עליהן ולאשר (או להחזיר לעילאי לתיקון), עד 10:10.');
   assert.equal(rows[0].url, `qa.html#review-${c.id}-p07`);
   assert.equal(rows[1].title, 'לשלוח ללקוח: 9 הגרפיקות · אלפא');
-  assert.equal(rows[2].title, 'לשלוח ללקוח קישור לדף הסטטוס: אלפא');
   // Nothing was late: no note of any ladder, to anybody.
   assert.deepEqual(all.filter((r) => /^late/.test(r.rule) && / 7 · /.test(r.title)), []);
   assert.deepEqual(casesAt(w, IL(2026, 10, 6, 10, 8)), []);
   // The sending is Irit's now, with two office hours from his approval.
-  assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 6, 10, 8)).filter((k) => /^p07a?\./.test(k)).sort(), ['p07.sent', 'p07a.sent']);
+  assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 6, 10, 8)).filter((k) => /^p07a?\./.test(k)).sort(), ['p07.sent']); // (v13: no p07a.sent)
   assert.equal(hhmm(proc(w, c, 'p07', IL(2026, 10, 6, 10, 8)).dueAt), '6.10 12:07');
 });
 

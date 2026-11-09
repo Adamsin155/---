@@ -202,16 +202,17 @@ test('performance report: waited time excluded, imported history ignored', () =>
   const bChecks = done(p1, '2026-10-03T12:00:00+03:00', IMPORT_NOTE);
   // c: one imported check is enough to leave the process out; other processes still count.
   const c = { ...base, id: 'c' };
-  const cChecks = { ...done(p1, '2026-10-01T09:04:00+03:00'), 'p01.signed': { state: 'done', at: '2026-10-01T09:04:00+03:00', note: IMPORT_NOTE }, ...done(keysOf('p02'), '2026-10-01T09:04:00+03:00') };
+  const cChecks = { ...done(p1, '2026-10-01T09:04:00+03:00'), 'p01.signed': { state: 'done', at: '2026-10-01T09:04:00+03:00', note: IMPORT_NOTE }, 'p04.ended': { state: 'done', at: '2026-10-01T09:01:00+03:00', note: null }, ...done(['p09.file'], '2026-10-01T09:04:00+03:00') };
+  // (v13: the group, 2, left the protocol: Ilai's gantt, 9, is the other process that still counts.)
   const procOf = (id) => applicableProcesses(base).find((p) => p.id === id);
   assert.equal(isImported(procOf('p01'), bChecks), true);
   assert.equal(isImported(procOf('p01'), cChecks), true);
-  assert.equal(isImported(procOf('p02'), cChecks), false);
+  assert.equal(isImported(procOf('p09'), cChecks), false);
   assert.equal(isImported(procOf('p01'), done(p1, '2026-10-01T09:04:00+03:00', 'ייבוא ישן')), false); // exactly "ייבוא" only
   const r = performanceReport([a, b, c], { a: aChecks, b: bChecks, c: cChecks }, { days: 30, now });
   const p = r.processes.find((x) => x.key === 'p01');
   assert.deepEqual([p.done, p.onTime, p.late, p.medianMinutes], [1, 1, 0, 3]);
-  assert.equal(r.processes.find((x) => x.key === 'p02').done, 1);
+  assert.equal(r.processes.find((x) => x.key === 'p09').done, 1);
   assert.equal(r.people.find((x) => x.key === 'irit').rate, 1);
 });
 

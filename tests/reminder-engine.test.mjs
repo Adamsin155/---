@@ -117,7 +117,7 @@ test('office time helpers: 30 office minutes before a morning deadline start the
   assert.equal(hhmm(officeMinutesBefore(IL(2026, 9, 22, 9, 15), 30)), '20.9 12:45');
 });
 
-test('new deal (1–3): Irit at once, at 5 minutes (group, meeting date) and at 10 (the contract), Lior after 30 office minutes, the owner after an hour', () => {
+test('new deal (1–3): Irit at once, at 5 minutes (the meeting date; v13: no group, no contract ring), Lior after 30 office minutes, the owner after an hour', () => {
   const w = world();
   const c = client(w, { name: 'פיצה', deal_at: IL(2026, 10, 5, 10).toISOString() });
   const now = one(due(w, IL(2026, 10, 5, 10)), 'deal', 'now', 'irit');
@@ -125,24 +125,20 @@ test('new deal (1–3): Irit at once, at 5 minutes (group, meeting date) and at 
   assert.equal(now.exempt, 'clock');
   assert.equal(now.escalation, 'lior');
   assert.match(now.title, /עסקה חדשה: פיצה/);
-  assert.equal(now.body, 'קבוצה ומועד אפיון עד היום 10:05, חוזה עד היום 10:10.');
+  // (v13: the contract's preparing and sending, and the group, 2, left the protocol: only the meeting's date is asked.)
+  assert.equal(now.body, 'מועד אפיון עד היום 10:05.');
   none(due(w, IL(2026, 10, 5, 10, 4)), 'deal', 'due');
   const d = one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due', 'irit');
-  assert.equal(d.body, 'עוד חסר: קבוצה, מועד אפיון.');
-  // The contract has 10 office minutes (the owner's decision of 3.10.2026): its own ring, then.
-  none(due(w, IL(2026, 10, 5, 10, 9)), 'deal', 'contract');
-  const k = one(due(w, IL(2026, 10, 5, 10, 10)), 'deal', 'contract', 'irit');
-  assert.deepEqual([k.title, k.body, k.level, k.exempt], ['עברו 10 דקות בלי חוזה: פיצה', 'החוזה עוד לא נשלח ללקוח.', 'ring', 'clock']);
+  assert.equal(d.body, 'עוד חסר: מועד אפיון.');
+  // No ring about the contract at 10 minutes any more (v13: "החוזה נשלח" left the protocol).
+  none(due(w, IL(2026, 10, 5, 10, 10)), 'deal', 'contract');
   none(due(w, IL(2026, 10, 5, 10, 29)), 'deal', 'lior');
   const l = one(due(w, IL(2026, 10, 5, 10, 30)), 'deal', 'lior', 'lior');
   assert.equal(l.exempt, null);
+  assert.equal(l.body, 'עברו 30 דקות עבודה ועוד חסר: מועד אפיון.');
   assert.equal(one(due(w, IL(2026, 10, 5, 11)), 'deal', 'board', 'owner').level, 'board');
-  // What is still missing is named; once all three are done the ladder stops.
-  marks(w, c, ['p01.prepared', 'p01.sent'], IL(2026, 10, 5, 10, 2));
-  assert.equal(one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due').body, 'עוד חסר: קבוצה, מועד אפיון.');
-  none(due(w, IL(2026, 10, 5, 10, 10)), 'deal', 'contract'); // the contract was sent: no ring about it
-  marks(w, c, [...itemsOf('p02'), ...itemsOf('p03')], IL(2026, 10, 5, 10, 3));
-  // Ticks without a meeting date do not close process 3 (docs/ops.md, section 47).
+  // The signature alone does not stop it: the meeting's date does (docs/ops.md, section 47).
+  marks(w, c, itemsOf('p01'), IL(2026, 10, 5, 10, 2));
   assert.equal(one(due(w, IL(2026, 10, 5, 10, 5)), 'deal', 'due').body, 'עוד חסר: מועד אפיון.');
   c.char_at = IL(2026, 10, 6, 10).toISOString();
   none(due(w, IL(2026, 10, 5, 11)), 'deal');
@@ -295,26 +291,17 @@ test('9 graphics ready: Ofir alone is rung to check them (protocol v9); Irit is 
   none(due(w, IL(2026, 10, 7, 11, 30)), 'graphics9');
 });
 
-test('the client did not answer (7, 23, 26): 10, 10 and 5 office minutes after sending, then Irit calls', () => {
+test('the client did not answer (7, 23, 26): no ring to call any more', () => {
+  // (v13: "הלקוח לא הגיב ועירית התקשרה" left the protocol, and with it the call's clock and ring: CALL_CLOCKS.)
   const w = world();
   const c = client(w, { name: 'קפה' });
   importTo(w, c, 'char');
   mark(w, c, 'p07.sent', IL(2026, 10, 7, 11, 40));
-  none(due(w, IL(2026, 10, 7, 11, 49)), 'answer');
-  const r = one(due(w, IL(2026, 10, 7, 11, 50)), 'answer', 'due', 'irit');
-  assert.equal(r.exempt, 'clock');
-  assert.equal(r.body, '9 הגרפיקות הראשונות. עברו 10 דקות בלי תשובה: להתקשר.');
-  mark(w, c, 'p07.answered', IL(2026, 10, 7, 11, 45));
-  none(due(w, IL(2026, 10, 7, 11, 50)), 'answer');
-  // The videos in a second shoot round: 5 minutes, a key of their own.
+  for (const m of [50, 59]) none(due(w, IL(2026, 10, 7, 11, m)), 'answer');
   const w2 = world();
   const c2 = client(w2, { rounds: [{ n: 2, shoot_type: 'dms', shoot_at: IL(2026, 10, 1, 10).toISOString(), start_at: IL(2026, 9, 28, 10).toISOString() }] });
   mark(w2, c2, 'r2.p26.sent', IL(2026, 10, 7, 11));
-  const v = one(due(w2, IL(2026, 10, 7, 11, 5)), 'answer', 'due');
-  assert.match(v.key, /:r2-p26@/);
-  // A new sending is a new clock.
-  mark(w2, c2, 'r2.p26.sent', IL(2026, 10, 7, 12));
-  assert.notEqual(one(due(w2, IL(2026, 10, 7, 12, 5)), 'answer', 'due').key, v.key);
+  none(due(w2, IL(2026, 10, 7, 11, 5)), 'answer');
 });
 
 test('setting the shoot day (11, v6): right after the group opens; Irit in the app, her digest, 16:00 on the due day; late to Ofir and Lior', () => {
@@ -342,7 +329,8 @@ test('setting the shoot day (11) for a client that started before v6: the old ti
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 4, 10).toISOString(), protocol_version: 5 });
   importTo(w, c, 'content');
-  for (const k of itemsOf('p11')) delete w.checks[c.id][k];
+  // (v13: 11's one line, p11.date, is optional, so all its keys are taken back, not only the required ones.)
+  for (const i of PROCESSES.find((p) => p.id === 'p11').items) delete w.checks[c.id][i.key];
   marks(w, c, itemsOf('p04'), IL(2026, 10, 4, 12)); // the meeting, done for real
   // It started when the meeting ended (charEnd), and is due the end of business day 3 (Wednesday 7.10).
   assert.match(one(due(w, IL(2026, 10, 5, 8, 30)), 'shootDate', 'd2026-10-05', 'irit').title, /יום 1/);
@@ -420,16 +408,14 @@ test('shoot day: Eli 2 hours and 15 minutes before, his end of the day; Lior if 
   none(due(w, IL(2026, 10, 14, 20)), 'shoot');
   one(due(w, IL(2026, 10, 15, 9)), 'shoot', 'eli2h', 'eli');
   one(due(w, IL(2026, 10, 15, 10, 45)), 'shoot', 'eli15', 'eli');
-  // Eli's own process (17ב) unchanged: his manager hears when he did not mark his arrival.
-  one(due(w, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived', 'lior');
+  // (v13: Eli's "הגעתי", p17b.arrived, left the protocol, and with it Lior's "אלי עוד לא סימן הגעה".)
+  none(due(w, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived');
   // Lior's managing of the day (18–21) left the protocol in v12: no "begin", "progress" or end of his.
   none(due(w, IL(2026, 10, 15, 11, 30)), 'shoot', 'begin');
   none(due(w, IL(2026, 10, 15, 15)), 'shoot', 'progress');
   const end = due(w, IL(2026, 10, 15, 16, 30));
   none(end, 'shoot', 'endLior');
   one(end, 'shoot', 'endEli', 'eli');
-  mark(w, c, 'p17b.arrived', IL(2026, 10, 15, 10));
-  none(due(w, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived');
   // Natali: Eli's end after three hours; nothing of Lior's ("an hour left", the end).
   const w2 = world();
   const c2 = client(w2, { shoot_at: IL(2026, 10, 15, 11).toISOString(), shoot_type: 'natali' });
@@ -815,37 +801,30 @@ test('cancelled and ended clients get no reminders; imported history starts no l
   assert.deepEqual([...new Set(list.map((r) => r.rule))].sort(), []); // (the weekly call, 31, left in v12)
 });
 
-test('contract sent, not signed (1): Irit quietly after 4 office hours, Lior\'s list after a business day', () => {
+test('contract sent, not signed (1): no ring any more', () => {
+  // (v13: "החוזה נשלח", p01.sent, left the protocol, and with it this ring; the unsigned agreement has its own, 'unsigned'.)
   const w = world();
   const c = client(w, { deal_at: IL(2026, 10, 5, 9).toISOString() });
   marks(w, c, ['p01.prepared', 'p01.sent'], IL(2026, 10, 5, 10));
-  none(due(w, IL(2026, 10, 5, 13, 59)), 'contract', 'irit');
-  assert.equal(one(due(w, IL(2026, 10, 5, 14)), 'contract', 'irit', 'irit').level, 'quiet');
-  assert.equal(one(due(w, IL(2026, 10, 6, 10)), 'contract', 'lior', 'lior').list, true);
-  mark(w, c, 'p01.signed', IL(2026, 10, 5, 12));
-  none(due(w, IL(2026, 10, 6, 10)), 'contract');
+  for (const t of [IL(2026, 10, 5, 14), IL(2026, 10, 6, 10)]) none(due(w, t), 'contract');
+  assert.equal(c.id.length > 0, true);
 });
 
-test('group opened (2): the owner\'s screen if the introduction (Irit\'s) was not sent within an office hour; v12: no ring to Lior', () => {
+test('group opened (2): nothing any more', () => {
+  // (v13: the WhatsApp group, 2, left the protocol whole: no board line about the introduction.)
   const w = world();
   const c = client(w, { deal_at: IL(2026, 10, 5, 9).toISOString() });
   mark(w, c, 'p02.opened', IL(2026, 10, 5, 10));
-  none(due(w, IL(2026, 10, 5, 10)), 'group', 'lior');
-  const board = one(due(w, IL(2026, 10, 5, 11)), 'group', 'board', 'owner');
-  assert.equal(board.body, 'באחריות עירית.');
-  mark(w, c, 'p02.intro', IL(2026, 10, 5, 10, 30));
-  none(due(w, IL(2026, 10, 5, 11)), 'group');
+  for (const t of [IL(2026, 10, 5, 10), IL(2026, 10, 5, 11)]) none(due(w, t), 'group');
 });
 
-test('access not in the vault 30 minutes after the meeting (Irit, quiet); a new logo for Ilai', () => {
+test('access after the meeting: a new logo for Ilai; no vault ring for Irit (v13)', () => {
   const w = world();
   const c = client(w, { char_at: IL(2026, 10, 6, 10).toISOString(), has_logo: false });
   importTo(w, c, 'char');
   marks(w, c, itemsOf('p04'), IL(2026, 10, 6, 12, 30));
   assert.equal(one(due(w, IL(2026, 10, 6, 12, 30)), 'vault', 'logo', 'ilai').level, 'quiet');
-  none(due(w, IL(2026, 10, 6, 12, 59)), 'vault', 'irit');
-  one(due(w, IL(2026, 10, 6, 13)), 'vault', 'irit', 'irit');
-  mark(w, c, 'p05.vault', IL(2026, 10, 6, 12, 45));
+  // (v13: "כל הגישות הוכנסו לכספת", p05.vault, left the protocol, and with it Irit's quiet note 30 minutes after.)
   none(due(w, IL(2026, 10, 6, 13)), 'vault', 'irit');
 });
 
@@ -973,8 +952,8 @@ test('a reminder "X before" that goes out late is worded by the time really left
   assert.equal(eli(10, 11).body, 'ההגעה שלך ב־10:00, שעה לפני הצילום (11:00) · הנביאים 5.');
   assert.match(eli(10, 45, 'eli15').body, /^המשפיענים מגיעים בעוד 15 דקות\./);
   assert.match(eli(10, 56, 'eli15').body, /^המשפיענים מגיעים בעוד 4 דקות\./);
-  assert.equal(one(due(w2, IL(2026, 10, 15, 10, 15)), 'shoot', 'arrived', 'lior').body, 'עברו 15 דקות משעת ההגעה שלו.');
-  assert.equal(one(due(w2, IL(2026, 10, 15, 10, 50)), 'shoot', 'arrived', 'lior').body, 'שעת ההגעה שלו הייתה 10:00.');
+  // (v13: Lior's "אלי עוד לא סימן הגעה" left with p17b.arrived.)
+  for (const m of [15, 50]) none(due(w2, IL(2026, 10, 15, 10, m)), 'shoot', 'arrived');
   none(due(w2, IL(2026, 10, 15, 11, 0)), 'shoot', 'eli2h');
   none(due(w2, IL(2026, 10, 15, 11, 0)), 'shoot', 'eli15');
 });

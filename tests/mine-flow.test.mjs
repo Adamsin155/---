@@ -57,10 +57,9 @@ test('each queue with work gives one counted line, in its group, to its page', (
   assert.equal(lior['landing-shoot'].href, 'shoot.html');
 
   const irit = byId(linesOf(db, 'irit'));
-  assert.deepEqual(Object.keys(irit).sort(), ['availability-missing', 'followup', 'landing-shoot', 'messages']);
-  // 14 (protocol v8): one line for all the clients before their shoot day, to the list on prep.html.
-  assert.deepEqual([irit.followup.bucket, irit.followup.href, irit.followup.rule], ['today', 'prep.html#followup', 'followup']);
-  assert.equal(irit.followup.text, `מעקב לפני צילום: ${irit.followup.n} לקוחות`);
+  assert.deepEqual(Object.keys(irit).sort(), ['availability-missing', 'landing-shoot', 'messages']);
+  // 14's daily answer (p14.day) left the protocol in v13: no "מעקב לפני צילום" line for anybody.
+  assert.equal(irit.followup, undefined);
   assert.equal(lior.followup, undefined);
   assert.equal(irit.messages.n, COUNTS.messages.clock);
   assert.equal(irit.messages.text, `22 לקוחות עוד לא קיבלו הודעה היום (ועוד ${COUNTS.messages.landing} בקליטה)`);
@@ -120,7 +119,7 @@ test('rows that could not be read give no line, and nothing breaks', () => {
   const none = { access: null, requests: null, messages: null, availability: null, liorShoot: null };
   assert.deepEqual(linesOf(db, 'lior', { extra: none }).map((l) => l.id).sort(), ['landing-shoot', 'urgent-back', 'campaigns'].sort());
   assert.deepEqual(flowLines({ ...inputs(db, 'lior', { extra: none }), reviews: null }).map((l) => l.id).sort(), ['landing-shoot', 'urgent-back'].sort());
-  assert.deepEqual(linesOf(db, 'irit', { extra: none }).map((l) => l.id).sort(), ['followup', 'landing-shoot']); // the follow-up is counted from the page's own rows
+  assert.deepEqual(linesOf(db, 'irit', { extra: none }).map((l) => l.id).sort(), ['landing-shoot']); // (v13: the daily follow-up, 14, left the protocol)
   assert.deepEqual(linesOf(db, 'eli', { extra: none }), []);
   // The owners, a field agent and somebody the app could not identify: no lines.
   assert.deepEqual(flowLines({ ...inputs(db, 'ofir'), viewer: { me: null, scope: 'office', error: null } }), []);
@@ -182,7 +181,7 @@ test('landing means no clock: its lines say so, sit apart, and name no reminder;
       }
     }
   }
-  assert.deepEqual([...seen].sort(), ['access', 'availability', 'availability-missing', 'campaigns', 'changes', 'exceptions', 'fixes', 'followup', 'landing-assign', 'landing-editing',
+  assert.deepEqual([...seen].sort(), ['access', 'availability', 'availability-missing', 'campaigns', 'changes', 'exceptions', 'fixes', 'landing-assign', 'landing-editing', // (v13: no 'followup')
     'landing-qa', 'landing-shoot', 'messages', 'urgent-back']);
   // A paused editing of a client in landing: no line either (5.11.2026).
   db.clients.find((c) => c.id === cid(14)).landing = true;
