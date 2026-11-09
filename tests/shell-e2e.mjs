@@ -259,7 +259,7 @@ await step('a phone: the bar is the menu; the sheet of "עוד" takes focus and 
   assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['מבט מנהל', 'לקוחות', 'שנת החבילה', 'עוד']);
   await page.click('#side-more');
   assert.deepEqual(await page.locator('#side-sheet .side-link').allInnerTexts(),
-    ['גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת', 'צוות']);
+    ['גאנט תוכן', 'מעקב לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'לפני יום צילום', 'טבלת ימי צילום', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו', 'שאלו את המערכת', 'צוות']);
   // A screen behind "עוד" marks "עוד" as where you are.
   await page.click('#side-insights');
   await page.waitForURL(/insights\.html$/);
