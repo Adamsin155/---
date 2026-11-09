@@ -37,13 +37,13 @@ export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me ||
 // one): the owners, Irit, Lior and Ofir. public.characterizations is the office's to write.
 // Noam (1.11.2026) runs the meetings and is not the office: he writes the form too, on his own
 // screens (MEETING_PEOPLE).
-export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'noam'];
+export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'noam', 'shiel']; // Shiel since 9.11.2026
 // Outside the office, who runs the characterization meeting itself: the end of the meeting and
 // its form (process 4, intake.html#end and #form) on the clients whose work is theirs.
-export const MEETING_PEOPLE = ['noam'];
+export const MEETING_PEOPLE = ['noam', 'shiel']; // Shiel (9.11.2026): characterizations only
 // Her own work like Ilai, but the list of clients is all of them, to reach any client's vault (the
 // owner, 1.11.2026). The database already answers her for every client (public.is_office()).
-export const ALL_CLIENTS_PEOPLE = ['noam'];
+export const ALL_CLIENTS_PEOPLE = ['noam', 'shiel'];
 export const listsAllClients = (me) => ALL_CLIENTS_PEOPLE.includes(me);
 export const writesChar = (v) => known(v) && (v.scope === 'office' || MEETING_PEOPLE.includes(v.me)) && (!v.me || CHAR_WRITERS.includes(v.me));
 // The index of the content Gantt: the office, Ilai and Noam (as worksCycle in month-ui.js).
@@ -337,7 +337,7 @@ export function inMenu(items, pathname, hash = '') {
 // the initials are the first two letters of the name.
 export const AVATAR_FILL = {
   irit: '#FAD4DF', lior: '#D6E6FB', ofir: '#E3DBFC', ilai: '#D5F0E1', nadia: '#FDE9C4', yariv: '#D9F0F4',
-  anna: '#F4DCF6', eli: '#E6E9C9', stav: '#FFE0CC', nirel: '#DDE3FA', amos: '#E9DCCB', noam: '#D4EEF0', editor: '#E4E8F3',
+  anna: '#F4DCF6', eli: '#E6E9C9', stav: '#FFE0CC', nirel: '#DDE3FA', amos: '#E9DCCB', noam: '#D4EEF0', shiel: '#F3E3D3', editor: '#E4E8F3',
 };
 export const avatarFill = (person) => AVATAR_FILL[person] || '#E4E8F3';
 export const initialsOf = (name) => [...String(name || '').trim()].filter((c) => /\S/.test(c)).slice(0, 2).join('');

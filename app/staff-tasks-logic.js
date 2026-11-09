@@ -7,7 +7,7 @@
 // (app/reminder-rules.js `nag`, `nagDone`; a copy runs in the reminders function) and
 // the unit tests read the same rules. The database decides who may do what
 // (supabase/migrations/20261011100000_staff_tasks.sql).
-import { PEOPLE, TEAM_PEOPLE, WORK_HOURS, isSales, BRIEF_REQUIRED, BRIEF_MUST, BRIEF_FIELDS } from './protocol.js';
+import { PEOPLE, TEAM_PEOPLE, WORK_HOURS, isSales, isSilent, BRIEF_REQUIRED, BRIEF_MUST, BRIEF_FIELDS } from './protocol.js';
 import { isBusinessDay, erevOn } from './protocol-logic.js';
 import { atTimeIL, dayKeyIL, addDaysIL } from './tz.js';
 
@@ -26,8 +26,8 @@ export const personOfViewer = (viewer) => {
 };
 export const canGive = (viewer) => GIVERS.includes(personOfViewer(viewer));
 // Whom a task can be given to: everyone on the team (editors, the photographer and
-// the sales agents too), then the owner.
-export const ASSIGNEES = () => [...TEAM_PEOPLE().map((p) => ({ key: p.key, name: p.name })), { key: OWNER, name: 'הבעלים' }];
+// the sales agents too), then the owner. Not the silent (Shiel, 9.11.2026: no notification at all).
+export const ASSIGNEES = () => [...TEAM_PEOPLE().filter((p) => !isSilent(p.key)).map((p) => ({ key: p.key, name: p.name })), { key: OWNER, name: 'הבעלים' }];
 export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key || '');
 // Where a person does their work: sales have only deal.html.
 export const homeUrl = (person) => (isSales(person) ? 'deal.html' : 'clients.html#mine');

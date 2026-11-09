@@ -11,7 +11,7 @@
 //   - a client's request (her section 17): one tap opens a task with an owner and a
 //     due day, with a ready "we got it" message; when that task is done, the database
 //     opens "לעדכן את הלקוח" for her, shown here with a ready message.
-import { PEOPLE, STAFF_PEOPLE, SHOOT_TYPES } from './protocol.js';
+import { PEOPLE, ASSIGNABLE_PEOPLE, SHOOT_TYPES } from './protocol.js';
 // "עם מי מצלמים" (25.10.2026): with influencers, or Lior and one photographer (app/shoot-crew.js).
 import { crewOptions, choiceOf, soloOf, crewPatch, roundWithCrew, timeLabel } from './shoot-crew.js';
 import { shootStart } from './calendar-feed.js';
@@ -425,7 +425,7 @@ async function submitDayBefore(e, k) {
 }
 
 // ── Irit's section 17: client requests ────
-const OWNERS = () => STAFF_PEOPLE();
+const OWNERS = () => ASSIGNABLE_PEOPLE();
 function requestsBlock() {
   const now = new Date();
   const liveClients = clients.filter(live).sort((a, b) => clientLabel(a).localeCompare(clientLabel(b), 'he'));
