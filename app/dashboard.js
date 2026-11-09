@@ -6,6 +6,8 @@ import { h, formatDate, whatsappLink } from './quote-doc.js';
 import { dressHead, headIcon, besideIcon, leadIcon } from './kit.js';
 import { formatILS } from './pricing.js';
 import { dayKeyIL } from './tz.js';
+// Every signed contract file shows in the list (9.11.2026): the kind and label of such a file.
+import { CONTRACT_KIND, CONTRACT_LABEL } from './contract-file.js';
 import { glide, countUp, viewerFor } from './shell.js';
 // Who opens this list (the owners, Irit and Ofir) and who sees its amounts (the owners, 6.10.2026,
 // and Ofir, 29.10.2026: app/manager-rules.js seesQuoteMoney).
@@ -211,6 +213,7 @@ function manualRow(q) {
       q.signed_at ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at)) : null),
     h('td', { 'data-label': 'שינויים מהחבילה' }, h('span', { class: 'apv-cell' }, '—')),
     h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
+      q.unread ? h('a', { class: 'btn btn-sm', href: `client.html?id=${encodeURIComponent(q.client_id)}#read-${q.unread}` }, 'קריאת החוזה') : null,
       q.path ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'data-act': 'manual-open', onclick: () => openManual(q) }, 'פתיחה') : null,
       h('a', { class: 'btn btn-sm btn-ghost', href: `client.html?id=${encodeURIComponent(q.client_id)}#contract-docs` }, 'לכרטיס'))));
 }
@@ -223,24 +226,42 @@ async function openManual(q) {
   }
 }
 async function loadManual() {
-  const { data, error } = await supabase.from('manual_contracts')
-    .select('id, client_id, file_id, business, contact_name, package_name, monthly_net_agorot, term_months, signed_on, created_at, created_by_email')
-    .order('created_at', { ascending: false }).limit(200);
-  if (error || !data?.length) return [];
-  const ids = [...new Set(data.map((m) => m.client_id))];
-  const files = [...new Set(data.map((m) => m.file_id))];
-  const [{ data: cs }, { data: fs }] = await Promise.all([
-    supabase.from('clients').select('id, name, business').in('id', ids),
-    supabase.from('client_files').select('id, storage_path').in('id', files),
+  // Every signed contract file (the owner, 9.11.2026: "a contract uploaded by hand shows at once"):
+  // with what was read from it, or, before it was read, as "פרטים חסרים" with the way to read it.
+  const [{ data, error }, { data: files }] = await Promise.all([
+    supabase.from('manual_contracts')
+      .select('id, client_id, file_id, business, contact_name, package_name, monthly_net_agorot, term_months, signed_on, created_at, created_by_email')
+      .order('created_at', { ascending: false }).limit(300),
+    supabase.from('client_files').select('id, client_id, storage_path, created_at, uploaded_by')
+      .eq('kind', CONTRACT_KIND).eq('label', CONTRACT_LABEL).is('deleted_at', null).order('created_at', { ascending: false }).limit(300),
   ]);
+  const rows = error || !Array.isArray(data) ? [] : data;
+  const allFiles = Array.isArray(files) ? files : [];
+  const readFiles = new Set(rows.map((m) => m.file_id));
+  const unread = allFiles.filter((f) => !readFiles.has(f.id));
+  if (!rows.length && !unread.length) return [];
+  const ids = [...new Set([...rows, ...unread].map((m) => m.client_id))];
+  const { data: cs } = await supabase.from('clients').select('id, name, business').in('id', ids);
   const name = Object.fromEntries((cs || []).map((c) => [c.id, c.business || c.name]));
-  const path = Object.fromEntries((fs || []).map((x) => [x.id, x.storage_path]));
+  const path = Object.fromEntries(allFiles.map((x) => [x.id, x.storage_path]));
+  const missing = rows.filter((m) => !path[m.file_id]).map((m) => m.file_id);
+  if (missing.length) {
+    const { data: more } = await supabase.from('client_files').select('id, storage_path').in('id', missing);
+    for (const x of more || []) path[x.id] = x.storage_path;
+  }
   const { manualAmounts } = await import('./contract-read-logic.js');
-  return data.map((m) => ({
-    manual: m.id, client_id: m.client_id, number: 'ידני', client_name: m.business || name[m.client_id] || '', status: 'signed',
-    signed_at: m.signed_on || m.created_at, created_at: m.created_at, created_by_email: m.created_by_email, signer_name: m.contact_name || null,
-    ...manualAmounts(m), tier: m.package_name || '', doc: 'חוזה ידני', signable: 'true', path: path[m.file_id] || null,
-  }));
+  return [
+    ...rows.map((m) => ({
+      manual: m.id, client_id: m.client_id, number: 'ידני', client_name: m.business || name[m.client_id] || '', status: 'signed',
+      signed_at: m.signed_on || m.created_at, created_at: m.created_at, created_by_email: m.created_by_email, signer_name: m.contact_name || null,
+      ...manualAmounts(m), tier: m.package_name || '', doc: 'חוזה ידני', signable: 'true', path: path[m.file_id] || null,
+    })),
+    ...unread.filter((f) => name[f.client_id]).map((f) => ({
+      manual: `file:${f.id}`, unread: f.id, client_id: f.client_id, number: 'ידני', client_name: name[f.client_id], status: 'signed',
+      signed_at: f.created_at, created_at: f.created_at, created_by_email: f.uploaded_by || '', signer_name: null,
+      monthly_gross_agorot: 0, term_gross_agorot: 0, tier: '', doc: 'חוזה ידני', signable: 'true', path: f.storage_path,
+    })),
+  ];
 }
 
 function renderRows() {
