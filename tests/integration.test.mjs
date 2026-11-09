@@ -75,9 +75,11 @@ test('a case is fresh when its rule says so, or when its whole process is newer 
   // Whole processes that came later: 22א (version 2), 17ב–19ב (version 4), 7ב and 23ב (version 6), 8ב (version 7), 5ב, 7א and the daily 14 (version 8), 29ב (version 10). (12א, version 2, left in v12.)
   const procs = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 1, created_at: '2026-09-01T07:00:00Z' });
   const whole = procs.filter((p) => freshCase({}, { proc: p })).map((p) => p.id);
-  assert.deepEqual(whole, ['p05b', 'p07a', 'p07b', 'p08b', 'p14', 'p17b', 'p18b', 'p19b', 'p22a', 'p23b', 'p29b']);
+  // (v13: 7א left the protocol; 14 is no longer the daily follow-up; 19ב and 29ב each have an item of version 13
+  // for every client, p19b.checked and p29b.c.ganttok, so they are no longer wholly newer than the client.)
+  assert.deepEqual(whole, ['p05b', 'p07b', 'p08b', 'p17b', 'p18b', 'p22a', 'p23b']);
   const v5 = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 5 });
-  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07a', 'p07b', 'p08b', 'p14', 'p23b', 'p29b']);
+  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07b', 'p08b', 'p23b']);
   // Only finalReady names its item; the rule list has no other `fresh`.
   assert.deepEqual(RULES.filter((r) => typeof r.fresh === 'function').map((r) => r.id), ['finalReady']);
 });
@@ -96,8 +98,9 @@ test('the status page\'s approvals work for a client of any version and never ma
       assert.ok(!items.get(k).fresh, `${k} is not new for version ${v}`);
     }
     for (const k of ['p13.approved', 'p12.scripts', 'p12.docs', 'p12.numbered']) assert.ok(!items.has(k), `${k} left in v12 (version ${v})`);
-    // The videos' notes (a fix request) are optional: marking them never makes anything late or complete.
-    assert.equal(items.get('p27.notes').optional, true);
+    // The videos' notes (a fix request) are no item of anyone's (v13: p27.notes left as Irit's item; the
+    // page still writes the mark): marking them never makes anything late or complete.
+    assert.ok(!items.has('p27.notes'), `p27.notes left in v13 (version ${v})`);
     // p23.approved was the page's own mark on the rest of the graphics; since version 6 it is
     // also an optional item Irit can mark (the same key): new for older clients, never late.
     assert.equal(items.get('p23.approved').optional, true);

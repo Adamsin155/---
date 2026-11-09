@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { computeReminders } from '../app/reminder-engine.js';
 import { RULES } from '../app/reminder-rules.js';
 import {
-  PROCESSES, PROTOCOL_VERSION, FAST_LADDER, STATIONS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, RENEWAL_DAYS, FINAL_CHECK, BRIEF_MUST, BRIEF_REQUIRED,
+  PROCESSES, PROTOCOL_VERSION, FAST_LADDER, STATIONS, CRITICAL_MISTAKES, CRITICAL_TITLE, mistakeIssue, RENEWAL_DAYS, FINAL_CHECK, BRIEF_MUST, BRIEF_REQUIRED, GANTT_READY,
 } from '../app/protocol.js';
 import { clientState, openItemsFor, IMPORT_NOTE, fixDue, FIX_CUTOFF_HOUR, bulkEligible } from '../app/protocol-logic.js';
 import { PROTOCOL_HISTORY, itemSince } from '../app/protocol-versions.js';
@@ -29,6 +29,8 @@ import { mayWrite } from '../scripts/protocol-writers.mjs';
 import { dateIL, partsIL } from '../app/tz.js';
 
 export const IL = (y, m, d, h = 0, mi = 0, s = 0) => dateIL(y, m, d, h, mi, s);
+// v13: the points of Ilai's final check still asked (the third field of FINAL_CHECK is the version that retired one).
+const LIVE_CHECK = FINAL_CHECK.filter((x) => !x[2]);
 export const hhmm = (d) => { const p = partsIL(d); return `${p.day}.${p.month} ${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`; };
 const STAFF = [
   { email: 'owner@x', person: null }, { email: 'irit@x', person: 'irit' }, { email: 'lior@x', person: 'lior' },
@@ -355,8 +357,8 @@ test('3. an approval that waits on the client: from the next day, a line in Irit
   const log = [];
   const day = (d, from = [8, 0], to = [18, 0]) => walk(w, IL(2026, 10, d, ...from), IL(2026, 10, d, ...to), log).filter((r) => ['answer', 'clientWaits', 'clientWaitsLine'].includes(r.rule));
   const brief = (rows) => rows.map((r) => `${r.at} ${r.rule}@${r.person}:${r.level}`);
-  // The day of the sending: only the one ring of the ten minutes ("להתקשר").
-  assert.deepEqual(brief(day(6, [12, 20])), ['6.10 12:30 answer@irit:ring']);
+  // The day of the sending: nothing (v13: the ring of the ten minutes, "להתקשר", left the protocol with the call).
+  assert.deepEqual(brief(day(6, [12, 20])), []);
   // Wednesday and Thursday: a digest line at 08:30 and one ring at 10:00, each day once.
   const wed = day(7);
   assert.deepEqual(brief(wed), ['7.10 08:30 clientWaitsLine@irit:digest', '7.10 10:00 clientWaits@irit:ring']);
@@ -615,20 +617,23 @@ test('6. the raw material and the chosen take per script: one mark per shoot rou
 function publishing(w = world(), o = {}) {
   const c = client(w, { name: 'גאנט', editor: 'nadia', char_at: IL(2026, 10, 5, 10).toISOString(), shoot_at: IL(2026, 10, 15, 10).toISOString(), ...o });
   importTo(w, c, 'publish');
+  // (v13: the scheduling and the full Gantt close by themselves, GANTT_READY, once the Gantt's content is scheduled.)
   marks(w, c, itemsOf('p28'), IL(2026, 10, 26, 10));
-  mark(w, c, 'p29.filled', IL(2026, 10, 26, 11));
+  mark(w, c, GANTT_READY, IL(2026, 10, 26, 11));
   return { w, c };
 }
 test('7. Ilai\'s final check (29ב): it opens when the Gantt was sent, 13 points and "העבודה שלי על הלקוח הושלמה", due at the end of the next business day; Irit hears when he is done', () => {
   const p = PROCESSES.find((x) => x.id === 'p29b');
   assert.deepEqual([p.num, p.owners, p.round, p.phase, p.start, p.due, p.bulkWord], ['29ב', ['ilai'], true, 'publish', { from: 'p29' }, { from: 'p29', businessDays: 1 }, 'סימון הכול']);
-  assert.deepEqual(p.items.map((i) => i.label), [
-    'כל הרשתות קיימות', 'כל הגישות נמצאות במערכת', 'כל הרשתות מחוברות ל־Metricool', 'הנראות של כל העמודים מסודרת', 'הלוגו מסודר', 'כל הגרפיקות לפי החבילה מוכנות',
-    'כל הגרפיקות נמצאות בתיק הלקוח במערכת', 'הסרטונים נמצאים בדרייב של הלקוח', 'הסרטונים תוזמנו', 'הגרפיקות תוזמנו', 'כל התוכן נמצא בגאנט', 'הגאנט תואם לתזמון', 'כל הפעולות שביצעתי עודכנו במערכת',
+  // v13 (9.11.2026): 4 points are left (the other 10 are kept, retired, for the history's words; "in the Gantt"
+  // and "matches the scheduling" are one point now).
+  assert.deepEqual(p.items.filter((i) => !i.retired).map((i) => i.label), [
+    'הסרטונים תוזמנו', 'הגרפיקות תוזמנו', 'כל התוכן בגאנט ותואם לתזמון', 'כל הפעולות שביצעתי עודכנו במערכת',
     'העבודה שלי על הלקוח הושלמה',
   ]);
-  assert.equal(FINAL_CHECK.length, 13);
-  assert.deepEqual([p.items.at(-1).requires.length, p.items.at(-1).noBulk, p.items.at(-1).word], [13, true, 'הושלמה']);
+  assert.equal(FINAL_CHECK.length, 14);
+  assert.equal(LIVE_CHECK.length, 4);
+  assert.deepEqual([p.items.at(-1).requires.length, p.items.at(-1).noBulk, p.items.at(-1).word], [4, true, 'הושלמה']);
   const publish = STATIONS.find((s) => s.key === 'publish').procs;
   assert.deepEqual(publish, ['p28', 'p29', 'p29b', 'p30']);
   const { w, c } = publishing();
@@ -640,20 +645,22 @@ test('7. Ilai\'s final check (29ב): it opens when the Gantt was sent, 13 points
   const log = [];
   const open = walk(w, IL(2026, 10, 26, 11, 20), IL(2026, 10, 26, 11, 22), log).filter((r) => r.rule === 'finalCheck');
   assert.deepEqual(open.map((r) => `${r.step}@${r.person}:${r.level}`), ['open@ilai:ring']);
-  assert.deepEqual([open[0].title, open[0].body], ['בדיקה סופית: גאנט', 'הגאנט נשלח ללקוח. 13 סעיפים, ואז ״העבודה שלי על הלקוח הושלמה״. יעד מחר 18:00.']);
+  // (v13: 4 points, not 13. Fails until app/reminder-rules.js's finalCheck words follow: reported as an app bug.)
+  assert.deepEqual([open[0].title, open[0].body], ['בדיקה סופית: גאנט', 'הגאנט נשלח ללקוח. 4 סעיפים, ואז ״העבודה שלי על הלקוח הושלמה״. יעד מחר 18:00.']);
   const s = proc(w, c, 'p29b', IL(2026, 10, 26, 12));
   assert.deepEqual([hhmm(s.startAt), hhmm(s.dueAt), s.status], ['26.10 11:20', '27.10 18:00', 'open']);
-  // One card: the 13 points (all of them in one press: "סימון הכול"); the last item waits for them.
-  assert.equal(ilai(IL(2026, 10, 26, 12)).length, 13);
-  assert.equal(bulkEligible(s, 'ilai', c, w.checks[c.id], IL(2026, 10, 26, 12)).length, 13);
-  marks(w, c, FINAL_CHECK.map(([k]) => `p29b.c.${k}`), IL(2026, 10, 26, 14));
+  // One card: the 4 points (all of them in one press: "סימון הכול"); the last item waits for them.
+  assert.equal(ilai(IL(2026, 10, 26, 12)).length, 4);
+  assert.equal(bulkEligible(s, 'ilai', c, w.checks[c.id], IL(2026, 10, 26, 12)).length, 4);
+  marks(w, c, LIVE_CHECK.map(([k]) => `p29b.c.${k}`), IL(2026, 10, 26, 14));
   assert.deepEqual(ilai(IL(2026, 10, 26, 14, 1)), ['p29b.done']);
   // "העבודה שלי על הלקוח הושלמה": the process is complete, and Irit hears.
   mark(w, c, 'p29b.done', IL(2026, 10, 26, 14, 5));
   assert.equal(proc(w, c, 'p29b', IL(2026, 10, 26, 14, 6)).complete, true);
   const done = walk(w, IL(2026, 10, 26, 14, 5), IL(2026, 10, 26, 14, 7), log).filter((r) => r.rule === 'finalCheck');
   assert.deepEqual(done.map((r) => `${r.step}@${r.person}:${r.level}`), ['irit@irit:quiet']);
-  assert.deepEqual([done[0].title, done[0].body], ['עילאי סיים את העבודה על גאנט', 'הרשתות, הגרפיקות, התזמון והגאנט נבדקו (13 סעיפים).']);
+  assert.equal(done[0].title, 'עילאי סיים את העבודה על גאנט');
+  assert.doesNotMatch(done[0].body, /13 סעיפים/); // (v13: 4 points; the networks and the graphics are no longer among them)
   // Not done by the deadline: the ladder of every late item (he rings; no note to Ofir and Lior since 5.11.2026).
   const lw = world();
   const { c: lc } = publishing(lw);
@@ -663,13 +670,13 @@ test('7. Ilai\'s final check (29ב): it opens when the Gantt was sent, 13 points
 });
 
 test('7. existing clients: the final check is never late for a client that started before; history that was brought in, and a Gantt sent before version 10, are never asked', () => {
-  const ALL = PROCESSES.find((x) => x.id === 'p29b').items.map((i) => i.key);
+  const ALL = PROCESSES.find((x) => x.id === 'p29b').items.filter((i) => !i.retired).map((i) => i.key); // (v13: the 4 points left)
   // A version 9 client that reaches the step after version 10: work for Ilai, never late.
   const { w, c } = publishing(world(), { protocol_version: 9 });
   mark(w, c, 'p29.sent', IL(2026, 10, 26, 11, 20));
   const week = IL(2026, 11, 2, 10);
   const s = proc(w, c, 'p29b', week);
-  assert.deepEqual([s.status, s.late, mine(w, c, 'ilai', week).filter((k) => k.startsWith('p29b.')).length], ['open', false, 13]);
+  assert.deepEqual([s.status, s.late, mine(w, c, 'ilai', week).filter((k) => k.startsWith('p29b.')).length], ['open', false, 4]);
   assert.deepEqual(due(w, week).filter((r) => ['late', 'lateOwn', 'lateNag'].includes(r.rule) && /29ב/.test(r.title + r.body)), []);
   // Imported history (a client brought in beyond "פרסום" under an older version, with no mark of 29ב): not asked.
   const imp = world();
@@ -763,7 +770,8 @@ test('10. "קראתי את התסריטים" is Eli\'s own mark (the database le
 // ── 12. Irit's own clock for sending the Gantt ──────────────────────────────
 test('12. sending the Gantt (29): Irit\'s 30 office minutes start when Ilai marks the Gantt full', () => {
   const p29 = PROCESSES.find((p) => p.id === 'p29');
-  assert.deepEqual(p29.due, { from: 'p27', hours: 2, afterMark: [{ key: 'p29.filled', minutes: 30, office: true }] });
+  // (v13: from the system's close of the scheduling, GANTT_READY; Ilai's p29.filled stays for clients marked before.)
+  assert.deepEqual(p29.due, { from: 'p27', hours: 2, afterMark: [{ key: 'p29.filled', minutes: 30, office: true }, { key: GANTT_READY, minutes: 30, office: true }] });
   const w = world();
   const c = client(w, { name: 'גאנט', editor: 'nadia', char_at: IL(2026, 10, 5, 10).toISOString(), shoot_at: IL(2026, 10, 15, 10).toISOString() });
   importTo(w, c, 'publish');
@@ -771,11 +779,11 @@ test('12. sending the Gantt (29): Irit\'s 30 office minutes start when Ilai mark
   marks(w, c, PROCESSES.find((p) => p.id === 'p27').items.filter((i) => !i.optional).map((i) => i.key), IL(2026, 10, 26, 9, 30));
   // Until Ilai fills it: his two hours from the closing of the editing (as before).
   assert.equal(hhmm(proc(w, c, 'p29', IL(2026, 10, 26, 10)).dueAt), '26.10 11:30');
-  // He marks it full at 17:50: Irit has 30 office minutes, 10 today and 20 tomorrow morning.
-  mark(w, c, 'p29.filled', IL(2026, 10, 26, 17, 50));
+  // The Gantt's content is all scheduled at 17:50 (v13: the system closes it): Irit has 30 office minutes, 10 today and 20 tomorrow morning.
+  mark(w, c, GANTT_READY, IL(2026, 10, 26, 17, 50));
   assert.equal(hhmm(proc(w, c, 'p29', IL(2026, 10, 26, 17, 55)).dueAt), '27.10 09:20');
   const ring = due(w, IL(2026, 10, 26, 17, 51)).find((r) => r.rule === 'publish' && r.step === 'gantt');
-  assert.deepEqual([ring.person, ring.level, ring.title, ring.body], ['irit', 'ring', 'לשלוח גאנט: גאנט', 'עילאי סיים למלא את הגאנט. יעד מחר 09:20.']);
+  assert.deepEqual([ring.person, ring.level, ring.title, ring.body], ['irit', 'ring', 'לשלוח גאנט: גאנט', 'כל התכנים בגאנט תוזמנו. יעד מחר 09:20.']);
   assert.deepEqual(mine(w, c, 'irit', IL(2026, 10, 26, 17, 55)).filter((k) => k.startsWith('p29.')), ['p29.sent']);
   // Not sent by then: she holds it, and the usual ladder rings her (15 office minutes past the deadline).
   const rows = walk(w, IL(2026, 10, 27, 9, 0), IL(2026, 10, 27, 9, 40)).filter((r) => ['lateOwn', 'late'].includes(r.rule) && /29 · /.test(r.title));
@@ -791,13 +799,13 @@ test('12. sending the Gantt (29): Irit\'s 30 office minutes start when Ilai mark
   mark(old, o, 'p29.filled', IL(2026, 10, 26, 10));
   assert.equal(hhmm(proc(old, o, 'p29', IL(2026, 10, 26, 10, 5)).dueAt), '26.10 11:30');
   c.protocol_version = PROTOCOL_VERSION;
-  mark(w, c, 'p29.filled', IL(2026, 10, 26, 10));
+  mark(w, c, GANTT_READY, IL(2026, 10, 26, 10));
   assert.equal(hhmm(proc(w, c, 'p29', IL(2026, 10, 26, 10, 5)).dueAt), '26.10 10:30');
 });
 
 // ── Version 10 as data ──────────────────────────────────────────────────────
 test('version 10: the history records every new item, the deadlines it changed, and nothing of it is asked of a client in landing', () => {
-  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (tests/protocol-2110.test.mjs)
+  assert.equal(PROTOCOL_VERSION, 13); // 13 since 9.11.2026; 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (tests/protocol-2110.test.mjs)
   const v10 = PROTOCOL_HISTORY.find((v) => v.version === 10);
   assert.equal(v10.version, 10);
   assert.equal(v10.items.length, 24);

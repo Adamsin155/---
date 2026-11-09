@@ -308,7 +308,8 @@ test('shoot-day lock: the testimonial, the full quantity and the drive back, con
   assert.equal(P.nextVideo([1, 2, 3]), 4);
   assert.equal(P.counterText(3, 25), 'צולמו 3 מתוך 25');
   // Eli's finish list, then the handoff; and in a round, its own keys.
-  assert.deepEqual(P.finishOpen({ 'p19b.folders': done(IL(2026, 10, 15, 16)) }), ['p19b.complete', 'p19b.opens', 'p19b.cards']);
+  // v13: Eli's two drive checks are one (p19b.checked), and the memory-cards item left the protocol.
+  assert.deepEqual(P.finishOpen({ 'p19b.folders': done(IL(2026, 10, 15, 16)) }), ['p19b.checked']);
   assert.equal(P.handoffOf({ 'r2.p19b.handed': done(IL(2026, 10, 15, 16)) }, 'r2.').eli !== null, true);
 });
 

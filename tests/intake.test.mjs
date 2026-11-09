@@ -122,9 +122,9 @@ test('the access given at the end goes straight to Ofir (30 minutes); the vault 
   none(due(world(c, byOfir), ended), 'access', 'now');
   one(due(world(c, byOfir), IL(2026, 10, 6, 12)), 'access', 'ofir30', 'ofir');
   none(due(world(c, checks), IL(2026, 10, 6, 12, 5)), 'vault', 'irit');
-  // Irit's "not in the vault" ladder starts from the tap, when nothing went in.
+  // (v13: "הכול בכספת" left the protocol as Irit's item, and with it her "not in the vault" ring.)
   const noVault = { ...imported('char'), ...done(CHAR_ENDED, ended) };
-  one(due(world(c, noVault), IL(2026, 10, 6, 12)), 'vault', 'irit', 'irit');
+  none(due(world(c, noVault), IL(2026, 10, 6, 12)), 'vault', 'irit');
 });
 
 // The owner, 26.10.2026: the full form is filled in the meeting itself. Once "האפיון הסתיים" is
@@ -143,12 +143,12 @@ test('after "האפיון הסתיים" process 4 has no clock: no deadline, no 
     // Nothing about process 4 rings, for anybody (the form's old ladder, `charForm`, is gone).
     assert.deepEqual(due(w, now).filter((r) => r.key.includes(':p04@') || r.rule === 'charForm').map((r) => r.key), [], hhmm(now));
   }
-  // The form is still open to fill in, with no clock: the characterizer's items, and Irit's follow-up.
+  // The form is still open to fill in, with no clock: the characterizer's items. (v13: Irit's follow-up left the protocol.)
   const st = clientState(c, checks, IL(2026, 10, 7, 10));
   const open = openItemsFor('lior', c, checks, st, IL(2026, 10, 7, 10)).filter((e) => e.proc.id === 'p04');
   assert.ok(open.some((e) => e.item.key === 'p04.services'));
   assert.ok(open.every((e) => e.dueAt === null && e.status === 'open'));
-  assert.ok(openItemsFor('irit', c, checks, st, IL(2026, 10, 7, 10)).some((e) => e.item.key === 'p04.followup' && e.dueAt === null));
+  assert.ok(!openItemsFor('irit', c, checks, st, IL(2026, 10, 7, 10)).some((e) => e.item.key === 'p04.followup'));
   // No "עכשיו" clock for it either (the bar at the top of "המשימות שלי"): what Ofir saw, "נשארו 53:56".
   assert.deepEqual(clocksFor('lior', [c], { [c.id]: checks }, { now: IL(2026, 10, 6, 11, 6) }).filter((k) => k.proc?.id === 'p04'), []);
   // A client that started before decision 12 (v4: "two hours from the meeting") has no clock after the mark either.
@@ -289,27 +289,34 @@ test('decision 14: scripts due at the end of business day 2, the Zoom on day 3; 
 
 // ── 11: the coordinator ────────────────────
 test('the shoot-day coordinator (11): closed only when all four approved and it is in the calendar; Natali: makeup and ride', () => {
+  // v13 (9.11.2026): the approvals, the contract's check and "in everyone's calendar" left the protocol.
+  // A date and a shoot type in the system are the closed shoot day.
   const c = client({ shoot_type: 'natali', shoot_at: IL(2026, 10, 15, 11).toISOString() });
   const x = shootContexts(c)[0];
   const t = IL(2026, 10, 9, 10);
   let k = coordinatorOf(c, {}, x);
-  assert.equal(k.closed, false);
-  assert.deepEqual(k.approvals.map((a) => a.short), ['לקוח', 'משפיענים', 'ליאור', 'אלי']);
-  const four = all(['p11.ok.client', 'p11.ok.influencers', 'p11.ok.lior', 'p11.ok.photographer', 'p11.influencers'], t);
-  k = coordinatorOf(c, four, x);
-  assert.equal(k.closed, false);
-  assert.deepEqual(k.missing, ['הכנסה ליומן']);
-  k = coordinatorOf(c, { ...four, ...done('p11.calendar', t) }, x);
   assert.equal(k.closed, true);
+  assert.deepEqual(k.approvals, []);
+  assert.equal(k.contract, null);
+  assert.deepEqual(k.missing, []);
   assert.equal(k.fullyClosed, false);
   assert.deepEqual(k.nataliMissing, ['מאפרת', 'הסעה']);
-  k = coordinatorOf(c, { ...four, ...all(['p11.calendar', 'p11b.makeup', 'p11b.ride'], t) }, x);
+  k = coordinatorOf(c, all(['p11b.makeup', 'p11b.ride'], t), x);
   assert.ok(k.fullyClosed);
   // The same state is process 11 complete.
-  assert.ok(clientState(c, { ...four, ...done('p11.calendar', t) }, t).states.find((s) => s.proc.id === 'p11').complete);
-  // A round's coordinator uses its own keys.
+  assert.ok(clientState(c, {}, t).states.find((s) => s.proc.id === 'p11').complete);
+  // Without a date: not closed, and 11 stays open.
+  const noDate = client({ shoot_type: 'natali' });
+  k = coordinatorOf(noDate, {}, shootContexts(noDate)[0]);
+  assert.equal(k.closed, false);
+  assert.deepEqual(k.missing, ['תאריך ושעה']);
+  assert.equal(clientState(noDate, {}, t).states.find((s) => s.proc.id === 'p11').complete, false);
+  // A round's coordinator uses its own keys, and has no approvals either.
   const r = client({ rounds: [{ n: 2, shoot_type: 'dms', shoot_at: IL(2026, 11, 3, 11).toISOString(), start_at: IL(2026, 10, 20, 10).toISOString() }] });
-  assert.ok(coordinatorOf(r, {}, shootContexts(r)[1]).approvals.every((a) => a.key.startsWith('r2.p11.ok.')));
+  const rk = coordinatorOf(r, {}, shootContexts(r)[1]);
+  assert.equal(rk.pre, 'r2.');
+  assert.deepEqual(rk.approvals, []);
+  assert.equal(rk.closed, true);
   assert.deepEqual(coordinatorOf(client(), {}, shootContexts(client())[0]).needs, ['תאריך ושעה']);
 });
 

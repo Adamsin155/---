@@ -50,9 +50,11 @@ test('the not-relevant list is every round process before the editing, from app/
   assert.deepEqual(BEFORE_EDITING, want.map((p) => p.id));
   assert.deepEqual(NA_KEYS, want.flatMap((p) => p.items.filter((i) => !isRetired(i)).map((i) => i.key)).filter((k) => k !== 'p22a.assigned'));
   // The shoot day and its preparation, and the assignment's other lines (Irit's check, Ofir's load).
-  for (const k of ['p11.calendar', 'p11.ok.client', 'p12.link', 'p13.zoom', 'p14.day', 'p36.form', 'p17b.arrived', 'p18b.order', 'p19b.handed', 'p22a.load', 'p22a.irit']) assert.ok(NA_KEYS.includes(k), k);
+  // (v13: the shoot day is one line, p11.date; the approvals, the calendar, 14's daily answer and Eli's "הגעתי" left.)
+  for (const k of ['p11.date', 'p12.link', 'p13.zoom', 'p14.scripts', 'p36.form', 'p17b.drive', 'p18b.order', 'p19b.checked', 'p19b.handed', 'p22a.load', 'p22a.irit']) assert.ok(NA_KEYS.includes(k), k);
   // Nothing of the editing or after it; nothing a version retired (p13.approved may never be 'na' in the database).
-  for (const k of ['p22a.assigned', 'p22.received', 'p22.edited', 'p24.notify', 'p25.approved', 'p13.approved', 'p15.client', 'p19.all']) assert.ok(!NA_KEYS.includes(k), k);
+  for (const k of ['p22a.assigned', 'p22.received', 'p22.edited', 'p24.notify', 'p25.approved', 'p13.approved', 'p15.client', 'p19.all',
+    'p11.calendar', 'p11.ok.client', 'p14.day', 'p17b.arrived', 'p19b.complete']) assert.ok(!NA_KEYS.includes(k), k);
   for (const k of NA_KEYS) assert.match(`r12.${k}`, /^(r[0-9]+\.)?p[0-9]+[ab]?\.[a-z0-9.]+$/, 'the database\'s item key rule');
   const marks = monthlyMarks(3);
   assert.equal(marks.length, NA_KEYS.length + 2);

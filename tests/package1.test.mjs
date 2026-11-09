@@ -40,20 +40,21 @@ test('every "the client did not answer" clock stops on the client\'s own approva
 });
 
 test('the rest of the graphics: approved on the status page 4 minutes after the sending, no clock and no ring to Irit', () => {
+  // (v13: "הלקוח לא הגיב ועירית התקשרה" left 7, 23 and 26, and with it the "call the client" clock: CALL_CLOCKS
+  // in app/clocks.js. Whatever the client did, there is no answer clock in Irit's bar.)
   const c = { id: 'g', name: 'קפה דנה', status: 'active', deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00', shoot_type: 'dms', characterizer: 'ofir', has_logo: true, rounds: [] };
   const sent = { ...done(['p23.made', 'p23.ofir', ...keysOf('p23').filter((k) => k.startsWith('p23.q.'))], '2026-10-12T10:00:00+03:00'), ...done(['p23.sent'], '2026-10-12T11:00:00+03:00') };
   const now = at('2026-10-12T11:12:00+03:00'); // two minutes after the 10
   const bar = (checks) => clocksFor('irit', [c], { g: checks }, { now }).filter((x) => x.kind === 'answer').map((x) => [x.proc.id, x.state]);
-  assert.deepEqual(bar(sent), [['p23', 'expired']], 'no answer: the clock ran out and Irit calls');
+  assert.deepEqual(bar(sent), [], 'no answer: no clock any more (v13)');
   // The client approves on the status page (approve_item writes p23.approved, by the client).
   const approved = { ...sent, 'p23.approved': { state: 'done', at: '2026-10-12T11:04:00+03:00', note: null, by_email: 'client' } };
   assert.deepEqual(bar(approved), [], 'approved: nothing to call about');
-  // An approval from before this sending (sent again after a fix) does not stop the new clock.
   const old = { ...sent, 'p23.approved': { state: 'done', at: '2026-10-12T10:30:00+03:00', note: null, by_email: 'client' } };
-  assert.deepEqual(bar(old), [['p23', 'expired']]);
-  // The first 9 and the videos behave the same way (they always did).
+  assert.deepEqual(bar(old), []);
+  // The first 9 the same way.
   const nine = { ...done(['p07.made', ...keysOf('p07').filter((k) => k.startsWith('p07.r.'))], '2026-10-12T10:00:00+03:00'), ...done(['p07.sent'], '2026-10-12T11:00:00+03:00') };
-  assert.deepEqual(clocksFor('irit', [c], { g: nine }, { now }).filter((x) => x.kind === 'answer').map((x) => x.proc.id), ['p07']);
+  assert.deepEqual(clocksFor('irit', [c], { g: nine }, { now }).filter((x) => x.kind === 'answer'), []);
   assert.deepEqual(clocksFor('irit', [c], { g: { ...nine, ...done(['p07.approved'], '2026-10-12T11:04:00+03:00') } }, { now }).filter((x) => x.kind === 'answer'), []);
 });
 
@@ -182,7 +183,7 @@ test('the protocol: the system for the Gantt and the scripts (no Excel, no Googl
   assert.deepEqual(hits, ['p12.what', 'p12.link', 'p24.title', 'p24.folder', 'p24.drive', 'p27.sla', 'p27.final', 'p29b.c.vfiles', 'p35.drive']);
   assert.deepEqual(protocolTexts().filter(([, text]) => /Google Docs|Excel|גיליון|בירוק/i.test(text)).map(([k]) => k), ['p12.what', 'p12.link']);
   const text = (key) => protocolTexts().find(([k]) => k === key)[1];
-  assert.match(text('p09.file'), /גאנט התוכן של הלקוח במערכת/);
+  assert.match(text('p09.file'), /גאנט שנתי ללקוח במערכת/); // (v13: 9 is one item, the Gantt opened in the system)
   assert.match(text('p12.docs'), /בעמוד התסריטים במערכת/);
   assert.match(text('p18.order'), /במונה של יום הצילום/);
   assert.match(text('p24.drive'), /הועלו לדרייב של הלקוח/);
@@ -221,17 +222,18 @@ test('the contract has 10 office minutes, in the words, the clock and the remind
 });
 
 test('the bar: a new deal is two rows, the group and the meeting date at 5 minutes and the contract at 10', () => {
+  // (v13: the group, 2, and the contract's preparing and sending left the protocol: the new-deal row is the
+  // meeting's date alone, at 5 minutes. DEAL_CLOCKS in app/clocks.js.)
   const c = { id: 'n', name: 'פיצה נאפולי', deal_at: '2026-10-05T10:00:00+03:00', status: 'active' };
   const rows = clockRows(clocksFor('irit', [c], {}, { now: at('2026-10-05T10:01:00+03:00') }));
-  assert.deepEqual(rows.map((r) => [rowWhat(r, r), rowRef(r), r.deadline.toISOString()]), [
-    ['עסקה חדשה: קבוצה ומועד אפיון', 'תהליכים 2, 3', at('2026-10-05T10:05:00+03:00').toISOString()],
-    ['עסקה חדשה: חוזה', 'תהליך 1', at('2026-10-05T10:10:00+03:00').toISOString()],
+  assert.deepEqual(rows.filter((r) => r.kind === 'deal').map((r) => [rowWhat(r, r), rowRef(r), r.deadline.toISOString()]), [
+    ['עסקה חדשה: מועד אפיון', 'תהליך 3', at('2026-10-05T10:05:00+03:00').toISOString()],
   ]);
 });
 
 test('p24.folder is the editor\'s item since 3.11.2026 (docs/ops.md, section 89: marked with "מוכן לבדיקה"), and the version did not move', () => {
-  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
-  assert.equal(LATEST, 12);
+  assert.equal(PROTOCOL_VERSION, 13); // 13 since 9.11.2026; 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
+  assert.equal(LATEST, 13);
   const c = { id: 'c', status: 'active', editor: 'nadia', shoot_type: 'dms', rounds: [{ n: 2, editor: 'yariv', shoot_at: '2026-11-01T10:00:00+02:00', start_at: '2026-10-20T10:00:00+03:00' }], deal_at: '2026-09-01T09:00:00+03:00', char_at: '2026-09-02T10:00:00+03:00', shoot_at: '2026-10-01T10:00:00+03:00' };
   const items = applicableProcesses(c).flatMap((p) => p.items);
   assert.deepEqual(items.filter((i) => /p24\./.test(i.key)).map((i) => i.key), ['p24.folder', 'p24.drive', 'p24.dropbox', 'p24.notify', 'r2.p24.folder', 'r2.p24.drive', 'r2.p24.dropbox', 'r2.p24.notify']);

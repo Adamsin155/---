@@ -75,6 +75,7 @@ test('version 8 as data: the two link steps are Irit\'s, in "אפיון"; the re
   const byId = Object.fromEntries(PROCESSES.map((p) => [p.id, p]));
   assert.deepEqual([byId.p05b.owners, byId.p05b.link, byId.p05b.items.map((i) => i.key)], [['irit'], 'access', ['p05b.sent']]);
   assert.deepEqual([byId.p07a.owners, byId.p07a.link, byId.p07a.items.map((i) => i.key)], [['irit'], 'status', ['p07a.sent']]);
+  assert.equal(byId.p07a.retired, 13); // (v13: 7א left as a step; the link itself stays in the client card)
   const char = STATIONS.find((s) => s.key === 'char').procs;
   assert.deepEqual([char[char.indexOf('p05') + 1], char[char.indexOf('p07') + 1]], ['p05b', 'p07a']);
   // Every process id still fits the shape the database's writers table reads (pNN, pNNa, pNNb).
@@ -83,10 +84,12 @@ test('version 8 as data: the two link steps are Irit\'s, in "אפיון"; the re
   for (const i of byId.p07.items) assert.ok(!(i.owners || byId.p07.owners).includes('lior'), i.key);
   // Version 9: the seven checks and the approval are Ofir's; the sending and the client's answer stay Irit's.
   for (const k of ['p07.r.spelling', 'p07.r.design', 'p07.ofir']) assert.deepEqual(byId.p07.items.find((i) => i.key === k).owners, ['ofir'], k);
-  for (const k of ['p07.sent', 'p07.call', 'p07.approved']) assert.deepEqual(byId.p07.items.find((i) => i.key === k).owners, ['irit'], k);
+  for (const k of ['p07.sent', 'p07.approved']) assert.deepEqual(byId.p07.items.find((i) => i.key === k).owners, ['irit'], k);
   // The old keys are all there: nothing was renamed, the eight topics of 14 included.
   for (const t of TOPICS) assert.ok(byId.p14.items.some((i) => i.key === `p14.${t.key}` && i.optional && i.topic), t.key);
-  assert.deepEqual([byId.p14.recurring, byId.p14.until, byId.p14.items[0].key], ['daily', 'shoot', 'p14.day']);
+  // (v13: 14 is no longer asked every day: its daily answer and six of its topics left; two topics stay.)
+  assert.deepEqual([byId.p14.recurring, byId.p14.items[0].key, byId.p14.items[0].retired], [undefined, 'p14.day', 13]);
+  assert.deepEqual(byId.p14.items.filter((i) => !i.retired).map((i) => i.key), ['p14.scripts', 'p14.shootday']);
 });
 
 // ── FIX 5: the two links, and process 5 ─────────────────────────────────────
@@ -102,18 +105,14 @@ test('5ב opens for Irit when the characterization ends, with 30 office minutes;
   for (const p of ['lior', 'ofir', 'ilai']) assert.ok(!mine(w, c, p, noon).includes('p05b.sent'), p);
   const s = proc(w, c, 'p05b', noon);
   assert.deepEqual([hhmm(s.startAt), hhmm(s.dueAt), s.status], ['5.10 12:00', '5.10 12:30', 'today']);
-  // 7א: not when the graphics are ready (they are with Ofir then), but from the minute he approved; 30 office minutes.
-  assert.ok(!mine(w, c, 'irit', noon).includes('p07a.sent'));
+  // 7א left the protocol in v13 (the status link stays in the client card): never on her list, not even after Ofir approved.
   mark(w, c, 'p07.made', IL(2026, 10, 5, 13, 24));
-  assert.ok(!mine(w, c, 'irit', IL(2026, 10, 5, 13, 25)).includes('p07a.sent'), 'nothing to show the client before Ofir approved');
   marks(w, c, PROCESSES.find((p) => p.id === 'p07').items.filter((i) => i.key.startsWith('p07.r.') || i.key === 'p07.ofir').map((i) => i.key), IL(2026, 10, 5, 13, 30));
-  const s7 = proc(w, c, 'p07a', IL(2026, 10, 5, 13, 31));
-  assert.deepEqual([hhmm(s7.startAt), hhmm(s7.dueAt)], ['5.10 13:30', '5.10 14:00']);
-  assert.ok(mine(w, c, 'irit', IL(2026, 10, 5, 13, 31)).includes('p07a.sent'));
-  // "סיימתי" closes each.
+  assert.equal(proc(w, c, 'p07a', IL(2026, 10, 5, 13, 31)), undefined);
+  assert.ok(!mine(w, c, 'irit', IL(2026, 10, 5, 13, 31)).includes('p07a.sent'));
+  // "סיימתי" closes 5ב.
   mark(w, c, 'p05b.sent', IL(2026, 10, 5, 12, 10));
-  mark(w, c, 'p07a.sent', IL(2026, 10, 5, 13, 40));
-  assert.deepEqual([proc(w, c, 'p05b', IL(2026, 10, 5, 14)).complete, proc(w, c, 'p07a', IL(2026, 10, 5, 14)).complete], [true, true]);
+  assert.equal(proc(w, c, 'p05b', IL(2026, 10, 5, 14)).complete, true);
 });
 
 test('each new step rings Irit when it opens, and from its deadline it is on the ladder of every late item', () => {
@@ -137,13 +136,12 @@ test('each new step rings Irit when it opens, and from its deadline it is on the
   assert.match(`${nine[0].title} ${nine[0].body}`, /5ב · קישור ללקוח למילוי פרטי הכניסה לרשתות/);
   mark(w, c, 'p05b.sent', IL(2026, 10, 6, 9, 30));
   assert.ok(!due(w, IL(2026, 10, 6, 14, 0)).some((r) => /5ב/.test(`${r.title} ${r.body}`)));
-  // The status link: the same, from the minute Ofir approved the graphics (version 9).
+  // The status link (7א) left the protocol in v13: no ring when Ofir approved the graphics, and never late.
   mark(w, c, 'p07.made', IL(2026, 10, 6, 9, 55));
   assert.deepEqual(of(due(w, IL(2026, 10, 6, 9, 56)), 'clientLink'), [], 'not while they are with Ofir');
   marks(w, c, PROCESSES.find((p) => p.id === 'p07').items.filter((i) => i.key.startsWith('p07.r.') || i.key === 'p07.ofir').map((i) => i.key), IL(2026, 10, 6, 10));
-  const st = of(due(w, IL(2026, 10, 6, 10)), 'clientLink');
-  assert.deepEqual(st.map((r) => [r.person, r.title]), [['irit', 'לשלוח ללקוח קישור לדף הסטטוס: אלפא']]);
-  assert.ok(due(w, IL(2026, 10, 6, 10, 45)).some((r) => r.rule === 'lateOwn' && r.person === 'irit' && / 7א · /.test(r.title)));
+  assert.deepEqual(of(due(w, IL(2026, 10, 6, 10)), 'clientLink'), []);
+  assert.ok(!due(w, IL(2026, 10, 6, 10, 45)).some((r) => / 7א · /.test(r.title)));
 });
 
 test('process 5 does not close on one network: it asks, names what was saved, and "אין עוד" closes it', () => {
@@ -206,8 +204,8 @@ test('history brought in by an import is not opened again by a new step, in land
       const st = stateOf(w, c, now);
       const open = (id) => st.states.find((s) => s.proc.id === id);
       // The new steps are not asked: 5ב and 7א count as complete, 5 is not held open by "אין עוד", 14 is over.
-      assert.deepEqual([open('p05b').complete, open('p07a').complete, open('p05').complete, open('p11').complete], [true, true, true, true], hhmm(now));
-      assert.deepEqual([open('p14').status, open('p14').ready], ['done', false]);
+      assert.deepEqual([open('p05b').complete, open('p07a'), open('p05').complete, open('p11').complete], [true, undefined, true, true], hhmm(now)); // (v13: 7א left)
+      assert.equal(open('p14').status, 'done');
       for (const p of ['irit', 'lior', 'ofir', 'ilai']) {
         const keys = mine(w, c, p, now);
         for (const k of ['p05b.sent', 'p05.allnets', 'p07a.sent', 'p14.day', 'p11.calendar']) assert.ok(!keys.includes(k), `${p} ${k} ${hhmm(now)}`);
@@ -223,9 +221,10 @@ test('history brought in by an import is not opened again by a new step, in land
   const old = client(w2, { name: 'בלי תאריך', protocol_version: 7, deal_at: IL(2026, 6, 1, 9).toISOString(), char_at: IL(2026, 6, 3, 10).toISOString(), editor: 'nadia' });
   marks(w2, old, importKeys('post').filter((k) => !/^p14\./.test(k)), IL(2026, 9, 1, 9), IMPORT_NOTE);
   const p14 = proc(w2, old, 'p14', IL(2026, 10, 6, 10));
-  assert.deepEqual([p14.status, p14.ready], ['done', false]);
+  assert.equal(p14.status, 'done');
   // A client imported under version 8 gets the new steps with its history.
-  for (const k of ['p05b.sent', 'p05.allnets', 'p07a.sent']) assert.ok(importKeys('content').includes(k), k);
+  for (const k of ['p05b.sent', 'p05.allnets']) assert.ok(importKeys('content').includes(k), k);
+  assert.ok(!importKeys('content').includes('p07a.sent'), 'v13: 7א left the protocol');
   assert.ok(!importKeys('ongoing').includes('p14.day'), 'the daily follow-up is never a mark of history');
 });
 
@@ -317,32 +316,21 @@ test('"the end of a business day" is 18:00 everywhere (13:00 on erev chag): the 
 
 // ── FIX 6: process 14, daily and light ──────────────────────────────────────
 test('14 is asked once every working day from the end of the characterization until the shoot day, one answer per client', () => {
+  // v13 (9.11.2026): 14's daily answer (p14.day) left the protocol: it is no longer asked every day. No row, no
+  // card, never late; an old answer is no longer asked again.
   const { w, c } = afterMeeting(world(), { shoot_at: IL(2026, 10, 13, 10).toISOString() });
   const rows = (now) => followupRows({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, now), now });
-  const st = (now) => proc(w, c, 'p14', now).status;
-  assert.deepEqual(rows(IL(2026, 10, 5, 11)), [], 'not before the meeting ended');
-  assert.equal(st(IL(2026, 10, 5, 12, 1)), 'due');
-  assert.deepEqual(rows(IL(2026, 10, 5, 12, 1)).map((r) => [r.client.id, r.status, r.n, r.pre, hhmm(r.shootAt)]), [[c.id, 'due', 1, '', '13.10 10:00']]);
-  // It is never a card on a list, never late, and never part of the progress count.
-  for (const p of ['irit', 'lior', 'ofir']) assert.ok(!mine(w, c, p, IL(2026, 10, 6, 10)).some((k) => k.startsWith('p14.')), p);
+  for (const now of [IL(2026, 10, 5, 11), IL(2026, 10, 5, 12, 1), IL(2026, 10, 7, 9), IL(2026, 10, 11, 10), IL(2026, 10, 12, 10)]) {
+    assert.deepEqual(rows(now), [], hhmm(now));
+    for (const p of ['irit', 'lior', 'ofir']) assert.ok(!mine(w, c, p, now).some((k) => k === 'p14.day'), `${p} ${hhmm(now)}`);
+  }
+  assert.ok(!applicableProcesses(c).flatMap((p) => p.items).some((i) => i.key === 'p14.day'));
   assert.ok(!lateOf(w, IL(2026, 10, 8, 10)).some((x) => x.num === '14'));
-  assert.ok(stateOf(w, c, IL(2026, 10, 8, 10)).phases.find((ph) => ph.key === 'prep').states.every((s) => s.proc.id !== 'p14' || !s.late));
-  // "הכול תקין": one mark closes today, and tomorrow it is asked again.
   mark(w, c, FOLLOWUP_KEY(), IL(2026, 10, 6, 9, 30), followupNote({}));
-  assert.equal(followupNote({}), '{"ok":true}');
-  assert.deepEqual([st(IL(2026, 10, 6, 9, 31)), rows(IL(2026, 10, 6, 9, 31))[0].status, rows(IL(2026, 10, 6, 9, 31))[0].answer.ok], ['done', 'done', true]);
-  assert.deepEqual([st(IL(2026, 10, 7, 9)), rows(IL(2026, 10, 7, 9))[0].status, rows(IL(2026, 10, 7, 9))[0].answer], ['due', 'due', null]);
-  // Not on Friday or Saturday; again on Sunday; not on the shoot day itself, nor after it.
-  assert.deepEqual([st(IL(2026, 10, 9, 10)), st(IL(2026, 10, 10, 10)), st(IL(2026, 10, 11, 10)), st(IL(2026, 10, 12, 10))], ['waiting', 'waiting', 'due', 'due']);
-  assert.deepEqual([rows(IL(2026, 10, 9, 10)), rows(IL(2026, 10, 13, 8)), rows(IL(2026, 10, 14, 10))], [[], [], []]);
-  assert.deepEqual([st(IL(2026, 10, 13, 8)), st(IL(2026, 10, 14, 10))], ['done', 'done']);
-  // The item counts for its own Israel day only.
-  const item = PROCESSES.find((p) => p.id === 'p14').items[0];
-  const check = { state: 'done', at: IL(2026, 10, 6, 23, 30).toISOString() };
-  assert.deepEqual([isResolved(item, check, IL(2026, 10, 6, 23, 45)), isResolved(item, check, IL(2026, 10, 7, 0, 5))], [true, false]);
-  // Without a shoot date it is asked until one is set and comes.
+  assert.deepEqual(rows(IL(2026, 10, 7, 9)), []);
+  // Without a shoot date it is not asked either.
   const open = afterMeeting();
-  assert.equal(proc(open.w, open.c, 'p14', IL(2026, 10, 20, 10)).status, 'due');
+  assert.deepEqual(followupRows({ clients: open.w.clients, checksOf: (x) => open.w.checks[x.id] || {}, stateOf: (x) => stateOf(open.w, x, IL(2026, 10, 20, 10)), now: IL(2026, 10, 20, 10) }), []);
 });
 
 test('something is stuck: which of the topics (access is not one since 5.11.2026), a short note, and Lior is told; the row says so', () => {
@@ -352,28 +340,15 @@ test('something is stuck: which of the topics (access is not one since 5.11.2026
   const v = JSON.parse(note);
   assert.deepEqual(v.stuck, ['scripts']);
   assert.equal(v.note.length, 200);
+  // (v13: the daily answer left the protocol; an answer written before is read the same way, and there is no row
+  // to ask any more, so nothing new reaches Lior from it.)
   mark(w, c, FOLLOWUP_KEY(), now, followupNote({ stuck: ['scripts', 'graphics'], note: 'הלקוח לא עונה' }));
-  const [row] = followupRows({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, now), now });
-  assert.deepEqual([row.status, row.answer.ok, row.answer.stuck], ['done', false, ['scripts', 'graphics']]);
-  assert.equal(followupText(row.answer), 'תקוע: תסריטים, גרפיקות · הלקוח לא עונה');
+  assert.deepEqual(followupRows({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, now), now }), []);
+  assert.equal(followupText(readFollowup(w.checks[c.id][FOLLOWUP_KEY()])), 'תקוע: תסריטים, גרפיקות · הלקוח לא עונה');
   assert.equal(followupText(readFollowup({ state: 'done', at: now.toISOString(), note: '{"ok":true}' })), 'הכול תקין');
   assert.equal(readFollowup({ state: 'done', at: now.toISOString(), note: 'טקסט חופשי' }).ok, true);
   assert.equal(readFollowup(null), null);
-  // The message to Lior is an exception, urgent when the shoot is two business days away or less.
-  const t = followupTask(c, row, { stuck: ['scripts', 'graphics'], note: 'הלקוח לא עונה' }, now);
-  assert.deepEqual([t.owner, t.source, t.urgent, t.client_id, t.due_on], ['lior', 'escalation', false, c.id, null]);
-  assert.match(t.title, /^תקוע לפני יום הצילום \(.*13\.10.*\): תסריטים, גרפיקות · הלקוח לא עונה$/);
-  assert.equal(t.brief.blocker, 'followup:2026-10-08');
-  assert.equal(followupTask(c, row, { stuck: ['scripts'] }, IL(2026, 10, 11, 10)).urgent, true);
-  // He is rung by the rule that already rings him for every exception.
-  w.tasks.push({ id: 't1', ...t, created_at: now.toISOString(), created_by_email: 'irit@x', done_at: null });
-  assert.ok(due(w, now).some((r) => r.person === 'lior' && /תקוע לפני יום הצילום/.test(`${r.title} ${r.body}`)));
-  // And it is not counted again as a blocker of the page's own list of blockers.
-  const [p] = shootPrep(c, w.checks[c.id], stateOf(w, c, now), { tasks: w.tasks, now });
-  assert.ok(!p.blockers.some((b) => /תקוע לפני יום הצילום/.test(b.text)));
-  // The next day it is asked again, and the row remembers what was stuck.
-  const next = followupRows({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => stateOf(w, x, IL(2026, 10, 11, 9)), now: IL(2026, 10, 11, 9) })[0];
-  assert.deepEqual([next.status, next.answer, next.last.stuck], ['due', null, ['scripts', 'graphics']]);
+  assert.ok(!due(w, now).some((r) => r.person === 'lior' && /תקוע לפני יום הצילום/.test(`${r.title} ${r.body}`)));
 });
 
 test('Irit gets ONE counted line for all the clients, a line in her morning digest and one ring at 12:00 while a client is unanswered', () => {
@@ -382,64 +357,50 @@ test('Irit gets ONE counted line for all the clients, a line in her morning dige
   for (const c of cs) for (const id of ['p05', 'p05b', 'p06', 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11']) marks(w, c, itemsOf(id), IL(2026, 10, 5, 12, 20));
   const now = IL(2026, 10, 6, 10);
   const lines = (me, t = now) => flowLines({ viewer: { me, scope: 'office' }, clients: w.clients, checks: w.checks, stateOf: (x) => stateOf(w, x, t), tasks: [], now: t });
-  const line = lines('irit').find((l) => l.id === 'followup');
-  assert.deepEqual([line.text, line.n, line.href, line.bucket, line.rule, line.cta], ['מעקב לפני צילום: 3 לקוחות', 3, 'prep.html#followup', 'today', 'followup', 'למעקב']);
-  assert.equal(FOLLOWUP_URL, 'prep.html#followup');
-  assert.deepEqual([followupLine(1), followupLine(2)], ['מעקב לפני צילום: לקוח אחד', 'מעקב לפני צילום: 2 לקוחות']);
-  for (const me of ['lior', 'ofir', 'ilai']) assert.ok(!lines(me).some((l) => l.id === 'followup'), me);
-  // The reminders: the digest line at 08:30, one ring at 12:00; none when all were answered.
-  const rule = RULES.find((r) => r.id === 'followup');
-  assert.ok(rule);
-  const morning = of(due(w, IL(2026, 10, 6, 8, 30)), 'followup');
-  assert.deepEqual(morning.map((r) => [r.person, r.level, r.title]), [['irit', 'digest', 'מעקב לפני צילום: 3 לקוחות']]);
-  mark(w, cs[0], FOLLOWUP_KEY(), IL(2026, 10, 6, 9), followupNote({}));
-  mark(w, cs[1], FOLLOWUP_KEY(), IL(2026, 10, 6, 9, 1), followupNote({}));
-  assert.equal(lines('irit', IL(2026, 10, 6, 11)).find((l) => l.id === 'followup').text, 'מעקב לפני צילום: לקוח אחד');
-  const noon = of(due(w, IL(2026, 10, 6, 12, 0)), 'followup').filter((r) => r.step === '1200');
-  assert.deepEqual(noon.map((r) => [r.person, r.level, r.title]), [['irit', 'ring', 'מעקב לפני צילום: לקוח אחד עוד לא נבדק היום']]);
-  mark(w, cs[2], FOLLOWUP_KEY(), IL(2026, 10, 6, 12, 5), followupNote({}));
-  assert.deepEqual(of(due(w, IL(2026, 10, 6, 12, 10)), 'followup'), []);
-  assert.equal(lines('irit', IL(2026, 10, 6, 12, 10)).find((l) => l.id === 'followup'), undefined);
-  // Nobody else is ever told of it, and nothing of it on a weekend.
-  assert.deepEqual(of(due(w, IL(2026, 10, 7, 12, 0)), 'followup').map((r) => `${r.step}@${r.person}`), ['list@irit', '1200@irit']);
-  assert.deepEqual(of(due(w, IL(2026, 10, 9, 12, 0)), 'followup'), []);
+  // (v13: 14 is no longer asked every day: no "מעקב לפני צילום" line, no digest line and no ring at 12:00.)
+  for (const me of ['irit', 'lior', 'ofir', 'ilai']) assert.ok(!lines(me).some((l) => l.id === 'followup'), me);
+  assert.deepEqual([followupLine(1), followupLine(2)], ['מעקב לפני צילום: לקוח אחד', 'מעקב לפני צילום: 2 לקוחות']); // (the words, for old records)
+  for (const t of [IL(2026, 10, 6, 8, 30), IL(2026, 10, 6, 12, 0), IL(2026, 10, 7, 12, 0)]) assert.deepEqual(of(due(w, t), 'followup'), [], hhmm(t));
 });
 
 // ── FIX 8: the shoot day has a date ─────────────────────────────────────────
 test('process 11 cannot be closed without a shoot date: it stays on Irit\'s list with the detail to set, and is a late item like any other', () => {
+  // v13 (9.11.2026): 11 is one line without a tick, "לקבוע יום צילום" (p11.date, `auto`), closed by the date itself;
+  // the approvals and "in everyone's calendar" left. It is counted from the signature (p01.signed).
   const w = world();
   const c = client(w, { name: 'בלי תאריך', shoot_type: 'dms' });
-  for (const id of ['p01', 'p02', 'p03']) marks(w, c, itemsOf(id), IL(2026, 10, 4, 9, 3));
+  mark(w, c, 'p01.signed', IL(2026, 10, 4, 9, 3));
   const p11 = PROCESSES.find((p) => p.id === 'p11');
-  assert.deepEqual(p11.items.find((i) => i.key === 'p11.calendar').setHere, { unless: 'p19', keep: ['shoot_at'] });
+  assert.deepEqual(p11.items.find((i) => i.key === 'p11.date').setHere, { unless: 'p19' });
+  assert.deepEqual(p11.items.filter((i) => !i.retired).map((i) => i.key), ['p11.date']);
   const now = IL(2026, 10, 4, 10);
-  // The date is missing: the calendar item is an entry with `fields`, not a tick.
-  const entry = openItemsFor('irit', c, w.checks[c.id], stateOf(w, c, now), now).find((e) => e.item.key === 'p11.calendar');
+  // The date is missing: the line is an entry with `fields`, not a tick.
+  const entry = openItemsFor('irit', c, w.checks[c.id], stateOf(w, c, now), now).find((e) => e.item.key === 'p11.date');
   assert.deepEqual(entry.fields, ['shoot_at']);
-  // Everything that can be ticked is ticked (the five items shown): the process is still open.
-  marks(w, c, itemsOf('p11').filter((k) => k !== 'p11.calendar'), IL(2026, 10, 4, 11));
   const s = proc(w, c, 'p11', IL(2026, 10, 4, 12));
-  assert.deepEqual([s.complete, s.gap.fields, mine(w, c, 'irit', IL(2026, 10, 4, 12)).filter((k) => k.startsWith('p11.'))], [false, ['shoot_at'], ['p11.calendar']]);
-  // Even with "in everyone's calendar" forced in: no date, no closed shoot day.
-  mark(w, c, 'p11.calendar', IL(2026, 10, 4, 12));
+  assert.deepEqual([s.complete, s.gap.fields, mine(w, c, 'irit', IL(2026, 10, 4, 12)).filter((k) => k.startsWith('p11.'))], [false, ['shoot_at'], ['p11.date']]);
+  // Even with the line forced in: no date, no closed shoot day.
+  mark(w, c, 'p11.date', IL(2026, 10, 4, 12));
   assert.equal(proc(w, c, 'p11', IL(2026, 10, 4, 13)).complete, false);
-  // Past its deadline it is late, held by Irit, and on the ladder (not left out as process 3's own ring is).
+  // Past its deadline it is late, held by Irit, and on the ladder.
   const late = lateOf(w, IL(2026, 10, 6, 10)).find((x) => x.num === '11');
   assert.deepEqual([late.holders, late.gap], [['irit'], false]);
   assert.ok(due(w, IL(2026, 10, 6, 14, 0)).some((r) => r.rule === 'lateNag' && r.person === 'irit' && /11 · קביעת יום צילום/.test(`${r.title} ${r.body}`)));
   // The date is set: closed.
   const dated = { ...c, shoot_at: IL(2026, 10, 20, 10).toISOString() };
   assert.equal(clientState(dated, w.checks[c.id], IL(2026, 10, 6, 10)).states.find((x) => x.proc.id === 'p11').complete, true);
-  // Without "with whom" as well, both are asked for before the tick.
+  // The line asks for the date only (v13); "with whom" is asked by the date's own dialog.
   const untyped = { ...c, shoot_type: null };
-  assert.deepEqual(fieldGap({ ...p11, items: p11.items }, untyped, {}, applicableProcesses(untyped)).fields, ['shoot_type', 'shoot_at']);
+  assert.deepEqual(fieldGap(applicableProcesses(untyped).find((p) => p.id === 'p11'), untyped, {}, applicableProcesses(untyped)).fields, ['shoot_at']);
 });
 
 test('the shoot date is not asked of a client in landing, of imported history, or once the shoot day is behind the client; a second round asks for its own', () => {
   const p11 = (c, checks, now) => clientState(c, checks, now).states.find((s) => s.proc.id === 'p11');
   const now = IL(2026, 10, 6, 10);
   const base = { id: 'x', name: 'x', status: 'active', shoot_type: 'dms', characterizer: 'ofir', rounds: [], deal_at: IL(2026, 9, 1, 9).toISOString(), char_at: IL(2026, 9, 2, 10).toISOString() };
-  const ticked = Object.fromEntries(itemsOf('p11').map((k) => [k, { state: 'done', at: IL(2026, 9, 3, 10).toISOString(), note: null }]));
+  // (v13: 11's one line, p11.date; what an import writes for it.)
+  const P11 = PROCESSES.find((p) => p.id === 'p11').items.filter((i) => !i.retired).map((i) => i.key);
+  const ticked = Object.fromEntries(P11.map((k) => [k, { state: 'done', at: IL(2026, 9, 3, 10).toISOString(), note: null }]));
   assert.equal(p11(base, ticked, now).complete, false);
   // Landing: nothing is asked.
   assert.equal(p11({ ...base, landing: true }, ticked, now).gap, null);
@@ -451,7 +412,7 @@ test('the shoot date is not asked of a client in landing, of imported history, o
   assert.equal(p11(base, closed, now).complete, true);
   // A second round: its own date, whatever the first round's.
   const two = { ...base, shoot_at: IL(2026, 9, 20, 10).toISOString(), rounds: [{ n: 2, shoot_type: 'dms', shoot_at: null, start_at: IL(2026, 10, 1, 10).toISOString() }] };
-  const r2 = Object.fromEntries(itemsOf('p11').map((k) => [`r2.${k}`, { state: 'done', at: IL(2026, 10, 2, 10).toISOString(), note: null }]));
+  const r2 = Object.fromEntries(P11.map((k) => [`r2.${k}`, { state: 'done', at: IL(2026, 10, 2, 10).toISOString(), note: null }]));
   const st = clientState(two, { ...closed, ...r2 }, now).states.find((s) => s.proc.id === 'r2-p11');
   assert.deepEqual([st.complete, st.gap.fields], [false, ['shoot_at']]);
   const withDate = { ...two, rounds: [{ ...two.rounds[0], shoot_at: IL(2026, 11, 1, 10).toISOString() }] };
@@ -525,7 +486,7 @@ test('the daily follow-up keeps the client in "תוכן ואישור" until the 
   const c = client(w, { char_at: IL(2026, 9, 20, 10).toISOString(), shoot_at: IL(2026, 10, 27, 10).toISOString() });
   importTo(w, c, 'shoot');
   assert.equal(key(c, w, IL(2026, 10, 12, 10)), 'shoot');
-  assert.ok(importKeys('shoot').includes('p14.approvals') && !importKeys('shoot').includes('p14.day'));
+  assert.ok(importKeys('shoot').includes('p14.scripts') && !importKeys('shoot').includes('p14.day')); // (v13: two topics left)
 });
 
 test('the taking-in of a client from the old system does not ask about a step that version 8 added', () => {

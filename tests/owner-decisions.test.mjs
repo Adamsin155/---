@@ -175,12 +175,13 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
   const mon = at(IL(2026, 10, 5, 19));
   // (Until v12 Lior had a row too: his Meta check, 10, late, and on Tuesday the focus call, 12א. Both left.)
   assert.equal(headline(mon), 'היום: 5 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
-  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['irit', 2, '2 ימי עסקים'], ['ofir', 2, '6 שעות'], ['ilai', 2, '6 שעות']]);
+  // (v13: "הכול בכספת", p05.vault, left as Irit's item: 5 is Ofir's alone, and Irit's one late thing is the task.)
+  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['ofir', 2, '6 שעות'], ['ilai', 2, '6 שעות'], ['irit', 1, '2 ימי עסקים']]);
   // Tuesday: a day later.
   const tue = at(IL(2026, 10, 6, 19));
   assert.equal(headline(tue), 'היום: 5 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
   assert.deepEqual(tue.items.map((x) => `${x.kind}:${x.what}:${x.who}`), [
-    'late:לשלוח חשבונית:irit', 'late:5 · לקיחת גישות לרשתות:ofir,irit', 'late:9 · פתיחת גאנט שנתי:ilai', 'late:7 · הכנת 9 גרפיקות ראשונות:ilai',
+    'late:לשלוח חשבונית:irit', 'late:5 · לקיחת גישות לרשתות:ofir', 'late:9 · פתיחת גאנט שנתי:ilai', 'late:7 · הכנת 9 גרפיקות ראשונות:ilai',
     'late:8 · הכנת Highlights:ofir',
   ]);
   // One message at 19:00 with the numbers in it, none at 18:00.
@@ -188,7 +189,7 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
   const d = planDigests({ env, now: IL(2026, 10, 6, 19), log: [], active: new Set() }).filter((x) => x.person === 'owner');
   assert.equal(d.length, 1);
   assert.deepEqual(d[0].lines, pushLines(tue));
-  assert.equal(d[0].lines[1], 'עירית: 2 באיחור (הארוך: 3 ימי עסקים)');
+  assert.equal(d[0].lines[3], 'עירית: 1 באיחור (הארוך: 3 ימי עסקים)');
   const env18 = buildEnv({ ...w, now: IL(2026, 10, 6, 18) });
   assert.equal(planDigests({ env: env18, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner').length, 0);
   // Nothing late and nothing left: still sent, one friendly sentence.
@@ -198,16 +199,23 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
 });
 
 // ── 5. The shoot day right after the group ──
+// v13 (9.11.2026): the group left the protocol; 11 is counted from the contract's signature (anchor
+// 'signed': p01.signed, and without it the deal), due the end of the next business day as before.
 test('the shoot day (v6): starts when the group is opened, due the end of the next business day; a v5 client keeps 3 days from the meeting', () => {
   const c = { id: 'x', name: 'x', status: 'active', shoot_type: 'dms', rounds: [], deal_at: IL(2026, 10, 4, 9).toISOString(), char_at: IL(2026, 10, 8, 10).toISOString() };
-  const checks = { 'p02.opened': { state: 'done', at: IL(2026, 10, 4, 9, 5).toISOString() } };
+  const checks = { 'p01.signed': { state: 'done', at: IL(2026, 10, 4, 9, 5).toISOString() } };
   const s = clientState(c, checks, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11');
   assert.equal(hhmm(s.startAt), '4.10 09:05');
   assert.equal(hhmm(s.dueAt), '5.10 18:00'); // the end of a business day is the office's close (protocol v8)
   assert.equal(s.proc.phase, 'onboarding');
   assert.ok(STATIONS[0].procs.includes('p11'));
-  // Before the group: no start, no deadline.
-  assert.equal(clientState(c, {}, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11').dueAt, null);
+  // Without a signature mark (a client opened by hand): from the deal, never without a clock.
+  const unsigned = clientState(c, {}, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11');
+  assert.equal(hhmm(unsigned.startAt), '4.10 09:00');
+  assert.equal(hhmm(unsigned.dueAt), '5.10 18:00');
+  // The old group mark no longer starts it.
+  const group = { 'p02.opened': { state: 'done', at: IL(2026, 10, 4, 12).toISOString() } };
+  assert.equal(hhmm(clientState(c, group, IL(2026, 10, 4, 13)).states.find((x) => x.proc.id === 'p11').startAt), '4.10 09:00');
   // A client that started under version 5: as before.
   const old = clientState({ ...c, protocol_version: 5 }, checks, IL(2026, 10, 4, 10)).states.find((x) => x.proc.id === 'p11');
   assert.equal(hhmm(old.dueAt), '13.10 18:00'); // Thursday 8.10 + 3 business days (Sunday, Monday, Tuesday)
@@ -333,6 +341,8 @@ test('the client moved to the next station: the ready text for Irit (quiet) and 
   const c = client(w, { name: 'דנה', deal_at: IL(2026, 10, 4, 9).toISOString(), char_at: IL(2026, 10, 6, 10).toISOString() });
   marks(w, c, [...itemsOf('p01'), ...itemsOf('p02'), ...itemsOf('p03'), ...itemsOf('p11')], IL(2026, 10, 4, 9, 30));
   // Tuesday 10:00: the meeting began, the client is in "אפיון".
+  // (Fails under v13: 14 has no required item left and counts as complete from the start, which moves every
+  // client to "תוכן ואישור". An app bug, reported; not an outdated expectation.)
   const now = IL(2026, 10, 6, 10, 1);
   const st = clientState(c, w.checks[c.id], now);
   const m = stationChange(c, w.checks[c.id], st, now);
@@ -402,7 +412,9 @@ test('"מיד" gets 15 office minutes before it is late anywhere; Ofir and Lior 
   const n = client(w2, { name: 'חדש', deal_at: IL(2026, 10, 20, 10).toISOString() });
   const fresh = clientState(n, { 'p05.access': { state: 'done', at: IL(2026, 10, 20, 12).toISOString() }, 'p07.approved': { state: 'done', at: IL(2026, 10, 20, 13).toISOString() } }, IL(2026, 10, 20, 13));
   const dueOf = (id) => hhmm(fresh.states.find((x) => x.proc.id === id).dueAt);
-  assert.deepEqual(['p01', 'p02', 'p03', 'p06', 'p07b'].map(dueOf), ['20.10 10:10', '20.10 10:05', '20.10 10:05', '20.10 12:30', '20.10 13:30']); // the contract: 10
+  // (v13: the group, 2, left the protocol.)
+  assert.equal(fresh.states.find((x) => x.proc.id === 'p02'), undefined);
+  assert.deepEqual(['p01', 'p03', 'p06', 'p07b'].map(dueOf), ['20.10 10:10', '20.10 10:05', '20.10 12:30', '20.10 13:30']); // the contract: 10
   assert.deepEqual(Object.fromEntries(Object.entries(ANSWER_CLOCKS).map(([k, v]) => [k, v.minutes])), { p07: 10, p23: 10, p26: 5 });
 });
 

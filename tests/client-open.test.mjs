@@ -53,12 +53,14 @@ test('import marks every item before the station, and nothing from it on', () =>
   assert.deepEqual(importKeys('unknown'), []);
   const keys = importKeys('post');
   const before = new Set(STATIONS.slice(0, 4).flatMap((s) => s.procs));
-  assert.ok(keys.length > 100);
+  assert.ok(keys.length > 50); // (v13: no item a protocol version retired, so about 60 now)
   assert.equal(new Set(keys).size, keys.length);
   for (const k of keys) assert.ok(before.has(k.split('.')[0]), k);
-  for (const k of ['p01.signed', 'p05.menu', 'p11b.makeup', 'p15.natali.ride', 'p20.focus', 'p19b.handed']) assert.ok(keys.includes(k), k);
-  // Items that do not apply yet are marked too: the other shoot day, a new logo.
-  for (const k of ['p21.fun', 'p05.newlogo']) assert.ok(keys.includes(k), k);
+  for (const k of ['p01.signed', 'p05.menu', 'p03.date', 'p11.date', 'p17b.drive', 'p19b.checked', 'p19b.handed']) assert.ok(keys.includes(k), k);
+  // Items that do not apply yet are marked too: a new logo.
+  for (const k of ['p05.newlogo']) assert.ok(keys.includes(k), k);
+  // Never an item a protocol version retired (it applies to nobody): v12's shoot-day processes, v13's group and approvals.
+  for (const k of ['p21.fun', 'p11b.makeup', 'p15.natali.ride', 'p20.focus', 'p02.intro', 'p01.sent', 'p11.ok.client', 'p19b.complete', 'p09.c.name']) assert.ok(!keys.includes(k), k);
   for (const k of ['p22a.assigned', 'p23.made']) assert.ok(!keys.includes(k), k); // from the station on
 
   const now = new Date('2026-09-29T12:00:00+03:00');
@@ -113,7 +115,7 @@ test('import before the shoot day without a shoot date: setting the shoot day st
     const keys = importKeys(st, { shootSet: false });
     assert.ok(!keys.some((k) => /^p11b?./.test(k)), st);
     assert.ok(importKeys(st).some((k) => k.startsWith('p11.')), st);
-    assert.ok(keys.some((k) => k.startsWith('p02.')), st);
+    assert.ok(!keys.some((k) => k.startsWith('p02.')), st); // (v13: the group, 2, left the protocol)
   }
   // After the shoot took place there is nothing left to set.
   assert.ok(importKeys('post', { shootSet: false }).some((k) => k.startsWith('p11.')));

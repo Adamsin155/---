@@ -38,8 +38,8 @@ test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; not
   assert.equal(by['p06.recovered'], undefined); // Lior's broken logins left the protocol in v12 (to nobody)
   assert.ok(!Object.values(by).flat().includes('ilai'));
   // Who owns an item is not a protocol version (app/protocol-versions.js): still 11, no new entry.
-  assert.equal(PROTOCOL_VERSION, 12); // 12 since 3.11.2026 (Lior's four things); this change did not move it
-  assert.equal(PROTOCOL_HISTORY.at(-1).version, 12); // (v12: Lior's four things, 3.11.2026)
+  assert.equal(PROTOCOL_VERSION, 13); // 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026; this change did not move it
+  assert.equal(PROTOCOL_HISTORY.at(-1).version, 13); // (v13: what the team marked "מיותר" left, 9.11.2026)
   // A new network to open is Ofir's to say: 5's own note says so.
   assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה למבצע האפיון \(נעם או אופיר\) לפתוח/);
 });
@@ -63,7 +63,8 @@ test('who writes 6: the office (Ofir among them); Ilai no more, and still his ow
     assert.equal(mayWrite({ person: 'ofir', client, key: k }), true, k);
     assert.equal(mayWrite({ person: 'ilai', client, key: k }), false, k);
   }
-  for (const k of ['p05.newlogo', 'p07.made', 'p07b.posted', 'p23b.posted', 'p29.filled']) assert.equal(mayWrite({ person: 'ilai', client, key: k }), true, k);
+  // (v13: p29.filled left the protocol; the Gantt's close is p28.auto, which the system writes in Ilai's name.)
+  for (const k of ['p05.newlogo', 'p07.made', 'p07b.posted', 'p23b.posted', 'p28.auto']) assert.equal(mayWrite({ person: 'ilai', client, key: k }), true, k);
 });
 
 test('the hand-off of 5: to Ofir, never to himself; an old record to Ilai keeps its words', () => {

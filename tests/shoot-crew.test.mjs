@@ -38,8 +38,9 @@ const soloEliel = base({ shoot_type: null, deliverables: { videos: 4, shoot_days
 const keysOf = (c) => new Set(applicableProcesses(c).flatMap((p) => p.items.map((i) => i.key)));
 const idsOf = (c) => new Set(applicableProcesses(c).map((p) => p.id));
 const itemOf = (c, key) => applicableProcesses(c).flatMap((p) => p.items).find((i) => i.key === key);
-// (p15.influencers, p16.early and p17.broll were Lior's, and left with his shoot day in v12.)
-const INFLUENCER_ONLY = ['p11.influencers', 'p11.ok.influencers', 'p17b.broll'];
+// (p15.influencers, p16.early and p17.broll were Lior's, and left with his shoot day in v12;
+// v13: p11.influencers and p11.ok.influencers left with the shoot day's approvals.)
+const INFLUENCER_ONLY = ['p17b.broll'];
 
 // ── What the choice means ─────────────────
 test('the crew: a solo shoot has a photographer and no shoot type; a shoot type always wins', () => {
@@ -62,6 +63,7 @@ test('a day without influencers: the influencers\' items do not apply, and nothi
   const inf = keysOf(withInf);
   const eli = keysOf(soloEli);
   for (const k of INFLUENCER_ONLY) assert.ok(inf.has(k), `${k} on a day with influencers`);
+  for (const k of ['p11.influencers', 'p11.ok.influencers']) assert.ok(!inf.has(k), `${k} left in v13`);
   assert.deepEqual([...inf].filter((k) => !eli.has(k)).sort(), [...INFLUENCER_ONLY].sort());
   assert.deepEqual([...eli].filter((k) => !inf.has(k)), []);
   // Eli films: his processes are there; Eliel films: they are not, and nothing else goes.
@@ -75,9 +77,15 @@ test('a day without influencers: the influencers\' items do not apply, and nothi
 });
 
 test('the words follow the day (v12: the closing of the day, 19, with its testimonial, left with Lior\'s shoot day)', () => {
-  assert.equal(itemOf(soloEli, 'p17b.arrived').label, 'הגעתי בשעת הצילום');
-  assert.equal(itemOf(withInf, 'p17b.arrived').label, 'הגעתי שעה לפני המשפיענים');
-  assert.equal(itemOf(soloEliel, 'p11.ok.photographer').label, 'הצלם (אליאל) אישר');
+  // (v13: Eli's "הגעתי" and the photographer's approval of the date left the protocol: on no day.)
+  for (const c of [withInf, soloEli, soloEliel]) {
+    assert.equal(itemOf(c, 'p17b.arrived'), undefined);
+    assert.equal(itemOf(c, 'p11.ok.photographer'), undefined);
+  }
+  // The raw protocol keeps the day's words for the history.
+  const arrived = PROCESSES.find((p) => p.id === 'p17b').items.find((i) => i.key === 'p17b.arrived');
+  assert.equal(arrived.retired, 13);
+  assert.deepEqual(arrived.variant(soloEli), { label: 'הגעתי בשעת הצילום' });
   for (const c of [withInf, soloEli, soloEliel]) {
     assert.equal(itemOf(c, 'p19.testimonial'), undefined);
     assert.equal(itemOf(c, 'p19.took'), undefined);
@@ -92,9 +100,11 @@ test('"with whom" is answered by the crew: the shoot phases and the calendar ite
   const eve = PHASES.find((p) => p.key === 'eve');
   assert.deepEqual(missingFields(eve, soloEliel), []);
   assert.deepEqual(missingFields(eve, base({ shoot_type: null })), ['shoot_type']);
-  const cal = itemOf(soloEliel, 'p11.calendar');
-  assert.equal(blockers(cal, soloEliel, {}), null);
-  assert.deepEqual(blockers(cal, base({ shoot_type: null, shoot_at: null }), {}).fields, ['shoot_type', 'shoot_at']);
+  // (v13: "in everyone's calendar", p11.calendar, left; the line to set the day, p11.date, asks only for the date.)
+  assert.equal(itemOf(soloEliel, 'p11.calendar'), undefined);
+  const date = itemOf(soloEliel, 'p11.date');
+  assert.equal(blockers(date, soloEliel, {}), null);
+  assert.deepEqual(blockers(date, base({ shoot_type: null, shoot_at: null }), {}).fields, ['shoot_at']);
 });
 
 test('rounds: a round without influencers keeps its own crew; a round with a type is that type; the client\'s crew never leaks into a round', () => {
@@ -113,7 +123,9 @@ test('rounds: a round without influencers keeps its own crew; a round with a typ
   assert.ok(!ids.has('p11b') && ids.has('p17b'), 'the client\'s own Natali day (11ב left in v12)');
   assert.ok(!ids.has('r2-p17b') && !ids.has('r2-p11b') && ids.has('r3-p17b'));
   const keys = keysOf(c);
-  assert.ok(!keys.has('r2.p11.ok.influencers') && keys.has('r3.p11.ok.influencers') && keys.has('p11.ok.influencers'));
+  // (v13: the influencers' approval left; the influencers' own item is Eli's B-roll before them.)
+  assert.ok(!keys.has('r2.p17b.broll') && keys.has('r3.p17b.broll') && keys.has('p17b.broll'));
+  assert.ok(!keys.has('p11.ok.influencers') && !keys.has('r3.p11.ok.influencers'));
   // A client whose own shoot has no influencers: an old round with no type of its own takes the client's (none) and asks.
   const s = base({ shoot_type: null, deliverables: { shoot_crew: 'eliel' }, rounds: [{ n: 2, shoot_at: null, start_at: IL(2026, 11, 1).toISOString() }] });
   const old = roundContext(s, s.rounds[0]);
@@ -222,21 +234,19 @@ test('the lock of a day Eliel films: Lior\'s "הכונן אצלי" alone is the 
 });
 
 // ── Irit's coordinator and day-before check ──
-test('the coordinator of a day without influencers: no influencers, the day\'s photographer', () => {
+test("the coordinator of a day without influencers: no influencers, the day's photographer", () => {
+  // v13 (9.11.2026): no approvals and no calendar to mark on any day: a date in the system is the closed day.
   const x = shootContexts(soloEliel)[0];
   const k = coordinatorOf(soloEliel, {}, x);
-  assert.deepEqual(k.approvals.map((a) => a.key), ['p11.ok.client', 'p11.ok.lior', 'p11.ok.photographer']);
-  assert.deepEqual(k.approvals.at(-1).label, 'אליאל הצלם');
+  assert.deepEqual(k.approvals, []);
   assert.equal(k.contract, null);
   assert.deepEqual(k.needs, []);
-  assert.deepEqual(k.missing, ['אישור לקוח', 'אישור ליאור', 'אישור אליאל', 'הכנסה ליומן']);
+  assert.deepEqual(k.missing, []);
   assert.deepEqual([k.solo, k.crew, k.typeSet, k.typeName], [true, 'eliel', true, 'בלי משפיענים · ליאור + אליאל']);
-  const all = Object.fromEntries(['p11.ok.client', 'p11.ok.lior', 'p11.ok.photographer', 'p11.calendar'].map((key) => [key, done(IL(2026, 10, 7))]));
-  assert.equal(coordinatorOf(soloEliel, all, x).fullyClosed, true);
-  // With influencers, as before: four approvals and the contract.
-  const w = coordinatorOf(withInf, all, shootContexts(withInf)[0]);
-  assert.deepEqual(w.missing, ['אישור משפיענים', 'בדיקת המשפיענים בחוזה']);
-  assert.equal(w.approvals.at(-1).label, 'אלי הצלם');
+  assert.equal(k.fullyClosed, true);
+  // With influencers the same: nothing to approve, nothing to check in the contract.
+  const w = coordinatorOf(withInf, {}, shootContexts(withInf)[0]);
+  assert.deepEqual([w.approvals, w.contract, w.missing, w.closed], [[], null, [], true]);
 });
 
 test('the day-before check of a day without influencers has no influencers to remind', () => {
@@ -309,8 +319,9 @@ test('the shoot day\'s reminders: Eliel\'s day rings nobody (v12: Lior\'s end of
   assert.equal(r.person, 'eli');
   assert.match(r.body, /^ההגעה שלך ב־11:00, שעת הצילום \(יום בלי משפיענים\)/);
   none(due(eli, IL(2026, 10, 15, 10, 45)), 'shoot', 'eli15');
-  none(due(eli, IL(2026, 10, 15, 11)), 'shoot', 'arrived');
-  assert.equal(one(due(eli, IL(2026, 10, 15, 11, 15)), 'shoot', 'arrived').person, 'lior');
+  // (v13: Eli's "הגעתי" left the protocol, and with it Lior's "אלי עוד לא סימן הגעה".)
+  for (const t of [IL(2026, 10, 15, 11), IL(2026, 10, 15, 11, 15), IL(2026, 10, 15, 12)]) none(due(eli, t), 'shoot', 'arrived');
+  for (const t of [IL(2026, 10, 15, 9, 15), IL(2026, 10, 15, 10, 30)]) none(due(world(withInf), t), 'shoot', 'arrived');
   one(due(eli, IL(2026, 10, 15, 14)), 'shoot', 'endEli');
   // A day with influencers, as before: two hours before them.
   one(due(world(withInf), IL(2026, 10, 15, 9)), 'shoot', 'eli2h');

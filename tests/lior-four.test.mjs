@@ -25,7 +25,7 @@ const base = (o = {}) => ({
 const byId = (c) => new Map(applicableProcesses(c).map((p) => [p.id, p]));
 
 test('the protocol: version 12, Lior\'s four things and nothing else of his but 34 and 35', () => {
-  assert.equal(PROTOCOL_VERSION, 12);
+  assert.equal(PROTOCOL_VERSION, 13); // v13 (9.11.2026) left Lior's four things as they were
   const c = base({ shoot_type: 'natali', shoot_at: IL(2026, 11, 20, 11).toISOString(), status: 'ending' });
   const mine = [...byId(c).values()].filter((p) => p.items.some((i) => i.owners.includes('lior'))).map((p) => p.id);
   assert.deepEqual(mine.sort(), ['p12', 'p13', 'p30', 'p34', 'p35', 'p36']);
@@ -37,8 +37,8 @@ test('the protocol: version 12, Lior\'s four things and nothing else of his but 
   assert.equal(p.get('p36').num, '11ג');
   assert.deepEqual([formOf(CAMPAIGN_KEY), formOf(SCRIPTS_KEY), formOf(PRESHOOT_KEY), formOf('r2.p36.form'), formOf('p13.zoom')], ['campaign', 'scriptsDoc', 'preShoot', 'preShoot', null]);
   assert.equal(guardOf(SCRIPTS_KEY), null);
-  // Irit's own processes did not change (11, 14), the intro is hers alone; Eli's are there.
-  assert.deepEqual(p.get('p02').items.find((i) => i.key === 'p02.intro').owners, ['irit']);
+  // Irit's own processes did not change (11, 14); Eli's are there. (v13: the group and its intro, 2, left the protocol.)
+  assert.equal(p.has('p02'), false);
   assert.ok(['p11', 'p14', 'p17b', 'p18b', 'p19b'].every((id) => p.has(id)));
   // The pre-shoot form sits in "תוכן ואישור", after the daily follow-up.
   assert.deepEqual(STATIONS.find((s) => s.key === 'content').procs, ['p12a', 'p12', 'p13', 'p14', 'p36']);
@@ -46,7 +46,7 @@ test('the protocol: version 12, Lior\'s four things and nothing else of his but 
   for (const pr of PROCESSES) for (const i of pr.items) assert.match(i.key, /^p[0-9]+[ab]?\.[a-z0-9.]+$/, i.key);
   // What left is marked so, and kept for the history's words.
   const retired = PROCESSES.filter(isRetired).map((x) => x.id);
-  assert.deepEqual(retired, ['p11b', 'p10', 'p12a', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p31']);
+  assert.deepEqual(retired, ['p02', 'p11b', 'p07a', 'p10', 'p12a', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p31']);
   // The link field: a Google Docs address, refused otherwise.
   assert.deepEqual(LINKS.find((l) => l.key === SCRIPTS_DOC), { key: SCRIPTS_DOC, label: 'קובץ התסריטים (Google Docs)', after: null, hint: 'docs.google.com', strict: true });
 });
