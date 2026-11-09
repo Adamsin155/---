@@ -144,7 +144,8 @@ test('the new keys pass the table\'s own check; the writers table is the app\'s;
   }
   const byKey = (a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
   const rows = (await db.query('select key, proc, round, persons from private.protocol_writers')).rows.sort(byKey);
-  const app = writerRows().map((r) => ({ ...r, persons: [...r.persons] })).sort(byKey);
+  // Shiel (9.11.2026) joined the table later, in 20261205100000_shiel.sql: the app's table without him.
+  const app = writerRows().map((r) => ({ ...r, persons: r.persons.filter((p) => p !== 'shiel') })).sort(byKey);
   assert.deepEqual(rows.filter((r) => r.persons.length), app);
   assert.deepEqual(rows.find((r) => r.key === 'p06.@part').persons, ['noam', 'ofir']);
   const call = await as(db, users.lior, async (tx) => (await tx.query('select public.clients_scripts_doc_saved()')).rows);

@@ -2,7 +2,7 @@
 // processes 32 and 33) and the performance report.
 import {
   PEOPLE, STAFF_PEOPLE, EDITORS, PHASES, PROCESSES, CLIENT_STATUS, OFFICE_REVIEWS, REVIEW_TOPICS,
-  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, PASS_OWNER, editorsOf, characterizerOf, CHARACTERIZERS,
+  STATUS_FIELDS, BRIEF_REQUIRED, STATIONS, DELIVERABLES, PASS_OWNER, editorsOf, characterizerOf, CHARACTERIZERS, isSilent,
 } from './protocol.js';
 import { passDue } from './pass-logic.js';
 import {
@@ -1765,7 +1765,8 @@ function cardsChanged() {
 // tabs hide it in app/styles/push.css, as the line stands after the panel).
 function paintConnect() {
   const ownList = scope === 'own' || personal || (!!me && (minePerson || null) === me);
-  paintConnectLine($('mine-connect'), { own: ownList && !viewerError });
+  // Nothing to connect for whoever gets no notification (Shiel, 9.11.2026; SILENT_PEOPLE).
+  paintConnectLine($('mine-connect'), { own: ownList && !viewerError && !isSilent(me) });
 }
 
 function renderMine() {

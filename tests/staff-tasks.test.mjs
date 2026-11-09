@@ -63,7 +63,8 @@ test('who gives a task (the owner and Irit, one list) and to whom (everyone on t
   assert.equal(personOfViewer(VIEW.owner), 'owner');
   assert.equal(personOfViewer(VIEW.legacy), null);
   const keys = ASSIGNEES().map((p) => p.key);
-  assert.deepEqual(keys, [...TEAM_PEOPLE().map((p) => p.key), 'owner']);
+  // Not the silent (Shiel, 9.11.2026: no notification at all).
+  assert.deepEqual(keys, [...TEAM_PEOPLE().map((p) => p.key).filter((k) => k !== 'shiel'), 'owner']);
   for (const k of ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos', 'owner']) assert.ok(keys.includes(k), k);
   assert.ok(!keys.includes('editor'));
   // Everyone a task can be given to has a place in the reminder log.
