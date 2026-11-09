@@ -919,7 +919,7 @@ mountSession(async (staff) => {
   viewer = v;
   $('nav-team').hidden = !canManageTeam(v);
   $('nav-insights').hidden = !canSeeInsights(v);
-  $('nav-messages').hidden = !canSendMessages(v);
+  $('nav-messages').hidden = !canSendMessages(v) || v?.me === 'irit'; // off for Irit since 9.11.2026
   if (!canSeeAllClients(v)) {
     $('no-access').hidden = false;
     if (v.error) fill($('no-access').querySelector('p'), VIEWER_UNKNOWN);

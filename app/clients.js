@@ -2540,7 +2540,7 @@ function topicsBlock(now, rows, pending) {
   return h('div', { class: 'tp-block' },
     h('ol', { class: 'tp-list', 'aria-label': 'על מה עוברים בבקרה היומית' }, ...shownTopics.map((t) => topicRow(t, now))),
     // The daily messages to the clients are part of 32 too; they have their own page.
-    canSendMessages({ me, scope, error: viewerError }) ? h('p', { class: 'tp-msgs' }, h('a', { class: 'btn-text', href: 'messages.html' }, 'הודעות יומיות ללקוחות')) : null,
+    canSendMessages({ me, scope, error: viewerError }) && me !== 'irit' ? h('p', { class: 'tp-msgs' }, h('a', { class: 'btn-text', href: 'messages.html' }, 'הודעות יומיות ללקוחות')) : null,
     pending ? h('p', { class: 'tp-left', id: 'tp-left', role: 'status' }, topicsLeftText(shownTopics)) : null);
 }
 function goToTopic(key) {
@@ -3631,7 +3631,7 @@ mountSession(async (staff) => {
   }
   $('nav-team').hidden = !canManageTeam(viewer);
   // The top bar folds away on phones: the page head keeps a way in to the messages.
-  $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer);
+  $('nav-messages').hidden = $('cta-messages').hidden = !canSendMessages(viewer) || viewer.me === 'irit'; // off for Irit since 9.11.2026
   // Before the shoot day and client requests (prep.html): the office's.
   $('nav-prep').hidden = $('cta-prep').hidden = scope !== 'office' || !!viewerError;
   // Always land on the signed-in person's own list; the owner lands on the whole team.
