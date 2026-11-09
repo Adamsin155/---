@@ -294,3 +294,23 @@ body::before {
 .toast, .pr-toast { max-inline-size: calc(100vw - 24px); box-sizing: border-box; white-space: normal; overflow-wrap: anywhere; }
 /* Dialog close buttons are a full finger wide on a phone, wherever the dialog comes from. */
 @media (max-width: 760px) { dialog .close { min-inline-size: 44px; min-block-size: 44px; } }
+
+/* "הערה מיוחדת" written to the signed-in person (9.11.2026; app/staff-notes-ui.js): at the top
+   of every page, above its head. Pink, as what must not be missed; it has no close button
+   (only the writers delete a note). Several notes stack in one box. */
+.sn-banner {
+  grid-column: 1 / -1; min-width: 0; box-sizing: border-box; display: grid; gap: 8px;
+  margin: 0 0 var(--ds-gap, 16px); padding: 12px 16px 14px;
+  border: 1px solid var(--ds-hot); border-inline-start-width: 6px; border-radius: var(--ds-r-card, 16px);
+  background: var(--ds-hot-soft); color: var(--ds-ink);
+}
+.sn-banner-h { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ds-hot-text); }
+.sn-banner-h::before {
+  content: '!'; flex: none; inline-size: 22px; block-size: 22px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ds-hot); color: var(--ds-on-hot); font-size: 14px; line-height: 1;
+}
+.sn-note { min-width: 0; display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--ds-r-item, 12px); background: var(--ds-surface); }
+.sn-body { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+.sn-by { margin: 0; font-size: 13.5px; color: var(--ds-ink-2); }
+@media (max-width: 760px) { .sn-banner { padding: 10px 12px 12px; } .sn-body { font-size: 16px; } }
+@media print { .sn-banner { display: none; } }

@@ -56,6 +56,7 @@ import { uploadStepOf } from './files-logic.js';
 import { mountDeals, refreshDeals } from './deal-ui.js';
 import { mountApprovals } from './approvals-ui.js';
 import { mountStaffTasks } from './staff-tasks-ui.js';
+import { mountNotesCard } from './staff-notes-ui.js';
 import { landingOf } from './deal-logic.js';
 // A link to a part of this page (#mine, #control, a sign-in link) opens that part:
 // nobody is sent to their first screen then.
@@ -1664,7 +1665,7 @@ function flowCard(f) {
 // table, and the modules stay as they are. (The squares are added in the same turn the
 // card is drawn, before the page is painted, so nothing moves.)
 const CARD_ICONS = [
-  ['#now-h', 'clock', 'orange'], ['#staff-tasks-h', 'megaphone', 'purple'], ['#deals-h', 'handshake', 'green'], ['#approvals-h', 'file', 'blue'],
+  ['#now-h', 'clock', 'orange'], ['#staff-tasks-h', 'megaphone', 'purple'], ['#sn-h', 'flag', 'pink'], ['#deals-h', 'handshake', 'green'], ['#approvals-h', 'file', 'blue'],
   ['#metricool-h', 'chart', 'teal'], ['#wa-card-h', 'chat', 'green'], ['#cal-h', 'calendar', 'blue'], ['#myq-h', 'question', 'purple'],
   ['#mc-h', 'loop', 'teal'], ['#il-h', 'image', 'purple'], ['.g-soon > .wgroup-h', 'clock', 'teal'], ['.g-landing > .wgroup-h', 'inbox', 'navy'],
   // The other tabs (docs/ops.md, section 52). "בקרה יומית": each part of the control.
@@ -3679,6 +3680,8 @@ mountSession(async (staff) => {
   if (!viewerError) mountCalendar($('cal-card'));
   // Tasks given on the spot: the ones this person got ("בוצע"), and giving them (Irit, the owner).
   mountStaffTasks($('staff-tasks-card'), { me, scope, error: viewerError });
+  // "הערות מיוחדות לעובדים" (9.11.2026): the owners, Irit, Lior and Ofir write and delete them (app/staff-notes-ui.js).
+  mountNotesCard($('staff-notes-card'), { me, scope, error: viewerError }, { toast });
   // Stav's deals waiting for a contract (the office): "להכין חוזה ל־…" with its clock.
   mountDeals($('deals-card'), { me, scope, error: viewerError });
   // Exceptional contracts: the approvers decide here; Irit sees "ממתין לאישור", "אושר — אפשר לשלוח", "לא אושר".

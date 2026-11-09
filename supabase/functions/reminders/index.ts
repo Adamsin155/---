@@ -261,6 +261,21 @@ async function loadStaffTasks(now: Date): Promise<Row[]> {
   }
 }
 
+// The special notes for one employee (9.11.2026, app/staff-notes-logic.js; docs/ops.md,
+// section 114): those written in the last day and not deleted (rule `staffNote` pushes each
+// one once). Until migration 20261206100000_staff_notes.sql adds the table, none.
+async function loadStaffNotes(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 864e5).toISOString();
+  try {
+    return await all(() => admin.from('staff_notes').select('id, person, body, created_by, created_at, deleted_at')
+      .is('deleted_at', null).gte('created_at', since).order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205' || code === '42703' || code === 'PGRST204') return [];
+    throw err;
+  }
+}
+
 // The photographer's availability (7.10.2026, app/availability-logic.js; docs/ops.md,
 // section 39): the months handed over from the current one on, and the unexpected
 // changes reported in the last two days. Until migration
@@ -294,7 +309,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -322,10 +337,11 @@ const db = {
       loadChangeRequests(now),
       loadDecisions(now),
       loadUnsigned(now),
+      loadStaffNotes(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, log: [...log.values()] };
   },
   // A monthly client's editing round (./tick.js openMonthlyRounds; docs/ops.md, section 94). The
   // round only when the client row is still the one loaded (its updated_at; the clients trigger

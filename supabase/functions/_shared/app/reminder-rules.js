@@ -1773,6 +1773,26 @@ RULES.push(
   },
 );
 
+// ── "הערה מיוחדת" for one employee (Lior and the owner, 9.11.2026; docs/ops.md, section 114) ──
+// `env.staffNotes`: public.staff_notes rows written lately and not deleted. A note pushes
+// to its person ONCE, when it is written: one step per note, and the log's unique key never
+// lets it out twice. A note deleted before the tick is not returned, so it never pushes.
+// It keeps its own hours (pushed at once, as the writer asked for it), and is not part of
+// the lateness notes or the digests.
+import { freshNote, noteTitle, noteText, noteUrl } from './staff-notes-logic.js';
+export const STAFF_NOTE = 'staffNote';
+RULES.push({
+  id: STAFF_NOTE, event: 'הערה מיוחדת לעובד: התראה אחת כשנכתבה', procs: [],
+  instances(env) {
+    return (env.staffNotes || []).filter((n) => REMINDER_PEOPLE.has(n.person) && freshNote(n, env.now)).map((n) => ({
+      id: n.id, cid: null, note: n, who: n.person, url: noteUrl(n.person), anchors: { event: parseDate(n.created_at) },
+    }));
+  },
+  steps: [
+    { id: 'now', to: (i) => i.who, level: 'ring', ownHours: true, title: (i) => noteTitle(i.note), body: (i) => noteText(i.note.body) },
+  ],
+});
+
 // The photographer's time in words: he arrives an hour before the shoot time, always
 // (the owner's rule of 7.10.2026), and every message that tells him a time says so. On a day
 // without influencers (25.10.2026) the shoot's own time is his.
