@@ -101,7 +101,7 @@ const PERSONAL = {
   // The pass over the clients is Irit's since 26.10.2026 (the owner): in her own menu; Ofir may look at it from his manager profile.
   ofir: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'יומן'], // his meetings in his own menu (15.10.2026)
   // "בקרה ושיוך" in Irit's own menu since 3.11.2026.
-  irit: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'],
+  irit: ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו'], // no 'הודעות ללקוחות' since 9.11.2026
 };
 const MANAGER = {
   owner: ['מבט מנהל', 'לקוחות', 'החלטות', 'הודעות ללקוחות', 'גאנט תוכן', 'בקרה ושיוך', 'מעבר על הלקוחות', 'תובנות', 'שנת החבילה', 'לפני יום צילום', 'ימי צילום', 'יומן', 'טבלת ימי צילום', 'שאלו את המערכת', 'צוות', 'אסטרטג פיימנט'],
@@ -389,7 +389,7 @@ await step('Irit, personal profile: only her own work, no chip or list of anyone
   assert.deepEqual(await menu(page), MANAGER.irit);
   await settle(page);
   await shot(page, 'irit-manager-1366');
-  for (const [path, id] of [['prep.html', 'prep'], ['messages.html', 'messages'], ['quotes.html', 'quotes']]) {
+  for (const [path, id] of [['prep.html', 'prep'], ['quotes.html', 'quotes']]) {
     await page.goto(`${BASE}${path}`);
     await page.waitForSelector(`#side-${id}[aria-current="page"]`);
     assert.deepEqual(await sw(page), ['מבט מנהל', 'owner.html#now', 'manager'], path);
@@ -560,7 +560,7 @@ await step('a phone: the button is 44px high and in the same place on every page
       assert.deepEqual(await tabs(page), ['המשימות שלי', 'לקוחות', 'בקרה יומית']);
       for (const h of await page.locator('.tabs [role=tab]:visible').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `a tab is ${h}px`);
       await page.click('#side-more');
-      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['בקרה ושיוך', 'מעבר על הלקוחות', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "יומן": 15.10.2026; her pass: 26.10.2026; "בקרה ושיוך": 3.11.2026
+      assert.deepEqual((await page.locator('#side-sheet .side-link:visible').allInnerTexts()).map((t) => t.trim()), ['בקרה ושיוך', 'מעבר על הלקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "יומן": 15.10.2026; her pass: 26.10.2026; "בקרה ושיוך": 3.11.2026
       await page.keyboard.press('Escape');
       await page.click('#tab-control');
       await page.waitForSelector('#view-control:not([hidden])');

@@ -57,13 +57,12 @@ test('each queue with work gives one counted line, in its group, to its page', (
   assert.equal(lior['landing-shoot'].href, 'shoot.html');
 
   const irit = byId(linesOf(db, 'irit'));
-  assert.deepEqual(Object.keys(irit).sort(), ['availability-missing', 'landing-shoot', 'messages']);
+  assert.deepEqual(Object.keys(irit).sort(), ['availability-missing', 'landing-shoot']);
   // 14's daily answer (p14.day) left the protocol in v13: no "מעקב לפני צילום" line for anybody.
   assert.equal(irit.followup, undefined);
   assert.equal(lior.followup, undefined);
-  assert.equal(irit.messages.n, COUNTS.messages.clock);
-  assert.equal(irit.messages.text, `22 לקוחות עוד לא קיבלו הודעה היום (ועוד ${COUNTS.messages.landing} בקליטה)`);
-  assert.deepEqual([irit.messages.bucket, irit.messages.href], ['today', 'messages.html']);
+  // The daily messages queue is off since 9.11.2026: no line for Irit.
+  assert.equal(irit.messages, undefined);
   assert.deepEqual([irit['landing-shoot'].n, irit['landing-shoot'].href], [COUNTS.shootSoon.landing, 'prep.html']);
 
   // The editors: what Ofir returned is theirs now; an editing in landing has no clock.
@@ -108,7 +107,7 @@ test('an empty queue gives no line', () => {
   for (const me of TEAM) assert.deepEqual(linesOf(db, me), [], me);
   // And each one alone comes back when its own queue fills again.
   db.client_messages.shift();
-  assert.deepEqual(linesOf(db, 'irit').map((l) => [l.id, l.n, l.text]), [['messages', 1, 'לקוח אחד עוד לא קיבל הודעה היום']]);
+  assert.deepEqual(linesOf(db, 'irit').map((l) => [l.id, l.n, l.text]), [] /* the messages queue is off since 9.11.2026 */);
   db.office_reviews = [];
   assert.deepEqual(linesOf(db, 'lior').map((l) => l.id), ['campaigns']);
   assert.deepEqual(linesOf(db, 'lior', { now: new Date('2026-10-21T10:00:00+03:00') }).map((l) => [l.id, l.bucket]), [['campaigns', 'overdue']]); // Wednesday: late
@@ -182,7 +181,7 @@ test('landing means no clock: its lines say so, sit apart, and name no reminder;
     }
   }
   assert.deepEqual([...seen].sort(), ['access', 'availability', 'availability-missing', 'campaigns', 'changes', 'exceptions', 'fixes', 'landing-assign', 'landing-editing', // (v13: no 'followup')
-    'landing-qa', 'landing-shoot', 'messages', 'urgent-back']);
+    'landing-qa', 'landing-shoot', 'urgent-back']);
   // A paused editing of a client in landing: no line either (5.11.2026).
   db.clients.find((c) => c.id === cid(14)).landing = true;
   const lior = byId(linesOf(db, 'lior'));
@@ -192,7 +191,7 @@ test('landing means no clock: its lines say so, sit apart, and name no reminder;
   for (const c of db.clients) c.landing = true;
   const irit = byId(linesOf(db, 'irit'));
   assert.equal(irit.messages, undefined);
-  assert.equal(irit['landing-messages'].bucket, 'landing');
+  assert.equal(irit['landing-messages'], undefined); // the queue is off since 9.11.2026
 });
 
 // The owner, 20.10.2026: Lior's counters that only point to "החלטות" are one line.

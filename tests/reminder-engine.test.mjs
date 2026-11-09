@@ -563,12 +563,10 @@ test('daily messages, daily control (32) and the clients review (33)', () => {
   const b = client(w, { name: 'ב' });
   importTo(w, a, 'ongoing');
   importTo(w, b, 'ongoing');
-  assert.match(one(due(w, IL(2026, 10, 5, 8, 30)), 'dailyMessages', 'list').title, /הודעות יומיות ללקוחות: 2/);
-  w.messages.push({ client_id: a.id, sent_at: IL(2026, 10, 5, 11).toISOString() });
+  // The daily messages queue is off since 9.11.2026 (Irit: "מיותר"): no list, no 14:00 line.
+  none(due(w, IL(2026, 10, 5, 8, 30)), 'dailyMessages');
   const at14 = due(w, IL(2026, 10, 5, 14));
-  const q = one(at14, 'dailyMessages', '1400', 'irit');
-  assert.equal(q.level, 'quiet');
-  assert.equal(q.body, 'ב');
+  none(at14, 'dailyMessages');
   assert.equal(one(at14, 'control32', '1400', 'irit').level, 'ring');
   assert.equal(one(due(w, IL(2026, 10, 5, 18)), 'control32', 'lior', 'lior').list, true);
   w.reviews.push({ day: '2026-10-05', kind: 'p32' });

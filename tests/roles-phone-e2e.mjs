@@ -223,7 +223,7 @@ await step('Irit lands on "המשימות שלי": the now-bar, Stav\'s deals, t
   assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
   // "יומן" (calendar.html, 15.10.2026) is one of her daily screens, behind "עוד" on a phone; so is her
   // pass over the clients (pass.html, hers since 26.10.2026).
-  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['מעבר על הלקוחות', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
+  assert.deepEqual(await page.locator('#side-sheet .side-link:visible').allInnerTexts(), ['מעבר על הלקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']);
   for (const id of ['side-prep', 'side-pass', 'side-messages', 'side-quote', 'side-quotes']) {
     assert.ok(await page.locator(`#${id}`).isVisible(), id);
     assert.ok((await page.locator(`#${id}`).boundingBox()).height >= 44, id);

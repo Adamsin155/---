@@ -57,7 +57,7 @@ import {
 } from './protocol-logic.js';
 // The owner's decisions of 3.10.2026: Stav's deals and the station-change message.
 import { DEAL_MINUTES, DEAL_PREPARERS, contractTitle, dealSummary, dealUrl, dealDue, dealRingSlot } from './deal-logic.js';
-import { stationChange } from './messages-logic.js';
+import { stationChange, MESSAGES_OFF } from './messages-logic.js';
 // Protocol v9: Ofir's fast ladder for the graphics and the editor's assignment.
 import { fastCases, fastCaseOf, ladderAt, fastWaited, fastOpen, pauseNow } from './fast-ladder.js';
 import { TELL, requestOf, followupRows, followupDue, followupLine, FOLLOWUP_URL } from './shoot-prep.js';
@@ -513,13 +513,13 @@ export const RULES = [
         const made = parseDate(l.created_at);
         if (!c || !made || linkState(l, env.now) !== 'waiting') continue;
         const [first, second] = nudgeTimes(l);
-        out.push({ id: l.id, cid: c.id, client: c, name: clientLabel(c), ref: 'p05', url: 'messages.html', link: l, anchors: { event: made, first, second, expires: parseDate(l.expires_at) } });
+        out.push({ id: l.id, cid: c.id, client: c, name: clientLabel(c), ref: 'p05', url: clientUrl(c.id, 'p05'), link: l, anchors: { event: made, first, second, expires: parseDate(l.expires_at) } });
       }
       return out;
     },
     steps: [
-      { id: 'nudge1', from: 'first', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `הלקוח עוד לא מילא את פרטי הכניסה: ${i.name}`, body: (i) => `הקישור נוצר ביום ${dayText(i.anchors.event)}. נוסח תזכורת מוכן מחכה ב״הודעות ללקוחות״.` },
-      { id: 'nudge2', from: 'second', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `פרטי הכניסה עדיין חסרים: ${i.name}`, body: (i) => `עברו עוד שני ימי עסקים. תזכורת אחרונה ללקוח מחכה ב״הודעות ללקוחות״; הקישור תקף עד יום ${dayText(i.anchors.expires)}.` },
+      { id: 'nudge1', from: 'first', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `הלקוח עוד לא מילא את פרטי הכניסה: ${i.name}`, body: (i) => `הקישור נוצר ביום ${dayText(i.anchors.event)}. לשלוח לו תזכורת בקבוצה.` },
+      { id: 'nudge2', from: 'second', to: 'irit', level: 'quiet', expires: 'expires', title: (i) => `פרטי הכניסה עדיין חסרים: ${i.name}`, body: (i) => `עברו עוד שני ימי עסקים. לשלוח ללקוח תזכורת אחרונה בקבוצה; הקישור תקף עד יום ${dayText(i.anchors.expires)}.` },
     ],
   },
 
@@ -861,10 +861,12 @@ export const RULES = [
   },
 
   // Irit's daily messages to clients: the list in her 08:30 digest; at 14:00 (quiet)
-  // the clients who did not get one yet.
+  // the clients who did not get one yet. Off since 9.11.2026 (the owner, Irit: "מיותר.
+  // אין מצב שמספיקה לשלוח הודעות לכולם"): the queue is no one's job, nothing rings.
   {
     id: 'dailyMessages', event: 'הודעות יומיות ללקוחות', procs: [],
     instances(env) {
+      if (MESSAGES_OFF) return [];
       if (!isBusinessDay(env.now)) return [];
       const today = dayKeyIL(env.now);
       const got = new Set(env.messages.filter((m) => m.sent_at && dayKeyIL(new Date(m.sent_at)) === today).map((m) => m.client_id));
@@ -1544,6 +1546,7 @@ export const RULES = [
   {
     id: 'stationChange', event: 'הלקוח עבר לשלב הבא: הודעה ללקוח', procs: [],
     instances(env) {
+      if (MESSAGES_OFF) return []; // the messages queue is off (9.11.2026), see dailyMessages
       const out = [];
       for (const c of env.clients) {
         const m = stationChange(c, env.checksOf(c), env.stateOf(c), env.now);

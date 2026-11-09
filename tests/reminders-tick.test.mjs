@@ -178,7 +178,7 @@ test('overnight: a deal at 22:00 waits; the 08:30 digest carries it and the 09:0
   // Her pass over the clients (33) is due that day too (hers since 26.10.2026); the day's work is
   // the last line, or behind "ועוד" when the digest is full (five lines at most).
   assert.match(digest.payload.body, /^מעבר על הלקוחות \(33\) היום$/m);
-  assert.match(digest.payload.body, /^(היום: לילה \(3\)|ועוד \d נושאים ב״המשימות שלי״)$/m);
+  assert.match(digest.payload.body, /^(היום: לילה \(2\)|ועוד \d נושאים ב״המשימות שלי״)$/m);
   assert.equal(digest.opts.urgency, 'normal');
   const queued = db.log.find((r) => r.key === 'deal:c1:deal:now@irit');
   assert.deepEqual([queued.status, queued.channel, queued.digest_key], ['sent', 'digest', 'digest:morning:irit:2026-10-05']);

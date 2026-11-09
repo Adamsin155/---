@@ -20,6 +20,7 @@
 //           or null: nothing reminds of it (a client in landing sends no reminders).
 // A queue with nothing in it gives no line.
 import { PEOPLE } from './protocol.js';
+import { MESSAGES_OFF } from './messages-logic.js';
 import { inLanding, isBusinessDay, clientLabel } from './protocol-logic.js';
 import { nextShootDay } from './shoot-plan.js';
 import { qaQueue, awaitingEditor } from './qa-logic.js';
@@ -158,7 +159,7 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
   }
 
   // ── Irit: the day's messages to the clients (messages.html) ──
-  if (me === 'irit' && Array.isArray(extra.messages) && isBusinessDay(now)) {
+  if (!MESSAGES_OFF && me === 'irit' && Array.isArray(extra.messages) && isBusinessDay(now)) {
     const today = dayKeyIL(now);
     const got = new Set(extra.messages.filter((m) => m.sent_at && dayKeyIL(new Date(m.sent_at)) === today).map((m) => m.client_id));
     const left = live.filter((c) => !got.has(c.id));

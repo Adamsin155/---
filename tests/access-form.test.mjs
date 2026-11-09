@@ -411,13 +411,13 @@ test('the link was not filled: Irit, quietly, at the end of the next business da
   assert.deepEqual(of(first, 'accessLink'), ['nudge1@irit:quiet']);
   const r = first.find((x) => x.rule === 'accessLink');
   assert.equal(r.title, 'הלקוח עוד לא מילא את פרטי הכניסה: קפה דנה · דנה');
-  assert.equal(r.body, 'הקישור נוצר ביום א׳ 11.10.2026. נוסח תזכורת מוכן מחכה ב״הודעות ללקוחות״.');
-  assert.equal(r.url, 'messages.html');
+  assert.equal(r.body, 'הקישור נוצר ביום א׳ 11.10.2026. לשלוח לו תזכורת בקבוצה.');
+  assert.equal(r.url, 'client.html?id=c1#p05');
   const known = first.map((x) => ({ key: x.key }));
   assert.deepEqual(of(due(w, IL(2026, 10, 13, 12), known), 'accessLink'), []);
   const second = due(w, IL(2026, 10, 14, 18, 0), known);
   assert.deepEqual(of(second, 'accessLink'), ['nudge2@irit:quiet']);
-  assert.match(second.find((x) => x.rule === 'accessLink').body, /תזכורת אחרונה ללקוח[^.]*; הקישור תקף עד יום א׳ 25\.10\.2026\./);
+  assert.match(second.find((x) => x.rule === 'accessLink').body, /תזכורת אחרונה בקבוצה; הקישור תקף עד יום א׳ 25\.10\.2026\./);
   // Never a third.
   assert.deepEqual(of(due(w, IL(2026, 10, 22, 12), [...known, ...second.map((x) => ({ key: x.key }))]), 'accessLink'), []);
   // Filled, revoked or expired before its time: the ladder stops.

@@ -94,7 +94,7 @@ export function menuOf(viewer) {
   if (seesGantt(viewer)) list.push({ id: 'gantt', href: 'gantt.html', label: 'גאנט תוכן' });
   list.push(...officeScreens(viewer));
   if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום', short: 'לפני צילום' });
-  if (sendsMessages(viewer)) list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
+  if (sendsMessages(viewer) && viewer.me !== 'irit') list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });
   if (PEOPLE[me]?.editor) list.push({ id: 'editor', href: 'editor.html', label: 'הלקוחות שלי בעריכה', short: 'בעריכה' });
   if (me === 'eli' || office) list.push({ id: 'shoot', href: 'shoot.html', label: 'ימי צילום' });
   // The meetings and shoot days in a week or a month (15.10.2026): the office sees every
@@ -171,7 +171,7 @@ export const PERSONAL = {
   // shoot day and the clients' requests, the daily messages to clients, the calendar she
   // invites from (15.10.2026), and building and following a contract.
   // "בקרה ושיוך" since 3.11.2026 (the owner).
-  irit: ['mine', 'clients', 'qa', 'pass', 'prep', 'messages', 'calendar', 'quote', 'quotes'],
+  irit: ['mine', 'clients', 'qa', 'pass', 'prep', 'calendar', 'quote', 'quotes'],
 };
 const IN_BOTH = ['clients'];
 // Screens a person may open that are not in their menu (the page review of Ofir, Lior and
@@ -279,7 +279,7 @@ export function barOf(items, viewer) {
 // Lior's "כל הלקוחות במבט" ('overview') became "מבט מנהל" on 4.11.2026 (a manager).
 const DAILY = {
   owner: ['mine', 'manager', 'clients', 'decisions', 'messages'],
-  irit: ['mine', 'manager', 'clients', 'messages', 'quote', 'quotes'],
+  irit: ['mine', 'manager', 'clients', 'quote', 'quotes'],
   lior: ['mine', 'manager', 'clients', 'decisions', 'messages'],
   ofir: ['mine', 'manager', 'clients', 'qa'],
 };
