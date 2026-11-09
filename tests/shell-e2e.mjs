@@ -95,7 +95,7 @@ await step('a wide screen: the side menu, the rail on the current screen, the na
   // seven since the calendar she invites from (calendar.html, 15.10.2026), eight since her pass
   // over the clients (pass.html, 26.10.2026).
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#side-list .side-link, #side-list .side-k')].map((e) => e.textContent.trim())),
-    ['המשימות שלי', 'לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'הודעות ללקוחות', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "בקרה ושיוך": 3.11.2026
+    ['המשימות שלי', 'לקוחות', 'מעקב לקוחות', 'בקרה ושיוך', 'מעבר על הלקוחות', 'לפני יום צילום', 'יומן', 'הצעה חדשה והכנת חוזה', 'הצעות שנשלחו']); // "בקרה ושיוך": 3.11.2026; no "הודעות ללקוחות" and "מעקב לקוחות": 9.11.2026
   assert.equal(await page.locator('#side-list .side-link:visible').count(), 9);
   assert.equal(await page.locator('#mode-bar, .mode-opt').count(), 0);
   assert.equal(await page.innerText('#profile-switch'), 'מבט מנהל');
