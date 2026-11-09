@@ -166,14 +166,16 @@ function render() {
   box.classList.toggle('is-quiet', !formOpen && !count);
   const heading = h('h2', { id: 'sn-h', tabindex: '-1' }, 'הערות מיוחדות לעובדים');
   const newBtn = h('button', { type: 'button', class: 'btn', id: 'sn-new', onclick: () => { formOpen = true; render(); box.querySelector('#sn-person')?.focus(); } }, 'הערה חדשה');
-  box.replaceChildren(
+  // No null to replaceChildren: it would be written as the text "null".
+  box.replaceChildren(...[
     h('div', { class: 'st-top' },
       h('div', { class: 'st-top-t' }, heading, count ? null : h('p', { class: 'hint st-empty' }, 'אין הערות פעילות.')),
       formOpen ? null : newBtn),
     formOpen ? newForm() : null,
     ...groups.map((g) => h('div', { class: 'sn-group', 'data-person': g.person },
       h('h3', { class: 'sn-to' }, `ל${g.name}`),
-      ...g.notes.map(noteItem))));
+      ...g.notes.map(noteItem))),
+  ].filter(Boolean));
 }
 
 export async function refreshNotesCard() {

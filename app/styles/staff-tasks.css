@@ -74,3 +74,4 @@
 .sn-row { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; min-width: 0; }
 .sn-row .st-meta { flex: 1 1 auto; min-width: 0; }
 .sn-del { min-height: 44px; min-width: 88px; }
+#sn-form .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
