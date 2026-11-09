@@ -301,7 +301,7 @@ export function editingCases(client, checks, person, state) {
 
 // Ilai received the final versions: his "קיבלתי" (the item p27.toilai, protocol v5),
 // or he already began scheduling or the Gantt with them (28, 29).
-export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p29.filled'].some((k) => done(checks, pre + k));
+export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p29.filled', 'p28.auto'].some((k) => done(checks, pre + k)); // p28.auto: GANTT_READY (v13)
 
 // The state of one editing job: the four buttons of §3 in order.
 //   waiting      "ממתין לכונן" → (1) "קיבלתי את הכונן והתחלתי"
@@ -622,14 +622,14 @@ export function briefingDay(shootAt) {
 }
 // Eli's gear checklist, the evening before (the only place it appears).
 export const GEAR = [['batteries', 'סוללות טעונות'], ['cards', 'כרטיסים ריקים'], ['mics', 'מיקרופונים'], ['lights', 'תאורה']];
-// Eli's finish: the four items, then "מסרתי לליאור" (locked until they are done).
+// Eli's finish: two items, then "מסרתי לליאור" (locked until they are done). v13 (9.11.2026):
+// "the videos and the B-roll are all there" and "they open, numbered as the scripts" are one item
+// (p19b.checked; either old mark answers it), and "nothing left only on the cards" left.
 export const FINISH = [
   ['p19b.folders', 'בכונן תיקיית "בי־רול" ותיקיית "סרטונים" 01 עד N, לפי התסריטים'],
-  ['p19b.complete', 'כל הסרטונים וכל הבי־רול בכונן'],
-  ['p19b.opens', 'הקבצים נפתחים'],
-  ['p19b.cards', 'שום דבר לא נשאר רק על הכרטיסים'],
+  ['p19b.checked', 'כל הסרטונים והבי־רול בכונן, נפתחים תקין, והמספור תואם לתסריטים', ['p19b.complete', 'p19b.opens']],
 ];
-export const finishOpen = (checks, pre = '') => FINISH.filter(([k]) => !done(checks, pre + k)).map(([k]) => k);
+export const finishOpen = (checks, pre = '') => FINISH.filter(([k, , old = []]) => ![k, ...old].some((x) => done(checks, pre + x))).map(([k]) => k);
 // The drive going back to Lior: recorded once, confirmed by both.
 // `eli: false`: a day Eli does not film (Eliel, who has no account): Lior's "הכונן אצלי" alone.
 export function handoffOf(checks, pre = '', { eli: byEli = true } = {}) {

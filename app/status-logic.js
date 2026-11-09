@@ -145,7 +145,7 @@ function reached(x, shootAt, charAt, now, floor = 0) {
   if (shootAt && now >= eveOf(shootAt)) i = Math.max(i, 3);
   if (x.done('p19.all') || x.done('p19.took') || (shootAt && now > endOfDayIL(shootAt))) i = Math.max(i, 4);
   if (x.done('p27.approved') || x.done('p27.final')) i = Math.max(i, 5);
-  if (x.done('p30.live') && x.done('p28.scheduled') && x.done('p29.sent')) i = Math.max(i, 6);
+  if (x.done('p30.live') && (x.done('p28.scheduled') || x.done('p28.auto')) && x.done('p29.sent')) i = Math.max(i, 6);
   return i;
 }
 // The same day the client card shows for process 34 (protocol-logic.js renewalDay).
@@ -208,10 +208,8 @@ export function needsFromYou(data, now = new Date()) {
   for (const it of data?.items || []) {
     if (it.state === 'waiting') out.push({ key: `approve:${it.key}`, text: `לאשר או לבקש תיקון: ${itemText(it.item, it.shootRound)}`, href: `#item-${domId(it.key)}` });
   }
-  const shoots = [{ pre: '', at: parseDate(c.shootAt), n: 1 }, ...(c.rounds || []).filter((r) => Number(r.n) > 1).map((r) => ({ pre: `r${r.n}.`, at: parseDate(r.shootAt), n: Number(r.n) }))];
-  for (const s of shoots) {
-    if (s.at && s.at > now && !view(data, s.pre).done('p11.ok.client')) out.push({ key: `shootok:${s.n}`, text: `לאשר לנו בקבוצה את מועד יום הצילום: ${dayText(s.at)} בשעה ${timeText(s.at)}` });
-  }
+  // (Until protocol v13 the client was asked to approve the shoot date here, p11.ok.client. Since 9.11.2026
+  // a date set in the system is the approved date: nothing is asked.)
   if ((data?.surveys?.due || []).length) out.push({ key: 'survey', text: 'שאלה קצרה אחת, לא חובה', href: '#survey' });
   return out;
 }

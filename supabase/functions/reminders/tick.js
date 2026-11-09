@@ -25,6 +25,8 @@ import {
 import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH, VOID_WHEN_GONE } from '../_shared/app/reminder-rules.js';
 import { isBusinessDay } from '../_shared/app/protocol-logic.js';
 import { monthlyRoundPlans } from '../_shared/app/monthly-rounds.js';
+import { ganttReadyPlans } from '../_shared/app/gantt-auto.js';
+import { clientState } from '../_shared/app/protocol-logic.js';
 
 const MIN = 6e4;
 // How long a push may wait at the push service before it is dropped (a ring is
@@ -148,11 +150,34 @@ async function openMonthlyRounds({ db, input, now, stats }) {
   }
 }
 
+// Protocol v13 (docs/ops.md, section 119; app/gantt-auto.js): every content row of a client's Gantt
+// is scheduled or posted, and the client is at the scheduling (28): the mark GANTT_READY, once
+// (db.writeMarks never writes over a mark that exists). What was written is put into this tick's
+// view, so Irit's "לשלוח גאנט" rings in this same tick. A failure is counted, and tried again.
+async function closeScheduling({ db, input, now, stats }) {
+  if (!Array.isArray(input.gantt) || !input.gantt.length) return;
+  const plans = ganttReadyPlans(input.clients, input.checks, input.gantt, (c, cs) => clientState(c, cs, now));
+  for (const { client, marks } of plans) {
+    try {
+      await db.writeMarks({ client, marks });
+      const at = now.toISOString();
+      for (const m of marks) {
+        if (!input.checks.some((r) => r.client_id === client.id && r.item_key === m.item_key)) input.checks.push({ client_id: client.id, ...m, at });
+      }
+      stats.scheduled += marks.length;
+    } catch (err) {
+      stats.scheduledFailed += 1;
+      console.error('reminders: the scheduling mark was not written', err?.code || err?.name || 'error');
+    }
+  }
+}
+
 /** @param {{ db: any, push: any, wa?: any, now?: Date }} args */
 export async function runTick({ db, push, wa = null, now = new Date() }) {
-  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0, monthly: 0, monthlyFailed: 0 };
+  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0, monthly: 0, monthlyFailed: 0, scheduled: 0, scheduledFailed: 0 };
   const input = await db.load(now);
   if (typeof db.openMonthlyRound === 'function') await openMonthlyRounds({ db, input, now, stats });
+  if (typeof db.writeMarks === 'function') await closeScheduling({ db, input, now, stats });
   const env = buildEnv({ ...input, now });
   const all = candidates(env);
   const active = new Set(all.map((r) => r.key));

@@ -29,9 +29,9 @@ const MIN = 6e4;
 
 // New deal (the plan's ה1): contract, group and characterization date. The
 // contract's clock stops once it was sent; the signature has a clock of its own.
+// v13: the contract's preparing and sending (p01.prepared, p01.sent) and the group (2) left the
+// protocol, so only the meeting's date has a deal clock.
 export const DEAL_CLOCKS = {
-  p01: { what: 'חוזה', until: ['p01.prepared', 'p01.sent'] },
-  p02: { what: 'קבוצה' },
   p03: { what: 'מועד אפיון' },
 };
 
@@ -51,6 +51,10 @@ export const ANSWER_CLOCKS = {
   p23: { minutes: 10, what: 'יתרת הגרפיקות', approval: 'p23.approved' },
   p26: { minutes: 5, what: 'הסרטונים', approval: 'p27.approved', notes: 'p27.notes' },
 };
+// v13 (9.11.2026): Irit no longer calls a client who did not answer ("הלקוח לא הגיב ועירית התקשרה"
+// left 7, 23 and 26), so there is no such clock and no such ring (CALL_CLOCKS false). The approvals
+// above still say what waits on the client (app/client-waits.js, app/late-chain.js).
+export const CALL_CLOCKS = false;
 export const fixAnswered = (tasks, clientId, itemKey, sentAt) => (tasks || []).some((t) => t.source === 'client_fix' && t.client_id === clientId
   && t.brief?.item_key === itemKey && new Date(t.created_at) >= sentAt);
 
@@ -164,8 +168,8 @@ export function clocksFor(person, clients, checksByClient = {}, { now = new Date
       }
     }
 
-    // "The client did not answer."
-    for (const s of state.states) {
+    // "The client did not answer." (none since v13: CALL_CLOCKS)
+    for (const s of CALL_CLOCKS ? state.states : []) {
       const spec = ANSWER_CLOCKS[baseId(s.proc)];
       if (!spec) continue;
       const kb = s.proc.keyBase || s.proc.id;

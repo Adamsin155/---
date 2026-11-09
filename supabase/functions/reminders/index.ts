@@ -186,6 +186,18 @@ async function loadAccessLinks(now: Date): Promise<Row[]> {
 // Posts that failed to publish in Metricool (6.10.2026, rule `metricoolFailed`): the Gantt
 // rows the sync marked in the last two days. Until migration
 // 20261007100000_gantt_roles_statuses.sql adds the columns, none.
+// Protocol v13 (./tick.js closeScheduling): the content rows of the Gantts of the clients whose
+// scheduling (28) may be open: kind and state only. Until the Gantt exists, none.
+async function loadGanttStates(): Promise<Row[]> {
+  try {
+    return await all(() => admin.from('client_gantt').select('id, client_id, kind, state').order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205' || code === '42703') return [];
+    throw err;
+  }
+}
+
 async function loadGanttFailures(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 2 * 864e5).toISOString();
   try {
@@ -309,7 +321,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -338,10 +350,11 @@ const db = {
       loadDecisions(now),
       loadUnsigned(now),
       loadStaffNotes(now),
+      loadGanttStates(),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, log: [...log.values()] };
   },
   // A monthly client's editing round (./tick.js openMonthlyRounds; docs/ops.md, section 94). The
   // round only when the client row is still the one loaded (its updated_at; the clients trigger
@@ -360,6 +373,13 @@ const db = {
       if (error) throw error;
     }
     return true;
+  },
+  // Protocol v13 (./tick.js closeScheduling): marks the system writes, never over one that exists.
+  async writeMarks({ client, marks }: { client: Row; marks: Row[] }) {
+    if (!marks.length) return;
+    const { error } = await admin.from('protocol_checks')
+      .upsert(marks.map((m) => ({ client_id: client.id, item_key: m.item_key, state: m.state, note: m.note })), { onConflict: 'client_id,item_key', ignoreDuplicates: true });
+    if (error) throw error;
   },
   async known(keys: string[]) {
     const out = new Set<string>();

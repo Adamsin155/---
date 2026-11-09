@@ -6,11 +6,12 @@
 // editor's final versions. Pure, no DOM, Israel time.
 // The access check and the page setup (process 6) left this card on 28.10.2026: the whole
 // process is Ofir's (the owner), in his "המשימות שלי" (app/access-check.js, app/access-check-ui.js).
-import { PROCESSES } from './protocol.js';
+import { PROCESSES, GANTT_READY, isRetired } from './protocol.js';
 import { IMPORT_NOTE } from './protocol-logic.js';
 import { qaState } from './office-marks.js';
 
-export const GANTT_KEYS = PROCESSES.find((p) => p.id === 'p09').items.map((i) => i.key);
+// v13: one item (p09.file); its seven columns left the protocol.
+export const GANTT_KEYS = PROCESSES.find((p) => p.id === 'p09').items.filter((i) => !isRetired(i)).map((i) => i.key);
 const done = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
 const inWork = (c) => c.status === 'active' || c.status === 'ending';
 
@@ -86,7 +87,8 @@ export function ilaiWork({ clients, stateOf, checks, now = new Date() }) {
       const base = s.proc.id.replace(/^r\d+-/, '');
       const pre = s.proc.keyBase.slice(0, -base.length);
       if (base === 'p27' && cs[`${pre}p27.final`]?.state === 'done' && !done(cs, `${pre}p27.toilai`)) finals.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null, at: new Date(cs[`${pre}p27.final`].at) });
-      if (base === 'p29' && s.ready && !done(cs, `${pre}p29.filled`)) gantt.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null });
+      // v13: until the system closed the scheduling (GANTT_READY; Ilai's p29.filled before v13).
+      if (base === 'p29' && s.ready && !done(cs, `${pre}${GANTT_READY}`) && !done(cs, `${pre}p29.filled`)) gantt.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null });
     }
   }
   return { first, rest, finals, gantt };

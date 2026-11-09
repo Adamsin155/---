@@ -162,7 +162,7 @@ export function reviewClock(checks, readyKey, base, pre = '') {
   return { t0, fixing };
 }
 // Anchors that are office events run on office time; a meeting or a shoot runs on the real clock.
-const onOfficeClock = (from) => from === 'deal' || from === 'group' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
+const onOfficeClock = (from) => from === 'deal' || from === 'group' || from === 'signed' || from === 'charEnd' || /^(r\d+-)?p\d/.test(from) || from.startsWith('item:');
 // Whether resolveTime counts a due spec in office minutes (and so a clock of it stops at night).
 // "The characterization ended" (decision 12): a mark with the 4 short fields in its
 // note, tapped at the end of the meeting. It starts the clocks of processes 5–10
@@ -396,6 +396,13 @@ function realAnchor(from, client, procs, checks, now) {
       if (client.round) return parseDate(client.char_at);
       const c = checks['p02.opened'];
       return c && c.state === 'done' && c.at ? new Date(c.at) : null;
+    }
+    case 'signed': {
+      // v13: the contract's signing (p01.signed), the deal when it has none (a client added by hand).
+      // Inside a round there is no contract: the round starts when it was added.
+      if (client.round) return parseDate(client.char_at);
+      const c = checks['p01.signed'];
+      return c && c.state === 'done' && c.at ? new Date(c.at) : parseDate(client.deal_at);
     }
     case 'char': return parseDate(client.char_at);
     case 'charEnd': {
@@ -684,7 +691,7 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
   if (!person || p.recurring || NO_BULK.has(p.id.replace(/^r\d+-/, '')) || state.complete) return [];
   if (state.claim && state.claim.person !== person) return [];
   // An item the system looks into before taking it (`guard`) is pressed by itself.
-  return p.items.filter((i) => !i.optional && !i.noBulk && !i.guard && !i.form && i.owners.includes(person)
+  return p.items.filter((i) => !i.optional && !i.noBulk && !i.guard && !i.form && !i.auto && i.owners.includes(person)
     && !isResolved(i, checks[i.key], now) && !blockers(i, p.ctx || client, checks));
 }
 
@@ -694,7 +701,7 @@ export function bulkEligible(state, person, client, checks, now = new Date()) {
 // imported mark, or the mark or process its clock starts from does, the work it belongs
 // to was done before this system knew of it. It stays in the card as "לא חובה" and is in
 // nobody's list; a client that is still working through that step gets it as usual.
-const ANCHOR_PROC = { deal: 'p01', group: 'p02', char: 'p04', charEnd: 'p04', shoot: 'p19' };
+const ANCHOR_PROC = { deal: 'p01', group: 'p02', signed: 'p01', char: 'p04', charEnd: 'p04', shoot: 'p19' };
 // The shoot day is behind the client (or that round) by its marks, without a date to say so:
 // Lior's closing of the day (19, retired in v12: its old marks still say it), Eli's handing over
 // of the drive (19ב), or an editor already assigned (22א). `round`: 'r2-' or ''.
@@ -748,11 +755,21 @@ function withoutFreshAfterImport(procs, checks) {
 // רלוונטי" in the card), in nobody's list, and it holds nothing open. Whatever the
 // client's version, and with or without the migration's own mark.
 function withoutPassed(procs, checks) {
-  const passed = (i, round) => !!i.passedIf && !checks[i.key] && ['done', 'na'].includes(checks[`${round}${i.passedIf}`]?.state);
+  // (v13: `passedIf` may name several marks, any one of them: Eli's merged drive check.)
+  const passed = (i, round) => !!i.passedIf && !checks[i.key] && [].concat(i.passedIf).some((k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state));
+  // What waited for a passed item waits for the mark that passed it (v13: Irit's sending of the Gantt
+  // waits for GANTT_READY, or for the full Gantt Ilai marked before it existed).
+  const instead = new Map();
+  for (const p of procs) {
+    const round = /^(r\d+\.)/.exec(p.keyBase || '')?.[1] || '';
+    for (const i of p.items) if (passed(i, round)) instead.set(i.key, `${round}${[].concat(i.passedIf).find((k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state))}`);
+  }
+  if (!instead.size) return procs;
+  const req = (i) => (i.requires?.some((k) => instead.has(k)) ? { ...i, requires: i.requires.map((k) => instead.get(k) || k) } : i);
   return procs.map((p) => {
     const round = /^(r\d+\.)/.exec(p.keyBase || '')?.[1] || '';
-    if (!p.items.some((i) => !i.optional && passed(i, round))) return p;
-    return { ...p, items: p.items.map((i) => (!i.optional && passed(i, round) ? { ...i, optional: true, history: true } : i)) };
+    if (!p.items.some((i) => passed(i, round) || i.requires?.some((k) => instead.has(k)))) return p;
+    return { ...p, items: p.items.map((i) => req(!i.optional && passed(i, round) ? { ...i, optional: true, history: true } : i)) };
   });
 }
 
