@@ -221,7 +221,7 @@ try {
 
   await step('Irit: "נודניק תזכורת לעובד" right under the "now" bar, with "שליחת נודניק" and nothing open yet', async () => {
     await irit.locator(`${CARD}:not([hidden])`).waitFor();
-    assert.deepEqual(await irit.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 3).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'deals-card']);
+    assert.deepEqual(await irit.evaluate(() => [...document.querySelectorAll('#view-mine > *')].slice(0, 4).map((e) => e.id)), ['now-bar', 'staff-tasks-card', 'staff-notes-card', 'deals-card']);
     assert.equal(await text(irit, `${CARD} h2`), 'נודניק תזכורת לעובד');
     assert.equal(await text(irit, '#st-new'), 'שליחת נודניק');
     assert.match(await text(irit, CARD), /אין נודניקים פתוחים ששלחת\./);

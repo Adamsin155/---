@@ -57,10 +57,10 @@ function markup() {
           field('cr-monthly', 'מחיר לחודש, לפני מע״מ (₪)', text('cr-monthly', 9, { inputmode: 'numeric', dir: 'ltr' })),
           field('cr-term', 'חודשים', text('cr-term', 3, { inputmode: 'numeric', dir: 'ltr' }))),
         field('cr-signed', 'תאריך החתימה', h('input', { class: 'input', id: 'cr-signed', type: 'date', dir: 'ltr' })),
-        h('p', { class: 'hint' }, 'זה נקרא אוטומטית מהקובץ: כדאי לעבור על כל שדה. שום דבר לא נשמר עד ״אישור ושמירה״.'),
+        h('p', { class: 'hint', id: 'cr-hint' }, 'זה נקרא אוטומטית מהקובץ ונשמר ב״הצעות שנשלחו״. כדאי לעבור על כל שדה; תיקון נשמר ב״אישור ושמירה״.'),
         h('div', { class: 'err', id: 'cr-err', role: 'alert', hidden: true })),
       h('div', { class: 'dlg-foot' },
-        h('button', { type: 'button', class: 'btn btn-ghost', 'data-close': true }, 'לא עכשיו'),
+        h('button', { type: 'button', class: 'btn btn-ghost', 'data-close': true }, 'סגירה'),
         h('button', { type: 'button', class: 'btn btn-ghost', id: 'cr-again', hidden: true }, 'לקרוא שוב'),
         h('button', { type: 'submit', class: 'btn btn-primary', id: 'cr-submit' }, 'אישור ושמירה'))));
 }
@@ -110,11 +110,13 @@ export function readSignedContract({ client, file, existing = null, onSaved = ()
         try { code = String((await error.context.json()).error || ''); } catch { /* no body */ }
         state(''); fail(READ_ERRORS[code] || READ_FAILED); $('cr-again').hidden = false;
         setForm({ business: client.business || client.name || '', company_id: client.company_id || '' });
+        await keepNow();
         return;
       }
       const r = data?.result || {};
       readByAi = true;
       setForm(r);
+      await keepNow();
       const notes = Array.isArray(r.notes) ? r.notes : [];
       const dropped = (Array.isArray(data?.dropped) ? data.dropped : []).map((d) => d.text).filter(Boolean);
       const all = [...notes, ...dropped];
@@ -126,6 +128,32 @@ export function readSignedContract({ client, file, existing = null, onSaved = ()
     } finally {
       busy = false;
       $('cr-submit').disabled = false;
+    }
+  };
+
+  // The owner, 9.11.2026: "a contract uploaded by hand shows at once in הצעות שנשלחו". What was read
+  // is kept right away (a field that does not pass the checks is left empty, the business falls back
+  // to the client's name); the dialog stays open to check and correct, as a correction of that row.
+  const keepNow = async () => {
+    if (existing) return;
+    const values = formValues();
+    let c = checkReadForm(values);
+    if (!c.ok) {
+      const clean = { ...values };
+      for (const k of Object.keys(c.errors)) clean[k] = '';
+      if (!String(clean.business || '').trim()) clean.business = client.business || client.name || 'חוזה ידני';
+      c = checkReadForm(clean);
+      if (!c.ok) return;
+    }
+    try {
+      const row = { ...c.row, package_name: c.row.package_id ? packageName(c.row.package_id) : null, read_by_ai: readByAi };
+      const { data: saved, error } = await supabase.from('manual_contracts').insert({ client_id: client.id, file_id: file.id, ...row }).select().single();
+      if (error) throw error;
+      existing = saved;
+      $('cr-hint').textContent = 'נשמר ב״הצעות שנשלחו״. כדאי לעבור על כל שדה; תיקון נשמר ב״אישור ושמירה״.';
+      onSaved(saved, client);
+    } catch (err) {
+      fail(`עוד לא נשמר ב״הצעות שנשלחו״: ${errorText(err)}. ״אישור ושמירה״ ינסה שוב.`);
     }
   };
 
@@ -170,7 +198,8 @@ export function readSignedContract({ client, file, existing = null, onSaved = ()
   const form = $('cr-form');
   form.onsubmit = save;
   $('cr-again').onclick = () => { fail(''); read(); };
-  dlg.onclick = (e) => { if (e.target.closest('[data-close]') || e.target === dlg) dlg.close(); };
+  dlg.onclick = (e) => { if (e.target.closest('[data-close]')) dlg.close(); };
+  dlg.oncancel = (e) => { if (busy) e.preventDefault(); };
   dlg.onclose = () => { if (returnTo?.isConnected) returnTo.focus(); };
   dlg.showModal();
   if (existing) {
