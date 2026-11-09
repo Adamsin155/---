@@ -48,6 +48,8 @@ async function fakeSupabase(route) {
     return json(200, USER);
   }
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
+  // The special note for an employee (ops 114) reads its notes; none here.
+  if (p === '/rest/v1/staff_notes') return json(200, []);
   if (p === '/rest/v1/rpc/is_staff') return json(200, (req.headers().authorization || '').includes(JWT));
   // Who is signed in (app/shell.js): the owner, so the quote pages show the managers' switch.
   if (p === '/rest/v1/staff') return json(200, { person: null });
@@ -316,6 +318,11 @@ await step('client link shows the same quote', async () => {
   assert.match(t, /97,704 ₪/);
   assert.equal(await client.locator('#s-name').inputValue(), '', 'signer types their own name');
   await shot(client, '05-client-mobile');
+  if (OUT) {
+    await client.setViewportSize({ width: 1440, height: 900 });
+    await shot(client, '05-client-desktop');
+    await client.setViewportSize({ width: 390, height: 844 });
+  }
   // The agreement as it prints (kept next to the screenshots, to compare a look change against it).
   if (OUT) await client.pdf({ path: `${OUT}/05-agreement-print.pdf`, format: 'A4', printBackground: true });
 });
