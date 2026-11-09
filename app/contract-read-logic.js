@@ -176,3 +176,28 @@ export function manualAmounts(row) {
   const monthly = Math.round((net * (100 + VAT_RATE_PERCENT)) / 100);
   return { monthly_gross_agorot: monthly, term_gross_agorot: monthly * (Number(row?.term_months) || 0) };
 }
+
+// What a reading puts in the review's fields: { business, company_id, …, monthly_net, … } as the
+// strings the inputs hold (app/contract-read-ui.js setForm shows the same).
+export function formFromRead(r = {}) {
+  return {
+    business: r.business || '', company_id: r.company_id || '', contact_name: r.contact_name || '', package_id: r.package_id || '',
+    monthly_net: r.monthly_net ? String(r.monthly_net) : '', term_months: r.term_months ? String(r.term_months) : '', signed_on: r.signed_on || '',
+  };
+}
+
+// What is kept right after a reading, before anyone corrected it (the owner, 9.11.2026: "a contract
+// uploaded by hand shows at once"): the fields as read; a field that does not pass the checks is
+// left empty, and without a business the client's name (`fallback`) stands in. The row for
+// public.manual_contracts without its package's name (checkReadForm's row), or null.
+// Used by the review (app/contract-read-ui.js) and by "הצעות שנשלחו" (app/contract-read-api.js).
+export function keepableRow(form, fallback = '', now = new Date()) {
+  let c = checkReadForm(form, now);
+  if (!c.ok) {
+    const clean = { ...form };
+    for (const k of Object.keys(c.errors)) clean[k] = '';
+    if (!String(clean.business || '').trim()) clean.business = String(fallback || '').trim() || 'חוזה ידני';
+    c = checkReadForm(clean, now);
+  }
+  return c.ok ? c.row : null;
+}

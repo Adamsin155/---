@@ -104,3 +104,32 @@
 .ow-noaccess { padding: 20px; }
 .ow-noaccess p { color: var(--text-2); }
 .ow-noaccess .btn { min-height: 44px; }
+
+/* The month that is shown (docs/ops.md, section 117): the arrows step between the months that have
+   rows, the list picks any of them. The calendar's round arrows (calendar-page.css). */
+.month-bar { display: flex; align-items: center; gap: 8px; }
+.month-pick { inline-size: auto; min-inline-size: 190px; font-weight: 600; font-family: var(--font-h); cursor: pointer; }
+.month-arrow {
+  inline-size: 44px; block-size: 44px; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 50%;
+  background: var(--ds-surface); color: var(--ds-ink); cursor: pointer; transition: background-color .2s;
+}
+@media (hover: hover) { .month-arrow:not(:disabled):hover { background: var(--ds-soft); } }
+.month-arrow:disabled { opacity: .35; cursor: default; }
+/* "Onward" points left in a right-to-left page; "back" points right. */
+#month-prev .k-svg { transform: scaleX(-1); }
+
+/* "חוזים שצריך לבדוק": a contract uploaded by hand whose price and months were not read. */
+.reading-line { margin: 0; color: var(--muted); font-size: 14px; }
+.reading-line[hidden] { display: none; }
+.check-block { padding: 16px 18px; display: grid; gap: 6px; border-inline-start: 4px solid var(--ds-amber); }
+.check-block h2 { margin: 0; font-size: 17px; }
+.check-hint { margin: 0; color: var(--text-2); font-size: 14px; }
+.check-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; }
+.check-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.check-who { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.check-who small { color: var(--muted); font-size: 12.5px; }
+.check-row .btn { min-height: 44px; flex: none; }
+@media (max-width: 760px) {
+  .month-pick { flex: 1 1 auto; min-inline-size: 0; }
+  .check-block { padding: 14px; }
+}

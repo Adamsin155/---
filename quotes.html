@@ -57,7 +57,21 @@
       </div>
     </div>
 
+    <!-- One month at a time, this month first (the owner, 9.11.2026; docs/ops.md, section 117). -->
+    <div class="month-bar" id="month-bar" hidden>
+      <button type="button" class="month-arrow" id="month-prev" aria-label="החודש הקודם"></button>
+      <label class="sr-only" for="month-pick">חודש</label>
+      <select class="input month-pick" id="month-pick"></select>
+      <button type="button" class="month-arrow" id="month-next" aria-label="החודש הבא"></button>
+    </div>
     <div class="stats" id="stats" hidden></div>
+    <!-- A contract uploaded by hand that could not be read with its price and months (section 117). -->
+    <p class="reading-line" id="reading" role="status" hidden></p>
+    <section class="block check-block" id="check-block" hidden aria-labelledby="check-h">
+      <h2 id="check-h">חוזים שצריך לבדוק</h2>
+      <p class="check-hint">לא הצלחנו לקרוא מהם מחיר וחודשים. פותחים, בודקים ושומרים, והם עוברים לרשימה.</p>
+      <ul class="check-list" id="check-list"></ul>
+    </section>
 
     <section class="block" id="login-block" hidden aria-labelledby="lg-h">
       <form class="login" id="login-form" novalidate>

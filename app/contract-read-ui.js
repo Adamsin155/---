@@ -9,7 +9,9 @@ import { supabase } from './supa.js';
 import { updateClient } from './protocol-data.js';
 import { $, h, toast, errorText } from './protocol-ui.js';
 import { PACKAGE_OPTIONS, packageName, dealDeliverables } from './client-open.js';
-import { checkReadForm, clientPatchFromRead, LIMITS } from './contract-read-logic.js';
+import { checkReadForm, clientPatchFromRead, keepableRow, LIMITS } from './contract-read-logic.js';
+// Asking contract-ai and adding the row: shared with "הצעות שנשלחו", which reads a new file by itself.
+import { askContractRead, insertManualContract } from './contract-read-api.js';
 
 export const MANUAL_COLS = 'id, client_id, file_id, business, company_id, contact_name, package_id, package_name, monthly_net_agorot, term_months, signed_on, read_by_ai, created_by_email, created_at';
 
@@ -102,12 +104,8 @@ export function readSignedContract({ client, file, existing = null, onSaved = ()
     $('cr-submit').disabled = true; $('cr-again').hidden = true;
     state('קורא את החוזה… זה לוקח כמה שניות.');
     try {
-      const ask = () => supabase.functions.invoke('contract-ai', { body: { mode: 'read', fileId: file.id } });
-      let { data, error } = await ask();
-      if (error && error.context?.status === 401) { await supabase.auth.refreshSession(); ({ data, error } = await ask()); }
-      if (error) {
-        let code = '';
-        try { code = String((await error.context.json()).error || ''); } catch { /* no body */ }
+      const { data, code } = await askContractRead(file.id);
+      if (!data) {
         state(''); fail(READ_ERRORS[code] || READ_FAILED); $('cr-again').hidden = false;
         setForm({ business: client.business || client.name || '', company_id: client.company_id || '' });
         await keepNow();
@@ -136,20 +134,14 @@ export function readSignedContract({ client, file, existing = null, onSaved = ()
   // to the client's name); the dialog stays open to check and correct, as a correction of that row.
   const keepNow = async () => {
     if (existing) return;
-    const values = formValues();
-    let c = checkReadForm(values);
-    if (!c.ok) {
-      const clean = { ...values };
-      for (const k of Object.keys(c.errors)) clean[k] = '';
-      if (!String(clean.business || '').trim()) clean.business = client.business || client.name || 'חוזה ידני';
-      c = checkReadForm(clean);
-      if (!c.ok) return;
-    }
+    const row = keepableRow(formValues(), client.business || client.name);
+    if (!row) return;
     try {
-      const row = { ...c.row, package_name: c.row.package_id ? packageName(c.row.package_id) : null, read_by_ai: readByAi };
-      const { data: saved, error } = await supabase.from('manual_contracts').insert({ client_id: client.id, file_id: file.id, ...row }).select().single();
-      if (error) throw error;
+      // Kept a moment before by someone else ("הצעות שנשלחו" reads a new file by itself): that row
+      // is shown, and this review corrects it.
+      const { row: saved, already } = await insertManualContract({ clientId: client.id, fileId: file.id, row, readByAi });
       existing = saved;
+      if (already) setForm({ ...saved, monthly_net: saved.monthly_net_agorot ? saved.monthly_net_agorot / 100 : null });
       $('cr-hint').textContent = 'נשמר ב״הצעות שנשלחו״. כדאי לעבור על כל שדה; תיקון נשמר ב״אישור ושמירה״.';
       onSaved(saved, client);
     } catch (err) {
@@ -169,11 +161,18 @@ export function readSignedContract({ client, file, existing = null, onSaved = ()
     $('cr-submit').textContent = 'שומר…';
     try {
       const row = { ...c.row, package_name: c.row.package_id ? packageName(c.row.package_id) : null, read_by_ai: readByAi || !!existing?.read_by_ai };
-      const q = existing
-        ? supabase.from('manual_contracts').update(row).eq('id', existing.id)
-        : supabase.from('manual_contracts').insert({ client_id: client.id, file_id: file.id, ...row });
-      const { data: saved, error } = await q.select().single();
-      if (error) throw error;
+      const update = async (id) => {
+        const { data, error } = await supabase.from('manual_contracts').update(row).eq('id', id).select().single();
+        if (error) throw error;
+        return data;
+      };
+      // A file with no row yet gets one; when someone else kept it a moment before, this corrects theirs.
+      let saved;
+      if (existing) saved = await update(existing.id);
+      else {
+        const kept = await insertManualContract({ clientId: client.id, fileId: file.id, row: c.row, readByAi });
+        saved = kept.already ? await update(kept.row.id) : kept.row;
+      }
       const patch = clientPatchFromRead(c.row, client, { packageName, dealDeliverables });
       let next = client;
       if (Object.keys(patch).length) {

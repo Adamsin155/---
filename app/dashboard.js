@@ -3,11 +3,12 @@ import {
   sendPasswordReset, consumeRecoveryLink, looksLikeEmail, cleanEmail, RESET_NEEDS_EMAIL, RESET_SENT, signOutHere, LINK_KEPT, sessionEmail,
 } from './supa.js';
 import { h, formatDate, whatsappLink } from './quote-doc.js';
-import { dressHead, headIcon, besideIcon, leadIcon } from './kit.js';
+import { dressHead, headIcon, besideIcon, leadIcon, icon } from './kit.js';
 import { formatILS } from './pricing.js';
-import { dayKeyIL } from './tz.js';
 // Every signed contract file shows in the list (9.11.2026): the kind and label of such a file.
 import { CONTRACT_KIND, CONTRACT_LABEL } from './contract-file.js';
+// One month at a time, and which contract files uploaded by hand take part (docs/ops.md, section 117).
+import { MANUAL_FROM, monthKeyIL, signedMonth, monthLabel, inMonthWords, monthChoices, rowsOfMonth, sortManual, freshFailures } from './quotes-month.js';
 import { glide, countUp, viewerFor } from './shell.js';
 // Who opens this list (the owners, Irit and Ofir) and who sees its amounts (the owners, 6.10.2026,
 // and Ofir, 29.10.2026: app/manager-rules.js seesQuoteMoney).
@@ -31,6 +32,14 @@ headIcon($('pw-h'), 'lock', 'navy');
 besideIcon($('empty'), 'inbox', 'navy', { size: 'sm' }).parentNode.classList.add('k-emptyrow');
 leadIcon($('btn-refresh'), 'loop');
 let quotes = [];
+// The month shown ('YYYY-MM', Israel): this month when the page opens.
+let month = monthKeyIL(new Date());
+// What was uploaded by hand and has to be looked at (sortManual's `check`), and whether new
+// contract files are being read now.
+let toCheck = [];
+let reading = false;
+// The month's rows: what the tabs, their counts and the tiles count.
+const shown = () => rowsOfMonth(quotes, month);
 let filter = location.hash === `#${UNSIGNED_FILTER}` ? UNSIGNED_FILTER : 'all';
 let showMoney = false;      // the amounts and their sums: the owners and Ofir (seesQuoteMoney)
 
@@ -76,24 +85,28 @@ function setSession(staff) {
 
 let statsShown = null;
 function renderStats() {
-  const count = (s) => quotes.filter((q) => statusOf(q) === s).length;
+  // The tiles count the month that is shown (section 117).
+  const rows = shown();
+  const count = (s) => rows.filter((q) => statusOf(q) === s).length;
   // The whole agreement with VAT (its months × the monthly gross), not a month of it (the owner,
-  // 28.10.2026): what was sent this month, and what was signed this month (Israel months).
-  const month = dayKeyIL(new Date()).slice(0, 7);
-  const inMonth = (t) => !!t && dayKeyIL(new Date(t)).slice(0, 7) === month;
+  // 28.10.2026): what was sent in the month, and what was signed in it (Israel months). A contract
+  // uploaded by hand counts in the month it was uploaded (quotes-month.js signedMonth).
   const total = (list) => list.reduce((s, q) => s + (q.term_gross_agorot || 0), 0);
-  const sentThisMonth = total(quotes.filter((q) => inMonth(q.created_at) && q.status !== 'cancelled'));
-  const signedThisMonth = total(quotes.filter((q) => q.status === 'signed' && inMonth(q.signed_at)));
+  const sentInMonth = total(rows.filter((q) => q.status !== 'cancelled'));
+  const signedInMonth = total(quotes.filter((q) => q.status === 'signed' && signedMonth(q) === month));
+  const now = month === monthKeyIL(new Date());
+  const sentWords = now ? 'נשלח החודש' : `נשלח ${inMonthWords(month)}`;
+  const signedWords = now ? 'נחתם החודש' : `נחתם ${inMonthWords(month)}`;
   const stat = (k, v, cls = '') => h('div', { class: `stat${cls}` }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
   // The two sums take a row of their own, half each (app/styles/quotes.css): a sum in shekels
   // squeezed into a sixth of the row ran into the tile beside it.
   $('stats').classList.toggle('has-money', showMoney);
   $('stats').replaceChildren(
-    stat('הצעות', String(quotes.filter((q) => !q.legacy).length)),
+    stat('הצעות', String(rows.filter((q) => !q.legacy).length)),
     stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
     stat('הצעות לצפייה', String(count('shared') + count('seen'))),
     stat('נחתמו', String(count('signed'))),
-    ...(showMoney ? [stat('נשלח החודש · כולל מע״מ', formatILS(sentThisMonth), ' stat-money'), stat('נחתם החודש · כולל מע״מ', formatILS(signedThisMonth), ' stat-money')] : []),
+    ...(showMoney ? [stat(`${sentWords} · כולל מע״מ`, formatILS(sentInMonth), ' stat-money'), stat(`${signedWords} · כולל מע״מ`, formatILS(signedInMonth), ' stat-money')] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
@@ -102,7 +115,7 @@ function renderStats() {
 }
 
 function renderFilters() {
-  const n = (k) => quotes.filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : k === 'approval' ? APPROVAL.includes(statusOf(q)) : k === UNSIGNED_FILTER ? waitsForSignature(q) : statusOf(q) === k)).length;
+  const n = (k) => shown().filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : k === 'approval' ? APPROVAL.includes(statusOf(q)) : k === UNSIGNED_FILTER ? waitsForSignature(q) : statusOf(q) === k)).length;
   const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['expired', 'פג תוקף'], ['cancelled', 'בוטלו']];
   // Shown only when there is such a contract.
   if (n('approval') || filter === 'approval') opts.splice(1, 0, ['approval', 'לא אושרו']);
@@ -213,7 +226,6 @@ function manualRow(q) {
       q.signed_at ? h('small', { class: 'when' }, h('span', { class: 'k-sep' }, ' · '), formatDate(q.signed_at)) : null),
     h('td', { 'data-label': 'שינויים מהחבילה' }, h('span', { class: 'apv-cell' }, '—')),
     h('td', { class: 'acts-cell' }, h('div', { class: 'acts' },
-      q.unread ? h('a', { class: 'btn btn-sm', href: `client.html?id=${encodeURIComponent(q.client_id)}#read-${q.unread}` }, 'קריאת החוזה') : null,
       q.path ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', 'data-act': 'manual-open', onclick: () => openManual(q) }, 'פתיחה') : null,
       h('a', { class: 'btn btn-sm btn-ghost', href: `client.html?id=${encodeURIComponent(q.client_id)}#contract-docs` }, 'לכרטיס'))));
 }
@@ -225,47 +237,118 @@ async function openManual(q) {
     toast('הקובץ לא נפתח. אפשר לפתוח אותו מכרטיס הלקוח.');
   }
 }
+// The automatic readings that failed in this browser: { fileId: ms } (a convenience: without the
+// browser's storage a failure is remembered for as long as the page is open).
+const TRIED_KEY = 'astrateg.quotes.read-tried';
+let triedHere = {};
+function triedReadings() {
+  try { return { ...JSON.parse(localStorage.getItem(TRIED_KEY) || '{}'), ...triedHere }; } catch { return { ...triedHere }; }
+}
+function rememberFailure(fileId) {
+  triedHere = { ...triedHere, [fileId]: Date.now() };
+  try {
+    const all = triedReadings();
+    const fresh = freshFailures(all);
+    localStorage.setItem(TRIED_KEY, JSON.stringify(Object.fromEntries(Object.entries(all).filter(([id]) => fresh.has(id)))));
+  } catch { /* no storage */ }
+}
+
+// The signed contracts uploaded by hand (docs/ops.md, sections 104 and 117): { rows, check, toRead,
+// clients }. `rows`: the list's signed rows, with their amounts, in the month the file was uploaded;
+// `check`: "חוזים שצריך לבדוק"; `toRead`: new files to read now. A file uploaded before
+// MANUAL_FROM (the old contracts imported on 27-29.10.2026) is in none of them.
 async function loadManual() {
-  // Every signed contract file (the owner, 9.11.2026: "a contract uploaded by hand shows at once"):
-  // with what was read from it, or, before it was read, as "פרטים חסרים" with the way to read it.
   const [{ data, error }, { data: files }] = await Promise.all([
     supabase.from('manual_contracts')
       .select('id, client_id, file_id, business, contact_name, package_name, monthly_net_agorot, term_months, signed_on, created_at, created_by_email')
       .order('created_at', { ascending: false }).limit(300),
     supabase.from('client_files').select('id, client_id, storage_path, created_at, uploaded_by')
-      .eq('kind', CONTRACT_KIND).eq('label', CONTRACT_LABEL).is('deleted_at', null).order('created_at', { ascending: false }).limit(300),
+      .eq('kind', CONTRACT_KIND).eq('label', CONTRACT_LABEL).is('deleted_at', null).gte('created_at', MANUAL_FROM)
+      .order('created_at', { ascending: false }).limit(300),
   ]);
   const rows = error || !Array.isArray(data) ? [] : data;
-  const allFiles = Array.isArray(files) ? files : [];
-  const readFiles = new Set(rows.map((m) => m.file_id));
-  const unread = allFiles.filter((f) => !readFiles.has(f.id));
-  if (!rows.length && !unread.length) return [];
-  const ids = [...new Set([...rows, ...unread].map((m) => m.client_id))];
-  const { data: cs } = await supabase.from('clients').select('id, name, business').in('id', ids);
-  const name = Object.fromEntries((cs || []).map((c) => [c.id, c.business || c.name]));
-  const path = Object.fromEntries(allFiles.map((x) => [x.id, x.storage_path]));
-  const missing = rows.filter((m) => !path[m.file_id]).map((m) => m.file_id);
+  const live = Array.isArray(files) ? files : [];
+  // The files of rows that are not among those (uploaded before MANUAL_FROM, or deleted since): the
+  // day they were uploaded decides whether the row is listed.
+  const byId = Object.fromEntries(live.map((f) => [f.id, f]));
+  const missing = [...new Set(rows.map((m) => m.file_id).filter((id) => !byId[id]))];
   if (missing.length) {
-    const { data: more } = await supabase.from('client_files').select('id, storage_path').in('id', missing);
-    for (const x of more || []) path[x.id] = x.storage_path;
+    const { data: more } = await supabase.from('client_files').select('id, client_id, storage_path, created_at').in('id', missing);
+    for (const f of more || []) byId[f.id] = f;
   }
+  const sorted = sortManual({ rows, files: live, uploaded: byId, failed: freshFailures(triedReadings()) });
+  const ids = [...new Set([...sorted.listed.map((x) => x.row.client_id), ...sorted.check.map((x) => x.clientId), ...sorted.toRead.map((f) => f.client_id)])];
+  const { data: cs } = ids.length ? await supabase.from('clients').select('id, name, business').in('id', ids) : { data: [] };
+  const clients = Object.fromEntries((cs || []).map((c) => [c.id, c]));
+  const nameOf = (id) => clients[id]?.business || clients[id]?.name || '';
   const { manualAmounts } = await import('./contract-read-logic.js');
-  return [
-    ...rows.map((m) => ({
-      manual: m.id, client_id: m.client_id, number: 'ידני', client_name: m.business || name[m.client_id] || '', status: 'signed',
-      signed_at: m.signed_on || m.created_at, created_at: m.created_at, created_by_email: m.created_by_email, signer_name: m.contact_name || null,
-      ...manualAmounts(m), tier: m.package_name || '', doc: 'חוזה ידני', signable: 'true', path: path[m.file_id] || null,
+  return {
+    clients,
+    rows: sorted.listed.map(({ row: m, at }) => ({
+      manual: m.id, client_id: m.client_id, number: 'ידני', client_name: m.business || nameOf(m.client_id), status: 'signed',
+      // Listed by the day its file was uploaded (section 117); its signing day beside its state.
+      signed_at: m.signed_on || null, created_at: at, created_by_email: m.created_by_email, signer_name: m.contact_name || null,
+      ...manualAmounts(m), tier: m.package_name || '', doc: 'חוזה ידני', signable: 'true', path: byId[m.file_id]?.storage_path || null,
     })),
-    ...unread.filter((f) => name[f.client_id]).map((f) => ({
-      manual: `file:${f.id}`, unread: f.id, client_id: f.client_id, number: 'ידני', client_name: name[f.client_id], status: 'signed',
-      signed_at: f.created_at, created_at: f.created_at, created_by_email: f.uploaded_by || '', signer_name: null,
-      monthly_gross_agorot: 0, term_gross_agorot: 0, tier: '', doc: 'חוזה ידני', signable: 'true', path: f.storage_path,
-    })),
-  ];
+    // Only the clients this person sees (the database answers no others).
+    check: sorted.check.filter((x) => clients[x.clientId]).map((x) => ({ ...x, name: x.row?.business || nameOf(x.clientId) })),
+    toRead: sorted.toRead.filter((f) => clients[f.client_id]),
+  };
 }
 
+// New contract files are read here, one after the other, by whoever sees the amounts (they may keep
+// what was read in public.manual_contracts), with the same reading and keeping as the card
+// (app/contract-read-api.js). Then the list is read again.
+async function readNewContracts(files, clients) {
+  if (reading || !files.length) return;
+  reading = true;
+  renderReading(files.length);
+  try {
+    const { readAndKeep } = await import('./contract-read-api.js');
+    for (const f of files) {
+      const r = await readAndKeep({ client: clients[f.client_id], file: f }).catch(() => ({ ok: false }));
+      if (!r.ok) rememberFailure(f.id);
+    }
+  } catch {
+    for (const f of files) rememberFailure(f.id);
+  } finally {
+    reading = false;
+    renderReading(0);
+  }
+  await loadQuotes();
+}
+function renderReading(n) {
+  $('reading').hidden = !n;
+  $('reading').textContent = n === 1 ? 'קורא חוזה חדש שהועלה…' : n ? `קורא ${n} חוזים חדשים שהועלו…` : '';
+}
+function renderCheck() {
+  $('check-block').hidden = !toCheck.length;
+  $('check-list').replaceChildren(...toCheck.map((x) => h('li', { class: 'check-row' },
+    h('span', { class: 'check-who' }, h('b', {}, x.name), h('small', {}, `הועלה ${formatDate(x.at)}`)),
+    h('a', { class: 'btn btn-sm', href: `client.html?id=${encodeURIComponent(x.clientId)}#read-${x.fileId}` }, 'קריאת החוזה'))));
+}
+
+// The month picker: the months that have rows, this one always; the arrows step between them.
+function renderMonths() {
+  const keys = monthChoices(quotes);
+  if (!keys.includes(month)) month = keys[0];
+  const pick = $('month-pick');
+  pick.replaceChildren(...keys.map((k) => h('option', { value: k }, monthLabel(k))));
+  pick.value = month;
+  const i = keys.indexOf(month);
+  $('month-prev').disabled = i >= keys.length - 1;
+  $('month-next').disabled = i <= 0;
+  $('month-bar').hidden = false;
+}
+function setMonth(k) {
+  if (!k || k === month) return;
+  glide(() => { month = k; renderMonths(); renderStats(); renderFilters(); renderRows(); });
+}
+// -1: the month before (the next one down the list), 1: the month after.
+const stepMonth = (d) => { const keys = monthChoices(quotes); setMonth(keys[keys.indexOf(month) - d]); };
+
 function renderRows() {
-  const list = quotes.filter((q) => {
+  const list = shown().filter((q) => {
     const s = statusOf(q);
     if (filter === 'all') return true;
     if (filter === 'open') return OPEN.includes(s);
@@ -310,7 +393,9 @@ function renderRows() {
     );
   }));
   $('empty').hidden = list.length > 0;
-  $('empty').textContent = quotes.length ? (filter === UNSIGNED_FILTER ? 'אין כרגע הסכם שמחכה לחתימה.' : 'אין הצעות בסינון הזה.') : 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.';
+  $('empty').textContent = !quotes.length ? 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.'
+    : !shown().length ? `אין הצעות ב${monthLabel(month)}.`
+      : filter === UNSIGNED_FILTER ? 'אין כרגע הסכם שמחכה לחתימה.' : 'אין הצעות בסינון הזה.';
 }
 
 // The quotes not to list (public.hidden_quotes). Before its migration: none.
@@ -334,17 +419,22 @@ async function loadQuotes() {
   if (error) { $('state').textContent = explainError(error); return; }
   // With the old system's signed contracts since 1.10.2026, newest first among them all.
   const old = await loadLegacy().catch(() => []);
-  // And the contracts signed outside the system, uploaded by hand and confirmed (5.11.2026).
-  const manual = await loadManual().catch(() => []);
+  // And the contracts signed outside the system, uploaded by hand (5.11.2026; section 117).
+  const manual = await loadManual().catch(() => ({ rows: [], check: [], toRead: [], clients: {} }));
   // A signed quote named in public.hidden_quotes (a duplicate: האלופים פחחות וצבע, 5.11.2026) is
   // neither listed nor summed; the quote itself is kept as it was (docs/ops.md, section 107).
   const hidden = await loadHidden().catch(() => new Set());
-  quotes = [...data.filter((q) => !hidden.has(q.id)), ...old, ...manual].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  quotes = [...data.filter((q) => !hidden.has(q.id)), ...old, ...manual.rows].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  toCheck = manual.check;
   $('state').textContent = '';
   $('list-block').hidden = false;
+  renderMonths();
   renderStats();
   renderFilters();
   renderRows();
+  renderCheck();
+  // A new contract uploaded by hand is read now, by whoever may keep what was read.
+  if (showMoney && manual.toRead.length) readNewContracts(manual.toRead, manual.clients);
 }
 
 async function boot() {
@@ -428,6 +518,11 @@ $('lg-forgot').addEventListener('click', async (e) => {
 });
 $('btn-logout').addEventListener('click', async () => { resetMode(); forgetPlace(); await signOutHere(); await boot(); });
 $('btn-refresh').addEventListener('click', loadQuotes);
+$('month-pick').addEventListener('change', (e) => setMonth(e.target.value));
+$('month-prev').append(icon('go', { size: 20 }));
+$('month-next').append(icon('go', { size: 20 }));
+$('month-prev').addEventListener('click', () => stepMonth(-1));
+$('month-next').addEventListener('click', () => stepMonth(1));
 
 const pwDialog = $('dlg-password');
 pwDialog.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === pwDialog) pwDialog.close(); });
