@@ -45,13 +45,13 @@ test('the people: Noam on the team, an own screen as Ilai\'s, and a characterize
   assert.ok(TEAM_PEOPLE().some((p) => p.key === 'noam'));
   assert.ok(STAFF_PEOPLE().some((p) => p.key === 'noam'));
   assert.deepEqual(PERSONS, TEAM_PEOPLE().map((p) => p.key));
-  assert.deepEqual(CHARACTERIZERS, ['noam', 'ofir', 'lior']);
+  assert.deepEqual(CHARACTERIZERS, ['noam', 'ofir', 'shiel', 'lior']); // Shiel since 9.11.2026
   assert.deepEqual(MEET_PEOPLE, CHARACTERIZERS);
   assert.equal(DEFAULT_CHARACTERIZER, 'noam');
   assert.deepEqual([noams, ofirs, nobodys, liors].map(characterizerOf), ['noam', 'ofir', 'noam', 'lior']);
   assert.deepEqual([noams, ofirs, nobodys, liors].map(pagesOwnerOf), ['noam', 'ofir', 'noam', 'ofir']);
   // He sees every client in the database, as Ilai (public.is_office()), so only the owner makes his sign-in link.
-  assert.deepEqual(OFFICE_PERSONS, ['irit', 'lior', 'ofir', 'ilai', 'noam']);
+  assert.deepEqual(OFFICE_PERSONS, ['irit', 'lior', 'ofir', 'ilai', 'noam', 'shiel']);
   assert.deepEqual(FN_OFFICE, OFFICE_PERSONS);
   assert.equal(linkOnlyByOwner({ owner: false, email: 'irit@x' }, { email: 'noam@x', person: 'noam', vault: false }), true);
   assert.equal(RING_TARGETS.noam, 5);
@@ -76,8 +76,8 @@ test('the owners: the client\'s characterizer has 4, 6, 8 and 8ב, and 5 when he
   assert.deepEqual(p07.items.find((i) => i.key === 'p07.ofir').owners, ['ofir']);
   // The words: 3 asks for Noam or Ofir; 8 and 8ב name the one who characterizes.
   const p03 = PROCESSES.find((p) => p.id === 'p03');
-  assert.match(p03.what, /מבצע האפיון \(נעם או אופיר\)/);
-  assert.equal(p03.items.find((i) => i.key === 'p03.who').label, 'נקבע מי מבצע את האפיון (נעם או אופיר, או ליאור כשהם לא יכולים)');
+  assert.match(p03.what, /מבצע האפיון \(נעם, אופיר או שיאל\)/);
+  assert.equal(p03.items.find((i) => i.key === 'p03.who').label, 'נקבע מי מבצע את האפיון (נעם, אופיר או שיאל, או ליאור כשהם לא יכולים)');
   assert.match(PROCESSES.find((p) => p.id === 'p08').what, /^מבצע האפיון \(נעם או אופיר\) מכין/);
 });
 
@@ -149,7 +149,7 @@ test('Ofir\'s meetings are only the clients he characterizes', () => {
 
 test('the screens: the meeting\'s form, the Metricool card and the Gantt index for Noam', () => {
   const noam = { me: 'noam', scope: 'own', error: null };
-  assert.deepEqual(MEETING_PEOPLE, ['noam']);
+  assert.deepEqual(MEETING_PEOPLE, ['noam', 'shiel']);
   assert.equal(writesChar(noam), true);
   assert.equal(writesChar({ me: 'ilai', scope: 'own', error: null }), false);
   assert.equal(writesChar({ me: 'ofir', scope: 'office', error: null }), true);

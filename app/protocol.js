@@ -198,6 +198,10 @@ export const PEOPLE = {
   // as Ofir does: per client, whoever Irit picks as the characterizer (Noam by default).
   // Ofir keeps every right he had (he is the office, which writes every key).
   noam: { key: 'noam', name: 'נעם', role: 'אפיונים, הקמת דפים ו־Highlights' },
+  // Shiel (the owner's decision of 9.11.2026): characterizations only. The meetings (4) and the
+  // logins taken there (5) of the clients he characterizes; their pages and Highlights (6, 8, 8ב)
+  // are Noam's (pagesOwnerOf). He gets no notification at all (SILENT_PEOPLE).
+  shiel: { key: 'shiel', name: 'שיאל', role: 'אפיונים' },
   // Field sales (decision of 3.10.2026): sends new deals to Irit from deal.html and
   // sees only his own deals. Not part of the client protocol (no items, no clients).
   stav: { key: 'stav', name: 'סתיו', role: 'סוכן שטח', sales: true },
@@ -209,20 +213,26 @@ export const PEOPLE = {
 // Who may run a characterization meeting (the client's `characterizer`), and who does
 // when none was set: Noam since 1.11.2026 (Ofir until then; he can still be picked, and
 // Lior only when nobody else can). Pages that need "who characterizes" read characterizerOf.
-export const CHARACTERIZERS = ['noam', 'ofir', 'lior'];
+export const CHARACTERIZERS = ['noam', 'ofir', 'shiel', 'lior'];
 export const DEFAULT_CHARACTERIZER = 'noam';
 export const characterizerOf = (c) => c?.characterizer || DEFAULT_CHARACTERIZER;
 // Whose are the pages and the Highlights (6, 8, 8ב) of a client: the one who characterizes
 // it, Noam or Ofir ("either Ofir or Noam does it", the owner, 1.11.2026); Noam when nobody
 // was set. When Lior ran the meeting (only when nobody else could) they stay Ofir's, as
-// they were before Noam.
-export const pagesOwnerOf = (c) => (characterizerOf(c) === 'lior' ? 'ofir' : characterizerOf(c));
+// they were before Noam. Shiel does only the characterization (9.11.2026): his clients' are Noam's.
+export const PAGES_INSTEAD = { lior: 'ofir', shiel: 'noam' };
+export const pagesOwnerOf = (c) => PAGES_INSTEAD[characterizerOf(c)] || characterizerOf(c);
+// Who gets no notification at all (the owner, 9.11.2026: Shiel): no push, no WhatsApp, no reminder,
+// no line in the owners' 19:00 table, and nobody is reminded instead when his own work is late
+// (app/reminder-engine.js, app/day-summary.js). Nor is anyone offered to give them a task.
+export const SILENT_PEOPLE = ['shiel'];
+export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 
 // What each person sees when they sign in. 'office': their own work first, plus
 // the office screens (all clients, daily control, performance). 'own': only their
 // own work and the clients it belongs to. 'sales': only deal.html and their own
 // deals (no client is theirs). The owner (no person) sees the office.
-export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', noam: 'own', stav: 'sales', amos: 'sales' };
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', noam: 'own', shiel: 'own', stav: 'sales', amos: 'sales' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
 
@@ -231,6 +241,8 @@ export const isSales = (person) => !!PEOPLE[person]?.sales;
 export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales);
 // Everyone on the team, sales too: the team screen (team.html) and who has reminders.
 export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
+// Who can be given work (a task, a decision, a pass item): the protocol's people but the silent.
+export const ASSIGNABLE_PEOPLE = () => STAFF_PEOPLE().filter((p) => !isSilent(p.key));
 
 // Editors a client can be assigned to: every editor, any shoot (since 21.10.2026 Nirel too;
 // she stays the one preselected for Natali Dadon's shoots, app/qa-logic.js preselected).
@@ -545,11 +557,11 @@ export const PROCESSES = [
     id: 'p03', num: '3', phase: 'onboarding', title: 'קביעת פגישת אפיון', owners: ['irit'],
     sla: 'עד 5 דקות מרגע שאיש המכירות שולח את פרטי הלקוח',
     due: { from: 'deal', minutes: 5 },
-    what: 'בודקים את הזמינות של מבצע האפיון (נעם או אופיר), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
-    ownerNote: 'מבצע האפיון הוא נעם או אופיר. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
+    what: 'בודקים את הזמינות של מבצע האפיון (נעם, אופיר או שיאל), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
+    ownerNote: 'מבצע האפיון הוא נעם, אופיר או שיאל. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
     needs: ['characterizer', 'char_at'],
     items: [
-      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (נעם או אופיר, או ליאור כשהם לא יכולים)' },
+      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (נעם, אופיר או שיאל, או ליאור כשהם לא יכולים)' },
       { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון' },
       { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04', keep: ['char_at'] } },
       { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן' },

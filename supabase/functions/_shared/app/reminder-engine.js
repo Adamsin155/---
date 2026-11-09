@@ -27,7 +27,7 @@ import {
 } from './reminder-rules.js';
 import { daySummary, pushLines, EOD } from './day-summary.js';
 import { clientState, openItemsFor, parseDate, isBusinessDay, roundsOf, clientLabel } from './protocol-logic.js';
-import { STAFF_PEOPLE, TEAM_PEOPLE } from './protocol.js';
+import { STAFF_PEOPLE, TEAM_PEOPLE, isSilent } from './protocol.js';
 import { ofirMeetings as meetingsOf } from './office-marks.js';
 import { dayKeyIL, atTimeIL, dayFromKeyIL, weekdayIL, addDaysIL, endOfDayIL } from './tz.js';
 import { shootCases, quietWindow } from './production.js';
@@ -161,6 +161,8 @@ export function candidates(env, { until = env.now } = {}) {
       for (const d of due) {
         if (d.drop || d.at > until) continue;
         for (const person of d.persons) {
+          // Nobody who is silent (app/protocol.js, SILENT_PEOPLE: Shiel, 9.11.2026) is reminded of anything.
+          if (isSilent(person)) continue;
           out.push({
             key: `${rule.id}:${inst.cid || '-'}:${inst.id}:${d.step.id}@${person}`,
             rule: rule.id, step: d.step.id, person, holders: d.persons, level: d.step.level,
@@ -366,7 +368,7 @@ export function planDigests({ env, now = env.now, log = [], active = new Set(), 
   const split = (rows) => ({ keep: rows.filter(holds), drop: rows.filter((r) => !holds(r)) });
   // The morning digest: the protocol's people, and anyone else on the team (sales)
   // with a line that waited for the morning, so that nothing stays in the app only.
-  const staffPeople = TEAM_PEOPLE().map((p) => p.key).filter((k) => env.hasStaff(k));
+  const staffPeople = TEAM_PEOPLE().map((p) => p.key).filter((k) => env.hasStaff(k) && !isSilent(k));
   const business = isBusinessDay(now);
 
   if (business && within(DIGESTS.morning)) {
@@ -536,7 +538,7 @@ function weeklyReport(env, log, now) {
   const ringLine = Object.keys(rings).length
     ? `צלצולים השבוע: ${Object.entries(rings).map(([p, n]) => `${personName(p)} ${n}${RING_TARGETS[p] && n > RING_TARGETS[p] * days ? ' (מעל היעד)' : ''}`).join(', ')}`
     : 'צלצולים השבוע: אין';
-  const unconnected = STAFF_PEOPLE().filter((p) => env.hasStaff(p.key) && !env.connected(p.key)).length;
+  const unconnected = STAFF_PEOPLE().filter((p) => !isSilent(p.key) && env.hasStaff(p.key) && !env.connected(p.key)).length;
   let late = 0;
   for (const c of env.clients) late += env.stateOf(c).overdue;
   const pushLine = Object.keys(pushes).length

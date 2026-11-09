@@ -49,7 +49,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf, isSilent } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -83,7 +83,8 @@ import { EOD } from './day-summary.js';
 
 export const OWNER = 'owner';
 // Who has reminders: the owner and the team, sales too (reminder_log.person).
-export const REMINDER_PEOPLE = new Set([OWNER, ...TEAM_PEOPLE().map((p) => p.key)]);
+// Not the silent (SILENT_PEOPLE in app/protocol.js: Shiel, 9.11.2026).
+export const REMINDER_PEOPLE = new Set([OWNER, ...TEAM_PEOPLE().map((p) => p.key).filter((k) => !isSilent(k))]);
 // Sending hours (section 5): Sunday–Thursday 08:30–19:00, not on holidays. On erev
 // chag the office works until 13:00 (decision 2), and so do the rings. Shoot-day
 // events are the exception. The digests run inside them.
@@ -374,7 +375,8 @@ export const RULES = [
       { id: 'hour', from: 'meeting', minutes: -60, to: (i) => i.who, level: 'ring', expires: 'meeting', title: (i, env) => (sentOnTime(i.anchors.meeting, env.now, 60) ? `בעוד שעה אפיון: ${i.name}` : `האפיון מתחיל ${inTimeWords(i.anchors.meeting, env.now)}: ${i.name}`), body: (i) => [i.client.address, 'ניווט וטלפון בכרטיס.'].filter(Boolean).join(' · ') },
       // A full form sent is the end of the meeting too (the owner, 3.11.2026): nobody asks then.
       { id: 'end', from: 'end', minutes: 15, to: (i) => i.who, level: 'ring', when: (i) => !charOver(i) && openOf(i, i.who).length > 0, title: (i) => `האפיון הסתיים? ${i.name}`, body: () => 'עברו 15 דקות מסוף הפגישה המתוכנן. ללחוץ "האפיון הסתיים" עם ארבעת השדות.' },
-      { id: 'irit', from: 'end', minutes: 45, to: 'irit', level: 'quiet', when: (i) => !charOver(i) && openOf(i, i.who).length > 0, title: (i) => `האפיון לא סומן: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא סימן/ה שהאפיון הסתיים.` },
+      // Not about a silent characterizer (Shiel, 9.11.2026): when his meeting is not marked, nobody is told instead.
+      { id: 'irit', from: 'end', minutes: 45, to: 'irit', level: 'quiet', when: (i) => !isSilent(i.who) && !charOver(i) && openOf(i, i.who).length > 0, title: (i) => `האפיון לא סומן: ${i.name}`, body: (i) => `${personName(i.who)} עוד לא סימן/ה שהאפיון הסתיים.` },
     ],
   },
 
@@ -1071,7 +1073,7 @@ export const RULES = [
     id: 'unconnected', event: 'עובד לא מחובר להתראות', procs: [],
     instances(env) {
       if (!isBusinessDay(env.now)) return [];
-      const people = STAFF_PEOPLE().map((p) => p.key).filter((k) => env.hasStaff(k) && !env.connected(k));
+      const people = STAFF_PEOPLE().map((p) => p.key).filter((k) => !isSilent(k) && env.hasStaff(k) && !env.connected(k));
       if (!people.length) return [];
       return [{ id: dayKeyIL(env.now), cid: null, name: '', people, url: 'team.html', anchors: { event: atTimeIL(env.now, 0) } }];
     },

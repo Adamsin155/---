@@ -11,7 +11,7 @@
 //    reminder engine itself (app/reminder-engine.js), so the screen and the lists agree;
 //  - Ofir's change requests.
 // The logic: app/decisions-logic.js.
-import { PEOPLE, STAFF_PEOPLE, BRIEF_REQUIRED, NETWORKS } from './protocol.js';
+import { PEOPLE, ASSIGNABLE_PEOPLE, BRIEF_REQUIRED, NETWORKS } from './protocol.js';
 import { clientState, addBusinessDays, businessDaysBetween, PAUSE, weekKey, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, clearCheck, addTask, setTaskDone, updateClient, loadDirectory, loadReviews, markReview,
@@ -60,8 +60,8 @@ const hm = (d) => hmFmt.format(new Date(d));
 const NETWORK = Object.fromEntries(NETWORKS);
 const staffOptions = (sel = null) => [
   h('option', { value: '' }, 'בחירה'),
-  h('optgroup', { label: 'צוות' }, ...STAFF_PEOPLE().filter((p) => !p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
-  h('optgroup', { label: 'עורכים' }, ...STAFF_PEOPLE().filter((p) => p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
+  h('optgroup', { label: 'צוות' }, ...ASSIGNABLE_PEOPLE().filter((p) => !p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
+  h('optgroup', { label: 'עורכים' }, ...ASSIGNABLE_PEOPLE().filter((p) => p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
 ];
 
 // ── Data ────────────────────────────────────

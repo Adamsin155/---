@@ -80,7 +80,8 @@ test('the files: the migration is the newest and refuses nothing, its writers bl
 });
 
 test('before the pending file nothing of Noam is stored; after it, everything, and a new client is his', async () => {
-  const old = await freshDatabase();
+  // Before Shiel's checks (20261205100100_shiel_checks.sql, 9.11.2026), which allow Noam too.
+  const old = await freshDatabase({ upTo: '20261205100100_shiel_checks.sql' });
   await assert.rejects(old.query("insert into public.staff (email, person) values ('noam@x', 'noam')"), /staff_person_check/);
   const c = await addClient(old, 'לקוח ישן');
   assert.equal((await old.query('select characterizer from public.clients where id = $1', [c])).rows[0].characterizer, 'ofir', 'still Ofir by default');

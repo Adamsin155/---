@@ -18,7 +18,7 @@ import { shellState, SHELL_KEY } from './shell-state.js';
 import './session-store.js'; // every page with the shell: a kept page belongs to one account (docs/ops.md, section 60)
 import { h } from './quote-doc.js';
 import { mountNoteBanner } from './staff-notes-ui.js';
-import { PEOPLE, scopeOf } from './protocol.js';
+import { PEOPLE, scopeOf, isSilent } from './protocol.js';
 import { setMode, modeOf } from './manager-rules.js';
 import {
   menuOf, profileMenu, profileOf, profileSwitch, barOf, groupsOf, currentOf, inMenu, avatarFill, initialsOf, nameOf,
@@ -169,7 +169,8 @@ function build(viewer, email) {
   const moreBtn = h('button', { type: 'button', class: 'side-link side-more', id: 'side-more', 'aria-expanded': 'false', 'aria-controls': 'side-sheet' }, h('span', { class: 'side-t' }, 'עוד'));
   const standalone = (() => { try { return matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
   const home = all[0].href;
-  const promo = standalone ? null : h('a', { class: 'side-promo', id: 'side-promo', href: home },
+  // Not for whoever gets no notification (Shiel, 9.11.2026): the card promises them.
+  const promo = standalone || isSilent(viewer?.me) ? null : h('a', { class: 'side-promo', id: 'side-promo', href: home },
     h('strong', {}, 'אסטרטג בטלפון'), h('small', {}, 'התראות על כל משימה, גם כשהאתר סגור'));
   const nav = h('nav', { class: 'side-nav', id: 'side-nav', 'aria-label': 'תפריט ראשי' }, rail, h('small', { class: 'side-k' }, 'תפריט'), list, sheet);
   const side = document.getElementById('app-side');
