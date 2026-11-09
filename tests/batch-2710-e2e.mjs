@@ -21,11 +21,15 @@ import { withClientColumns } from './fake-clients.mjs';
 import { uploadKinds, isManager, galleryMessage, KINDS, GALLERY_KINDS } from '../app/files-logic.js';
 import { validateReadResult, manualAmounts } from '../app/contract-read-logic.js';
 import { isContractFile } from '../app/contract-file.js';
+import { formatILS } from '../app/pricing.js';
 
 const BASE = process.env.BASE_URL || 'http://localhost:5515/';
 const OUT = process.argv[2] || null;
 const NOW = new Date('2026-10-13T11:40:00+03:00'); // Tuesday
-const serverNow = () => new Date(NOW);
+// "הצעות שנשלחו" by month (docs/ops.md, section 117) is checked on Monday 9.11.2026, after the cutoff.
+const NOV = new Date('2026-11-09T12:00:00+02:00');
+let clockAt = NOW;
+const serverNow = () => new Date(clockAt);
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const EXP = 4102444800;
 const SUPA = 'https://czncjzziqrqtezpwxxpz.supabase.co';
@@ -42,6 +46,8 @@ const userOf = (headers) => {
 };
 const personOf = (u) => staff.find((r) => r.email === u?.email)?.person ?? undefined;
 const isOffice = (u) => { const p = personOf(u); return p === null || ['irit', 'lior', 'ofir', 'ilai'].includes(p); };
+// public.can_upload_client_file for a contract: the owners (staff with no person) and the managers.
+const managesFiles = (u) => !!u && (staff.find((r) => r.email === u.email)?.person === null || isManager(personOf(u)));
 const canManageLinks = (u) => { const p = personOf(u); return p === null || ['irit', 'lior'].includes(p); };
 
 // ── The client ────────────────────────────
@@ -182,12 +188,21 @@ async function fakeSupabase(route) {
   // "קריאת חוזה חתום" (5.11.2026): the server's own shape; the answer checked by the real validateReadResult.
   if (p === '/functions/v1/contract-ai' && body?.mode === 'read') {
     if (!me) return json(401, { error: 'not signed in' });
-    if (!isOffice(me)) return json(403, { error: 'not staff: contracts are prepared by the office' });
+    if (!isOffice(me) && !managesFiles(me)) return json(403, { error: 'not staff: contracts are prepared by the office' });
     const file = db.client_files.find((x) => x.id === body.fileId);
     if (!file || !isContractFile(file)) return json(404, { error: 'file_not_found' });
-    if (!isManager(personOf(me)) || !visibleClient(me, file.client_id)) return json(403, { error: 'not_allowed' });
+    if (!managesFiles(me) || !visibleClient(me, file.client_id)) return json(403, { error: 'not_allowed' });
     reads.push({ fileId: file.id, by: me.email });
-    const { result, dropped } = validateReadResult(READ_ANSWER, serverNow());
+    // The real function's answers for what it cannot read, or reads without a price (section 117).
+    if (/\.heic$/.test(file.storage_path)) return json(415, { error: 'read_unsupported' });
+    const partial = /-partial\.pdf$/.test(file.storage_path);
+    // Kept by someone else while this reading ran (two people opened the list together): the
+    // insert that follows meets the unique file_id.
+    if (/-race\.pdf$/.test(file.storage_path) && !db.manual_contracts.some((m) => m.file_id === file.id)) {
+      db.manual_contracts.push({ id: randomUUID(), client_id: file.client_id, file_id: file.id, business: 'מספרת רון', company_id: null, contact_name: null, package_id: null, package_name: null,
+        monthly_net_agorot: 300000, term_months: 6, signed_on: null, read_by_ai: true, created_by_email: 'irit@astrateg.test', created_at: serverNow().toISOString(), updated_by_email: null, updated_at: null });
+    }
+    const { result, dropped } = validateReadResult(partial ? { ...READ_ANSWER, monthly_net: 0, term_months: 0 } : READ_ANSWER, serverNow());
     return json(200, { mode: 'read', runId: randomUUID(), clientId: file.client_id, fileId: file.id, result, dropped, model: 'claude-sonnet-5-5' });
   }
 
@@ -357,7 +372,7 @@ async function fakeSupabase(route) {
   if (t === 'manual_contracts' && req.method() === 'POST') {
     const r = Array.isArray(body) ? body[0] : body;
     const file = db.client_files.find((x) => x.id === r.file_id && x.client_id === r.client_id);
-    if (!seesMoney(me) || !file || !isContractFile(file) || !isManager(personOf(me))) return rls();
+    if (!seesMoney(me) || !file || !isContractFile(file) || !managesFiles(me)) return rls();
     if (db.manual_contracts.some((x) => x.file_id === r.file_id)) return json(409, { code: '23505', message: 'duplicate key value violates unique constraint "manual_contracts_file_id_key"' });
     const row = { ...r, id: randomUUID(), created_by_email: me.email, created_at: now, updated_by_email: null, updated_at: null };
     db.manual_contracts.push(row);
@@ -396,10 +411,10 @@ const PHONE_DEVICE = null;
 const errors = [];
 const PHONE = { width: 360, height: 740 };
 // opts.browserType / opts.device: WebKit as an iPhone 13 (devices['iPhone 13']).
-async function newContext(viewport = { width: 1280, height: 900 }, { browserType = browser, device = PHONE_DEVICE } = {}) {
+async function newContext(viewport = { width: 1280, height: 900 }, { browserType = browser, device = PHONE_DEVICE, now = NOW } = {}) {
   const ctx = await browserType.newContext(device ? { ...device, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' }
     : { locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport, hasTouch: viewport.width < 500, isMobile: viewport.width < 500 });
-  await ctx.clock.setFixedTime(NOW);
+  await ctx.clock.setFixedTime(now);
   await openCardFolds(ctx); // the card's closed rows, opened (the owner, 20.10.2026)
   if (browserType === browser) await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(BASE).origin });
   await ctx.route(`${SUPA}/**`, withClientColumns(fakeSupabase, CLIENT_SHAPE));
@@ -736,41 +751,114 @@ async function iphone(wk, who, path) {
   if (OUT) await p.waitForTimeout(800);
   return { ctx, p };
 }
-await step('"הצעות שנשלחו": the manual contract as "נחתם · חוזה ידני", with its amounts, on desktop and phone', async () => {
-  // A contract file uploaded before the reading existed (9.11.2026): it is listed too, with "קריאת החוזה".
-  const old = { id: randomUUID(), client_id: D.id, kind: 'material_other', label: 'חוזה חתום', storage_path: `${D.id}/material_other/${randomUUID()}-old.pdf`, mime: 'application/pdf', size_bytes: 1000, posted_on: null, link: null, uploaded_by: 'ofir@astrateg.test', created_at: '2026-10-01T09:00:00Z', deleted_at: null };
+await step('"הצעות שנשלחו" by month: the imported old contracts left out; a new contract read by itself with its amounts; what was not read under "חוזים שצריך לבדוק"; no 0 ₪ row', async () => {
+  // Monday 9.11.2026 (docs/ops.md, section 117). Ofir's contract of אבי was uploaded on 4.11.
+  clockAt = NOV;
+  const aviFile = contractRows(avi.id)[0];
+  aviFile.created_at = '2026-11-04T10:00:00+02:00';
+  // One of the old contracts the owner imported on 27.10.2026 (no row), and Irit's contract of 13.10
+  // (with a row, read in the card): neither is in the list, nor read again.
+  const old = { id: randomUUID(), client_id: D.id, kind: 'material_other', label: 'חוזה חתום', storage_path: `${D.id}/material_other/${randomUUID()}-old.pdf`, mime: 'application/pdf', size_bytes: 1000, posted_on: null, link: null, uploaded_by: 'owner@astrateg.test', created_at: '2026-10-27T11:00:00+02:00', deleted_at: null };
   db.client_files.push(old);
-  for (const [viewport, name] of [[{ width: 1280, height: 900 }, 'b12-quotes-manual-1280'], [PHONE390, 'b13-quotes-manual-390']]) {
-    const ctx = await newContext(viewport);
+  const irit = contractRows(D.id).find((f) => f.uploaded_by === 'irit@astrateg.test');
+  // A client with Ofir's uploads of November, none read yet.
+  const E = { ...D, id: 'dddddddd-0000-4000-8000-000000000002', name: 'רון כהן', business: 'מספרת רון', phone: '050-0000000' };
+  db.clients.push(E);
+  const up = (name, at, mime = 'application/pdf') => {
+    const f = { id: randomUUID(), client_id: E.id, kind: 'material_other', label: 'חוזה חתום', storage_path: `${E.id}/material_other/${randomUUID()}-${name}`, mime, size_bytes: 1000, posted_on: null, link: null, uploaded_by: 'ofir@astrateg.test', created_at: at, deleted_at: null };
+    db.client_files.push(f);
+    return f;
+  };
+  const fresh = up('new.pdf', '2026-11-09T08:00:00+02:00');
+  const partial = up('partial.pdf', '2026-11-07T09:00:00+02:00'); // read, without a price or months
+  const race = up('race.pdf', '2026-11-06T09:00:00+02:00'); // kept by Irit while the owner's reading ran
+  const heic = up('scan.heic', '2026-11-05T09:00:00+02:00', 'image/heic'); // the AI does not read it
+  const rowsOf = (f) => db.manual_contracts.filter((m) => m.file_id === f.id);
+  const readsOf = (from) => reads.slice(from).map((r) => r.fileId);
+  const iritRowBefore = JSON.stringify(rowsOf(irit));
+  const ZERO = formatILS(0);
+  let first = true;
+  for (const [viewport, name] of [[{ width: 1366, height: 900 }, 'b12-quotes-month-1366'], [PHONE390, 'b13-quotes-month-390']]) {
+    const ctx = await newContext(viewport, { now: NOV });
     const p = await newPage(ctx);
+    const r0 = reads.length;
     // quotes.html has its own sign-in (no #app): the list opens after it.
     await p.goto(`${BASE}quotes.html`);
     await p.fill('#lg-email', 'owner@astrateg.test');
     await p.fill('#lg-pass', 'correct-horse');
     await p.click('#lg-submit');
     await p.waitForSelector('#list-block:not([hidden])');
-    await p.waitForSelector('#rows tr.is-manual');
-    // Opened again, signed in: no sign-in screen fading over the screenshots.
+    // The new files are read by themselves, then the list is read again: two to check.
+    await p.waitForFunction(() => document.querySelectorAll('#check-list li').length === 2 && document.getElementById('reading').hidden);
+    if (first) {
+      assert.deepEqual(readsOf(r0).sort(), [fresh.id, partial.id, race.id, heic.id].sort(), 'each new file read once; not the old ones');
+      assert.deepEqual(rowsOf(fresh).map((m) => [m.monthly_net_agorot, m.term_months, m.read_by_ai, m.created_by_email]), [[390000, 12, true, 'owner@astrateg.test']]);
+      assert.equal(rowsOf(race).length, 1, 'no second row when someone kept it a moment before');
+      assert.equal(rowsOf(race)[0].created_by_email, 'irit@astrateg.test');
+      assert.deepEqual(rowsOf(partial).map((m) => [m.monthly_net_agorot, m.term_months]), [[null, null]], 'what was read is kept, without a price');
+      assert.equal(rowsOf(heic).length, 0, 'a failed reading keeps nothing');
+    } else {
+      // Another browser: the failed one is tried once more; nothing is added twice.
+      assert.deepEqual(readsOf(r0), [heic.id]);
+    }
+    assert.equal(rowsOf(old).length, 0);
+    assert.equal(JSON.stringify(rowsOf(irit)), iritRowBefore);
+    for (const f of [fresh, partial, race, heic]) assert.ok(rowsOf(f).length <= 1);
+    // Opened again: nothing is read again (the failure is remembered by this browser for 12 hours).
+    const r1 = reads.length;
     await p.reload();
-    await p.waitForSelector('#rows tr.is-manual');
+    await p.waitForSelector('#check-list li');
+    await p.waitForTimeout(300);
+    assert.equal(reads.length, r1, 'no reading on a second open');
     if (OUT) await p.waitForTimeout(600);
-    const row = await p.innerText('#rows tr.is-manual');
+    // This month, and the month before that has rows.
+    assert.equal(await p.inputValue('#month-pick'), '2026-11');
+    assert.deepEqual(await p.locator('#month-pick option').allInnerTexts(), ['נובמבר 2026', 'אוקטובר 2026']);
+    assert.equal(await p.isDisabled('#month-next'), true);
+    assert.equal(await p.isDisabled('#month-prev'), false);
+    // November: three contracts uploaded by hand, each with its amounts; no 0 ₪ row; the old ones not listed.
+    const rows = await p.innerText('#rows');
+    assert.equal(await p.locator('#rows tr').count(), 3);
+    assert.equal(await p.locator('#rows tr.is-manual').count(), 3);
+    assert.doesNotMatch(rows, new RegExp(`(^|[^\\d,])${ZERO}`), 'no 0 ₪ row');
+    assert.doesNotMatch(rows, /AST-2026-050/, 'October\'s agreement is in October');
     assert.doesNotMatch(await p.innerText('#rows'), /כפילות לבדיקה|AST-2026-051/, 'a hidden quote is not listed');
-    assert.doesNotMatch(await p.innerText('#stats'), /99,999/, 'nor summed');
-    assert.match(row, /ידני/);
-    assert.match(row, /מספרת אבי בע״מ/);
-    assert.match(row, /נחתם · חוזה ידני/);
+    assert.equal(await p.locator(`a[href*="${old.id}"], a[href*="${irit.id}"]`).count(), 0, 'the imported contracts are only in the card');
     const { monthly_gross_agorot: m, term_gross_agorot: tg } = manualAmounts(db.manual_contracts[0]);
     assert.deepEqual([m, tg], [413000, 4956000]);
-    assert.match(row, /49,560/);
-    assert.match(row, /4,130/);
-    const unread = p.locator(`#rows tr.is-manual:has(a[href="client.html?id=${D.id}#read-${old.id}"])`);
-    assert.equal(await unread.count(), 1, 'the old contract file is listed, with "קריאת החוזה"');
-    assert.match(await unread.innerText(), /נחתם · חוזה ידני/);
+    for (const sum of ['49,560', '4,130', '55,224', '4,602', '21,240', '3,540']) assert.match(rows, new RegExp(sum));
+    const aviRow = p.locator('#rows tr.is-manual', { hasText: '49,560' });
+    assert.match(await aviRow.innerText(), /נחתם · חוזה ידני[^]*12 באוקטובר 2026/, 'its signing day beside its state');
+    assert.match(await aviRow.innerText(), /4 בנובמבר 2026/, 'listed by the day it was uploaded');
+    // The tabs and the tiles count November.
+    const chip = async (label) => (await p.locator('#filters .chip', { hasText: label }).first().locator('.n').innerText());
+    assert.deepEqual([await chip('הכול'), await chip('נחתמו')], ['3', '3']);
+    const stats = await p.innerText('#stats');
+    assert.match(stats, /נשלח החודש[^]*126,024[^]*נחתם החודש[^]*126,024/);
+    assert.doesNotMatch(stats, /99,999/, 'a hidden quote is not summed');
+    // "חוזים שצריך לבדוק": the one not read and the one read without a price, each with "קריאת החוזה".
+    assert.match(await p.innerText('#check-block'), /חוזים שצריך לבדוק[^]*מספרת רון/);
+    for (const f of [heic, partial]) assert.equal(await p.locator(`#check-list a[href="client.html?id=${E.id}#read-${f.id}"]`).count(), 1);
     assert.ok(await noHScroll(p));
-    if (OUT) await p.locator('#rows tr.is-manual').first().screenshot({ path: `${OUT}/${name}.png` });
+    const small = await p.locator('#check-list a, #month-bar button, #month-pick').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).length);
+    assert.equal(small, 0, '44px targets');
+    await shot(p, name);
+    // October: its agreement, and no contract uploaded by hand; its sums by name.
+    await p.selectOption('#month-pick', '2026-10');
+    await p.waitForFunction(() => /AST-2026-050/.test(document.getElementById('rows').textContent));
+    assert.equal(await p.locator('#rows tr.is-manual').count(), 0);
+    assert.deepEqual([await chip('הכול'), await chip('נחתמו')], ['1', '1']);
+    assert.match(await p.innerText('#stats'), /נשלח באוקטובר[^]*נחתם באוקטובר/);
+    assert.equal(await p.isDisabled('#month-prev'), true);
+    assert.ok(await noHScroll(p));
+    await shot(p, `${name}-october`);
+    // And back with the arrow.
+    await p.click('#month-next');
+    await p.waitForFunction(() => document.getElementById('month-pick').value === '2026-11' && document.querySelectorAll('#rows tr.is-manual').length === 3);
     await ctx.close();
+    first = false;
   }
+  clockAt = NOW;
 });
 
 await step('WebKit (iPhone 13): the review of a read contract takes typing and deleting key by key', async () => {
