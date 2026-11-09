@@ -723,12 +723,14 @@ export async function runWrite(ctx, name, args) {
   const a = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   const known = Object.keys(tool.input_schema.properties);
   const extra = Object.keys(a).filter((k) => !known.includes(k));
-  if (extra.length) return { text: JSON.stringify({ error: 'יש שדה שהכלי לא מקבל.', fields: extra.map((k) => k.slice(0, 40)).slice(0, 10) }), isError: true, code: 'unknown_field' };
-  if (a.dry_run !== undefined && typeof a.dry_run !== 'boolean') return { text: JSON.stringify({ error: 'dry_run הוא true או false.' }), isError: true, code: 'bad_input' };
+  if (extra.length) return { text: JSON.stringify({ error: 'יש שדה שהכלי לא מקבל.', code: 'unknown_field', fields: extra.map((k) => k.slice(0, 40)).slice(0, 10) }), isError: true, code: 'unknown_field' };
+  if (a.dry_run !== undefined && typeof a.dry_run !== 'boolean') return { text: JSON.stringify({ error: 'dry_run הוא true או false.', code: 'bad_input' }), isError: true, code: 'bad_input' };
   try {
     const out = await tool.run(ctx, a);
     if (out.preview) return { text: JSON.stringify({ dry_run: true, nothing_was_changed: true, preview: out.preview, ...(out.summary ? { summary: out.summary } : {}), next: 'Show the owner this preview. Only after a yes, call again with dry_run: false.' }), isError: false, code: 'preview' };
-    return { text: JSON.stringify(out.done !== undefined ? { done: true, ...out, result: out.done } : out), isError: false, code: 'ok' };
+    if (out.done === undefined) return { text: JSON.stringify(out), isError: false, code: 'ok' };
+    const { done, ...rest } = out;
+    return { text: JSON.stringify({ done: true, result: done, ...rest }), isError: false, code: 'ok' };
   } catch (e) {
     if (e instanceof Refusal) return { text: JSON.stringify({ error: e.message, code: e.code, ...e.extra, nothing_was_changed: e.code !== 'no_link' }), isError: true, code: String(e.code).slice(0, 32) };
     const code = String(e?.code || 'error').slice(0, 20);
