@@ -197,10 +197,10 @@ test('agreement text follows the selected package (the old wording, LEGAL_VERSIO
   // The crew: two photographers in a social package, one in a podcast.
   assert.equal(words(sel('social', 'natali')).package.groups[1].items[1], '2 צלמי וידאו מקצועיים עם ציוד הפקה וצילום מהמתקדמים שיש.');
   assert.equal(words(sel('podcast', 'natali')).package.groups[1].items[1], 'צלם וידאו מקצועי עם ציוד הפקה וצילום מהמתקדמים שיש.');
-  // The same six clauses for every package; nothing undefined anywhere.
+  // The same six clauses, the platforms and "הוראות נוספות" for every package; nothing undefined.
   for (const s of [sel('social', 'natali'), sel('social-tv', 'simeon', ['photographer']), sel('podcast', 'simeon'), sel('social', 'natali', [], { extraCh14: true })]) {
     const m = buildQuoteModel({ ...s, docType: 'agreement' }, { name: 'x' });
-    assert.deepEqual(m.legal.map((x) => x.title), ['תקופת ההסכם', 'התמורה ותנאי תשלום', 'לוחות זמנים ותכני הלקוח', 'תיקונים ואישורים', 'אחריות ותוצאות פרסומיות', 'שונות']);
+    assert.deepEqual(m.legal.map((x) => x.title), ['תקופת ההסכם', 'התמורה ותנאי תשלום', 'לוחות זמנים ותכני הלקוח', 'תיקונים ואישורים', 'אחריות ותוצאות פרסומיות', 'שונות', 'פלטפורמות וחסימת חשבונות', 'הוראות נוספות']);
     assert.doesNotMatch(JSON.stringify([m.legal, m.wording]), /undefined|NaN/);
   }
 });
@@ -248,8 +248,9 @@ test('the agreement is the old system\'s six clauses, word for word', async () =
   const a = buildQuoteModel({ ...sel('social', 'niro'), docType: 'agreement' }, { name: 'x' });
   assert.equal(a.legalVersion, 3);
   const old = defaultTerms({}, 12).filter((p) => p.type === 'h4').map((p) => p.text.replace(/^\d+\.\s*/, ''));
-  assert.deepEqual(a.legal.map((s) => s.title), old);
-  assert.deepEqual(a.legal.map((s) => s.items), [
+  assert.deepEqual(a.legal.slice(0, 6).map((s) => s.title), old);
+  // The old items come first in each clause, so their numbers (and "סעיף 3.1") do not move.
+  assert.deepEqual(a.legal.slice(0, 6).map((s, i) => s.items.slice(0, [2, 3, 3, 3, 2, 2][i])), [
     ['ההתקשרות הינה לתקופה קצובה של 12 חודשים מיום החתימה על הצעת המחיר/ההסכם (להלן: "תקופת ההתקשרות").',
       'אין אפשרות לסיים את ההתקשרות לפני תום 12 החודשים, מכל סיבה שהיא, וזאת מאחר שהלקוח מקבל את כלל התוצרים עד 30 ימי עסקים מיום הצילום, בכפוף לאמור בסעיף 3 להלן.'],
     ['התמורה עבור החבילה הינה 3,900 ₪ לחודש + מע״מ כחוק, למשך 12 חודשים.',
@@ -278,4 +279,33 @@ test('the agreement is the old system\'s six clauses, word for word', async () =
   // A price offer has neither.
   const q = buildQuoteModel(sel('social', 'natali'), { name: 'x' });
   assert.deepEqual([q.legal, q.legalVersion, q.wording], [null, null, undefined]);
+});
+
+// The owner, 9.11.2026: the old text, no exit before the end of the term, and 12 protections put
+// back (docs/contract-old-text-removed.md), with the platforms chapter of 27.10.2026 word for word.
+test('the agreement keeps the 12 protections put back on 9.11 and has no early exit', async () => {
+  const { RESTORED } = await import('../app/legal.js');
+  const at = (m) => Object.fromEntries(m.legal.flatMap((s, i) => s.items.map((t, j) => [t, `${i + 1}.${j + 1}`])));
+  const a = buildQuoteModel({ ...sel('social-tv', 'natali'), docType: 'agreement' }, { name: 'x' });
+  const n = at(a);
+  assert.equal(n[RESTORED.mediaBudget], '2.4');
+  assert.equal(n[RESTORED.pause], '2.5');
+  assert.equal(n[RESTORED.lateCancel(true)], '3.4');
+  assert.equal(n[RESTORED.force], '3.5');
+  assert.equal(n[RESTORED.indemnity], '5.3');
+  assert.equal(n[RESTORED.cap], '5.4');
+  assert.equal(n[RESTORED.wholeAgreement], '6.3');
+  assert.deepEqual(RESTORED.platforms.map((t) => n[t]), ['7.1', '7.2', '7.3', '7.4']);
+  assert.match(RESTORED.platforms[3], /^חסימת פלטפורמות: אסטרטג אינה אחראית לחסימה, להגבלה, להשעיה או להסרה של עמוד, חשבון, פרסום או תוכן של הלקוח על ידי הפלטפורמות \(לרבות Facebook, Instagram ו־TikTok\)/);
+  assert.match(RESTORED.platforms[2], /אינו פוטר את הלקוח מתשלום ואינו מזכה אותו בהחזר או בזיכוי/);
+  assert.deepEqual([RESTORED.influencerAway, RESTORED.influencerUse, RESTORED.ch14, RESTORED.nonSolicit(true)].map((t) => n[t]), ['8.1', '8.2', '8.3', '8.4']);
+  // No exit: none of version 2's "50% of the rest / 30 days notice" anywhere.
+  const all = JSON.stringify([a.legal, a.wording]);
+  assert.doesNotMatch(all, /50%|30 ימים מראש|מיתרת התשלומים/);
+  assert.match(a.legal[0].items[1], /^אין אפשרות לסיים את ההתקשרות לפני תום 12 החודשים, מכל סיבה שהיא/);
+  // Without Channel 14 there is no Channel 14 item; "בלי משפיענים" has no influencer items.
+  assert.ok(!buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' }).legal[7].items.includes(RESTORED.ch14));
+  const none = buildQuoteModel({ ...sel('social', 'natali'), custom: { noInfluencer: true }, docType: 'agreement' }, { name: 'x' });
+  assert.deepEqual(none.legal[7].items, [RESTORED.nonSolicit(false)]);
+  assert.doesNotMatch(JSON.stringify(none.legal), /משפיען/);
 });
