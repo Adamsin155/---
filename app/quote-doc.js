@@ -181,7 +181,7 @@ export function renderQuoteDoc(model, meta = {}) {
       h('th', { scope: 'col', class: 'amt' }, `ל־${model.termMonths} חודשים`),
     )),
     h('tbody', {},
-      priceRow(`חבילה · ${pkg.tierName}`, pkg.monthly),
+      priceRow(`חבילה · ${pkg.shownName || pkg.tierName}`, pkg.monthly),
       model.paid.filter((p) => !p.included).map((p) => priceRow(p.name, p.monthly)),
       // A contract changed by hand: the added lines that carry a price.
       (model.extraLines || []).filter((l) => l.monthly).map((l) => priceRow(l.label, l.monthly)),
@@ -216,8 +216,9 @@ export function renderQuoteDoc(model, meta = {}) {
   ) : null;
 
   // The old system's words (app/legal.js agreementWording, LEGAL_VERSION 3), stored in the model.
-  // A model without them (made before 9.11.2026, sent or signed) is drawn exactly as before.
-  const w = isAgreement && model.wording ? model.wording : null;
+  // A model without them (made before 9.11.2026, sent or signed) is drawn exactly as before. Since
+  // 9.11.2026 a price offer has them too (the owner: the quote in the old document's order).
+  const w = model.wording || null;
   const legal = isAgreement && model.legal ? h('section', { class: 'qd-section qd-legal' },
     sectionHead(w ? w.agreementTitle : 'תנאי ההסכם'),
     h('ol', { class: 'qd-clauses' }, model.legal.map((sec, i) => h('li', {},
@@ -264,11 +265,29 @@ export function renderQuoteDoc(model, meta = {}) {
   );
 
   if (w) {
+    // The old document's order (the owner, 9.11.2026), in our design: the cover, "מי אנחנו", "מה
+    // כוללת חבילת …", "למה לבחור בנו", "פירוט החבילה" (with our numbers and price table), the
+    // agreement's clauses (an agreement only), the signatures and the closing words.
+    const pkgName = pkg.shownName || pkg.tierName;
     const groups = (list) => list.map((g) => [
       h('h3', { class: 'qd-words-h' }, g.title),
       h('ul', { class: 'qd-checks qd-words-list' }, g.items.map((i) => h('li', {}, i))),
     ]);
-    const intro = h('section', { class: 'qd-section qd-words' },
+    const cover = h('header', { class: 'qd-cover' },
+      h('div', { class: 'qd-cover-top' },
+        h('img', { class: 'qd-logo', src: meta.logoSrc || 'app/assets/logo.png', alt: 'astrateg' }),
+        h('span', { class: 'qd-type' }, isAgreement ? 'הסכם התקשרות · לחתימה' : 'לעיון'),
+      ),
+      h('h1', { class: 'qd-cover-title' }, w.cover?.title || title),
+      h('div', { class: 'qd-cover-pkg', dir: 'auto' }, w.cover?.packageName || pkgName),
+      h('div', { class: 'qd-meta' },
+        h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
+        h('span', {}, formatDate(createdAt)),
+        h('span', {}, `${model.termMonths} חודשים`),
+        validity ? h('span', { class: 'qd-valid' }, validity) : null,
+      ),
+    );
+    const intro = h('section', { class: 'qd-section qd-words qd-intro' },
       sectionHead(w.intro.title, 'אסטרטג+'),
       h('p', { class: 'qd-words-p' }, w.intro.text),
       groups([{ title: w.intro.strengthsTitle, items: w.intro.strengths }]),
@@ -276,34 +295,41 @@ export function renderQuoteDoc(model, meta = {}) {
     );
     const pkgWords = h('section', { class: 'qd-section qd-words' },
       sectionHead(w.package.title),
-      h('div', { class: 'qd-pkg' },
-        h('div', {},
-          h('div', { class: 'qd-pkg-name', dir: 'auto' }, pkg.tierName),
-          h('div', { class: 'qd-pkg-inf' }, pkg.influencer),
-        ),
-        h('div', { class: 'qd-pkg-price' }, money(pkg.monthly), h('small', {}, 'לחודש · לפני מע״מ')),
-      ),
       groups(w.package.groups),
     );
     const why = h('section', { class: 'qd-section qd-words' },
       sectionHead(w.why.title), h('p', { class: 'qd-words-p' }, w.why.text));
     const details = h('section', { class: 'qd-section qd-words' },
-      sectionHead(w.details.title, model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'), hero,
+      sectionHead(w.details.title),
+      groups(w.details.groups),
+      hero,
       // The numbers of the package, as the old page's tiles under "פירוט החבילה".
-      counted.length ? h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
-        h('div', { class: 'qd-cell-n num' }, String(i.qty)),
-        h('div', { class: 'qd-cell-l' }, i.label),
-      ))) : null,
-      groups(w.details.groups));
+      counted.length ? [
+        h('h3', { class: 'qd-words-h' }, model.termMonths === 12 ? 'הכמויות בחבילה, לשנה:' : 'הכמויות בחבילה, לכל התקופה:'),
+        h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
+          h('div', { class: 'qd-cell-n num' }, String(i.qty)),
+          h('div', { class: 'qd-cell-l' }, i.label),
+        ))),
+      ] : null);
     const notesWords = c.notes ? h('section', { class: 'qd-section' },
       sectionHead('הערות נוספות'), h('p', { class: 'qd-notes' }, c.notes)) : null;
     const pricingWords = h('section', { class: 'qd-section qd-pricing' },
-      sectionHead('פירוט מחיר'), priceTable());
-    const closing = h('section', { class: 'qd-section qd-closing' },
-      h('p', {}, w.closing),
-      h('p', { class: 'qd-muted' }, h('span', { dir: 'ltr' }, provider.email), ' · ', provider.addresses[0]));
-    return h('article', { class: 'qd qd--agreement qd--words', dir: 'rtl', lang: 'he' },
-      header, parties, intro, pkgWords, why, details, paidSection, freeSection, pricingWords, notesWords, legal, closing, signature, foot);
+      sectionHead('פירוט מחיר', 'לפני מע״מ ואחריו'), priceTable(),
+      h('p', { class: 'qd-terms' }, model.terms || termsText(model.selection)),
+      isAgreement ? null : h('p', { class: 'qd-disclaimer' },
+        'מסמך זה הוא הצעת מחיר לעיון בלבד, ואינו הצעה לכריתת חוזה. ההתקשרות תיכנס לתוקף רק בחתימה על הסכם ההתקשרות של אסטרטג. '
+        + `ההצעה בתוקף ${model.validHours || 48} שעות ממועד הפקתה, וזמינות המשפיענים כפופה לאישור במועד החתימה.`));
+    // A model of 9.11.2026 holds the closing in one sentence (closingBig came after): drawn as it is.
+    const closing = h('section', { class: 'qd-closing' },
+      h('p', { class: 'qd-closing-text' }, w.closing),
+      w.closingBig ? h('p', { class: 'qd-closing-big' }, w.closingBig) : null,
+      h('img', { class: 'qd-closing-logo', src: meta.logoSrc || 'app/assets/logo.png', alt: 'astrateg' }),
+      h('p', { class: 'qd-closing-contact' },
+        h('span', { dir: 'ltr' }, provider.email),
+        provider.addresses.map((a) => [h('span', { class: 'qd-dot', 'aria-hidden': 'true' }, '·'), h('span', {}, a)])),
+    );
+    return h('article', { class: `qd qd--${isAgreement ? 'agreement' : 'quote'} qd--words`, dir: 'rtl', lang: 'he' },
+      cover, parties, intro, pkgWords, why, details, paidSection, freeSection, pricingWords, special, notesWords, legal, signature, closing, foot);
   }
 
   return h('article', { class: `qd qd--${isAgreement ? 'agreement' : 'quote'}`, dir: 'rtl', lang: 'he' },

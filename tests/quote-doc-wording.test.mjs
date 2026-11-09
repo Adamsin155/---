@@ -32,6 +32,15 @@ test('a new agreement: the old document\'s order and words, with our numbers', (
   const m = agreement('social', 'niro');
   const doc = renderQuoteDoc(m, { number: 'Q-1', signOnline: true });
   assert.deepEqual(heads(doc), ['מי אנחנו', 'מה כוללת חבילת Social all in one', 'למה לבחור בנו', 'פירוט החבילה', 'פירוט מחיר', 'הסכם התקשרות ותנאים', 'חתימות הצדדים']);
+  // The cover first (the old document's first page), the closing words after the signatures.
+  const cls = doc.kids.map((k) => k.className);
+  assert.equal(cls[0], 'qd-cover');
+  assert.deepEqual(cls.slice(-2), ['qd-closing', 'qd-foot']);
+  assert.equal(all(doc, (n) => n.tag === 'h1')[0].textContent, 'הצעת מחיר נירו לוי');
+  assert.equal(all(doc, (n) => n.className === 'qd-cover-pkg')[0].textContent, 'Social all in one');
+  assert.equal(all(doc, (n) => n.className === 'qd-closing-big')[0].textContent, 'יחד, נהפוך את החברה להצלחה!');
+  const contact = all(doc, (n) => n.className === 'qd-closing-contact')[0].textContent;
+  assert.ok(contact.includes('info@astrateg.com') && contact.includes('הבונים 5, רמת גן'));
   const text = doc.textContent;
   for (const words of [
     'אסטרטג היא חברת פרסום ושיווק דיגיטלי', 'החוזקות שלנו:', 'יום צילום מקצועי ומרוכז עם נירו לוי',
@@ -77,10 +86,40 @@ test('a signed agreement keeps the text it was signed with, whatever the code sa
   assert.ok(!t3.includes('ההתקשרות הינה לתקופה קצובה'));
 });
 
-test('a price offer is drawn as before (it has no agreement and no words of the old document)', () => {
+test('a new price offer: the order of the old document, with no clauses and no signatures (9.11.2026)', () => {
   const q = buildQuoteModel({ ...emptySelection(), tier: 'social', influencer: 'natali' }, { name: 'לקוח' });
-  assert.equal(q.wording, undefined);
+  const doc = renderQuoteDoc(q, {});
+  assert.deepEqual(heads(doc), ['מי אנחנו', 'מה כוללת חבילת Social all in one', 'למה לבחור בנו', 'פירוט החבילה', 'פירוט מחיר']);
+  const text = doc.textContent;
+  assert.ok(text.includes('הצעת מחיר נטלי דדון') && text.includes('לעיון'));
+  assert.ok(text.includes('מסמך זה הוא הצעת מחיר לעיון בלבד'));
+  assert.ok(text.includes('יחד, נהפוך את החברה להצלחה!'));
+  for (const gone of ['הסכם התקשרות ותנאים', 'חתימות הצדדים', 'מערכת פיימנט']) assert.ok(!text.includes(gone), gone);
+});
+
+test('a price offer sent before 9.11.2026 (no words in its model) is drawn exactly as before', () => {
+  const q = stored(buildQuoteModel({ ...emptySelection(), tier: 'social', influencer: 'natali' }, { name: 'לקוח' }));
+  delete q.wording;
   const doc = renderQuoteDoc(q, {});
   assert.deepEqual(heads(doc), ['החבילה', 'פירוט מחיר']);
   assert.ok(!doc.textContent.includes('מי אנחנו'));
+  assert.equal(doc.kids[0].className, 'qd-top');
+});
+
+test('the cover: the influencer, or the business with none; the package name the managers gave', () => {
+  const cover = (sel, client = {}) => {
+    const doc = renderQuoteDoc(buildQuoteModel({ ...emptySelection(), ...sel }, client), {});
+    return [all(doc, (n) => n.tag === 'h1')[0].textContent, all(doc, (n) => n.className === 'qd-cover-pkg')[0].textContent, doc.textContent];
+  };
+  assert.deepEqual(cover({ tier: 'social', influencer: 'hatzel' }).slice(0, 2), ['הצעת מחיר הצל (יואב אליאסי)', 'Social all in one']);
+  assert.equal(cover({ tier: 'social', influencer: 'choice' }, { company: 'מאפיית השכונה' })[0], 'הצעת מחיר מאפיית השכונה');
+  assert.equal(cover({ tier: 'social', influencer: 'choice' })[0], 'הצעת מחיר');
+  assert.equal(cover({ tier: 'social', influencer: 'natali', custom: { noInfluencer: true } }, { name: 'דנה' })[0], 'הצעת מחיר דנה');
+  // Renamed and repriced for this quote: the cover, the heading and the price row say it.
+  const [, pkgName, text] = cover({ tier: 'social', influencer: 'niro', custom: { packageName: 'ALL IN ONE', price: 420000 } });
+  assert.equal(pkgName, 'ALL IN ONE');
+  assert.ok(text.includes('מה כוללת חבילת ALL IN ONE'));
+  assert.ok(text.includes('חבילה · ALL IN ONE'));
+  assert.ok(text.includes('4,200 ₪ לחודש + מע״מ כחוק.'));
+  assert.ok(!text.includes('Social all in one'));
 });

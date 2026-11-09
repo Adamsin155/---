@@ -156,7 +156,8 @@ test('document type: quote has no legal text, agreement syncs price into the ter
   assert.equal(q.docType, 'quote');
   assert.equal(q.signable, false);
   assert.equal(q.legal, null);
-  assert.equal(q.wording, undefined);
+  // Since 9.11.2026 a price offer has the old document's words too (no clauses).
+  assert.equal(q.wording.cover.title, 'הצעת מחיר נטלי דדון');
   const a = buildQuoteModel({ ...sel('social-tv', 'natali', ['photographer']), docType: 'agreement' }, { name: 'x', companyId: '514729938' });
   assert.equal(a.signable, true);
   assert.equal(a.client.companyId, '514729938');
@@ -271,14 +272,17 @@ test('the agreement is the old system\'s six clauses, word for word', async () =
   const oldText = defaultTerms({ retainer: 3900 }, 12).filter((p) => p.type === 'p').flatMap((p) => p.lines.map((l) => l.replace(/^\d+\.\d+\s*/, '')));
   for (const same of [0, 4, 5, 8, 9, 10, 11, 12, 13, 14]) assert.ok(a.legal.flatMap((s) => s.items).includes(oldText[same]), oldText[same]);
   // The words around it, in the old document's order.
-  assert.deepEqual(Object.keys(a.wording), ['intro', 'package', 'why', 'details', 'agreementTitle', 'closing']);
+  assert.deepEqual(Object.keys(a.wording), ['cover', 'intro', 'package', 'why', 'details', 'agreementTitle', 'closing', 'closingBig']);
+  assert.deepEqual(a.wording.cover, { title: 'הצעת מחיר נירו לוי', packageName: 'Social all in one' });
+  assert.equal(a.wording.closingBig, 'יחד, נהפוך את החברה להצלחה!');
   assert.equal(a.wording.agreementTitle, 'הסכם התקשרות ותנאים');
   assert.equal(a.wording.intro.strengths.length, 4);
   assert.deepEqual(a.wording.details.groups.map((g) => g.title), ['עלות החבילה:', 'תקופת ההתקשרות:', 'תיקונים:']);
   assert.equal(a.wording.details.groups[1].items[0], 'התחייבות ל-12 חודשים (קמפיין שנתי)');
-  // A price offer has neither.
-  const q = buildQuoteModel(sel('social', 'natali'), { name: 'x' });
-  assert.deepEqual([q.legal, q.legalVersion, q.wording], [null, null, undefined]);
+  // A price offer has no clauses, but the same words around them (9.11.2026).
+  const q = buildQuoteModel(sel('social', 'niro'), { name: 'x' });
+  assert.deepEqual([q.legal, q.legalVersion], [null, null]);
+  assert.deepEqual(q.wording, a.wording);
 });
 
 // The owner, 9.11.2026: the old text, no exit before the end of the term, and 12 protections put

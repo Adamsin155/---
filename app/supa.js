@@ -373,6 +373,9 @@ export function explainError(err) {
   if (/rate limit|security purposes|only request this/i.test(msg)) return 'נשלחו יותר מדי בקשות. נסו שוב בעוד כמה דקות.';
   if (/Email not confirmed/i.test(msg)) return 'יש לאשר את כתובת האימייל לפני הכניסה.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return 'אין חיבור לשרת. בדקו את החיבור לאינטרנט ונסו שוב.';
+  if (/only the managers change the price/i.test(msg)) return 'את המחיר ואת שם החבילה משנים רק הבעלים, עירית, אופיר וליאור.';
+  if (/custom package name/i.test(msg)) return 'שם החבילה לא תקין: עד 60 תווים, בלי הסימנים < > { }.';
+  if (/discount is more than the monthly price/i.test(msg)) return 'ההנחה גדולה מהמחיר החודשי. יש להקטין את ההנחה או להגדיל את המחיר.';
   if (/not staff/i.test(msg)) return 'המשתמש מחובר אך אינו מורשה ליצור הצעות. יש לבקש הרשאה ממנהל המערכת.';
   if (/not signed in/i.test(msg)) return 'יש להתחבר מחדש.';
   if (/client name required/i.test(msg)) return 'חסר שם לקוח.';

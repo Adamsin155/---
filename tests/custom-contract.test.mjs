@@ -34,11 +34,13 @@ test('regular selections are untouched: the same bytes as before custom contract
   const noWording = (m) => {
     const { legal, legalVersion, wording, ...rest } = m;
     assert.equal(legalVersion, m.signable ? 3 : null);
-    assert.equal(!!wording, m.signable);
+    assert.equal(!!wording, true); // a price offer too since 9.11.2026
     return rest;
   };
   assert.deepEqual(regularFingerprint(noWording), { count: 612, sha256: '8dae6344e7dd9b2e1d906a1025c955e7e9673433ab1285ec2531d062aecd457a' });
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '1b09747f6077e5cd0654d91928943c4052a64e3d3edcf08fd2b9510dd4c8812f' });
+  // 9.11.2026 (the quote in the old document's order): the cover and the big closing words in
+  // every model, and the words in a price offer too.
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '1a0e517857410a3a26049a8630a05670467d6633c16e6575a4d10149c53cf34a' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);
@@ -176,7 +178,7 @@ test('the catalog: every package line that can be changed is known by its positi
     for (const q of CUSTOM_QTY) if (q.label && base[q.key] > 0) assert.ok(keys.includes(q.key), `${id} ${q.key}`);
     for (const k of ['videos', 'graphics', 'shootDays', 'collabs', 'stories', 'ch14']) assert.equal(base[k], SPECS[id][k]);
   }
-  assert.deepEqual(CUSTOM_LIMITS, { termMin: 1, termMax: 36, priceMax: 10000000, lines: 10, lineLabel: 120, lineQtyMax: 999, linePriceMax: 5000000, terms: 2000 });
+  assert.deepEqual(CUSTOM_LIMITS, { termMin: 1, termMax: 36, priceMax: 10000000, lines: 10, lineLabel: 120, lineQtyMax: 999, linePriceMax: 5000000, terms: 2000, packageName: 60 });
 });
 
 test('the document: quantities, added lines and the term come from the customised values', () => {

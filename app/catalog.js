@@ -266,4 +266,6 @@ export const CUSTOM_LIMITS = {
   priceMax: 10000000,        // the package's monthly price before VAT: up to 100,000 ₪ (agorot)
   lines: 10, lineLabel: 120, lineQtyMax: 999, linePriceMax: 5000000,
   terms: 2000,
+  // The package's name as the document shows it, for this quote only (the owner, 9.11.2026).
+  packageName: 60,
 };

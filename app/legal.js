@@ -145,7 +145,9 @@ const MANAGED = new Set(['ניהול רשתות חברתיות', 'ניהול ק�
 //   package  { title, groups: [{ title, items: [..] }] }
 //   why      { title, text }
 //   details  { title, groups: [{ title, items: [..] }] }
-//   closing  text
+//   closing  text; closingBig: its last words, drawn big ("יחד, נהפוך את החברה להצלחה!")
+//   cover    { title: "הצעת מחיר <name>", packageName } (9.11.2026, the old document's first page;
+//            ctx.coverName: the influencer, or the client's business with none; app/pricing.js)
 export function agreementWording(ctx) {
   const n = ctx.termMonths;
   const pod = ctx.tier === 'podcast';
@@ -176,6 +178,10 @@ export function agreementWording(ctx) {
     ? `${ctx.photographers} צלמי וידאו מקצועיים עם ציוד הפקה וצילום מהמתקדמים שיש.`
     : 'צלם וידאו מקצועי עם ציוד הפקה וצילום מהמתקדמים שיש.';
   return {
+    cover: {
+      title: ctx.coverName ? `הצעת מחיר ${ctx.coverName}` : 'הצעת מחיר',
+      packageName: ctx.packageName,
+    },
     intro: {
       title: 'מי אנחנו',
       text: 'אסטרטג היא חברת פרסום ושיווק דיגיטלי המתמחה בליווי עסקים - מהעצמאיים והעסקים הקטנים ועד חברות גדולות ומותגים מובילים. אנחנו משלבים חשיבה אסטרטגית, קריאייטיב חד ותפעול שוטף של התוכן ברשתות החברתיות, מתוך מטרה אחת: להפוך נוכחות דיגיטלית לתוצאות עסקיות.',
@@ -228,6 +234,7 @@ export function agreementWording(ctx) {
       ],
     },
     agreementTitle: 'הסכם התקשרות ותנאים',
-    closing: 'אנחנו כאן כדי להפוך את המותג שלכם למוביל בתחום, עם אסטרטגיה מדויקת, תוכן מנצח ונוכחות דיגיטלית עוצמתית. יחד, נהפוך את החברה להצלחה!',
+    closing: 'אנחנו כאן כדי להפוך את המותג שלכם למוביל בתחום, עם אסטרטגיה מדויקת, תוכן מנצח ונוכחות דיגיטלית עוצמתית.',
+    closingBig: 'יחד, נהפוך את החברה להצלחה!',
   };
 }
