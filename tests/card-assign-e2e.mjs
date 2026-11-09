@@ -10,7 +10,9 @@
 //      "לקוח חדש בעריכה אצלך" is due for the editor;
 //   3  Irit and Lior see the button and Irit records an editor; Ilai sees no button;
 //      "שינוי" beside an editor written;
-//   4  WebKit as an iPhone 13: Ofir, the imported client, tapped through.
+//   4  WebKit as an iPhone 13: Ofir, the imported client, tapped through;
+//   5  Irit on qa.html (the owner, 9.11.2026), 390 and 1366: "ממתינים לשיוך עורך" oldest shoot first,
+//      the same dialog as Ofir's (editor and editing time), and her assignment is saved as his.
 // Screenshots (SHOTS=1) go to SHOTS_OUT, never into the repository.
 // Run: npx http-server -p 8419 -s -c-1 . &  then  BASE_URL=http://localhost:8419/ node tests/card-assign-e2e.mjs
 import { chromium, webkit, devices } from 'playwright';
@@ -24,7 +26,7 @@ import { computeReminders } from '../app/reminder-engine.js';
 const BASE = process.env.BASE_URL || 'http://localhost:8419/';
 const SHOTS = process.env.SHOTS === '1' && !!process.env.SHOTS_OUT;
 const OUT = `${String(process.env.SHOTS_OUT || '').replace(/[\\/]+$/, '')}/`;
-const SIZES = { 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 900 } };
+const SIZES = { 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 900 }, 1366: { width: 1366, height: 900 } };
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 const settle = async (page) => { await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForTimeout(400); };
@@ -61,7 +63,7 @@ function office() {
   return db;
 }
 
-async function signedIn(role, db, { id = IMP, width = 390, device = null, engine = browser } = {}) {
+async function signedIn(role, db, { id = IMP, width = 390, device = null, engine = browser, path = null, wait = '#cc-head h1' } = {}) {
   const fake = makeFlowFake(db);
   const phone = width < 600;
   const ctx = device
@@ -73,11 +75,11 @@ async function signedIn(role, db, { id = IMP, width = 390, device = null, engine
   watchCsp(page);
   page.on('pageerror', (e) => errors.push(`${role}: ${e}`));
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(`${role}: ${msg.text()}`); });
-  await page.goto(`${BASE}client.html?id=${encodeURIComponent(id)}`);
+  await page.goto(`${BASE}${path || `client.html?id=${encodeURIComponent(id)}`}`);
   await page.fill('#lg-email', emailOf(role));
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
-  await page.waitForSelector('#cc-head h1');
+  await page.waitForSelector(wait);
   await settle(page);
   if (SHOTS) await page.waitForTimeout(900); // the sign-in screen has faded out
   return { page, ctx, db };
@@ -262,6 +264,56 @@ try {
     assert.equal(await ilai.page.locator('#cc-assign').count(), 0);
     await ilai.ctx.close();
   });
+
+  // Irit assigns on qa.html as Ofir does (the owner, 9.11.2026). A second client waits too, shot
+  // earlier (Thursday 15.10): the list is the oldest shoot first.
+  const OLD = cid(76);
+  const withOlder = () => {
+    const db = office();
+    const shotC = db.clients.find((c) => c.id === SHOT);
+    db.clients.push({ ...shotC, id: OLD, name: 'דנה לוי', business: 'לוי פרחים', shoot_at: '2026-10-15T10:00:00+03:00' });
+    for (const r of db.protocol_checks.filter((x) => x.client_id === SHOT)) db.protocol_checks.push({ ...r, client_id: OLD });
+    return db;
+  };
+  for (const width of [390, 1366]) {
+    await step(`${width}px · Irit on qa.html: the oldest shoot first, the same dialog as Ofir's, and her assignment is saved as his`, async () => {
+      const db = withOlder();
+      const { page, ctx } = await signedIn('irit', db, { width, path: 'qa.html#assign-h', wait: '#assign-list .of-card' });
+      const keys = await page.locator('#assign-list > li.of-card').evaluateAll((xs) => xs.map((x) => x.dataset.key));
+      assert.deepEqual(keys, [`${OLD}:p22a`, `${SHOT}:p22a`], 'the oldest shoot first');
+      const id = `${SHOT}:p22a`.replace(/\W/g, '_');
+      // The buttons are hers (Lior alone sees the list without them).
+      assert.equal(await page.locator('#assign-list .as-ofir-only').count(), 0);
+      if (width < 600) await tall(page.locator(`#as-open-${id}`)); // a finger's target on the phone
+      await noOverflow(page);
+      await shot(page, `qa-irit-list-${width}`);
+      await page.click(`#as-open-${id}`);
+      await page.waitForSelector('#dlg-assign[open]');
+      assert.match(await text(page.locator('#as-h')), /^שיוך עורך · נועם פרץ$/);
+      assert.equal(await page.locator('#as-days-wrap').isVisible(), true, 'the editing time, as Ofir chooses it');
+      assert.deepEqual(await page.locator('#as-editors input').evaluateAll((xs) => xs.map((x) => x.value)), ['nadia', 'yariv', 'anna', 'nirel']);
+      await inside(page, page.locator('#as-submit'));
+      await page.waitForTimeout(300);
+      await shot(page.locator('#dlg-assign'), `qa-irit-dialog-${width}`);
+      await shot(page, `qa-irit-dialog-page-${width}`);
+      await page.click('label[for="as-e-yariv"]');
+      await page.click('#as-submit');
+      await page.waitForSelector('#dlg-assign:not([open])', { state: 'attached' });
+      await settle(page);
+      assert.equal(db.clients.find((c) => c.id === SHOT).editor, 'yariv');
+      for (const k of ['p22a.load', 'p22a.assigned', 'p22a.irit']) {
+        assert.equal(checkOf(db, SHOT, k)?.state, 'done', k);
+        assert.equal(checkOf(db, SHOT, k)?.by_email, emailOf('irit'), `${k} is Irit's`);
+      }
+      assert.match(await text(page.locator('#toast')), /נועם פרץ שויך ליריב\./);
+      // Gone from the list; the older one stays.
+      assert.deepEqual(await page.locator('#assign-list > li.of-card').evaluateAll((xs) => xs.map((x) => x.dataset.key)), [`${OLD}:p22a`]);
+      // The editor is rung as after Ofir's assignment.
+      const rung = ringsAt(db, new Date(NOW.getTime() + 60e3)).filter((r) => r.rule === 'editing' && r.step === 'assigned' && r.clientId === SHOT);
+      assert.deepEqual(rung.map((r) => r.person), ['yariv']);
+      await ctx.close();
+    });
+  }
 
   await step('WebKit (iPhone 13), Ofir: the imported client, tapped through', async () => {
     const wk = await webkit.launch();
