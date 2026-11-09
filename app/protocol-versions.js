@@ -203,9 +203,34 @@ export const PROTOCOL_HISTORY = [
       'p13.approved', 'p13.fixes', 'p14.access', 'p15', 'p16', 'p17', 'p18', 'p19', 'p20', 'p21', 'p22a.drive', 'p30.picked', 'p31',
     ],
   },
+  {
+    version: 13, date: '2026-11-09', title: 'מה שהצוות סימן ״מיותר״ ירד',
+    changes: [
+      'ירדו הפריטים שעירית, עילאי ואלי סימנו ״מיותר״, וגם ההתראות, האיחורים ושורות הסיכום שלהם. גם אצל לקוחות שכבר באמצע.',
+      'קבוצת ה־WhatsApp (2) ירדה כולה. קביעת יום הצילום נספרת מחתימת החוזה.',
+      'קביעת אפיון (3) וקביעת יום צילום (11): בלי וי. לעירית שורה אחת, ״לקבוע אפיון ל…״ / ״לקבוע ל… יום צילום״, שנסגרת לבד כשהמועד נקבע במערכת. בחבילה עם כמה ימי צילום: ״יום צילום 1 מתוך 2״, והיום הבא נפתח ב־1 לחודש שאחרי היום הקודם.',
+      'המעקב היומי (14) כבר לא נשאל כל יום. נשארו שני הנושאים: תסריטים ויום צילום.',
+      'הקישור לדף הסטטוס (7א) ירד כמשימה; הקישור עצמו נשאר בכרטיס הלקוח.',
+      'עילאי: הגאנט השנתי (9) הוא פריט אחד. הבדיקה הסופית (29ב) היא 4 סעיפים. התזמון (28) והגאנט המלא נסגרים לבד כשכל התכנים בגאנט ״תוזמן״, ועירית מקבלת ״לשלוח גאנט״.',
+      'אלי: שתי בדיקות הכונן הן אחת, וירדו חמישה פריטים.',
+    ],
+    // For every client, of every version (the owner: the same way of working for all), as v12.
+    always: ['p03.date', 'p11.date', 'p19b.checked', 'p28.auto', 'p29b.c.ganttok'],
+    retired: [
+      'p01.prepared', 'p01.sent', 'p02', 'p03.who', 'p03.available', 'p03.scheduled', 'p03.calendar',
+      'p11.influencers', 'p11.ok.client', 'p11.ok.influencers', 'p11.ok.lior', 'p11.ok.photographer', 'p11.calendar',
+      'p04.followup', 'p04.tasks', 'p05.vault', 'p07.call', 'p07a', 'p23.call', 'p26.call', 'p27.notes',
+      'p14.day', 'p14.approvals', 'p14.graphics', 'p14.team', 'p14.missing', 'p14.delays',
+      'p17b.arrived', 'p17b.zones', 'p17b.variety', 'p19b.complete', 'p19b.opens', 'p19b.cards', 'p19b.notes',
+      'p09.c.name', 'p09.c.months', 'p09.c.num', 'p09.c.link', 'p09.c.day', 'p09.c.date', 'p09.c.time',
+      'p29b.c.nets', 'p29b.c.access', 'p29b.c.metricool', 'p29b.c.look', 'p29b.c.logo', 'p29b.c.graphics', 'p29b.c.gfiles', 'p29b.c.vfiles',
+      'p29b.c.gantt', 'p29b.c.match', 'p28.scheduled', 'p29.filled',
+    ],
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;
+const RETIRED_KEYS = new Set(PROTOCOL_HISTORY.flatMap((v) => v.retired || []));
 
 const SINCE = new Map();
 for (const v of PROTOCOL_HISTORY) for (const k of v.items || []) SINCE.set(k, v.version);
@@ -278,7 +303,9 @@ export function adjustForVersion(procs, client) {
     const timing = timingStartedUnder(base, v);
     let fresh = false;
     const items = p.items.map((i) => {
-      const since = itemSince(i.key);
+      // v13: an item that replaces retired ones (named in its `passedIf`) is as new to the client as they were.
+      const replaced = i.passedIf ? [].concat(i.passedIf).filter((k) => RETIRED_KEYS.has(k)) : [];
+      const since = replaced.length ? Math.max(itemSince(i.key), Math.min(...replaced.map(itemSince))) : itemSince(i.key);
       if (since <= v) return i;
       fresh = true;
       return { ...i, fresh: since };

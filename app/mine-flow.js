@@ -20,7 +20,8 @@
 //           or null: nothing reminds of it (a client in landing sends no reminders).
 // A queue with nothing in it gives no line.
 import { PEOPLE } from './protocol.js';
-import { inLanding, isBusinessDay } from './protocol-logic.js';
+import { inLanding, isBusinessDay, clientLabel } from './protocol-logic.js';
+import { nextShootDay } from './shoot-plan.js';
 import { qaQueue, awaitingEditor } from './qa-logic.js';
 import { fastCases, ladderWords } from './fast-ladder.js';
 import { ofirMeetings } from './office-marks.js';
@@ -177,6 +178,21 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
   if (me === 'irit') {
     const due = followupDue(followupRows({ clients: live, checksOf: (c) => checks[c.id] || {}, stateOf, now })).length;
     add({ id: 'followup', bucket: 'today', n: due, rule: 'followup', href: FOLLOWUP_URL, cta: 'למעקב', text: followupLine(due) });
+  }
+
+  // ── The next shoot day of a package with several (protocol v13; app/shoot-plan.js nextShootDay) ──
+  // From the 1st of the month after the last day that was set, one line per client until that day
+  // has a date: "לקבוע לקפה דנה יום צילום 2 מתוך 2". It is set in the client card, as a shoot round.
+  if (me === 'irit') {
+    for (const c of live) {
+      if (inLanding(c)) continue;
+      const next = nextShootDay(c, now);
+      if (!next) continue;
+      add({
+        id: `shootnext-${c.id}`, bucket: 'today', n: 1, rule: 'shootNext', href: `client.html?id=${encodeURIComponent(c.id)}#add-round`, cta: 'קביעת יום צילום',
+        text: `לקבוע ל${clientLabel(c)} יום צילום ${next.day} מתוך ${next.total}`,
+      });
+    }
   }
 
   // ── Contracts sent for signature and not signed yet (quotes.html; section 47) ──

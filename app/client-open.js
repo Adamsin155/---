@@ -2,7 +2,7 @@
 // shoot type, quantities), and importing a client that is already mid-way.
 // Pure logic, shared by the new-client dialog and the unit tests.
 import { PACKAGES, TIERS, INFLUENCERS } from './catalog.js';
-import { STATIONS, PROCESSES, isSolo } from './protocol.js';
+import { STATIONS, PROCESSES, isSolo, isRetired } from './protocol.js';
 import { packageDeliverables, IMPORT_NOTE } from './protocol-logic.js';
 
 // Every check an import makes carries exactly this note, so reports can leave it out.
@@ -63,6 +63,7 @@ export function importKeys(stationKey, { shootSet = true } = {}) {
   // The daily follow-up (14) is history too once its station is behind the client: its
   // eight topics are marked, as they were before protocol v8, and it is not asked again
   // (its daily answer itself, a recurring item, is never a mark of history).
-  return PROCESSES.filter((p) => before.has(p.id) && p.recurring !== 'weekly')
-    .flatMap((p) => p.items.filter((it) => !it.recurring).map((it) => it.key));
+  // (v13: never an item a protocol version retired: it applies to nobody.)
+  return PROCESSES.filter((p) => before.has(p.id) && p.recurring !== 'weekly' && !isRetired(p))
+    .flatMap((p) => p.items.filter((it) => !it.recurring && !isRetired(it)).map((it) => it.key));
 }

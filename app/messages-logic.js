@@ -479,7 +479,8 @@ const earlier = (a, b) => (a && b ? (a < b ? a : b) : a || b);
 // `urgent`: goes first.
 const MILESTONES = [
   // Process 2's intro message is this one: once it is checked, it went out.
-  { key: 'welcome', station: 'join', base: true, fresh: 2, at: (x) => x.doneAt('p02.opened'), when: (x) => !x.isDone('p02.intro') },
+  // v13: the group (2) left the protocol: the welcome is due from the contract's signing.
+  { key: 'welcome', station: 'join', base: true, fresh: 2, at: (x) => x.doneAt('p02.opened') || x.doneAt('p01.signed'), when: (x) => !x.isDone('p02.intro') },
   {
     key: 'access', station: 'char', base: true, fresh: 3, at: (x) => x.completed('p04'),
     when: (x) => !x.st('p05')?.complete && materialsOf(x.checks).missing.length > 0,
@@ -561,7 +562,8 @@ const PROMISES = [
     // target, not a promise to the client. A client that started before keeps ה4.
     proc: 'p11', what: 'קביעת יום הצילום', chain: ['p11'], applies: (x) => !!x.st('p11')?.proc.timingBefore,
     // Everyone else confirmed the date; the client's approval (and then the calendar) is left.
-    onClient: (x, open) => !x.isDone('p11.ok.client') && open.every((k) => /\.ok\.client$|\.calendar$/.test(k)),
+    // (v13: no approvals: only the date itself, which is ours to set.)
+    onClient: () => false,
   },
   // Promise ה5 is the scripts and the Zoom within 3 business days: the date of 13.
   // The scripts' own target is a day earlier (decision 14), an internal margin.
@@ -811,9 +813,9 @@ export function thursdayVars(client, checks, state, now = new Date()) {
       if (c.isDone('p26.sent') && !c.isDone('p27.approved')) need.push('הערות או אישור על הסרטונים');
       continue;
     }
-    // Once the office has started setting the shoot day (a date to approve exists).
-    if (p11?.touched && !p11.complete && !c.isDone('p11.ok.client')) need.push('אישור מועד ליום הצילום');
-    if (c.st('p12')?.complete && !c.isDone('p13.approved')) need.push('אישור התסריטים');
+    // (v13: the client approves no shoot date: a date in the system is the closed day.)
+    void p11;
+    if (c.st('p12')?.complete && !c.isDone('p13.approved') && !c.isDone('p13.zoom')) need.push('אישור התסריטים'); // (p13.approved left in v12: the Zoom is the approval)
     if (c.isDone('p26.sent') && !c.isDone('p27.approved')) need.push('הערות או אישור על הסרטונים');
   }
 

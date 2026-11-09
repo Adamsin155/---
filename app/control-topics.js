@@ -13,8 +13,9 @@ import { unsignedList, UNSIGNED_URL } from './unsigned-logic.js';
 
 // The protocol's order (docs/protocols/irit.md, step 19). The words come from
 // REVIEW_TOPICS.p32 (app/protocol.js), so a wording change there shows here too.
-export const TOPIC_KEYS = ['contracts', 'signatures', 'groups', 'intro', 'chars', 'shoots', 'tasks', 'approvals', 'fixes', 'staff', 'back'];
-const FALLBACK = ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם'];
+// v13: the WhatsApp group and its intro message (2) left the protocol, and their two topics with it.
+export const TOPIC_KEYS = ['contracts', 'signatures', 'chars', 'shoots', 'tasks', 'approvals', 'fixes', 'staff', 'back'];
+const FALLBACK = ['חוזים', 'חתימות', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם'];
 export const topicLabel = (key) => { const i = TOPIC_KEYS.indexOf(key); return (REVIEW_TOPICS.p32 || [])[i] || FALLBACK[i] || key; };
 
 export const SHOOT_DAYS_AHEAD = 7;  // "ימי צילום": the shoot days of the coming week
@@ -62,13 +63,9 @@ function contracts({ live, cs, st, deals, now }) {
     if (d.status === 'approval') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'חוזה מותאם: מוכן לשליחה', href: 'quotes.html', since: parseDate(d.created_at) }));
     if (d.status === 'rejected') out.push(item({ id: `deal:${d.id}`, title: d.business_name, text: 'החוזה לא אושר: לתקן ולשלוח מחדש', href: 'quotes.html', since: parseDate(d.created_at), late: true }));
   }
-  for (const c of live) {
-    const s = st(c).find((x) => x.proc.id === 'p01');
-    if (!s || s.complete || !s.ready) continue;
-    const k = cs(c);
-    if (!isResolved(k, 'p01.prepared')) out.push(item({ id: `${c.id}:p01`, client: c, text: 'החוזה לא הוכן', hash: 'p01', since: parseDate(c.deal_at), late: s.status === 'overdue' }));
-    else if (!isResolved(k, 'p01.sent')) out.push(item({ id: `${c.id}:p01`, client: c, text: 'החוזה הוכן ולא נשלח', hash: 'p01', since: atOf(k, 'p01.prepared') || parseDate(c.deal_at), late: s.status === 'overdue' }));
-  }
+  // (v13: "the contract was prepared" and "sent" left the protocol: a client's own unsigned contract
+  // is in "חתימות".)
+  void st; void cs;
   return out.sort(oldestFirst);
 }
 function signatures({ live, cs, st, deals, unsigned, now }) {
@@ -89,31 +86,10 @@ function signatures({ live, cs, st, deals, unsigned, now }) {
   for (const c of live) {
     const s = st(c).find((x) => x.proc.id === 'p01');
     const k = cs(c);
-    if (!s || s.complete || !isDone(k, 'p01.sent') || isResolved(k, 'p01.signed')) continue;
-    const since = atOf(k, 'p01.sent');
+    // v13: since "נשלח" left the protocol, a client in work whose contract is not signed, from the deal.
+    if (!s || s.complete || !s.ready || isResolved(k, 'p01.signed')) continue;
+    const since = atOf(k, 'p01.sent') || parseDate(c.deal_at);
     out.push(item({ id: `${c.id}:p01`, client: c, text: 'החוזה נשלח ולא נחתם', hash: 'p01', since, late: late(since) }));
-  }
-  return out.sort(oldestFirst);
-}
-
-// ── 3, 4: the WhatsApp group and the intro message ──
-function groups({ live, cs, st }) {
-  const out = [];
-  for (const c of live) {
-    const s = st(c).find((x) => x.proc.id === 'p02');
-    if (!s || !s.ready || isResolved(cs(c), 'p02.opened')) continue;
-    out.push(item({ id: `${c.id}:p02`, client: c, text: 'הקבוצה לא נפתחה', hash: 'p02', since: parseDate(c.deal_at), late: s.status === 'overdue' }));
-  }
-  return out.sort(oldestFirst);
-}
-// A client with no group yet is in "קבוצות": the message waits for the group.
-function intro({ live, cs, st }) {
-  const out = [];
-  for (const c of live) {
-    const s = st(c).find((x) => x.proc.id === 'p02');
-    const k = cs(c);
-    if (!s || !isDone(k, 'p02.opened') || isResolved(k, 'p02.intro')) continue;
-    out.push(item({ id: `${c.id}:p02`, client: c, text: 'לא נשלחה הודעת היכרות', hash: 'p02', since: atOf(k, 'p02.opened'), late: s.status === 'overdue' }));
   }
   return out.sort(oldestFirst);
 }
@@ -278,9 +254,9 @@ function back({ live, st, now }) {
   return out.sort((a, b) => (b.recheck - a.recheck) || oldestFirst(a, b));
 }
 
-const BUILD = { contracts, signatures, groups, intro, chars, shoots, tasks: openTasks, approvals, fixes, staff, back };
+const BUILD = { contracts, signatures, chars, shoots, tasks: openTasks, approvals, fixes, staff, back };
 
-// The eleven topics in the protocol's order: [{ key, label, items, count, late }].
+// The nine topics in the protocol's order: [{ key, label, items, count, late }].
 //   clients, checks (by client id), stateOf(client) -> clientState, tasks (open),
 //   deals (Stav's deals, or null when this viewer may not read them), unsigned (the
 //   quotes still out for signature, or null likewise), work (per person).

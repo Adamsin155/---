@@ -241,8 +241,9 @@ function eliCard(sc, now) {
     placeBlock(sc),
     readLine(sc, now),
     b ? briefingForEli(sc, b) : h('p', { class: 'muted' }, eveOrDay ? 'התדריך: ליאור עוד לא מילא.' : 'התדריך של ליאור יגיע בערב שלפני, ב־17:00.'),
-    eveOrDay && !isDone(sc, 'p17b.arrived') ? gearBlock(sc) : null,
-    today || isDone(sc, 'p17b.arrived') ? eliDay(sc, now) : null);
+    // v13: no "הגעתי" any more: the day starts on the day itself, or with the drive in his hands.
+    eveOrDay && !isDone(sc, 'p17b.drive') ? gearBlock(sc) : null,
+    today || isDone(sc, 'p17b.drive') || isDone(sc, 'p17b.arrived') ? eliDay(sc, now) : null);
 }
 
 // "קראתי את התסריטים" (protocol v10; the photographer's protocol, step 2): one tick per shoot
@@ -287,7 +288,9 @@ function gearBlock(sc) {
 function eliDay(sc, now) {
   const id = cardId(sc);
   const c = cs(sc.client);
-  const arrived = atOf(sc, 'p17b.arrived');
+  // v13 (9.11.2026): "הגעתי" left the protocol. The day is open from the day itself (eliDay is drawn
+  // then), and its first tap is "קיבלתי את הכונן". An old "הגעתי" still opens it.
+  const arrived = true;
   const drive = isDone(sc, 'p17b.drive');
   const label = P.briefingOf(c, sc.pre)?.label || '';
   const q = c[`${sc.pre}p17b.brollq`];
@@ -295,18 +298,16 @@ function eliDay(sc, now) {
   const open = P.finishOpen(c, sc.pre);
   const notes = c[`${sc.pre}p19b.notes`];
   // Arrival: two taps.
-  const arrival = !arrived
-    ? h('div', { class: 'ed-act' }, btn(`${id}-arrived`, 'הגעתי', () => mark(sc, 'p17b.arrived', null, `${id}-drive`), 'btn btn-primary btn-big'))
-    : !drive
-      ? h('div', { class: 'ed-act' }, h('p', { class: 'note-ok' }, `הגעת ${P.clockText(arrived)}.`),
-        btn(`${id}-drive`, label ? `קיבלתי ${P.driveName(label)}` : 'קיבלתי את הכונן', () => mark(sc, 'p17b.drive', label || null, `${id}-yes`), 'btn btn-primary btn-big'))
-      : h('p', { class: 'note-ok' }, `הגעת ${P.clockText(arrived)} · ${P.driveName(label) || 'הכונן'} אצלך.`);
+  const arrival = !drive
+    ? h('div', { class: 'ed-act' },
+      btn(`${id}-drive`, label ? `קיבלתי ${P.driveName(label)}` : 'קיבלתי את הכונן', () => mark(sc, 'p17b.drive', label || null, `${id}-yes`), 'btn btn-primary btn-big'))
+    : h('p', { class: 'note-ok' }, `${P.driveName(label) || 'הכונן'} אצלך.`);
   // "הבי־רול גמור?" (15 minutes before the influencers; a "לא" reaches Lior). Not on a day
   // without influencers: nobody arrives after the B-roll.
   const broll = !arrived || sc.solo ? null : !q
     ? h('div', { class: 'sh-q', role: 'group', 'aria-labelledby': `${id}-q` },
       h('p', { id: `${id}-q` }, h('strong', {}, 'הבי־רול גמור?'), ` המשפיענים מגיעים ב־${P.clockText(sc.shootAt)}.`),
-      btn(`${id}-yes`, 'כן', () => mark(sc, ['p17b.brollq', ...notYet(sc, ['p17b.broll', 'p17b.zones', 'p17b.variety'])], null, `${id}-h`), 'btn k-btn-navy'),
+      btn(`${id}-yes`, 'כן', () => mark(sc, ['p17b.brollq', ...notYet(sc, ['p17b.broll'])], null, `${id}-h`), 'btn k-btn-navy'),
       btn(`${id}-no`, 'לא', () => answerNo(sc), 'btn'))
     : q.note === 'no' && !isDone(sc, 'p17b.broll')
       ? h('div', { class: 'sh-q' }, h('p', {}, 'ענית שהבי־רול לא גמור. ליאור קיבל הודעה.'),
@@ -317,7 +318,7 @@ function eliDay(sc, now) {
     h('legend', {}, 'לפני שעוזבים'),
     ...P.FINISH.map(([k, l], i) => h('label', { class: 'prod-check', for: `${id}-fin-${i}` },
       h('input', {
-        type: 'checkbox', id: `${id}-fin-${i}`, class: 'cbx', checked: isDone(sc, k), disabled: !canAct || h2.eli,
+        type: 'checkbox', id: `${id}-fin-${i}`, class: 'cbx', checked: !open.includes(k), disabled: !canAct || h2.eli,
         onchange: (e) => (e.currentTarget.checked ? mark(sc, k, null, `${id}-fin-${i}`) : unmark(sc, k, `${id}-fin-${i}`)),
       }), h('span', {}, l))),
     h2.eli
@@ -326,8 +327,7 @@ function eliDay(sc, now) {
         : `מסרת ${P.clockText(h2.eli)}. ממתין שליאור יאשר שקיבל.`)
       : h('div', { class: 'ed-act' },
         // The shooting guidance was followed: its items close with the handoff (fixed text, not a checklist).
-        // On a day without influencers the zones and the variety of the B-roll close with it too (there is no "הבי־רול גמור?").
-        btn(`${id}-handed`, 'מסרתי לליאור', () => mark(sc, ['p19b.handed', ...notYet(sc, ['p18b.order', 'p18b.quality', 'p18b.numbered', ...(sc.solo ? ['p17b.zones', 'p17b.variety'] : [])])], null, `${id}-h`), 'btn btn-primary', { disabled: !canAct || open.length > 0, 'aria-describedby': `${id}-lock` }),
+        btn(`${id}-handed`, 'מסרתי לליאור', () => mark(sc, ['p19b.handed', ...notYet(sc, ['p18b.order', 'p18b.quality', 'p18b.numbered'])], null, `${id}-h`), 'btn btn-primary', { disabled: !canAct || open.length > 0, 'aria-describedby': `${id}-lock` }),
         h('p', { class: 'hint', id: `${id}-lock` }, open.length ? `נפתח אחרי ${open.length === 1 ? 'הפריט שנשאר' : `${open.length} הפריטים שנשארו`} ברשימה.` : 'ליאור מאשר מצדו, והמסירה נרשמת פעם אחת.'),
         // "לכל חומר ברור לאיזה מספר סרטון הוא שייך" (p18b.numbered) closes with the handoff: how many scripts have a file by now.
         h('p', { class: 'hint sh-numbered', id: `${id}-numbered` }, `${P.filesHint(P.filesOf(c, sc.pre), scriptsCount(sc))}.`))) : null;
@@ -348,12 +348,10 @@ function eliDay(sc, now) {
       h('div', { class: 'ed-act' }, btn(`${id}-notes-save`, 'שמירה', () => saveNotes(sc), 'btn btn-sm'),
         h('span', { class: 'hint' }, 'מופיע בעמוד של העורך שישויך.'))) : null);
 }
-// "לא": the answer (its note) rings Lior; the zones and the variety were still done.
+// "לא": the answer (its note) rings Lior.
 async function answerNo(sc) {
   const id = cardId(sc);
   if (!await mark(sc, 'p17b.brollq', 'no', `${id}-brolldone`)) return;
-  const rest = notYet(sc, ['p17b.zones', 'p17b.variety']);
-  if (rest.length) await mark(sc, rest, null, `${id}-brolldone`);
   toast('ליאור קיבל הודעה שהבי־רול לא גמור.');
 }
 async function saveNotes(sc) {

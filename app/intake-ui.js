@@ -68,7 +68,8 @@ export function intakeShortcut(procId, clientId, { checks = {}, scope = 'office'
   }
   if (b === 'p12' && writesScripts(me, scope)) return go(scriptsHref(clientId, round), 'כתיבת תסריטים');
   if (b === 'p12' || b === 'p13') return go(`intake.html?id=${enc(clientId)}${r}#scripts`, 'תסריטים וזום');
-  if (['p11', 'p11b', 'p14', 'p15'].includes(b)) return go(`prep.html?id=${enc(clientId)}`, b === 'p15' ? 'הכנות ליום צילום' : b === 'p14' ? 'מעקב לפני צילום' : 'סגירת יום הצילום');
+  // v13: 11 is the date alone (its line in the list sets it); 14 is no longer a daily answer.
+  if (['p11b', 'p15'].includes(b)) return go(`prep.html?id=${enc(clientId)}`, 'הכנות ליום צילום');
   return null;
 }
 

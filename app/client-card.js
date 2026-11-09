@@ -525,7 +525,6 @@ function calendarMenu(kind, n = 1) {
   if (!has) return null;
   const ev = () => (kind === 'char' ? charEvent() : shootEvent(n));
   const name = kind === 'char' ? 'פגישת האפיון' : 'יום הצילום';
-  const p11 = n === 1 ? 'p11.calendar' : `r${n}.p11.calendar`;
   return h('details', { class: 'cal' },
     h('summary', { 'aria-label': `הוספת ${name} ליומן` }, 'הוספה ליומן'),
     h('div', { class: 'cal-menu' },
@@ -537,11 +536,8 @@ function calendarMenu(kind, n = 1) {
         type: 'button', class: 'btn btn-sm btn-ghost',
         onclick: () => {
           downloadIcs(kind === 'char' ? `אפיון-${client.name}` : `יום-צילום-${client.name}`, ev());
-          if (kind !== 'shoot') return;
-          const owners = clientState(client, checks).states.flatMap((x) => x.proc.items).find((it) => it.key === p11)?.owners || [];
-          const mine = me && owners.includes(me) && !checks[p11];
-          toast('קובץ היומן ירד. אחרי ששלחתם אותו לכולם, סמנו ״יום הצילום הוכנס ליומן של כולם״.',
-            mine ? { label: 'סימון כבוצע', run: () => mark(p11, 'done', null) } : null);
+          // (v13: "יום הצילום הוכנס ליומן של כולם" left the protocol: nothing to mark after it.)
+          if (kind === 'shoot') toast('קובץ היומן ירד.');
         },
       }, 'קובץ יומן (‎.ics)')));
 }
@@ -1722,7 +1718,8 @@ function itemRows(x, items, idp = '') {
   let topicsPlaced = false;
   for (const i of items) {
     // v12: an item that is a form of its own has no row: the form above is the one way, and saving it marks it.
-    if (i.form && !printing) continue;
+    // v13: what the system closes by itself (`auto`: the meeting's and the shoot day's date, the scheduling) has no row either.
+    if ((i.form || i.auto) && !printing) continue;
     if (topics.includes(i)) {
       if (topicsPlaced) continue;
       topicsPlaced = true;
@@ -2513,7 +2510,7 @@ $('round-form').addEventListener('submit', async (e) => {
     openPhases.add(`round-${n}`);
     render();
     if (!roundEditing) {
-      toast(`נוסף סבב צילום ${n}. תהליך 11 (קביעת יום צילום) פתוח אצל עירית.`);
+      toast(at ? `נוסף סבב צילום ${n}, עם המועד.` : `נוסף סבב צילום ${n}. ״לקבוע יום צילום״ פתוח אצל עירית.`);
       document.getElementById(`r${n}-p11`)?.scrollIntoView({ block: 'start' });
     } else toast(clearing ? 'הסבב נשמר. מועד הצילום שלו נוקה.' : 'הסבב נשמר.');
   } catch (err) {
@@ -3014,6 +3011,14 @@ mountSession(async (staff) => {
   if (vaultOk) autoAccessCheck().then(refreshAccessLog);
   if (vaultOk) mountVaultHint($('vault-open'), { locked: hideSecrets });
   // "לקוח חדש" with a signed contract (5.11.2026): client.html?id=…#read-<file id> reads it here.
+  // v13: "קביעת יום צילום" of a later shoot day (Irit's line in "המשימות שלי"): #add-round adds the
+  // next day of the package, #round-N sets the date of a round that has none.
+  const roundHash = /^#(add-round|round-(\d+))$/.exec(location.hash);
+  if (client && roundHash && !own()) {
+    history.replaceState(null, '', location.pathname + location.search);
+    const n = roundHash[2] ? Number(roundHash[2]) : null;
+    if (!n || roundsOf(client).some((r) => r.n === n)) openRound(n);
+  }
   const readHash = /^#read-([0-9a-f-]{36})$/.exec(location.hash);
   if (client && readHash && !own()) {
     history.replaceState(null, '', location.pathname + location.search + '#contract-docs');

@@ -316,7 +316,8 @@ function assignCard(a, load, now) {
     me === 'lior' ? null : h('label', { class: 'of-line as-days', for: `as-days-${id}` }, 'זמן עריכה ',
       h('select', { class: 'input input-sm', id: `as-days-${id}`, onchange: (e) => daysOf.set(a.key, Number(e.target.value)) },
         ...editingChoices(a.client).map((d) => h('option', { value: String(d), selected: daysFor(a) === d }, editingChoiceText(d))))),
-    // The assignment is Ofir's alone (protocol v9). Lior supervises here: he sees it, without the buttons.
+    // Ofir assigns (protocol v9), and Irit too with the same buttons and dialog (the owner, 9.11.2026).
+    // Lior supervises here: he sees it, without the buttons.
     me === 'lior' ? h('p', { class: 'of-line muted as-ofir-only' }, 'אופיר משייך את העורך.') : h('div', { class: 'of-acts as-acts' },
       oneTap ? h('button', {
         type: 'button', class: `btn btn-sm as-go ${sure ? 'btn-primary is-sure' : 'k-btn-navy'}`, id: `as-go-${id}`, disabled: quickBusy,

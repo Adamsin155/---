@@ -4,7 +4,8 @@
 // influencer planned for that day is kept in clients.deliverables.shoot_plan, { "2": "dms" }.
 // Pure: no DOM, no network (tests/shoot-plan.test.mjs).
 import { SHOOT_TYPES, shootTypeName } from './protocol.js';
-import { roundsOf, isMonthlyRound } from './protocol-logic.js';
+import { roundsOf, isMonthlyRound, parseDate } from './protocol-logic.js';
+import { dateIL, partsIL } from './tz.js';
 
 const MAX_DAYS = 12;
 
@@ -53,3 +54,45 @@ export function shootDays(client) {
 
 // The influencer a new round starts with: the one planned for that day, else none.
 export const plannedFor = (client, n) => planOf(client)[n] || null;
+
+// ── Setting the shoot days, one after another (protocol v13; the owner's decision of 9.11.2026) ──
+// Irit's line "לקבוע ל<לקוח> יום צילום" closes when the day has a date in the system (process 11, its
+// `auto` item). A package with more than one day says which: "יום צילום 1 מתוך 2". Day 1 is the
+// client's own shoot (shoot_at); each later day is a shoot round (clients.rounds, as "הוספת סבב
+// צילום" adds it: app/client-card.js openRound). The next day's line opens on the 1st of the calendar
+// month after the last day that was set, and stays until that day has a date; again every month
+// until every day of the package is set.
+const monthStart = (d) => { const p = partsIL(d); return dateIL(p.month === 12 ? p.year + 1 : p.year, p.month === 12 ? 1 : p.month + 1, 1); };
+// How many shoot days the package has (deliverables.shoot_days), or 0 when unknown.
+export const shootDaysTotal = (client) => Math.min(Math.max(Math.round(Number(client?.deliverables?.shoot_days) || 0), 0), MAX_DAYS);
+// Which day of the package a shoot is: 1 for the client's own, and for a round its place among the
+// shoot rounds (a monthly editing round is not a shoot day).
+export function shootOrdinal(client, roundN = null) {
+  if (!roundN) return 1;
+  const ns = roundsOf(client).filter((r) => !isMonthlyRound(r)).map((r) => Number(r.n)).sort((a, b) => a - b);
+  const i = ns.indexOf(Number(roundN));
+  return i < 0 ? 1 : i + 2;
+}
+// "יום צילום 2 מתוך 3" (or "יום צילום" when the package has one day, or its size is unknown).
+export function shootDayWords(client, roundN = null) {
+  const total = shootDaysTotal(client);
+  const n = shootOrdinal(client, roundN);
+  return total > 1 ? `יום צילום ${n} מתוך ${total}` : 'יום צילום';
+}
+// The line of Irit's list: "לקבוע לקפה דנה יום צילום 1 מתוך 2".
+export const setShootLine = (client, name, roundN = null) => `לקבוע ל${name} ${shootDayWords(client, roundN)}`;
+// The next day of the package to set that has no round yet: { day, total, opensAt } once its line is
+// open (now is on or after opensAt), else null. Null too while day 1 or an added round has no date
+// (those are process 11's own lines), and when every day of the package is added.
+export function nextShootDay(client, now = new Date()) {
+  const total = shootDaysTotal(client);
+  if (total < 2 || !client || !['active', 'ending'].includes(client.status ?? 'active')) return null;
+  const rounds = roundsOf(client).filter((r) => !isMonthlyRound(r));
+  const added = 1 + rounds.length;
+  if (added >= total) return null;
+  const dates = [client.shoot_at, ...rounds.map((r) => r.shoot_at)].map(parseDate);
+  if (dates.some((d) => !d)) return null;
+  const last = dates.reduce((a, b) => (b > a ? b : a));
+  const opensAt = monthStart(last);
+  return now >= opensAt ? { day: added + 1, total, opensAt } : null;
+}

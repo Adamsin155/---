@@ -26,7 +26,8 @@ import { isOwnerView } from './team-rules.js';
 // Who changes a Gantt besides the owners: GANTT_EDITORS in app/shell-rules.js (a copy here, so the
 // client's public view loads no menu module; tests/managers-all.test.mjs holds them equal).
 export const GANTT_EDITORS = ['ilai', 'irit', 'ofir', 'lior'];
-import { clientLabel } from './protocol-logic.js';
+import { clientLabel, clientState } from './protocol-logic.js';
+import { scheduleFacts, ganttReadyKeys, AUTO_NOTE } from './gantt-auto.js';
 import { termOf } from './year-logic.js';
 import { dayKeyIL } from './tz.js';
 import { glide } from './shell.js'; // a day or a month chosen: the calendar changes softly
@@ -743,6 +744,18 @@ async function moveEntry(id, day) {
   await apply({ day, edited: true, month: Math.max(1, Math.min(termOf(client), packageMonthOf(client, day))) }, `${e.title} הוזז ל${dayLine(day)}`);
 }
 
+// Protocol v13 (app/gantt-auto.js): the Gantt is all scheduled, so the scheduling (28) closes now,
+// not on the reminders' next minute. Quietly: a failure leaves it to the server.
+async function closeScheduling() {
+  if (!client || !scheduleFacts(rows).all) return;
+  try {
+    const P = await import('./protocol-data.js');
+    const checks = (await P.loadChecks(client.id))?.[client.id] || {};
+    const keys = ganttReadyKeys(client, checks, rows, clientState(client, checks));
+    if (keys.length) await P.setChecksBulk(client.id, keys, 'done', AUTO_NOTE);
+  } catch { /* the reminders function writes it on its next tick */ }
+}
+
 // ── Marking by hand: one tap, and a whole day, week or month ──
 // Until Metricool is connected (and for whatever it does not know) Ilai marks by hand.
 const SET_TEXT = { planned: 'חזר ל״מתוכנן״', scheduled: 'סומן שתוזמן', posted: 'סומן שעלה' };
@@ -754,6 +767,7 @@ async function tapState(e) {
       const row = await data.saveEntry(e.id, { state });
       rows = rows.map((r) => (r.id === e.id ? row : r));
       redraw();
+      closeScheduling();
       toast(msg, undo ? { label: 'ביטול', run: () => set(before, `בוטל: ${e.title} חזר ל״${STATUS_TEXT[before]}״`, false) } : null);
       document.querySelector(`.gt-state-btn[data-key="${CSS.escape(e.key)}"]`)?.focus();
     } catch (err) { toast(`לא נשמר. ${ui.errorText(err)}`); }
@@ -792,6 +806,7 @@ async function applyBulk(range) {
       const by = new Map(changed.map((r) => [r.id, r]));
       rows = rows.map((r) => by.get(r.id) || r);
       redraw();
+      closeScheduling();
       toast(msg(changed.length), undo ? { label: 'ביטול', run: () => put('planned', (k) => `בוטל: ${k} חזרו ל״מתוכנן״`, false) } : null);
     } catch (err) { toast(`לא נשמר. ${ui.errorText(err)}`); }
   };

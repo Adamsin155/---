@@ -293,11 +293,9 @@ function finalCard(x, ctx) {
 
 function ganttCard(x, ctx) {
   const c = x.client;
-  const key = `${x.pre}p29.filled`;
+  // v13: nothing to press. Once every content row is "תוזמן" the system closes it, and Irit is told.
   return h('li', { class: 'wproc il-card', 'data-key': `il-gantt:${c.id}:${x.pre}` },
-    cardHead('gantt', c, x.state.proc.id, `גאנט${x.n ? ` · סבב ${x.n}` : ''}`, until(x.state.dueAt)),
-    h('div', { class: 'of-acts il-go' }, h('a', { class: 'btn btn-sm btn-ghost gantt-go', href: ganttUrl(c.id) }, 'פתיחת גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`)), h('button', {
-      type: 'button', class: 'btn btn-sm k-btn-navy', id: `il-g-${c.id}-${x.pre.replace(/\W/g, '')}`,
-      onclick: (e) => { e.currentTarget.disabled = true; mark(ctx, c, [key], true, 'הגאנט מלא. עירית מקבלת ״לשלוח גאנט״.', { handoff: key }); },
-    }, 'הגאנט מלא')));
+    cardHead('gantt', c, x.state.proc.id, `תזמון וגאנט${x.n ? ` · סבב ${x.n}` : ''}`, until(x.state.dueAt)),
+    h('p', { class: 'task-meta' }, 'מסמנים ״תוזמן״ בגאנט. כשכל התכנים מתוזמנים, זה נסגר לבד ועירית מקבלת ״לשלוח גאנט״.'),
+    h('div', { class: 'of-acts il-go' }, h('a', { class: 'btn btn-sm k-btn-navy gantt-go', href: ganttUrl(c.id) }, 'פתיחת גאנט התוכן', h('span', { class: 'sr-only' }, ` של ${c.name}`))));
 }
