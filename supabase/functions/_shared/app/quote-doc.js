@@ -277,7 +277,7 @@ export function renderQuoteDoc(model, meta = {}) {
     const cover = h('header', { class: 'qd-cover' },
       h('div', { class: 'qd-cover-top' },
         h('img', { class: 'qd-logo', src: meta.logoSrc || 'app/assets/logo.png', alt: 'astrateg' }),
-        h('span', { class: 'qd-type' }, isAgreement ? 'הסכם התקשרות · לחתימה' : 'לעיון'),
+        h('span', { class: 'qd-type' }, isAgreement ? 'מסמך לחתימה' : 'לעיון'),
       ),
       h('h1', { class: 'qd-cover-title' }, w.cover?.title || title),
       h('div', { class: 'qd-cover-pkg', dir: 'auto' }, w.cover?.packageName || pkgName),

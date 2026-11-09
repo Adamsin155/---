@@ -36,8 +36,12 @@ test('a new agreement: the old document\'s order and words, with our numbers', (
   const cls = doc.kids.map((k) => k.className);
   assert.equal(cls[0], 'qd-cover');
   assert.deepEqual(cls.slice(-2), ['qd-closing', 'qd-foot']);
-  assert.equal(all(doc, (n) => n.tag === 'h1')[0].textContent, 'הצעת מחיר נירו לוי');
+  // An agreement keeps its title "הסכם התקשרות" and its tag (the owner, 9.11.2026); the influencer under the package.
+  assert.equal(all(doc, (n) => n.tag === 'h1')[0].textContent, 'הסכם התקשרות');
+  assert.equal(all(doc, (n) => n.className === 'qd-type')[0].textContent, 'מסמך לחתימה');
   assert.equal(all(doc, (n) => n.className === 'qd-cover-pkg')[0].textContent, 'Social all in one');
+  assert.equal(all(doc, (n) => n.className === 'qd-cover-inf')[0].textContent, 'נירו לוי');
+  assert.ok(!doc.textContent.includes('הצעת מחיר נירו לוי'));
   assert.equal(all(doc, (n) => n.className === 'qd-closing-big')[0].textContent, 'יחד, נהפוך את החברה להצלחה!');
   const contact = all(doc, (n) => n.className === 'qd-closing-contact')[0].textContent;
   assert.ok(contact.includes('info@astrateg.com') && contact.includes('הבונים 5, רמת גן'));

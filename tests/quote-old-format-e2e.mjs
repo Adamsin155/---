@@ -274,7 +274,8 @@ try {
     const pv = owner.locator('#preview-body .qd');
     await pv.waitFor();
     const t = await pv.innerText();
-    assert.match(t, /הצעת מחיר נירו לוי/);
+    assert.match(t, /הסכם התקשרות/);
+    assert.doesNotMatch(t, /הצעת מחיר נירו לוי/);
     assert.match(t, /מה כוללת חבילת ALL IN ONE/);
     assert.match(t, /חבילה · ALL IN ONE/);
     assert.match(t, /4,200 ₪ לחודש \+ מע״מ כחוק/);
@@ -328,8 +329,11 @@ try {
       const client = await newPage(chrome, vp);
       await client.goto(agreementLink);
       await client.locator('#doc .qd').waitFor();
-      assert.equal(await text(client, '.qd-cover-title'), 'הצעת מחיר נירו לוי');
+      // An agreement keeps its title and tag (the owner, 9.11.2026); the influencer under the package.
+      assert.equal(await text(client, '.qd-cover-title'), 'הסכם התקשרות');
+      assert.equal(await text(client, '.qd-cover .qd-type'), 'מסמך לחתימה');
       assert.equal(await text(client, '.qd-cover-pkg'), 'ALL IN ONE');
+      assert.equal(await text(client, '.qd-cover-inf'), 'נירו לוי');
       assert.deepEqual(await client.locator('#doc .qd-sec-head h2').allInnerTexts(), order);
       assert.equal(await text(client, '.qd-closing-big'), 'יחד, נהפוך את החברה להצלחה!');
       assert.match(await text(client, '.qd-closing-contact'), /info@astrateg\.com/);

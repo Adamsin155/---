@@ -273,7 +273,8 @@ test('the agreement is the old system\'s six clauses, word for word', async () =
   for (const same of [0, 4, 5, 8, 9, 10, 11, 12, 13, 14]) assert.ok(a.legal.flatMap((s) => s.items).includes(oldText[same]), oldText[same]);
   // The words around it, in the old document's order.
   assert.deepEqual(Object.keys(a.wording), ['cover', 'intro', 'package', 'why', 'details', 'agreementTitle', 'closing', 'closingBig']);
-  assert.deepEqual(a.wording.cover, { title: 'הצעת מחיר נירו לוי', packageName: 'Social all in one' });
+  // An agreement keeps its own title (the owner, 9.11.2026); a price offer is named by its influencer.
+  assert.deepEqual(a.wording.cover, { title: 'הסכם התקשרות', packageName: 'Social all in one' });
   assert.equal(a.wording.closingBig, 'יחד, נהפוך את החברה להצלחה!');
   assert.equal(a.wording.agreementTitle, 'הסכם התקשרות ותנאים');
   assert.equal(a.wording.intro.strengths.length, 4);
@@ -282,7 +283,7 @@ test('the agreement is the old system\'s six clauses, word for word', async () =
   // A price offer has no clauses, but the same words around them (9.11.2026).
   const q = buildQuoteModel(sel('social', 'niro'), { name: 'x' });
   assert.deepEqual([q.legal, q.legalVersion], [null, null]);
-  assert.deepEqual(q.wording, a.wording);
+  assert.deepEqual(q.wording, { ...a.wording, cover: { title: 'הצעת מחיר נירו לוי', packageName: 'Social all in one' } });
 });
 
 // The owner, 9.11.2026: the old text, no exit before the end of the term, and 12 protections put

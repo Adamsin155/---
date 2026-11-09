@@ -155,7 +155,7 @@
 .qd-cover-title { margin: 26px 0 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--qd-ink); }
 .qd-cover-pkg {
   margin-top: 6px; font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05;
-  color: var(--qd-accent); text-transform: uppercase;
+  color: var(--qd-accent); text-transform: uppercase; text-align: right;
 }
 .qd-cover-inf { margin-top: 6px; font-size: 16px; font-weight: 500; color: var(--qd-ink-2); }
 .qd-cover .qd-meta { margin-top: 18px; padding-top: 12px; border-top: 1px solid #E4DCFB; }

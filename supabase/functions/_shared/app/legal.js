@@ -147,7 +147,7 @@ const MANAGED = new Set(['ניהול רשתות חברתיות', 'ניהול ק�
 //   why      { title, text }
 //   details  { title, groups: [{ title, items: [..] }] }
 //   closing  text; closingBig: its last words, drawn big ("יחד, נהפוך את החברה להצלחה!")
-//   cover    { title: "הצעת מחיר <name>", packageName } (9.11.2026, the old document's first page;
+//   cover    { title: "הצעת מחיר <name>" (an agreement: ctx.coverTitle, "הסכם התקשרות"), packageName } (9.11.2026, the old document's first page;
 //            ctx.coverName: the influencer, or the client's business with none; app/pricing.js)
 export function agreementWording(ctx) {
   const n = ctx.termMonths;
@@ -180,7 +180,9 @@ export function agreementWording(ctx) {
     : 'צלם וידאו מקצועי עם ציוד הפקה וצילום מהמתקדמים שיש.';
   return {
     cover: {
-      title: ctx.coverName ? `הצעת מחיר ${ctx.coverName}` : 'הצעת מחיר',
+      // An agreement keeps its own title ("הסכם התקשרות"; the owner, 9.11.2026); a price offer is named
+      // as the old documents were.
+      title: ctx.coverTitle || (ctx.coverName ? `הצעת מחיר ${ctx.coverName}` : 'הצעת מחיר'),
       packageName: ctx.packageName,
     },
     intro: {

@@ -39,8 +39,8 @@ test('regular selections are untouched: the same bytes as before custom contract
   };
   assert.deepEqual(regularFingerprint(noWording), { count: 612, sha256: '8dae6344e7dd9b2e1d906a1025c955e7e9673433ab1285ec2531d062aecd457a' });
   // 9.11.2026 (the quote in the old document's order): the cover and the big closing words in
-  // every model, and the words in a price offer too.
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '1a0e517857410a3a26049a8630a05670467d6633c16e6575a4d10149c53cf34a' });
+  // every model (an agreement's cover titled "הסכם התקשרות"), and the words in a price offer too.
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '168643d58bd60e07d9eefaed3d292dd6c3a06bd11cc4bd95d71b698e8a587a17' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);

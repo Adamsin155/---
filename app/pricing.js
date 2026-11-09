@@ -474,7 +474,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     // signed document keeps them; app/quote-doc.js draws a model without them as before. Since
     // 9.11.2026 a price offer has them too (the owner: the quote in the old document's order),
     // with the cover's title ("הצעת מחיר נירו לוי").
-    wording: agreementWording({ ...agreementContext(sel, { tier, paid, free, totals, includes }), coverName: coverNameOf(sel, client) }),
+    wording: agreementWording({ ...agreementContext(sel, { tier, paid, free, totals, includes }), coverName: coverNameOf(sel, client), ...(docType.signable ? { coverTitle: docType.name } : {}) }),
     // The wording's version (app/legal.js): the stored text is what this document shows for good.
     legalVersion: docType.signable ? LEGAL_VERSION : null,
     selection: sel,
