@@ -20,9 +20,10 @@
 // contract is created all the same, as one filled by hand (no tag).
 //
 // The owner's "send_contract" from Claude (9.11.2026, docs/ops.md, section 116): the mcp function calls
-// here with the owner's OAuth token and the gate's key that only it holds (mcpGateOf). Only then is a
-// connected app's token taken, and only an owner's who is switched on (mcpCallerIsOwner). Any other
-// connected app's token is refused, as before.
+// here with the owner's OAuth token and the gate's key that only it holds (mcpGateOf), passed on to the
+// database, whose gate (public.mcp_request_gate()) checks it on every call of the person's client: a wrong
+// key and is_office is refused there. Then only an owner who is switched on (mcpCallerIsOwner). A
+// connected app's token with no key is refused here, as before.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
 import { isOAuthToken } from '../_shared/oauth-token.js';
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
   // A connected app's token is for the mcp function alone (docs/ops.md, section 84), which comes here
   // with the gate's key for the owner's send_contract (section 116).
   const viaMcp = isOAuthToken(req.headers.get('authorization'))
-    ? await mcpGateOf(req.headers.get(MCP_GATE_HEADER), () => createClient(url, serviceKey()).rpc('mcp_gate_key'))
+    ? mcpGateOf(req.headers.get(MCP_GATE_HEADER))
     : null;
   if (!viaMcp) {
     if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });

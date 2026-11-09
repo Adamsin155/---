@@ -54,17 +54,12 @@ export function aiRunProblem(run, userId, usedBy, now = Date.now()) {
 }
 
 // The owner's "send_contract" from Claude (docs/ops.md, section 116). The mcp function sends the key that
-// only it holds (public.mcp_gate_key(), read with the service key) with the owner's OAuth token. `sent`:
-// the header; `readKey()`: the service client's rpc. The key when they are equal, else null (never throws).
+// only it holds (public.mcp_gate_key()) with the owner's OAuth token. Here only its shape is looked at:
+// it goes on with the person's client to the database, whose gate compares it on every call (a wrong
+// one is refused there, so is_office answers no). The key, or null (never throws).
 export const MCP_GATE_HEADER = 'x-mcp-gate';
-export async function mcpGateOf(sent, readKey) {
-  if (typeof sent !== 'string' || sent.length < 32) return null;
-  try {
-    const { data, error } = await readKey();
-    return !error && typeof data === 'string' && data.length >= 32 && data === sent ? sent : null;
-  } catch {
-    return null;
-  }
+export function mcpGateOf(sent) {
+  return typeof sent === 'string' && /^[0-9a-f-]{64,200}$/i.test(sent) ? sent : null;
 }
 // And only an owner who is switched on for Claude (public.my_person() null, public.mcp_allowed()); asked
 // after callerIsOffice. `rpc` is the caller's own client (the key on it, through the database's gate).

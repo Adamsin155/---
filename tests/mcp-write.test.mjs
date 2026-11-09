@@ -459,12 +459,10 @@ test('the write tools\' database client: only the listed tables, operations and 
 
 // ── create-quote takes a connected app's token only from the mcp function, only an owner's ──
 test('create-quote: the key the mcp function holds, then an owner who is switched on; otherwise refused as before', async () => {
-  const key = 'k'.repeat(72);
-  const readKey = async () => ({ data: key, error: null });
-  assert.equal(await mcpGateOf(key, readKey), key);
-  for (const sent of [null, undefined, '', 'short', `${key}x`, 'k'.repeat(71)]) assert.equal(await mcpGateOf(sent, readKey), null, String(sent));
-  assert.equal(await mcpGateOf(key, async () => ({ data: null, error: {} })), null);
-  assert.equal(await mcpGateOf(key, async () => { throw new Error('x'); }), null);
+  // The real key's shape (two uuids); the database's gate compares it (tests/sql/mcp-write.test.mjs).
+  const key = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeeeaaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  assert.equal(mcpGateOf(key), key);
+  for (const sent of [null, undefined, '', 'short', 'x'.repeat(80), `${key}\n`, `${key} or 1=1`, 5, {}]) assert.equal(mcpGateOf(sent), null, String(sent));
   const rpcOf = (person, on) => async (fn) => ({ data: fn === 'my_person' ? person : on, error: null });
   assert.equal(await mcpCallerIsOwner(rpcOf(null, true)), true);
   assert.equal(await mcpCallerIsOwner(rpcOf('lior', true)), false);
@@ -474,6 +472,7 @@ test('create-quote: the key the mcp function holds, then an owner who is switche
   assert.equal(MCP_GATE_HEADER, GATE_HEADER);
   const src = readFileSync(new URL('../supabase/functions/create-quote/index.ts', import.meta.url), 'utf8');
   const gate = src.indexOf('mcpGateOf(');
+  assert.ok(src.includes('[MCP_GATE_HEADER]: viaMcp'), 'the key goes on to the database with the person\'s client');
   const refusal = src.indexOf("if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });");
   const who = src.search(/auth\.getUser\(/);
   assert.ok(gate > 0 && gate < refusal && refusal < who, 'the key first, then the refusal of any other app, then who');
