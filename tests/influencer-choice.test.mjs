@@ -56,7 +56,8 @@ test('the document: its head and the agreement say "to be chosen", never a name'
   const m = buildQuoteModel(sel(), { name: 'רונית', companyId: '514729938' });
   assert.equal(m.package.influencer, 'משפיען לבחירה מרשימת המשפיענים של אסטרטג');
   assert.equal(`${m.package.tierName} · ${m.package.influencer}`, 'Social all in one · משפיען לבחירה מרשימת המשפיענים של אסטרטג');
-  const text = m.legal.flatMap((s) => s.items).join('\n');
+  // The old wording (LEGAL_VERSION 3): the package's words around the clauses say who takes part.
+  const text = [...m.legal.flatMap((s) => s.items), ...m.wording.package.groups.flatMap((g) => g.items)].join('\n');
   assert.match(text, new RegExp(`בהשתתפות ${WORDS}`));
   assert.ok(!/נטלי|סמיון|נירו|הצל \(/.test(text), 'no influencer named');
   // A custom contract (every contract since 1.11.2026) keeps the line as the package says it.

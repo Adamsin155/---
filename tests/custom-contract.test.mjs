@@ -24,19 +24,20 @@ const texts = (s) => exceptionOf(s).map((e) => e.text);
 const legalText = (m) => m.legal.map((s) => `${s.title} ${s.items.join(' ')}`).join(' ');
 
 test('regular selections are untouched: the same bytes as before custom contracts existed', () => {
-  // Taken from the engine as it was on 6.10.2026 (commit 4baede1), before this feature. The one
-  // deliberate change since: the wording's version 2 (27.10.2026, app/legal.js): the clause
-  // "חסימת פלטפורמות" at the end of the platforms chapter, and model.legalVersion. Without
-  // them every byte is as it was; with them, the fingerprint of version 2. Since 28.10.2026 (the owner)
-  // Natali's Social packages give 36 videos and 36 graphics: the fingerprints are of that.
-  const v1 = (m) => {
-    if (!m.legal) { const { legalVersion, ...rest } = m; assert.equal(legalVersion, null); return rest; }
-    const { legalVersion, ...rest } = m;
-    assert.equal(legalVersion, 2);
-    return { ...rest, legal: m.legal.map((s) => (s.title === 'פלטפורמות וחסימת חשבונות' ? { ...s, items: s.items.filter((t) => !t.startsWith('חסימת פלטפורמות:')) } : s)) };
+  // Taken from the engine as it was on 6.10.2026 (commit 4baede1), before this feature. The
+  // deliberate changes since are all in the agreement's wording: version 2 (27.10.2026) and
+  // version 3 (9.11.2026, the old system's words: model.legal, model.wording, model.legalVersion;
+  // app/legal.js). Without those three fields every byte is as it was before version 3 (the
+  // fingerprint below was taken from the code of 8.11.2026); with them, the fingerprint of version 3.
+  // Since 28.10.2026 (the owner) Natali's Social packages give 36 videos and 36 graphics.
+  const noWording = (m) => {
+    const { legal, legalVersion, wording, ...rest } = m;
+    assert.equal(legalVersion, m.signable ? 3 : null);
+    assert.equal(!!wording, m.signable);
+    return rest;
   };
-  assert.deepEqual(regularFingerprint(v1), { count: 612, sha256: '04fcafefbb3c166366eb7a49936b011a57e018b1e9a3b7bccd242e209f5f28ef' });
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '5197a222148f68f4614fe6a149f618de5f08d1b859bb2e25a64f477ee4d64149' });
+  assert.deepEqual(regularFingerprint(noWording), { count: 612, sha256: '8dae6344e7dd9b2e1d906a1025c955e7e9673433ab1285ec2531d062aecd457a' });
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '7a53f76f4a0f68ccea7fed1a4e99b77ae9bf4b003d0db6b7a52a47435d20d531' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);
@@ -201,19 +202,20 @@ test('the document: quantities, added lines and the term come from the customise
   assert.match(m.paid[0].detail, /מייצר 10 תכנים בכל חודש/);
   const text = legalText(m);
   assert.match(text, /לתקופה קצובה של 18 חודשים/);
-  assert.match(text, /למשך 18 חודשים \(סה״כ 124,200 ₪ \+ מע״מ\)/); // (4,900 + 2,000) × 18
+  assert.match(text, /התמורה עבור החבילה הינה 6,900 ₪ לחודש \+ מע״מ כחוק, למשך 18 חודשים\./); // 4,900 + 2,000
   assert.match(text, /מלוא 18 התשלומים החודשיים/);
-  assert.match(text, /המספק 10 תכנים בכל חודש/);
-  assert.match(text, /וכן הפריטים שנוספו לחבילה: אתר תדמית \(1\); ניהול קהילה/);
-  // One shoot day now: the plural wording is gone.
-  assert.doesNotMatch(text, /כלולים \d+ ימי צילום/);
-  // Channel 14 removed by hand: its chapter is gone; added by hand: it is there.
-  const titles = (c) => buildQuoteModel(sel('social-tv', 'natali', [], c), { name: 'x' }).legal.map((x) => x.title);
-  assert.ok(titles(undefined).includes('אייטם בערוץ 14'));
-  assert.ok(!titles({ qty: { ch14: 0 } }).includes('אייטם בערוץ 14'));
+  assert.match(text, /לפני תום 18 החודשים/);
+  // The old wording (LEGAL_VERSION 3): the package's words carry what was changed by hand.
+  const content = m.wording.package.groups[0].items;
+  assert.ok(content.includes('אתר תדמית'), 'a line added by hand');
+  assert.ok(content.includes('ניהול קהילה'), 'a line added by hand');
+  assert.equal(m.wording.details.groups[1].items[0], 'התחייבות ל-18 חודשים');
+  // Channel 14 removed by hand: gone from the package's words; added by hand: it is there.
+  const content14 = (c) => buildQuoteModel(sel('social-tv', 'natali', [], c), { name: 'x' }).wording.package.groups[0].items;
+  assert.ok(content14(undefined).includes('אייטם בערוץ 14'));
+  assert.ok(!content14({ qty: { ch14: 0 } }).includes('אייטם בערוץ 14'));
   const added = buildQuoteModel(sel('social', 'natali', [], { qty: { ch14: 1, collabs: 2 } }), { name: 'x' });
-  assert.ok(added.legal.some((x) => x.title === 'אייטם בערוץ 14'));
-  assert.match(legalText(added), /פרסומים בחשבונות המשפיענים/);
+  assert.ok(added.wording.package.groups[0].items.includes('2 קולאבים באינסטגרם אצל נטלי דדון'));
   assert.deepEqual(added.package.includes.slice(-2), [{ qty: 2, label: 'קולאבים באינסטגרם אצל נטלי דדון' }, { qty: 1, label: 'אייטם בערוץ 14' }]);
 });
 
@@ -226,7 +228,6 @@ test('special terms: their own last chapter, prevailing only as far as they say;
   assert.equal(last.title, 'תנאים מיוחדים');
   assert.equal(last.items.length, 3);
   assert.match(last.items[0], /יגבר התנאי המיוחד, אך ורק במידה שנקבעה בו במפורש/);
-  assert.match(last.items[0], /יתר הוראות ההסכם יעמדו בתוקפן/);
   assert.deepEqual(last.items.slice(1), ['הלקוח רשאי לסיים את ההסכם אחרי 3 חודשים, בהודעה של 30 ימים.', 'יום הצילום יתקיים בסניף חיפה.']);
   // Every standard chapter is word for word the regular agreement's, in the same place.
   assert.deepEqual(m.legal.slice(0, -1), plain.legal);
