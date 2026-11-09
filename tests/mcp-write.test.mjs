@@ -420,7 +420,7 @@ test('send_contract: the details from the system go to create-quote and never co
   assert.equal(out.number, 'AST-77');
   assert.equal(out.sign_link, 'https://app.astrateg.tech/q.html#t=tok-123');
   assert.match(out.whatsapp, /^https:\/\/wa\.me\/\?text=/, 'no number in the link');
-  assert.equal(out.message, sendText({ name: 'גלית', number: 'AST-77', link: out.sign_link, agreement: true, months: 6, hours: 72 }));
+  assert.equal(out.message, sendText({ name: 'גלית', number: 'AST-77', link: out.sign_link, agreement: true, months: 6, hours: 168 }));
   noSecrets(JSON.stringify(out));
   assert.deepEqual(w.log.filter((r) => r.method !== 'GET').map((r) => `${r.method} ${r.path}`), ['POST /rpc/deal_take', 'PATCH /deal_requests']);
   // An existing client: name, company id and phone from the card, through the office's functions.

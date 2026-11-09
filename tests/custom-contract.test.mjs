@@ -29,14 +29,18 @@ test('regular selections are untouched: the same bytes as before custom contract
   // "חסימת פלטפורמות" at the end of the platforms chapter, and model.legalVersion. Without
   // them every byte is as it was; with them, the fingerprint of version 2. Since 28.10.2026 (the owner)
   // Natali's Social packages give 36 videos and 36 graphics: the fingerprints are of that.
-  const v1 = (m) => {
+  // Since 9.11.2026 (the owner; docs/ops.md, section 118) a link is valid for a week (validHours 168,
+  // "בתוך 7 ימים" in the signing chapter) instead of 48 / 72 hours: v1 puts the old values back.
+  const oldHours = (m) => ({ ...m, validHours: m.validHours === 168 ? (m.docType === 'agreement' ? 72 : 48) : m.validHours });
+  const v1 = (m0) => {
+    const m = oldHours(m0);
     if (!m.legal) { const { legalVersion, ...rest } = m; assert.equal(legalVersion, null); return rest; }
     const { legalVersion, ...rest } = m;
     assert.equal(legalVersion, 2);
-    return { ...rest, legal: m.legal.map((s) => (s.title === 'פלטפורמות וחסימת חשבונות' ? { ...s, items: s.items.filter((t) => !t.startsWith('חסימת פלטפורמות:')) } : s)) };
+    return { ...rest, legal: m.legal.map((s) => (s.title === 'פלטפורמות וחסימת חשבונות' ? { ...s, items: s.items.filter((t) => !t.startsWith('חסימת פלטפורמות:')) } : { ...s, items: s.items.map((t) => t.replace('בתוך 7 ימים ממועד הפקתו', 'בתוך 72 שעות ממועד הפקתו')) })) };
   };
   assert.deepEqual(regularFingerprint(v1), { count: 612, sha256: '04fcafefbb3c166366eb7a49936b011a57e018b1e9a3b7bccd242e209f5f28ef' });
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '5197a222148f68f4614fe6a149f618de5f08d1b859bb2e25a64f477ee4d64149' });
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '33187945786b2336e88d36c0486f9a073832f2b669fc6e9a26bb6761e1ded7b7' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);

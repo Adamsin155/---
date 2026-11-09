@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PAID_ADDONS, TIERS, INFLUENCERS } from '../app/catalog.js';
+import { PAID_ADDONS, TIERS, INFLUENCERS, validityWords } from '../app/catalog.js';
 import {
   emptySelection, computeTotals, reconcile, validateSelection,
   paidAddonAvailable, buildQuoteModel,
@@ -189,7 +189,7 @@ test('agreement text follows the selected package', () => {
   assert.match(text(agr(sel('social', 'simeon', ['simeon-day']))), /כל יום צילום/);
   // Invoices and the signing deadline.
   assert.match(text(agr(sel('social', 'simeon'))), /חשבונית מס כדין תופק/);
-  assert.match(text(agr(sel('social', 'simeon'))), /בתוך 72 שעות ממועד הפקתו/);
+  assert.match(text(agr(sel('social', 'simeon'))), /בתוך 7 ימים ממועד הפקתו/);
   assert.match(text(agr(sel('social', 'simeon', ['photographer']))), /ביקור חודשי שלא התקיים/);
   assert.doesNotMatch(text(agr(sel('social', 'simeon'))), /ביקור חודשי/);
 
@@ -227,9 +227,14 @@ test('discount: up to 200 ILS a month, whole shekels, shown in totals and terms'
   assert.doesNotMatch(none.legal.find((x) => x.title === 'התמורה ותנאי תשלום').items[0], /הנחה/);
 });
 
-test('validity: quote 48 hours, agreement 72 hours', () => {
-  assert.equal(buildQuoteModel(sel('social', 'natali'), { name: 'x' }).validHours, 48);
-  assert.equal(buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' }).validHours, 72);
+test('validity: a week for both since 9.11.2026 (quote 48 hours and agreement 72 before)', () => {
+  assert.equal(buildQuoteModel(sel('social', 'natali'), { name: 'x' }).validHours, 168);
+  assert.equal(buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' }).validHours, 168);
+  // In words: whole days from 4 days on; a document made with 48 or 72 hours reads as it did.
+  assert.equal(validityWords(168), '7 ימים');
+  assert.equal(validityWords(72), '72 שעות');
+  assert.equal(validityWords(48), '48 שעות');
+  assert.equal(validityWords(null), '');
 });
 
 test('client fields drop bidi control characters', () => {
