@@ -109,7 +109,7 @@ test('the shift of the chosen time moves the deadlines of 22, 24 and 27 together
   for (const id of ['p22', 'p24', 'p27']) assert.equal(+proc(w, c, id, now).dueAt, +addBusinessDays(before[id], 3), id);
 });
 
-test('the queue: the most videos left first, a client in landing last', () => {
+test('the queue: on the same shoot day the most videos left first, a client in landing last', () => {
   const w = world();
   waiting(w, { name: 'בלי כמות' });
   const few = waiting(w, { name: 'מעט' });
@@ -168,4 +168,40 @@ test('the 19:00 summary: how many wait and the oldest, also on a day with nothin
   assert.equal(assignText({ assign: { n: 2, days: 1, name: 'x' } }), 'מחכים לשיוך עורך: 2, הכי ותיק יום אחד (x)');
   assign(w, c, 'anna', now);
   assert.equal(sum(now).assign, null);
+});
+
+test('the queue: the oldest shoot first (the owner, 9.11.2026), a shoot with no date after the dated, landing last', () => {
+  const w = world();
+  const late = waiting(w, { name: 'צילום אחרון', shoot_at: IL(2026, 10, 15, 10).toISOString() });
+  const early = waiting(w, { name: 'צילום ראשון', shoot_at: IL(2026, 10, 12, 10).toISOString() });
+  waiting(w, { name: 'בקליטה', landing: true, shoot_at: IL(2026, 10, 1, 10).toISOString() });
+  const at = IL(2026, 10, 18, 10);
+  mark(w, late, TODO_KEY(), at, todoNote(43)); // more videos left does not jump an older shoot
+  const list = awaitingEditor({ clients: w.clients, stateOf: (c) => stateOf(w, c, at), checks: w.checks });
+  assert.deepEqual(list.map((a) => a.client.name), ['צילום ראשון', 'צילום אחרון', 'בקליטה']);
+  void early;
+  // A shoot with no date goes after the dated ones (a stub state: 22א open and ready).
+  const one = (id, shootAt) => ({ id, name: id, status: 'active', shoot_at: shootAt });
+  const ready = (c) => ({ states: [{ proc: { id: 'p22a', keyBase: 'p22a', ctx: c }, ready: true, complete: false }] });
+  const undated = awaitingEditor({ clients: [one('בלי תאריך', null), one('15.10', IL(2026, 10, 15).toISOString()), one('1.10', IL(2026, 10, 1).toISOString())], stateOf: ready, checks: {} });
+  assert.deepEqual(undated.map((a) => a.client.name), ['1.10', '15.10', 'בלי תאריך']);
+});
+
+test('a client with two shoot days: back in the queue after the second shoot, until its round is assigned', () => {
+  const w = world();
+  const c = waiting(w, { name: 'שני ימי צילום', rounds: [{ n: 2, shoot_at: IL(2026, 10, 22, 10).toISOString(), shoot_type: 'dms' }] });
+  assign(w, c, 'anna', IL(2026, 10, 18, 10));
+  const q = (now) => awaitingEditor({ clients: w.clients, stateOf: (x) => stateOf(w, x, now), checks: w.checks });
+  assert.deepEqual(q(IL(2026, 10, 20, 10)), [], 'the first shoot is assigned, the second is ahead');
+  const after = q(IL(2026, 10, 22, 19));
+  assert.deepEqual(after.map((a) => [a.client.name, a.n, a.pre, a.proc.id]), [['שני ימי צילום', 2, 'r2.', 'r2-p22a']]);
+  assert.equal(after[0].ctx.shoot_at, IL(2026, 10, 22, 10).toISOString(), 'ordered by the round\'s own shoot day');
+  // Assigned: gone again.
+  for (const k of itemsOf('p22a')) mark(w, c, `r2.${k}`, IL(2026, 10, 23, 10));
+  assert.deepEqual(q(IL(2026, 10, 23, 11)), []);
+  // Only r2.p22a.assigned (Ofir's or Irit's dialog writes load + assigned) is enough to leave the list.
+  const d = waiting(w, { name: 'עוד אחד', rounds: [{ n: 2, shoot_at: IL(2026, 10, 22, 10).toISOString(), shoot_type: 'dms' }] });
+  assign(w, d, 'anna', IL(2026, 10, 18, 10));
+  mark(w, d, 'r2.p22a.assigned', IL(2026, 10, 23, 10));
+  assert.deepEqual(q(IL(2026, 10, 23, 11)).map((a) => a.client.name), []);
 });

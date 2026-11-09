@@ -104,6 +104,10 @@ export function charsToday({ clients, stateOf, now = new Date(), person = 'ofir'
 // ── Editor assignment (22א) ────────────────
 // Every shoot (the client's and each extra round's) waiting for an editor: its
 // shoot day is over (19 done, so 22א is ready) and no editor is assigned yet.
+const shotAt = (a) => {
+  const t = a.ctx?.shoot_at ? new Date(a.ctx.shoot_at).getTime() : NaN;
+  return Number.isFinite(t) ? t : Infinity;
+};
 export function awaitingEditor({ clients, stateOf, checks }) {
   const out = [];
   for (const c of clients) {
@@ -120,8 +124,10 @@ export function awaitingEditor({ clients, stateOf, checks }) {
       });
     }
   }
-  // No clock on the assignment (30.10.2026): the most videos left first, a client in landing last.
-  return out.sort((a, b) => Number(a.landing) - Number(b.landing) || b.todo - a.todo);
+  // No clock on the assignment (30.10.2026). The oldest shoot first (the owner, 9.11.2026: by the
+  // shoot day of that shoot or round, a shoot with no date last), then the most videos left;
+  // a client in landing last.
+  return out.sort((a, b) => Number(a.landing) - Number(b.landing) || shotAt(a) - shotAt(b) || b.todo - a.todo);
 }
 
 // How long the editing may take, as Ofir chooses when he assigns (30.10.2026), in business days
