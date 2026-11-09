@@ -57,7 +57,8 @@ test('version 13: the function, the column default, a new client', async () => {
 });
 
 test('who writes: Eli his merged check and his notes, not a retired item; Ilai the scheduling mark; Irit everything', async () => {
-  const c = await addClient('צילום', { shoot_type: 'dms', editor: 'nadia' });
+  // Eli sees a client around its shoot day only (private.my_clients): the shoot is today.
+  const c = await addClient('צילום', { shoot_type: 'dms', editor: 'nadia', shoot_at: new Date().toISOString(), rounds: JSON.stringify([{ n: 2, shoot_at: new Date().toISOString(), start_at: new Date().toISOString() }]) });
   assert.equal(await writes('eli', c, 'p19b.checked'), true);
   assert.equal(await writes('eli', c, 'r2.p19b.checked'), true);
   assert.equal(await writes('eli', c, 'p19b.notes'), true);

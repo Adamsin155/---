@@ -74,7 +74,7 @@ test('the file: the newest, none of the refused words, every UPDATE with a WHERE
 });
 
 test('version 12: the function, the column default, a new client', async () => {
-  assert.equal(PROTOCOL_VERSION, 12);
+  assert.ok(PROTOCOL_VERSION >= 12); // 13 since 9.11.2026 (20261208120000_protocol_v13.sql)
   assert.equal((await db.query('select private.protocol_version_current() as v')).rows[0].v, 12);
   const d = await db.query("select column_default from information_schema.columns where table_schema = 'public' and table_name = 'clients' and column_name = 'protocol_version'");
   assert.equal(d.rows[0].column_default, '12');
@@ -145,8 +145,11 @@ test('the new keys pass the table\'s own check; the writers table is the app\'s;
   const byKey = (a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
   const rows = (await db.query('select key, proc, round, persons from private.protocol_writers')).rows.sort(byKey);
   // Shiel (9.11.2026) joined the table later, in 20261205100000_shiel.sql: the app's table without him.
-  const app = writerRows().map((r) => ({ ...r, persons: r.persons.filter((p) => p !== 'shiel') })).sort(byKey);
-  assert.deepEqual(rows.filter((r) => r.persons.length), app);
+  // Version 13 (20261208120000_protocol_v13.sql) changed the table again: the rows it did not touch are the app's.
+  const V13P = new Set(['p04', 'p05', 'p09', 'p17b', 'p19b', 'p28', 'p29', 'p29b']); // the processes v13 changed
+  const v13 = (r) => V13P.has(r.proc) || V13P.has(String(r.key).split('.')[0]);
+  const app = writerRows().filter((r) => !v13(r)).map((r) => ({ ...r, persons: r.persons.filter((p) => p !== 'shiel') })).sort(byKey);
+  assert.deepEqual(rows.filter((r) => r.persons.length && !v13(r)), app);
   assert.deepEqual(rows.find((r) => r.key === 'p06.@part').persons, ['noam', 'ofir']);
   const call = await as(db, users.lior, async (tx) => (await tx.query('select public.clients_scripts_doc_saved()')).rows);
   assert.match(call.error, /permission denied|trigger/i);
