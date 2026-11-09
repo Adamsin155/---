@@ -300,13 +300,16 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
     if (req.method() === 'POST') {
       const list = Array.isArray(body) ? body : [body];
       const keys = url.searchParams.get('on_conflict')?.split(',') || KEYS[table] || null;
+      // ON CONFLICT DO NOTHING (Prefer: resolution=ignore-duplicates): a row that exists stays as it is and is not returned.
+      const ignore = /resolution=ignore-duplicates/.test(headers.prefer || '');
       const out = list.map((r) => {
         const row = { id: randomUUID(), created_at: now(), at: now(), by_email: me.email, created_by_email: me.email, ...r };
         const old = keys && rowsOf().find((x) => keys.every((k) => String(x[k]) === String(row[k])));
+        if (old && ignore) return null;
         if (old) { Object.assign(old, r, { at: now(), by_email: me.email }); return old; }
         rowsOf().push(row);
         return row;
-      });
+      }).filter(Boolean);
       return single ? json(201, out[0]) : json(201, out);
     }
     if (req.method() === 'PATCH') {

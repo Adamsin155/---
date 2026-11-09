@@ -1962,7 +1962,7 @@ async function mark(key, state, focusId, note = null) {
     if (row) await closeArrived(row);
     // The editor's last mark of 22 and 24: the client goes to Ofir by itself (app/editor-auto.js).
     const ready = state ? await handToOfirIfReady() : [];
-    if (ready.length) toast(READY_TOAST);
+    if (ready.length) { renderKeepingFocus(focusId); toast(READY_TOAST); }
     // A handoff item: offer the ready WhatsApp message to the next person.
     if (state === 'done' || ready.length) offerHandoff({ client, keys: [...(state === 'done' ? [key] : []), ...ready], checks: () => checks, me, canTeam: canTeam(), onSent: afterHandoff });
     else dropHandoff(key);

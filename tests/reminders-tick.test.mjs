@@ -513,3 +513,54 @@ test('closeScheduling: an all-scheduled Gantt writes p28.auto once and Irit is r
     assert.equal(ring(w.db).length, 0);
   }
 });
+
+// The editor's hand-off to Ofir by itself (docs/ops.md, section 121; app/editor-auto.js): the tick
+// writes p24.notify once (by nobody, as p28.auto) for a client whose editing (22) and Drive (24) are
+// all marked but not "העורך עדכן את אופיר", and Ofir and Irit are rung "מוכן לבדיקה" in the same
+// tick. A partial one writes nothing; the next tick writes nothing again.
+test('handToOfir: an editing all marked writes p24.notify once and rings Ofir and Irit once; partial: nothing', async () => {
+  const now = IL(2026, 11, 9, 12); // Monday
+  const at = IL(2026, 11, 9, 10);
+  const world = ({ drop = [] } = {}) => {
+    const c = { ...deal(IL(2026, 9, 1, 10), 'עריכה'), char_at: IL(2026, 9, 3, 10).toISOString(), shoot_at: IL(2026, 11, 3, 10).toISOString(), editor: 'nadia' };
+    const checks = importKeys('post').map((k) => ({ client_id: 'c1', item_key: k, state: 'done', note: IMPORT_NOTE, at: IL(2026, 9, 1, 9).toISOString() }));
+    const live = (i) => !i.optional && !(Number.isInteger(i.retired) && i.retired <= 13);
+    const keys = [
+      'p22a.assigned', ...PROCESSES.find((p) => p.id === 'p22').items.filter(live).map((i) => i.key), 'p24.folder', 'p24.drive',
+    ].filter((k) => !drop.includes(k));
+    for (const k of keys) checks.push({ client_id: 'c1', item_key: k, state: 'done', note: null, at: at.toISOString() });
+    const db = fakeDb({ clients: [c], checks, subs: [{ email: 'ofir@x', endpoint: 'https://push.test/ofir' }, { email: 'irit@x', endpoint: 'https://push.test/irit' }] });
+    const writes = [];
+    db.writeMarks = async ({ client, marks }) => {
+      for (const m of marks) {
+        if (checks.some((r) => r.client_id === client.id && r.item_key === m.item_key)) continue; // never over a mark that exists
+        writes.push(m);
+        checks.push({ client_id: client.id, ...m, at: now.toISOString() });
+      }
+    };
+    return { db, writes };
+  };
+  const ring = (db) => db.log.filter((r) => r.rule === 'qa' && /^מוכן לבדיקה: /.test(r.title));
+
+  const all = world();
+  const { push, sent } = fakePush();
+  const s1 = await runTick({ db: all.db.at(now), push, now });
+  assert.deepEqual(all.writes.map((m) => [m.item_key, m.state]), [['p24.notify', 'done']]);
+  assert.match(all.writes[0].note, /אוטומטית/);
+  assert.equal(s1.handedToOfir, 1);
+  assert.deepEqual(ring(all.db).map((r) => r.person).sort(), ['irit', 'ofir']);
+  assert.equal(sent.filter((s) => /^מוכן לבדיקה: /.test(s.payload.title)).length, 2);
+  // The next tick: the mark is there; nothing is written and nobody is rung again.
+  const later = IL(2026, 11, 9, 12, 1);
+  const s2 = await runTick({ db: all.db.at(later), push, now: later });
+  assert.equal(all.writes.length, 1);
+  assert.equal(s2.handedToOfir, 0);
+  assert.equal(ring(all.db).length, 2);
+
+  // The Drive not marked yet: nothing.
+  const part = world({ drop: ['p24.drive'] });
+  const s3 = await runTick({ db: part.db.at(now), push: fakePush().push, now });
+  assert.deepEqual(part.writes, []);
+  assert.equal(s3.handedToOfir, 0);
+  assert.equal(ring(part.db).length, 0);
+});
