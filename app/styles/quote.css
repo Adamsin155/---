@@ -136,6 +136,7 @@
 .qd-words-list li { display: flex; gap: 6px; line-height: 1.55; font-size: 13.5px; }
 .qd-words-list li::before { flex: none; }
 .qd-words .qd-hero { margin: 0 0 10px; }
+.qd-words-list + .qd-words-p { margin-top: 10px; }
 .qd-closing p { margin: 0 0 4px; text-align: center; }
 .qd-closing p:first-child { font-size: 15px; font-weight: 600; color: var(--qd-accent); line-height: 1.6; }
 
