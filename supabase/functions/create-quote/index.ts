@@ -18,10 +18,16 @@
 // function marks a new contract "הוכן ע״י AI". The run must be the caller's own, successful, from
 // the last 24 hours and not used yet (aiRunProblem; the database checks it again); otherwise the
 // contract is created all the same, as one filled by hand (no tag).
+//
+// The owner's "send_contract" from Claude (9.11.2026, docs/ops.md, section 116): the mcp function calls
+// here with the owner's OAuth token and the gate's key that only it holds (mcpGateOf), passed on to the
+// database, whose gate (public.mcp_request_gate()) checks it on every call of the person's client: a wrong
+// key and is_office is refused there. Then only an owner who is switched on (mcpCallerIsOwner). A
+// connected app's token with no key is refused here, as before.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
 import { isOAuthToken } from '../_shared/oauth-token.js';
-import { corsHeaders, callerIsOffice, aiRunProblem } from './http.js';
+import { corsHeaders, callerIsOffice, aiRunProblem, mcpGateOf, mcpCallerIsOwner, MCP_GATE_HEADER } from './http.js';
 
 // The new secret key when the project has one, else the legacy service-role key (as the other
 // functions do; the owner, 21.10.2026: with the legacy key the insert failed, "הפעולה לא הושלמה").
@@ -80,13 +86,19 @@ Deno.serve(async (req) => {
   });
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'method not allowed' });
-  // A connected app's token is for the mcp function alone (docs/ops.md, section 84).
-  if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
+  const url = Deno.env.get('SUPABASE_URL')!;
+  // A connected app's token is for the mcp function alone (docs/ops.md, section 84), which comes here
+  // with the gate's key for the owner's send_contract (section 116).
+  const viaMcp = isOAuthToken(req.headers.get('authorization'))
+    ? mcpGateOf(req.headers.get(MCP_GATE_HEADER))
+    : null;
+  if (!viaMcp) {
+    if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });
+  }
 
   const authHeader = req.headers.get('Authorization') ?? '';
-  const url = Deno.env.get('SUPABASE_URL')!;
   const userClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
-    global: { headers: { Authorization: authHeader } },
+    global: { headers: { Authorization: authHeader, ...(viaMcp ? { [MCP_GATE_HEADER]: viaMcp } : {}) } },
   });
 
   const { data: userData } = await userClient.auth.getUser();
@@ -96,6 +108,7 @@ Deno.serve(async (req) => {
   // The message keeps the words "not staff": the builder turns them into Hebrew
   // (explainError in app/supa.js), also in a page published before this change.
   if (!(await callerIsOffice((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not staff: quotes are prepared by the office' });
+  if (viaMcp && !(await mcpCallerIsOwner((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not_allowed' });
 
   let selection, client, revise: string | null = null, aiRun: string | null = null;
   try {

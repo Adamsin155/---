@@ -176,7 +176,7 @@ try {
       await page.locator('#mc-yes').waitFor();
       assert.match(await page.locator('#card-h').innerText(), /^Claude מבקש להתחבר/);
       assert.equal(await page.locator('#mc-host').innerText(), 'claude.ai');
-      assert.equal(await page.locator('#mc-can li').count(), 2);
+      assert.equal(await page.locator('#mc-can li').count(), 3);
       assert.match(await page.locator('#mc-cannot').innerText(), /טלפונים/);
       assert.match(await page.locator('#mc-who').innerText(), /lior@astrateg\.test/);
       assert.equal(await noSideScroll(page), true);

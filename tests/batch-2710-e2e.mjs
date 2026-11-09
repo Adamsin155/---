@@ -73,7 +73,7 @@ const vault = new Map(); // link id -> token
 const objects = new Map(); // storage path -> { size, type, owner }
 const tus = new Map(); // upload id -> { path, length, offset, type, owner }
 const calls = [];
-const visibleClient = (u, cid) => isOffice(u) || db.clients.some((c) => c.id === cid && c.editor === personOf(u));
+const visibleClient = (u, cid) => isOffice(u) || seesMoney(u) || db.clients.some((c) => c.id === cid && c.editor === personOf(u));
 const CLIENT_TABLES = new Set(['protocol_checks', 'protocol_log', 'client_tasks', 'characterizations', 'content_briefs', 'client_access', 'client_access_log', 'client_files']);
 const OFFICE_TABLES = new Set(['client_status_links', 'client_status_views', 'client_approvals', 'client_surveys', 'client_consents', 'client_gallery_links']);
 
@@ -492,7 +492,7 @@ await step('Ilai: no "לקוח חדש" and no "אפיון חדש"; no "אפיו�
   await p.waitForSelector('#ik-sum-h');
   assert.equal(await p.locator('#ik-char-edit').count(), 0);
   await p.goto(`${BASE}intake.html?id=${D.id}&only=char`);
-  await p.waitForFunction(() => /עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר ולנעם/.test(document.getElementById('state')?.textContent || ''));
+  await p.waitForFunction(() => /עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר, לנעם ולשיאל/.test(document.getElementById('state')?.textContent || ''));
   await ctx.close();
 });
 
@@ -541,7 +541,8 @@ await step('Ofir opens a client by hand on the phone and attaches the signed con
   assert.ok(objects.has(files[0].storage_path), 'the object is in the bucket');
   // The signed contract covers process 1 (5.11.2026): the client does not stay at "הכנת חוזה".
   assert.deepEqual(db.protocol_checks.filter((x) => x.client_id === avi.id).map((x) => [x.item_key, x.note]).sort(), [['p01.prepared', 'חוזה חתום שהועלה ידנית'], ['p01.sent', 'חוזה חתום שהועלה ידנית'], ['p01.signed', 'חוזה חתום שהועלה ידנית']]);
-  // The card reads the contract at once and shows what was found (5.11.2026): nothing kept yet.
+  // The card reads the contract at once and shows what was found (5.11.2026), and since 9.11.2026 it is
+  // kept at once (the owner: "a contract uploaded by hand shows right away in הצעות שנשלחו").
   await p.waitForSelector('#dlg-cread[open]');
   await p.waitForFunction(() => document.getElementById('cr-monthly')?.value === '3900');
   assert.deepEqual(reads.map((r) => r.fileId), [files[0].id]);
@@ -551,7 +552,9 @@ await step('Ofir opens a client by hand on the phone and attaches the signed con
   assert.equal(await p.inputValue('#cr-term'), '12');
   assert.equal(await p.inputValue('#cr-signed'), '2026-10-12');
   assert.match(await p.innerText('#cr-notes'), /החתימה בעמוד האחרון/);
-  assert.equal(db.manual_contracts.length, 0, 'nothing kept before the confirmation');
+  await p.waitForFunction(() => /נשמר ב״הצעות שנשלחו״/.test(document.getElementById('cr-hint')?.textContent || ''));
+  assert.equal(db.manual_contracts.length, 1, 'kept right after the reading');
+  assert.deepEqual([db.manual_contracts[0].company_id, db.manual_contracts[0].monthly_net_agorot, db.manual_contracts[0].read_by_ai], ['515151515', 390000, true]);
   assert.deepEqual(await unlabeled(p, '#dlg-cread'), []);
   assert.ok(await noHScroll(p));
   await shot(p, 'b03a-read-review-390', { fullPage: false });
@@ -560,15 +563,18 @@ await step('Ofir opens a client by hand on the phone and attaches the signed con
   await typeKeys(p, '#cr-company', '12345');
   await p.click('#cr-submit');
   await p.waitForSelector('#cr-company-err:not([hidden])');
-  assert.equal(db.manual_contracts.length, 0);
+  assert.equal(db.manual_contracts[0].company_id, '515151515', 'a wrong correction changes nothing');
+  // A tap beside the dialog no longer closes it (9.11.2026: on a phone it lost what was read).
+  await p.mouse.click(3, 3);
+  assert.equal(await p.isVisible('#dlg-cread'), true);
   await clearKeys(p, '#cr-company');
   await typeKeys(p, '#cr-company', '515151516', 2);
   await clearKeys(p, '#cr-monthly');
   await typeKeys(p, '#cr-monthly', '3500');
   await p.click('#cr-submit');
-  await toastHas(p, 'החוזה נשמר');
+  await toastHas(p, 'פרטי החוזה עודכנו');
   await p.waitForSelector('#dlg-cread', { state: 'hidden' });
-  assert.equal(db.manual_contracts.length, 1);
+  assert.equal(db.manual_contracts.length, 1, 'the correction is the same row');
   const mc = db.manual_contracts[0];
   assert.deepEqual([mc.client_id, mc.file_id, mc.company_id, mc.monthly_net_agorot, mc.term_months, mc.signed_on, mc.package_id, mc.read_by_ai, mc.created_by_email],
     [avi.id, files[0].id, '515151516', 350000, 12, '2026-10-12', 'social-choice', true, 'ofir@astrateg.test']);
@@ -636,15 +642,15 @@ await step('Irit adds a contract\'s picture from the card; it is in the client\'
   assert.equal(await p.innerText('#cd-none'), 'לא צורף חוזה חתום ללקוח.');
   await p.setInputFiles('#cd-file', { name: 'scan.jpg', mimeType: 'image/jpeg', buffer: png(3000) });
   await toastHas(p, 'קובץ החוזה נשמר');
-  // It is read at once; "לא עכשיו" keeps nothing, and "קריאת החוזה" stays on the file.
+  // It is read and kept at once (9.11.2026); "סגירה" leaves it kept, and "תיקון" is on the file.
   await p.waitForSelector('#dlg-cread[open]');
   await p.waitForFunction(() => document.getElementById('cr-monthly')?.value === '3900');
   await shot(p, 'b04a-read-review-irit', { fullPage: false });
   await p.click('#dlg-cread [data-close].btn');
   await p.waitForSelector('#dlg-cread', { state: 'hidden' });
-  assert.equal(db.manual_contracts.filter((m) => m.client_id === D.id).length, 0);
+  assert.equal(db.manual_contracts.filter((m) => m.client_id === D.id).length, 1);
   await p.waitForSelector('#contract-docs .cd-row');
-  await p.waitForSelector('#contract-docs .cd-read-go');
+  await p.waitForSelector('#contract-docs .cd-fix');
   assert.equal(contractRows(D.id).length, 1);
   assert.equal(contractRows(D.id)[0].uploaded_by, 'irit@astrateg.test');
   // And from the card too, what of process 1 was open is marked (5.11.2026).
@@ -731,6 +737,9 @@ async function iphone(wk, who, path) {
   return { ctx, p };
 }
 await step('"הצעות שנשלחו": the manual contract as "נחתם · חוזה ידני", with its amounts, on desktop and phone', async () => {
+  // A contract file uploaded before the reading existed (9.11.2026): it is listed too, with "קריאת החוזה".
+  const old = { id: randomUUID(), client_id: D.id, kind: 'material_other', label: 'חוזה חתום', storage_path: `${D.id}/material_other/${randomUUID()}-old.pdf`, mime: 'application/pdf', size_bytes: 1000, posted_on: null, link: null, uploaded_by: 'ofir@astrateg.test', created_at: '2026-10-01T09:00:00Z', deleted_at: null };
+  db.client_files.push(old);
   for (const [viewport, name] of [[{ width: 1280, height: 900 }, 'b12-quotes-manual-1280'], [PHONE390, 'b13-quotes-manual-390']]) {
     const ctx = await newContext(viewport);
     const p = await newPage(ctx);
@@ -755,8 +764,11 @@ await step('"הצעות שנשלחו": the manual contract as "נחתם · חו�
     assert.deepEqual([m, tg], [413000, 4956000]);
     assert.match(row, /49,560/);
     assert.match(row, /4,130/);
+    const unread = p.locator(`#rows tr.is-manual:has(a[href="client.html?id=${D.id}#read-${old.id}"])`);
+    assert.equal(await unread.count(), 1, 'the old contract file is listed, with "קריאת החוזה"');
+    assert.match(await unread.innerText(), /נחתם · חוזה ידני/);
     assert.ok(await noHScroll(p));
-    if (OUT) await p.locator('#rows tr.is-manual').screenshot({ path: `${OUT}/${name}.png` });
+    if (OUT) await p.locator('#rows tr.is-manual').first().screenshot({ path: `${OUT}/${name}.png` });
     await ctx.close();
   }
 });
@@ -764,8 +776,8 @@ await step('"הצעות שנשלחו": the manual contract as "נחתם · חו�
 await step('WebKit (iPhone 13): the review of a read contract takes typing and deleting key by key', async () => {
   const wk = await webkit.launch();
   const { ctx, p } = await iphone(wk, 'irit@astrateg.test', `client.html?id=${D.id}`);
-  await p.waitForSelector('#contract-docs .cd-read-go');
-  await p.click('#contract-docs .cd-read-go');
+  await p.waitForSelector('#contract-docs .cd-fix');
+  await p.click('#contract-docs .cd-fix');
   await p.waitForSelector('#dlg-cread[open]');
   await p.waitForFunction(() => document.getElementById('cr-monthly')?.value === '3900');
   await clearKeys(p, '#cr-contact');
@@ -776,7 +788,7 @@ await step('WebKit (iPhone 13): the review of a read contract takes typing and d
   assert.ok(await noHScroll(p));
   await shot(p, 'b14-webkit-read-review', { fullPage: false });
   await p.click('#cr-submit');
-  await toastHas(p, 'החוזה נשמר');
+  await toastHas(p, 'פרטי החוזה עודכנו');
   const mc = db.manual_contracts.find((m) => m.client_id === D.id);
   assert.deepEqual([mc.contact_name, mc.term_months, mc.created_by_email], ['דנה לוי', 24, 'irit@astrateg.test']);
   await ctx.close();

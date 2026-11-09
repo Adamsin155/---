@@ -27,10 +27,12 @@ test('the function knows the same people and managers as the app', () => {
   assert.ok(office.includes(`s.person in (${OFFICE_PERSONS.map((p) => `'${p}'`).join(', ')})`), 'is_office() names the same people');
   // The latest migration that sets staff_person_check allows every one of them; or, for someone
   // new, the file that waits for the owner's approval to widen it (supabase/pending/, Noam 1.11.2026).
+  // Since Shiel (9.11.2026) that file is a migration of its own (20261205100100_shiel_checks.sql),
+  // newer than the pending files: they come first, then the migrations by name.
   const dir = new URL('../supabase/migrations/', import.meta.url);
   const pending = new URL('../supabase/pending/', import.meta.url);
-  const last = [...readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((f) => new URL(f, dir)),
-    ...readdirSync(pending).filter((f) => f.endsWith('.sql')).sort().map((f) => new URL(f, pending))]
+  const last = [...readdirSync(pending).filter((f) => f.endsWith('.sql')).sort().map((f) => new URL(f, pending)),
+    ...readdirSync(dir).filter((f) => f.endsWith('.sql')).sort().map((f) => new URL(f, dir))]
     .map((u) => readFileSync(u, 'utf8')).filter((s) => /add constraint staff_person_check/.test(s)).at(-1);
   for (const p of PERSONS) assert.match(last, new RegExp(`'${p}'`), `${p} allowed by staff_person_check`);
 });

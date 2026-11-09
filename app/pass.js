@@ -16,7 +16,7 @@
 // late work says "שלך"; the summary is open on Thursday only (folded on other days);
 // "משימות שפתחתי" only when there are any; the two forms to Lior open from two small buttons.
 // The logic: app/pass-logic.js.
-import { PEOPLE, STAFF_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED, PASS_OWNER } from './protocol.js';
+import { PEOPLE, ASSIGNABLE_PEOPLE, STATUS_FIELDS, BRIEF_REQUIRED, PASS_OWNER } from './protocol.js';
 import { clientState, weekKey, parseDate, CLAIM, addBusinessDays, clientLabel } from './protocol-logic.js';
 import {
   loadClients, loadChecks, loadTasks, setCheck, addTask, loadDirectory, loadAllLog, loadLogBrief, loadStatusNotes, saveStatusNote, loadReviews, markReview,
@@ -66,8 +66,8 @@ const busy = () => !!document.querySelector('dialog[open]');
 const groupBy = (rows, key) => { const m = new Map(); for (const r of rows || []) (m.get(r[key]) || m.set(r[key], []).get(r[key])).push(r); return m; };
 const staffOptions = (sel = null) => [
   h('option', { value: '' }, 'בחירה'),
-  h('optgroup', { label: 'צוות' }, ...STAFF_PEOPLE().filter((p) => !p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
-  h('optgroup', { label: 'עורכים' }, ...STAFF_PEOPLE().filter((p) => p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
+  h('optgroup', { label: 'צוות' }, ...ASSIGNABLE_PEOPLE().filter((p) => !p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
+  h('optgroup', { label: 'עורכים' }, ...ASSIGNABLE_PEOPLE().filter((p) => p.editor).map((p) => h('option', { value: p.key, selected: sel === p.key }, p.name))),
 ];
 
 // ── Data ────────────────────────────────────

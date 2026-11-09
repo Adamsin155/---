@@ -62,6 +62,7 @@ const PROBES = [
   { editor: EDITOR, characterizer: 'ofir', has_logo: true },
   { editor: EDITOR, characterizer: 'lior', has_logo: false },
   { editor: EDITOR, characterizer: 'noam', has_logo: null }, // Noam (1.11.2026)
+  { editor: EDITOR, characterizer: 'shiel', has_logo: null }, // Shiel (9.11.2026): 4 and 5 only
 ];
 export function tokens(owners) {
   const list = typeof owners === 'function' ? PROBES.flatMap((c) => owners(c)) : owners || [];

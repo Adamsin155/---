@@ -121,6 +121,8 @@
         <section class="now-bar" id="now-bar" aria-labelledby="now-h" hidden></section>
         <!-- Tasks given on the spot: the ones I got, with "בוצע"; for Irit and the owner, giving one (app/staff-tasks-ui.js). -->
         <section id="staff-tasks-card" hidden></section>
+        <!-- "הערות מיוחדות לעובדים" (9.11.2026): the owners, Irit, Lior, Ofir write a note to one employee; it shows at the top of every page of theirs (app/staff-notes-ui.js). -->
+        <section id="staff-notes-card" hidden></section>
         <!-- Stav's new deals, waiting for a contract (the office; app/deal-ui.js). -->
         <section class="deals-card" id="deals-card" aria-labelledby="deals-h" hidden></section>
         <!-- Custom contracts left from before 29.10.2026 (no manager approves any more): to send or to correct (app/approvals-ui.js). -->
@@ -253,7 +255,7 @@
         <p class="span-2 wait-ctx" id="meet-ctx"></p>
         <div class="field"><label for="meet-at">מתי הפגישה?</label><input class="input" id="meet-at" type="datetime-local" dir="ltr" required></div>
         <div class="field"><label for="meet-who">מי מבצע את האפיון?</label>
-          <select class="input" id="meet-who"><option value="noam">נעם</option><option value="ofir">אופיר</option><option value="lior">ליאור (רק כשאין אחר)</option></select></div>
+          <select class="input" id="meet-who"><option value="noam">נעם</option><option value="ofir">אופיר</option><option value="shiel">שיאל</option><option value="lior">ליאור (רק כשאין אחר)</option></select></div>
         <p class="hint span-2">המועד נשמר בכרטיס הלקוח, ו״נקבעה פגישה״ מסומן.</p>
         <div class="err span-2" id="meet-err" role="alert" hidden></div>
       </div>

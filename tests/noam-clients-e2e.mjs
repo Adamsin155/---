@@ -1,4 +1,5 @@
 // Noam's list of clients (the owner, 1.11.2026): all the current clients, each opens with its vault; her tasks stay her own.
+// Shiel (9.11.2026; docs/ops.md, section 113): the same list, and the meeting's form of his client.
 // Run: npx http-server -p 8094 -s -c-1 . &  then  BASE_URL=http://localhost:8094/ node tests/noam-clients-e2e.mjs [outDir]
 import { chromium, webkit, devices } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
@@ -17,12 +18,13 @@ const minutesAgo = (n) => new Date(NOW - n * 6e4).toISOString();
 
 const users = new Map();
 const addUser = (email) => { const u = { id: randomUUID(), email, aud: 'authenticated', role: 'authenticated', email_confirmed_at: minutesAgo(9000) }; users.set(email, u); return u; };
-for (const e of ['noam@astrateg.test', 'nadia@astrateg.test']) addUser(e);
+for (const e of ['noam@astrateg.test', 'nadia@astrateg.test', 'shiel@astrateg.test']) addUser(e);
 const staff = [
   { email: 'noam@astrateg.test', person: 'noam', vault: true },
   { email: 'nadia@astrateg.test', person: 'nadia', vault: false },
+  { email: 'shiel@astrateg.test', person: 'shiel', vault: true },
 ];
-const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai', 'noam', null]);
+const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai', 'noam', 'shiel', null]);
 const deals = [
   // Another seller's deal: Stav never sees it.
   { id: randomUUID(), created_at: minutesAgo(300), created_by_email: 'old@astrateg.test', seller: null, business_name: 'של אחר', contact_name: 'א', phone: '0501111111', tier: 'podcast', influencer: 'natali', paid: [], free: {}, discount_agorot: 0, notes: null, status: 'pending', quote_id: null, sent_at: null, signed_at: null, status_by_email: null },
@@ -77,7 +79,9 @@ const MINE = client(1, 'קפה של נעם', 'active', 'noam');
 const OFIRS = client(2, 'מסעדה של אופיר', 'active', 'ofir');
 const ENDING = client(3, 'מוסך מסיים', 'ending', 'ofir');
 const ENDED = client(4, 'לקוח שהסתיים', 'ended', 'ofir');
-const tables = { clients: [MINE, OFIRS, ENDING, ENDED], client_access: [{ id: randomUUID(), client_id: OFIRS.id, network: 'instagram', label: null, username: 'x_user', status: 'new', linked: true, has_secret: true, note: null, updated_at: minutesAgo(100) }], protocol_checks: [], client_tasks: [], quotes: [], office_reviews: [], client_status_notes: [], protocol_log: [] };
+// Shiel's meeting: this morning at 9:00, nothing marked yet.
+const SHIELS = { ...client(5, 'מספרה של שיאל', 'active', 'shiel'), char_at: minutesAgo(60) };
+const tables = { clients: [MINE, OFIRS, ENDING, ENDED, SHIELS], client_access: [{ id: randomUUID(), client_id: OFIRS.id, network: 'instagram', label: null, username: 'x_user', status: 'new', linked: true, has_secret: true, note: null, updated_at: minutesAgo(100) }], protocol_checks: [], client_tasks: [], quotes: [], office_reviews: [], client_status_notes: [], protocol_log: [] };
 async function fakeSupabase(route) {
   const req = route.request();
   const url = new URL(req.url());
@@ -107,8 +111,8 @@ async function fakeSupabase(route) {
     if (!d.taken_by && d.status === 'pending') Object.assign(d, { taken_by: personOf(me), taken_at: serverNow() });
     return json(200, { ok: d.taken_by === personOf(me), taken_by: d.taken_by, status: d.status });
   }
-  if (p === '/rest/v1/rpc/can_use_vault') return json(200, personOf(me) === 'noam');
-  if (p === '/rest/v1/rpc/can_use_client_vault') return json(200, personOf(me) === 'noam');
+  if (p === '/rest/v1/rpc/can_use_vault') return json(200, ['noam', 'shiel'].includes(personOf(me)));
+  if (p === '/rest/v1/rpc/can_use_client_vault') return json(200, ['noam', 'shiel'].includes(personOf(me)));
   if (p === '/rest/v1/rpc/is_office') return json(200, isOffice(me));
   if (p === '/rest/v1/rpc/my_person') return json(200, personOf(me) ?? null);
   if (p.startsWith('/rest/v1/rpc/')) return json(200, []);
@@ -205,6 +209,46 @@ await step('someone else stays with their own list: Nadia, "הלקוחות של�
   await signIn(n, 'clients.html#mine', 'nadia@astrateg.test');
   await n.waitForFunction(() => document.getElementById('tab-clients').textContent === 'הלקוחות שלי', null, { timeout: 15000 });
 });
+// The sign-in screen lifts on the animation clock: a screenshot waits until it is gone.
+// A full-page capture of these pages still draws the sign-in screen over the top (seen 9.11.2026; the
+// page itself is open under it): the viewport, at the top and then lower down.
+const vshot = async (page, name) => { if (!OUT) return; await page.screenshot({ path: `${OUT}/${name}.png`, animations: "disabled" }); await page.mouse.wheel(0, 700); await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}/${name}-b.png`, animations: "disabled" }); await page.evaluate(() => scrollTo(0, 0)); };
+const settled = (page) => page.waitForFunction(() => [...document.querySelectorAll('.lg-screen')].every((e) => e.hidden || e.getBoundingClientRect().height === 0 || getComputedStyle(e).display === 'none'), null, { timeout: 5000 }).catch(() => null);
+for (const [w, h, tag] of [[390, 844, 'phone'], [1280, 900, 'web']]) {
+  await step(`Shiel (${tag}): "לקוחות" lists every current client; his meeting is in his tasks; no Gantt in the menu`, async () => {
+    const n = await newPage({ width: w, height: h });
+    await signIn(n, 'clients.html#mine', 'shiel@astrateg.test');
+    await n.waitForFunction(() => !document.getElementById('tab-clients').hidden && document.getElementById('tab-clients').textContent === 'לקוחות', null, { timeout: 15000 });
+    await n.waitForFunction(() => document.getElementById('mine-list')?.innerText.includes('מספרה של שיאל'), null, { timeout: 15000 });
+    const mine = await n.locator('#mine-list').innerText();
+    assert.ok(!mine.includes('מסעדה של אופיר'), 'only his own work');
+    assert.equal(await n.locator('a[href^="gantt.html"]').count(), 0, 'no Gantt');
+    assert.equal(await n.locator('#mine-connect').isHidden(), true, 'nothing to connect: he gets no notification');
+    assert.equal(await n.locator('#side-promo').count(), 0, 'no "התראות על כל משימה" card');
+    assert.ok(await noSideScroll(n));
+    await settled(n); await vshot(n, `shiel-01-mine-${tag}`);
+    await n.click('#tab-clients');
+    await n.waitForSelector('#client-list a, #client-list li');
+    const t = await list(n);
+    for (const name of ['קפה של נעם', 'מסעדה של אופיר', 'מוסך מסיים', 'מספרה של שיאל']) assert.ok(t.includes(name), name);
+    assert.ok(!t.includes('לקוח שהסתיים'));
+    assert.ok(await noSideScroll(n));
+    await settled(n); await vshot(n, `shiel-02-clients-${tag}`);
+  });
+  await step(`Shiel (${tag}): the meeting's form of his client, and "אפיון חדש"`, async () => {
+    const n = await newPage({ width: w, height: h });
+    await signIn(n, `intake.html?id=${SHIELS.id}#end`, 'shiel@astrateg.test');
+    await n.waitForFunction(() => !document.getElementById('app')?.hidden && document.body.innerText.includes('כתובת העסק'), null, { timeout: 15000 });
+    assert.doesNotMatch(await n.locator('#state').innerText().catch(() => ''), /פתוח לצוות המשרד|פתוח לבעלים/);
+    assert.ok(await noSideScroll(n));
+    await settled(n); await vshot(n, `shiel-03-meeting-${tag}`);
+    const p = await newPage({ width: w, height: h });
+    await signIn(p, 'intake.html', 'shiel@astrateg.test');
+    await p.waitForFunction(() => document.getElementById('pk-h')?.textContent === 'אפיון חדש', null, { timeout: 15000 });
+    assert.ok(await noSideScroll(p));
+    await settled(p); await vshot(p, `shiel-04-new-char-${tag}`);
+  });
+}
 assert.deepEqual(errors, []);
 await browser.close();
 noCspViolations();

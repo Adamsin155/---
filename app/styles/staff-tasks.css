@@ -65,3 +65,13 @@
 .st-brief dd { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
 @media (max-width: 480px) { .st-brief { grid-template-columns: minmax(0, 1fr); } .st-brief dd { margin-bottom: 4px; } }
 .st-client-q { margin-bottom: 6px; }
+/* "הערות מיוחדות לעובדים" (9.11.2026; app/staff-notes-ui.js): the writers' card, under the
+   "נודניק" card and in its look. The notes by person; "מחיקה" beside who wrote each. */
+.sn-card { border-inline-start-color: var(--ds-hot); }
+.sn-card h2 { margin: 0; font-size: 16px; font-family: inherit; font-weight: 600; }
+.sn-group { display: grid; gap: 6px; min-width: 0; }
+.sn-to { margin: 4px 0 0; font-size: 15px; }
+.sn-row { display: flex; align-items: center; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; min-width: 0; }
+.sn-row .st-meta { flex: 1 1 auto; min-width: 0; }
+.sn-del { min-height: 44px; min-width: 88px; }
+#sn-form .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
