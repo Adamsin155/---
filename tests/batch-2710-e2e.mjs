@@ -492,7 +492,7 @@ await step('Ilai: no "לקוח חדש" and no "אפיון חדש"; no "אפיו�
   await p.waitForSelector('#ik-sum-h');
   assert.equal(await p.locator('#ik-char-edit').count(), 0);
   await p.goto(`${BASE}intake.html?id=${D.id}&only=char`);
-  await p.waitForFunction(() => /עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר ולנעם/.test(document.getElementById('state')?.textContent || ''));
+  await p.waitForFunction(() => /עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר, לנעם ולשיאל/.test(document.getElementById('state')?.textContent || ''));
   await ctx.close();
 });
 

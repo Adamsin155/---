@@ -3,7 +3,7 @@
 // call and a full history of who checked what and when.
 import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
-  STAFF_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
+  STAFF_PEOPLE, ASSIGNABLE_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
   PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms, starWords,
   pagesOwnerOf,
 } from './protocol.js';
@@ -2164,7 +2164,7 @@ function addCallTask(focus = true) {
   const row = h('div', { class: 'call-task', id: `ct-${n}` },
     h('div', { class: 'field grow' }, h('label', { for: `ct-${n}-t` }, 'מה צריך לעשות'), h('input', { class: 'input', id: `ct-${n}-t`, autocomplete: 'off' })),
     h('div', { class: 'field' }, h('label', { for: `ct-${n}-o` }, 'מי מבצע'),
-      h('select', { class: 'input', id: `ct-${n}-o` }, h('option', { value: '' }, 'בחירה…'), ...STAFF_PEOPLE().map((pp) => h('option', { value: pp.key }, pp.name)))),
+      h('select', { class: 'input', id: `ct-${n}-o` }, h('option', { value: '' }, 'בחירה…'), ...ASSIGNABLE_PEOPLE().map((pp) => h('option', { value: pp.key }, pp.name)))),
     h('div', { class: 'field' }, h('label', { for: `ct-${n}-d` }, 'עד תאריך'), h('input', { class: 'input', id: `ct-${n}-d`, type: 'date', dir: 'ltr' })),
     h('button', {
       type: 'button', class: 'btn-text', 'aria-label': `הסרת המשימה ${n}`,
@@ -2528,7 +2528,7 @@ async function deleteRound(n) {
 }
 
 // ── Tasks ───────────────────────────────────
-fill($('task-owner'), ...STAFF_PEOPLE().map((p) => h('option', { value: p.key }, p.name)));
+fill($('task-owner'), ...ASSIGNABLE_PEOPLE().map((p) => h('option', { value: p.key }, p.name)));
 // A brief for the task. Required for Nirel: she does not work out alone what the client wants.
 fill($('task-brief'), ...BRIEF_FIELDS.map(([k, l]) => h('div', { class: 'field' },
   h('label', { for: `tb-${k}` }, l), h('textarea', { class: 'input', id: `tb-${k}`, rows: '2', maxlength: '500' }))));

@@ -9,7 +9,7 @@
 export const TEAM_MANAGERS = ['irit', 'lior', 'ofir'];
 // The office accounts (public.is_office() in the database). A copy of OFFICE_PERSONS
 // in supabase/functions/staff-admin/rules.js, which decides (the unit tests compare them).
-export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'noam']; // Noam since 1.11.2026 (sees every client, as Ilai)
+export const OFFICE_PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'noam', 'shiel']; // Noam since 1.11.2026 (sees every client, as Ilai)
 // Whose sign-in link only the owner makes: since 4.11.2026 everyone's (until then a manager made
 // one for an account outside the office with no vault, and for their own). The function decides.
 export const linkOnlyByOwner = (caller, row) => !!row && !caller?.owner;
