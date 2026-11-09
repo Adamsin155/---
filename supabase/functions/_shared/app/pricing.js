@@ -7,7 +7,7 @@ import {
   PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, maxDiscountFor, packageId,
   CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar, infText,
 } from './catalog.js';
-import { PROVIDER, agreementSections, LEGAL_VERSION } from './legal.js';
+import { PROVIDER, agreementSections, agreementWording, LEGAL_VERSION } from './legal.js';
 
 export function emptySelection() {
   return {
@@ -348,11 +348,12 @@ export function termsText(sel) {
 }
 
 // What the agreement needs to know about the selected package.
-function agreementContext(sel, { tier, paid, free, totals }) {
+function agreementContext(sel, { tier, paid, free, totals, includes }) {
   const specs = effectiveQuantities(sel);
   const custom = sel.custom
     ? { monthlyContents: specs.monthly, extraLines: sel.custom.lines || [], specialTerms: sel.custom.terms || '' }
     : {};
+  const base = SPECS[packageId(sel.tier, sel.influencer)] || {};
   return {
     ...custom,
     termMonths: termOf(sel),
@@ -363,6 +364,12 @@ function agreementContext(sel, { tier, paid, free, totals }) {
     influencer: noInfluencer(sel) ? '' : infText(sel.influencer),
     noInfluencer: noInfluencer(sel),
     tier: sel.tier,
+    influencerId: noInfluencer(sel) ? null : sel.influencer,
+    // The old wording's numbers (app/legal.js agreementWording, LEGAL_VERSION 3).
+    videos: specs.videos,
+    graphics: specs.graphics,
+    photographers: noInfluencer(sel) ? 1 : base.photographers || 1,
+    includes,
     shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),
     hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
     influencerPosts: specs.collabs > 0 || specs.stories > 0 || sel.free.simeonStories > 0
@@ -402,6 +409,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
   // Bidi control characters could make the displayed name differ from the stored one.
   const clean = (v) => String(v || '').replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').trim();
   const price = packagePrice(sel);
+  const includes = custom ? effectiveIncludes(sel) : pkg.includes;
   // A contract changed by hand: what was added to it, for the document.
   const extra = custom ? {
     custom: true,
@@ -433,7 +441,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
       influencer: noInfluencer(sel) ? NO_INFLUENCER : INFLUENCERS[sel.influencer].name,
       monthly: price,
       term: price * term,
-      includes: custom ? effectiveIncludes(sel) : pkg.includes,
+      includes,
     },
     paid,
     free,
@@ -441,7 +449,10 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     termMonths: term,
     totals,
     terms: termsText(sel),
-    legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals })) : null,
+    legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals, includes })) : null,
+    // The words around the clauses (LEGAL_VERSION 3, the old system's): stored, so a sent or
+    // signed document keeps them; app/quote-doc.js draws a model without them as before.
+    ...(docType.signable ? { wording: agreementWording(agreementContext(sel, { tier, paid, free, totals, includes })) } : {}),
     // The wording's version (app/legal.js): the stored text is what this document shows for good.
     legalVersion: docType.signable ? LEGAL_VERSION : null,
     selection: sel,

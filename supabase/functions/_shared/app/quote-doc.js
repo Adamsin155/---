@@ -215,8 +215,11 @@ export function renderQuoteDoc(model, meta = {}) {
     h('p', { class: 'qd-notes' }, model.specialTerms),
   ) : null;
 
+  // The old system's words (app/legal.js agreementWording, LEGAL_VERSION 3), stored in the model.
+  // A model without them (made before 9.11.2026, sent or signed) is drawn exactly as before.
+  const w = isAgreement && model.wording ? model.wording : null;
   const legal = isAgreement && model.legal ? h('section', { class: 'qd-section qd-legal' },
-    sectionHead('תנאי ההסכם'),
+    sectionHead(w ? w.agreementTitle : 'תנאי ההסכם'),
     h('ol', { class: 'qd-clauses' }, model.legal.map((sec, i) => h('li', {},
       h('h3', {}, h('span', { class: 'num qd-cl-h' }, `${i + 1}.`), sec.title),
       h('ol', {}, sec.items.map((item, j) => h('li', {},
@@ -259,6 +262,43 @@ export function renderQuoteDoc(model, meta = {}) {
       meta.signature?.hash ? h('span', { class: 'num', dir: 'ltr', title: 'טביעת החתימה (SHA-256)' }, `SIG ${meta.signature.hash.slice(0, 12)}`) : null,
     ),
   );
+
+  if (w) {
+    const groups = (list) => list.map((g) => [
+      h('h3', { class: 'qd-words-h' }, g.title),
+      h('ul', { class: 'qd-checks qd-words-list' }, g.items.map((i) => h('li', {}, i))),
+    ]);
+    const intro = h('section', { class: 'qd-section qd-words' },
+      sectionHead(w.intro.title, 'אסטרטג+'),
+      h('p', { class: 'qd-words-p' }, w.intro.text),
+      groups([{ title: w.intro.strengthsTitle, items: w.intro.strengths }]),
+      h('p', { class: 'qd-words-p' }, w.intro.after),
+    );
+    const pkgWords = h('section', { class: 'qd-section qd-words' },
+      sectionHead(w.package.title, model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'),
+      h('div', { class: 'qd-pkg' },
+        h('div', {},
+          h('div', { class: 'qd-pkg-name', dir: 'auto' }, pkg.tierName),
+          h('div', { class: 'qd-pkg-inf' }, pkg.influencer),
+        ),
+        h('div', { class: 'qd-pkg-price' }, money(pkg.monthly), h('small', {}, 'לחודש · לפני מע״מ')),
+      ),
+      groups(w.package.groups),
+    );
+    const why = h('section', { class: 'qd-section qd-words' },
+      sectionHead(w.why.title), h('p', { class: 'qd-words-p' }, w.why.text));
+    const details = h('section', { class: 'qd-section qd-words' },
+      sectionHead(w.details.title), hero, groups(w.details.groups));
+    const notesWords = c.notes ? h('section', { class: 'qd-section' },
+      sectionHead('הערות נוספות'), h('p', { class: 'qd-notes' }, c.notes)) : null;
+    const pricingWords = h('section', { class: 'qd-section qd-pricing' },
+      sectionHead('פירוט מחיר'), pricing.querySelector('table'));
+    const closing = h('section', { class: 'qd-section qd-closing' },
+      h('p', {}, w.closing),
+      h('p', { class: 'qd-muted' }, h('span', { dir: 'ltr' }, provider.email), ' · ', provider.addresses[0]));
+    return h('article', { class: 'qd qd--agreement qd--words', dir: 'rtl', lang: 'he' },
+      header, parties, intro, pkgWords, why, details, paidSection, freeSection, pricingWords, notesWords, legal, closing, signature, foot);
+  }
 
   return h('article', { class: `qd qd--${isAgreement ? 'agreement' : 'quote'}`, dir: 'rtl', lang: 'he' },
     header, parties, hero, pkgSection, paidSection, freeSection, pricing, special, notes, legal, signature, foot);
