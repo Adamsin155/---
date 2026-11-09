@@ -17,6 +17,7 @@ import { startFeel } from './feel.js';
 import { shellState, SHELL_KEY } from './shell-state.js';
 import './session-store.js'; // every page with the shell: a kept page belongs to one account (docs/ops.md, section 60)
 import { h } from './quote-doc.js';
+import { mountNoteBanner } from './staff-notes-ui.js';
 import { PEOPLE, scopeOf, isSilent } from './protocol.js';
 import { setMode, modeOf } from './manager-rules.js';
 import {
@@ -257,6 +258,8 @@ function build(viewer, email) {
   arrange();
 
   mountUser(viewer, email);
+  // "הערה מיוחדת" written to this person, at the top of the page (app/staff-notes-ui.js, 9.11.2026).
+  mountNoteBanner(viewer);
   // A head link to a screen of either profile is not shown: the menu, or the button, leads there.
   hideRepeats(all);
 }
