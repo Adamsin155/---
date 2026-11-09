@@ -303,9 +303,9 @@ export function adjustForVersion(procs, client) {
     const timing = timingStartedUnder(base, v);
     let fresh = false;
     const items = p.items.map((i) => {
-      // v13: an item that replaces retired ones (its `passedIf` all retired) is as new to the client as they were.
-      const replaced = i.passedIf && [].concat(i.passedIf).every((k) => RETIRED_KEYS.has(k));
-      const since = replaced ? Math.max(itemSince(i.key), Math.min(...[].concat(i.passedIf).map(itemSince))) : itemSince(i.key);
+      // v13: an item that replaces retired ones (named in its `passedIf`) is as new to the client as they were.
+      const replaced = i.passedIf ? [].concat(i.passedIf).filter((k) => RETIRED_KEYS.has(k)) : [];
+      const since = replaced.length ? Math.max(itemSince(i.key), Math.min(...replaced.map(itemSince))) : itemSince(i.key);
       if (since <= v) return i;
       fresh = true;
       return { ...i, fresh: since };

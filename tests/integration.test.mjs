@@ -75,11 +75,11 @@ test('a case is fresh when its rule says so, or when its whole process is newer 
   // Whole processes that came later: 22א (version 2), 17ב–19ב (version 4), 7ב and 23ב (version 6), 8ב (version 7), 5ב, 7א and the daily 14 (version 8), 29ב (version 10). (12א, version 2, left in v12.)
   const procs = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 1, created_at: '2026-09-01T07:00:00Z' });
   const whole = procs.filter((p) => freshCase({}, { proc: p })).map((p) => p.id);
-  // (v13: 7א left the protocol; 14 is no longer the daily follow-up; 19ב and 29ב each have an item of version 13
-  // for every client, p19b.checked and p29b.c.ganttok, so they are no longer wholly newer than the client.)
-  assert.deepEqual(whole, ['p05b', 'p07b', 'p08b', 'p17b', 'p18b', 'p22a', 'p23b']);
+  // (v13: 7א left the protocol; 14 is no longer the daily follow-up. 19ב and 29ב stay wholly newer: their v13
+  // items replace items of versions 4 and 10.)
+  assert.deepEqual(whole, ['p05b', 'p07b', 'p08b', 'p17b', 'p18b', 'p19b', 'p22a', 'p23b', 'p29b']);
   const v5 = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 5 });
-  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07b', 'p08b', 'p23b']);
+  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07b', 'p08b', 'p23b', 'p29b']);
   // Only finalReady names its item; the rule list has no other `fresh`.
   assert.deepEqual(RULES.filter((r) => typeof r.fresh === 'function').map((r) => r.id), ['finalReady']);
 });
