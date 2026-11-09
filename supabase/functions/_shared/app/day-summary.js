@@ -6,7 +6,7 @@
 // text (waText; nothing is sent on WhatsApp now). Pure: no DOM, no network, Israel
 // time. No money in it, and no client in landing (app/late-chain.js leaves them out).
 import { lateItems, chainOf, lateWords, dueAtCloseToday } from './late-chain.js';
-import { PEOPLE } from './protocol.js';
+import { PEOPLE, isSilent } from './protocol.js';
 import { clientLabel, inLanding, pauseOf } from './protocol-logic.js';
 import { ofirMeetings } from './office-marks.js';
 import { waitingApprovals, waitDays } from './client-waits.js';
@@ -73,6 +73,11 @@ export function daySummary({ clients = [], checksOf = () => ({}), stateOf, tasks
   for (const t of tasks) {
     if (t.done_at || t.due_on !== todayKey || !liveIds.has(t.client_id) || !t.owner || t.owner === 'editor') continue;
     items.push({ kind: 'today', cid: t.client_id, name: labels.get(t.client_id), what: t.title, who: [t.owner], dueAt: endOfDayIL(dayFromKeyIL(t.due_on)), how: 'היעד היום', procId: null, taskId: t.id });
+  }
+  // The silent (Shiel, 9.11.2026) are not in the table, and nobody is counted late instead of them.
+  for (let n = items.length - 1; n >= 0; n -= 1) {
+    items[n].who = items[n].who.filter((p) => !isSilent(p));
+    if (!items[n].who.length) items.splice(n, 1);
   }
   // Worst first: what is late (the longest first), then what was for today.
   items.sort((a, b) => (a.kind === b.kind ? a.dueAt - b.dueAt : a.kind === 'late' ? -1 : 1));
