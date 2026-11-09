@@ -34,7 +34,7 @@ import * as A from '../_shared/app/availability-logic.js';
 import { isChoice, soloOf, choiceOf, crewPatch, roundWithCrew } from '../_shared/app/shoot-crew.js';
 import { fromInputIL, dayKeyIL, partsIL } from '../_shared/app/tz.js';
 import { draftOf, DRAFT_SCHEMA, DRAFT_ERRORS, DRAFT_SITE, PERSONAL } from '../_shared/app/mcp-draft.js';
-import { DOC_TYPES } from '../_shared/app/catalog.js';
+import { DOC_TYPES, validityWords } from '../_shared/app/catalog.js';
 import { whatsappLink } from '../_shared/app/quote-doc.js';
 import { matchClient } from '../ask/tools.js';
 
@@ -527,8 +527,8 @@ export const SENT_PAGE = 'quotes.html';
 // The builder's own message (app/builder.js createLink), word for word.
 export function sendText({ name, number, link, agreement, months, hours }) {
   return agreement
-    ? `שלום${name ? ` ${name}` : ''}, מצורף הסכם ההתקשרות מאסטרטג (${number}) ${months === 1 ? 'לחודש אחד' : `ל־${months} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
-    : `שלום${name ? ` ${name}` : ''}, מצורפת הצעת המחיר מאסטרטג (${number}), בתוקף ל־${hours} שעות. לצפייה:\n${link}`;
+    ? `שלום${name ? ` ${name}` : ''}, מצורף הסכם ההתקשרות מאסטרטג (${number}) ${months === 1 ? 'לחודש אחד' : `ל־${months} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${validityWords(hours)}:\n${link}`
+    : `שלום${name ? ` ${name}` : ''}, מצורפת הצעת המחיר מאסטרטג (${number}), בתוקף ל־${validityWords(hours)}. לצפייה:\n${link}`;
 }
 async function sendContractTool(ctx, a) {
   const d = draftOf(a.contract);

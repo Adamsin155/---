@@ -5,11 +5,20 @@ export const VAT_RATE_PERCENT = 18;
 
 // Document types chosen before building: a quote is informational only;
 // an agreement adds the legal terms and requires the client's signature.
-// validHours: how long the link stays valid (quote) or signable (agreement).
+// validHours: how long the link stays valid (quote) or signable (agreement). One week for both
+// since 9.11.2026 (the owner; docs/ops.md, section 118); until then 48 (quote) and 72 (agreement).
+// The database sets expires_at from the model's validHours (quotes_set_hash), so a new link takes it.
 export const DOC_TYPES = {
-  quote: { id: 'quote', name: 'הצעת מחיר', signable: false, validHours: 48 },
-  agreement: { id: 'agreement', name: 'הסכם התקשרות', signable: true, validHours: 72 },
+  quote: { id: 'quote', name: 'הצעת מחיר', signable: false, validHours: 168 },
+  agreement: { id: 'agreement', name: 'הסכם התקשרות', signable: true, validHours: 168 },
 };
+// The validity in words: whole days from 4 days on ("7 ימים"), else hours ("72 שעות"), so a document
+// made with 48 or 72 hours reads exactly as it did.
+export function validityWords(hours) {
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0) return '';
+  return h >= 96 && h % 24 === 0 ? `${h / 24} ימים` : `${h} שעות`;
+}
 
 // Optional monthly discount a seller may give on any package, in agorot.
 export const MAX_DISCOUNT = 20000;

@@ -1,7 +1,7 @@
 import {
   INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS, infLabel,
   VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, maxDiscountFor, packageId,
-  CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS,
+  CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, validityWords,
 } from './catalog.js';
 import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
@@ -1272,8 +1272,8 @@ async function createLink(btn) {
     const name = readClient().name.trim();
     const hours = DOC_TYPES[state.docType].validHours;
     const text = signable
-      ? `שלום${name ? ` ${name}` : ''}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ${currentModel().termMonths === 1 ? 'לחודש אחד' : `ל־${currentModel().termMonths} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${hours} שעות:\n${link}`
-      : `שלום${name ? ` ${name}` : ''}, מצורפת הצעת המחיר מאסטרטג (${data.number}), בתוקף ל־${hours} שעות. לצפייה:\n${link}`;
+      ? `שלום${name ? ` ${name}` : ''}, מצורף הסכם ההתקשרות מאסטרטג (${data.number}) ${currentModel().termMonths === 1 ? 'לחודש אחד' : `ל־${currentModel().termMonths} חודשים`}. אפשר לעיין ולחתום כאן בתוך ${validityWords(hours)}:\n${link}`
+      : `שלום${name ? ` ${name}` : ''}, מצורפת הצעת המחיר מאסטרטג (${data.number}), בתוקף ל־${validityWords(hours)}. לצפייה:\n${link}`;
     $('sh-wa').href = whatsappLink(readClient().phone, text);
     $('sh-mail').href = `mailto:${encodeURIComponent(readClient().email.trim())}?subject=${encodeURIComponent(`${DOC_TYPES[state.docType].name} ${data.number} · astrateg`)}&body=${encodeURIComponent(text)}`;
     openDialog($('dlg-share'), btn);

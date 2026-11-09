@@ -18,9 +18,10 @@ import { forgetPlace, signInPlan, refusedHere } from './visit.js';
 import { loginDoor } from './login-ui.js';
 // Exceptional contracts (6.10.2026): their approval state, and what the office does next.
 import { APPROVAL_TEXT, reviseUrl } from './approvals-logic.js';
-// The contracts still out for signature (docs/ops.md, section 47): the filter "ממתינות
-// לחתימה" lists exactly what the line of "המשימות שלי" counts, the oldest first.
-import { waitsForSignature, sentForSignatureAt, UNSIGNED_FILTER } from './unsigned-logic.js';
+// The contracts still out for signature (docs/ops.md, section 47): the tab "ממתין לחתימה" lists
+// exactly what the line of "המשימות שלי" counts, the oldest first. The list has three tabs and
+// nothing else (the owner, 9.11.2026; section 118): quoteTab says which, or that a row is not listed.
+import { sentForSignatureAt, UNSIGNED_FILTER, QUOTE_TABS, quoteTab, tabOfHash } from './unsigned-logic.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -38,9 +39,13 @@ let month = monthKeyIL(new Date());
 // contract files are being read now.
 let toCheck = [];
 let reading = false;
+// The rows of the three tabs (section 118): cancelled, view-only, turned down and never opened
+// expired ones are not listed, counted or summed as waiting.
+const listed = () => quotes.filter((q) => quoteTab(q));
 // The month's rows: what the tabs, their counts and the tiles count.
-const shown = () => rowsOfMonth(quotes, month);
-let filter = location.hash === `#${UNSIGNED_FILTER}` ? UNSIGNED_FILTER : 'all';
+const shown = () => rowsOfMonth(listed(), month);
+// The tab shown: "ממתין לחתימה" when the page opens (also from #sign), or #signed / #expired.
+let filter = tabOfHash(location.hash);
 let showMoney = false;      // the amounts and their sums: the owners and Ofir (seesQuoteMoney)
 
 const STATUS = {
@@ -87,26 +92,22 @@ let statsShown = null;
 function renderStats() {
   // The tiles count the month that is shown (section 117).
   const rows = shown();
-  const count = (s) => rows.filter((q) => statusOf(q) === s).length;
+  const count = (k) => rows.filter((q) => quoteTab(q) === k).length;
   // The whole agreement with VAT (its months × the monthly gross), not a month of it (the owner,
-  // 28.10.2026): what was sent in the month, and what was signed in it (Israel months). A contract
-  // uploaded by hand counts in the month it was uploaded (quotes-month.js signedMonth).
+  // 28.10.2026): what was signed in the month (Israel months; a contract uploaded by hand in the
+  // month it was uploaded: quotes-month.js signedMonth), and what of the month waits for a signature.
   const total = (list) => list.reduce((s, q) => s + (q.term_gross_agorot || 0), 0);
-  const sentInMonth = total(rows.filter((q) => q.status !== 'cancelled'));
+  const waitingInMonth = total(rows.filter((q) => quoteTab(q) === UNSIGNED_FILTER));
   const signedInMonth = total(quotes.filter((q) => q.status === 'signed' && signedMonth(q) === month));
   const now = month === monthKeyIL(new Date());
-  const sentWords = now ? 'נשלח החודש' : `נשלח ${inMonthWords(month)}`;
   const signedWords = now ? 'נחתם החודש' : `נחתם ${inMonthWords(month)}`;
   const stat = (k, v, cls = '') => h('div', { class: `stat${cls}` }, h('div', { class: 'k' }, k), h('div', { class: 'v ds-num', dir: 'ltr' }, v));
   // The two sums take a row of their own, half each (app/styles/quotes.css): a sum in shekels
   // squeezed into a sixth of the row ran into the tile beside it.
   $('stats').classList.toggle('has-money', showMoney);
   $('stats').replaceChildren(
-    stat('הצעות', String(rows.filter((q) => !q.legacy).length)),
-    stat('ממתינות לחתימה', String(count('sent') + count('viewed'))),
-    stat('הצעות לצפייה', String(count('shared') + count('seen'))),
-    stat('נחתמו', String(count('signed'))),
-    ...(showMoney ? [stat(`${sentWords} · כולל מע״מ`, formatILS(sentInMonth), ' stat-money'), stat(`${signedWords} · כולל מע״מ`, formatILS(signedInMonth), ' stat-money')] : []),
+    ...QUOTE_TABS.map((t) => stat(t.label, String(count(t.key)))),
+    ...(showMoney ? [stat(`${signedWords} · כולל מע״מ`, formatILS(signedInMonth), ' stat-money'), stat('ממתין לחתימה · כולל מע״מ', formatILS(waitingInMonth), ' stat-money')] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
@@ -115,12 +116,8 @@ function renderStats() {
 }
 
 function renderFilters() {
-  const n = (k) => shown().filter((q) => k === 'all' || (k === 'open' ? OPEN.includes(statusOf(q)) : k === 'approval' ? APPROVAL.includes(statusOf(q)) : k === UNSIGNED_FILTER ? waitsForSignature(q) : statusOf(q) === k)).length;
-  const opts = [['all', 'הכול'], ['open', 'ממתינות'], ['signed', 'נחתמו'], ['expired', 'פג תוקף'], ['cancelled', 'בוטלו']];
-  // Shown only when there is such a contract.
-  if (n('approval') || filter === 'approval') opts.splice(1, 0, ['approval', 'לא אושרו']);
-  if (n(UNSIGNED_FILTER) || filter === UNSIGNED_FILTER) opts.splice(1, 0, [UNSIGNED_FILTER, 'ממתינות לחתימה']);
-  $('filters').replaceChildren(...opts.map(([k, label]) => h('button', {
+  const n = (k) => shown().filter((q) => quoteTab(q) === k).length;
+  $('filters').replaceChildren(...QUOTE_TABS.map(({ key: k, label }) => h('button', {
     type: 'button', class: 'chip', 'aria-pressed': String(filter === k),
     onclick: () => glide(() => { filter = k; renderFilters(); renderRows(); }),
   }, label, h('span', { class: 'n' }, String(n(k))))));
@@ -331,7 +328,7 @@ function renderCheck() {
 
 // The month picker: the months that have rows, this one always; the arrows step between them.
 function renderMonths() {
-  const keys = monthChoices(quotes);
+  const keys = monthChoices(listed());
   if (!keys.includes(month)) month = keys[0];
   const pick = $('month-pick');
   pick.replaceChildren(...keys.map((k) => h('option', { value: k }, monthLabel(k))));
@@ -346,17 +343,10 @@ function setMonth(k) {
   glide(() => { month = k; renderMonths(); renderStats(); renderFilters(); renderRows(); });
 }
 // -1: the month before (the next one down the list), 1: the month after.
-const stepMonth = (d) => { const keys = monthChoices(quotes); setMonth(keys[keys.indexOf(month) - d]); };
+const stepMonth = (d) => { const keys = monthChoices(listed()); setMonth(keys[keys.indexOf(month) - d]); };
 
 function renderRows() {
-  const list = shown().filter((q) => {
-    const s = statusOf(q);
-    if (filter === 'all') return true;
-    if (filter === 'open') return OPEN.includes(s);
-    if (filter === 'approval') return APPROVAL.includes(s);
-    if (filter === UNSIGNED_FILTER) return waitsForSignature(q);
-    return s === filter;
-  });
+  const list = shown().filter((q) => quoteTab(q) === filter);
   // What waits for a signature: the one that waits longest first.
   if (filter === UNSIGNED_FILTER) list.sort((a, b) => sentForSignatureAt(a) - sentForSignatureAt(b));
   $('rows').replaceChildren(...list.map((q) => {
@@ -395,8 +385,8 @@ function renderRows() {
   }));
   $('empty').hidden = list.length > 0;
   $('empty').textContent = !quotes.length ? 'עדיין לא נוצרו קישורים. הצעה חדשה נוצרת במסך ״הצעה חדשה והכנת חוזה״.'
-    : !shown().length ? `אין הצעות ב${monthLabel(month)}.`
-      : filter === UNSIGNED_FILTER ? 'אין כרגע הסכם שמחכה לחתימה.' : 'אין הצעות בסינון הזה.';
+    : filter === UNSIGNED_FILTER ? `אין הסכם שמחכה לחתימה ב${monthLabel(month)}.`
+      : filter === 'signed' ? `אין חוזה שנחתם ב${monthLabel(month)}.` : `אין הסכם שפג תוקפו ב${monthLabel(month)}.`;
 }
 
 // The quotes not to list (public.hidden_quotes). Before its migration: none.

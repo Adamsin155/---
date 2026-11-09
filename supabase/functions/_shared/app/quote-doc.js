@@ -3,6 +3,7 @@
 // All user-provided text goes through text nodes, never innerHTML.
 
 import { formatILS, termsText } from './pricing.js';
+import { validityWords } from './catalog.js';
 
 // An address that may go into an attribute the browser follows or loads. A stored
 // value (a client's link, a notification's page) must never run as script: anything
@@ -88,7 +89,7 @@ export function renderQuoteDoc(model, meta = {}) {
   const validUntil = meta.validUntil || model.validUntil;
   const validity = validUntil
     ? `${isAgreement ? 'לחתימה עד' : 'בתוקף עד'} ${formatDate(validUntil, true)}`
-    : model.validHours ? `${isAgreement ? 'לחתימה בתוך' : 'בתוקף'} ${model.validHours} שעות מההפקה` : null;
+    : model.validHours ? `${isAgreement ? 'לחתימה בתוך' : 'בתוקף'} ${validityWords(model.validHours)} מההפקה` : null;
 
   const header = h('header', { class: 'qd-top' },
     h('div', { class: 'qd-titles' },
@@ -201,7 +202,7 @@ export function renderQuoteDoc(model, meta = {}) {
     h('p', { class: 'qd-terms' }, model.terms || termsText(model.selection)),
     isAgreement ? null : h('p', { class: 'qd-disclaimer' },
       'מסמך זה הוא הצעת מחיר לעיון בלבד, ואינו הצעה לכריתת חוזה. ההתקשרות תיכנס לתוקף רק בחתימה על הסכם ההתקשרות של אסטרטג. '
-      + `ההצעה בתוקף ${model.validHours || 48} שעות ממועד הפקתה, וזמינות המשפיענים כפופה לאישור במועד החתימה.`),
+      + `ההצעה בתוקף ${validityWords(model.validHours || 48)} ממועד הפקתה, וזמינות המשפיענים כפופה לאישור במועד החתימה.`),
   );
 
   const notes = c.notes ? h('section', { class: 'qd-section' },

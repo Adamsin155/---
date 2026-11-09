@@ -11,6 +11,7 @@
 // all of it (supabase/migrations/20261010100000_custom_contracts.sql); this only
 // shapes the screens.
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
+import { validityWords } from './catalog.js';
 
 export const OWNER = 'owner';
 // One of them is enough: the owner (staff.person is null), Ofir and Lior.
@@ -84,6 +85,6 @@ export function shareText(q, link, hours = null) {
   const term = m.termMonths === 1 ? 'לחודש אחד' : `ל־${m.termMonths || 12} חודשים`;
   const h = hours ?? m.validHours;
   return signable
-    ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${q.number}) ${term}. אפשר לעיין ולחתום כאן${h ? ` בתוך ${h} שעות` : ''}:\n${link}`
-    : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${q.number})${h ? `, בתוקף ל־${h} שעות` : ''}. לצפייה:\n${link}`;
+    ? `שלום ${name}, מצורף הסכם ההתקשרות מאסטרטג (${q.number}) ${term}. אפשר לעיין ולחתום כאן${h ? ` בתוך ${validityWords(h)}` : ''}:\n${link}`
+    : `שלום ${name}, מצורפת הצעת המחיר מאסטרטג (${q.number})${h ? `, בתוקף ל־${validityWords(h)}` : ''}. לצפייה:\n${link}`;
 }

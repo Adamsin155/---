@@ -54,6 +54,32 @@ export const waitsForSignature = (q, now = new Date()) => open(q) && !(expiredAt
 // Its validity ran out with no signature: the client can no longer sign this link.
 export const expiredUnsigned = (q, now = new Date()) => open(q) && !!expiredAt(q) && expiredAt(q) <= now;
 
+// The three tabs of "הצעות שנשלחו" (the owner, 9.11.2026; docs/ops.md, section 118), and the one tab
+// a row belongs to, or null: the row is not listed at all.
+//   sign     waits for the client's signature (waitsForSignature: the very count of "המשימות שלי");
+//   signed   signed: a quote, an old system's contract, a contract uploaded by hand;
+//   expired  a contract whose signing time ran out unsigned, and that the client did open
+//            (first_viewed_at). One never opened was only made, never really with the client.
+// Not listed: cancelled, view-only quotes ("לצפייה"), turned down by a manager, still marked
+// 'pending', anything else that is not waiting for a signature.
+export const QUOTE_TABS = [
+  { key: UNSIGNED_FILTER, label: 'ממתין לחתימה' },
+  { key: 'signed', label: 'נחתם' },
+  { key: 'expired', label: 'פג תוקף' },
+];
+export function quoteTab(q, now = new Date()) {
+  if (!q) return null;
+  if (q.status === 'signed') return 'signed';
+  if (waitsForSignature(q, now)) return UNSIGNED_FILTER;
+  if (expiredUnsigned(q, now) && q.first_viewed_at) return 'expired';
+  return null;
+}
+// The tab the page opens on: "#signed" or "#expired" if asked, else the contracts that wait.
+export const tabOfHash = (hash = '') => {
+  const k = String(hash).replace(/^#/, '');
+  return QUOTE_TABS.some((t) => t.key === k) ? k : UNSIGNED_FILTER;
+};
+
 export const businessOf = (q) => String(q?.business || q?.company || q?.model?.client?.company || q?.client_name || q?.model?.client?.name || '').trim();
 
 // The contracts that wait, the oldest first: [{ quote, since, name }].
