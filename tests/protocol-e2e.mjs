@@ -212,8 +212,8 @@ assert.match(mine, /לשלוח ללקוח את רשימת השאלות לראי�
 assert.doesNotMatch(mine, /כתובת מלאה של העסק/); // Ofir's characterization items are not Irit's
 await shot('01-my-work');
 
-// Grouped by client and process: the seven WhatsApp items are one group.
-assert.equal(await page.locator('.wproc:has-text("פתיחת קבוצת WhatsApp")').count(), 1);
+// (v13: the WhatsApp group, process 2, left the protocol: no card of it.)
+assert.equal(await page.locator('.wproc:has-text("פתיחת קבוצת WhatsApp")').count(), 0);
 // Check an item straight from "my work", then undo it from the toast.
 const firstLabel = await page.locator('.witem .wlabel').first().innerText();
 const before = await page.locator('.witem').count();
@@ -258,7 +258,7 @@ assert.equal(created.package_name, 'Social all in one · נטלי דדון');
 assert.deepEqual(created.deliverables, { videos: 36, graphics: 40, shoot_days: 1, collabs: 0, stories: 1, ch14: 0, monthly: 0 });
 
 // Irit's card opens on her own processes and items; the whole protocol is one explicit click away.
-await page.waitForSelector('#p02');
+await page.waitForSelector('#p11'); // (v13: 2 left the protocol)
 assert.match(await page.locator('#viewbar').innerText(), /רק התהליכים והפריטים שלך/);
 assert.equal(await page.locator('#p11').count(), 1); // hers
 assert.equal(await page.locator('#p11b').count(), 0); // Lior's
@@ -271,8 +271,8 @@ assert.equal(await page.locator('#i-p07-sent').count(), 1);
 assert.match(await page.locator('#p07 .others-note').textContent(), /ועוד 9 פריטים בתהליך הזה אצל עילאי.*אופיר/);
 // The owner, 20.10.2026: her own open items in a block of their own, under the head.
 assert.match(await page.locator('#my-next-h').innerText(), /הצעד הבא שלך/);
-assert.match(await page.locator('#p02 .others-note').textContent(), /ועוד 2 פריטים בתהליך הזה אצל ליאור/); // p02.deal, p02.team
-assert.equal(await page.locator('#i-p02-deal').count(), 0);
+// (v13: process 2 left the protocol whole.)
+assert.equal(await page.locator('#p02').count(), 0);
 await shot('04a-client-card-mine');
 await page.click('#view-toggle');
 await page.waitForSelector('#p11b', { state: 'attached' });

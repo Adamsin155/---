@@ -87,8 +87,7 @@ const EXPECTED = {
     'landing-shoot': [`לקוח אחד מצטלם ב־14 הימים הקרובים · ${NO_CLOCK}`, 'landing', 'prep.html'],
     'availability-missing': ['אלי עוד לא מסר זמינות לנובמבר', 'overdue', 'prep.html#availability'],
     messages: [`${COUNTS.messages.clock} לקוחות עוד לא קיבלו הודעה היום (ועוד ${COUNTS.messages.landing} בקליטה)`, 'today', 'messages.html'],
-    // Protocol v8: the daily follow-up before the shoot day (14) is one counted line, hers alone.
-    followup: [`מעקב לפני צילום: ${COUNTS.followup} לקוחות`, 'today', 'prep.html#followup'],
+    // (v13: the daily follow-up before the shoot day, 14, is no longer asked: no line.)
   },
   anna: { fixes: ['לקוח אחד חזר מאופיר עם תיקונים', 'today', `editor.html#c-${cid(16)}`] },
   yariv: { 'landing-editing': [`לקוח אחד בעריכה אצלך · ${NO_CLOCK}`, 'landing', 'editor.html'] },

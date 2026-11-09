@@ -878,15 +878,13 @@ await step('Eli on a shoot day that got no briefing: "ליאור עוד לא מ�
   assert.doesNotMatch(await text(page, card), /יגיע בערב שלפני|ימלא בתדריך/);
   await ctx.close();
 });
-await step('Eli on the day: "הגעתי", the drive, "הבי־רול לא גמור"; the handoff is locked until the list is done', async () => {
+await step('Eli on the day: the drive (v13: no "הגעתי"), "הבי־רול לא גמור"; the handoff is locked until the two checks are done', async () => {
   const { page, ctx } = await scene('2026-10-22T09:55:00');
   await signIn(page, 'shoot.html', 'eli');
-  await page.waitForSelector(`#${S_ID}-arrived`);
-  assert.ok(await height(page, `#${S_ID}-arrived`) >= 48);
-  await page.click(`#${S_ID}-arrived`);
   await page.waitForSelector(`#${S_ID}-drive`);
+  assert.equal(await page.locator(`#${S_ID}-arrived`).count(), 0);
+  assert.ok(await height(page, `#${S_ID}-drive`) >= 48);
   assert.equal(await text(page, `#${S_ID}-drive`), 'קיבלתי כונן 3');
-  assert.ok(checkOf(S, 'p17b.arrived'));
   await page.click(`#${S_ID}-drive`);
   await page.waitForSelector(`#${S_ID}-no`);
   assert.equal(checkOf(S, 'p17b.drive').note, 'כונן 3');
@@ -896,10 +894,13 @@ await step('Eli on the day: "הגעתי", the drive, "הבי־רול לא גמו
   assert.equal(checkOf(S, 'p17b.broll'), null);
   // The finish list and the locked handoff.
   assert.equal(await page.isDisabled(`#${S_ID}-handed`), true);
-  for (const i of [0, 1, 2]) { await page.click(`#${S_ID}-fin-${i}`); await page.waitForTimeout(80); }
+  // v13: two checks (the folders; all there, opening, numbered as the scripts).
+  assert.equal(await page.locator(`${sCard} .sh-finish .prod-check`).count(), 2);
+  await page.click(`#${S_ID}-fin-0`); await page.waitForTimeout(80);
   assert.equal(await page.isDisabled(`#${S_ID}-handed`), true);
   assert.match(await text(page, `#${S_ID}-lock`), /נפתח אחרי הפריט שנשאר/);
-  await page.click(`#${S_ID}-fin-3`);
+  await page.click(`#${S_ID}-fin-1`);
+  assert.ok(checkOf(S, 'p19b.checked'));
   await page.waitForFunction((id) => !document.getElementById(id).disabled, `${S_ID}-handed`);
   await page.fill(`#${S_ID}-notes`, 'בסרטון 4 שתי גרסאות');
   await page.click(`#${S_ID}-notes-save`);
@@ -914,6 +915,17 @@ await step('Eli on the day: "הגעתי", the drive, "הבי־רול לא גמו
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
   await shot(page, 'eli-day');
+  // v13: Eli's card alone (no "הגעתי", two checks before the handoff), on a phone and on a computer.
+  if (OUT) {
+    // (The door of the sign-in still fading over the page is the suite's own; it is not in the shot.)
+    await page.evaluate(() => { for (const el of document.querySelectorAll('#login-block, .login-door, [class*="door"]')) if (!el.closest('.sh-card')) el.style.display = 'none'; });
+    for (const w of [390, 1366]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.waitForTimeout(300);
+      await page.locator(sCard).screenshot({ path: `${OUT}/v13-eli-shoot-card-${w}.png` });
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+  }
   eliPage = { page, ctx };
 });
 await step('Lior\'s shoot-day mode: quiet mode from Eli\'s arrival, the timeline, the counter and the closing lock', async () => {

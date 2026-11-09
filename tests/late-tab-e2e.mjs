@@ -85,27 +85,22 @@ async function step(name, fn) {
 try {
   // ── A1 ──
   for (const width of [360, 390, 1280]) {
-    await step(`A1: the approvals of "לפני יום צילום" stay inside their buttons at ${width}px`, async () => {
+    // (v13, 9.11.2026: a date in the system is the closed shoot day; no approvals and no "ביומן של כולם" to tick.)
+    await step(`A1 (v13): "לפני יום צילום" has no approvals to tick at ${width}px`, async () => {
       const { page, ctx } = await signedIn('irit', { path: 'prep.html', width });
-      await page.waitForSelector('#pp-shoots .pp-party');
+      await page.waitForSelector('#pp-shoots .pp-card');
       await page.evaluate(() => { for (const d of document.querySelectorAll('#pp-shoots details')) d.open = true; });
-      const cards = await page.locator('#pp-shoots .pp-card:has(.pp-party)').evaluateAll((els) => els.map((e) => e.id));
-      assert.ok(cards.includes(`shoot-${NO_DATE}-1`), 'the client with no shoot date has its card');
-      for (const id of cards) assert.deepEqual(await rowProblems(page, `#${id} .pp-party .btn, #${id} .ik-row .btn`, `#${id}`), [], `${id} at ${width}`);
-      // The long one is whole: its words are on the screen, inside the button.
-      const long = page.locator(`#shoot-${NO_DATE}-1 .pp-party .btn`, { hasText: 'בדקתי בחוזה אילו משפיענים נרכשו' });
-      assert.equal(await long.count(), 1);
-      assert.ok((await long.boundingBox()).height >= 48);
+      assert.equal(await page.locator('#pp-shoots .pp-parties[aria-label="אישורים"]').count(), 0);
+      assert.equal(await page.locator('#pp-shoots [id^="cal-"]').count(), 0);
       await ctx.close();
     });
-    await step(`A1: the approvals of the shoot-date dialog at ${width}px`, async () => {
+    await step(`A1 (v13): the shoot-date dialog asks only when and with whom at ${width}px`, async () => {
       const { page, ctx } = await signedIn('irit', { width });
       await page.locator(`#mine-list .wproc[data-key="${NO_DATE}:p11"] [data-need] button`).evaluate((b) => b.click());
       await page.waitForSelector('#dlg-shoot[open]');
       await settle(page);
-      assert.equal(await page.locator('#shoot-oks .chip').count(), 6);
-      assert.deepEqual(await rowProblems(page, '#shoot-oks .chip, #shoot-free .chip', '#dlg-shoot'), []);
-      for (const h of await page.locator('#shoot-oks .chip').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) assert.ok(h >= 44, `a chip is ${h}px`);
+      assert.equal(await page.locator('#shoot-oks').count(), 0);
+      assert.deepEqual(await rowProblems(page, '#dlg-shoot .btn', '#dlg-shoot'), []);
       await ctx.close();
     });
   }
