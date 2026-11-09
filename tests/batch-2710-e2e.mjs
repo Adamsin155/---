@@ -11,6 +11,8 @@
 //     protocol and no task; Ilai has neither;
 //   - every new text field typed key by key, with deletions, in Chromium and in WebKit as an
 //     iPhone 13; 390px screenshots of every changed screen, no sideways scrolling.
+//   - "הצעות שנשלחו" by month (9.11.2026, docs/ops.md section 117), on a clock of 9.11.2026: the
+//     imported old contracts left out, a new contract read by itself, "חוזים שצריך לבדוק", no 0 ₪ row.
 // Run: npx http-server -p 5515 -s -c-1 . &  then  BASE_URL=http://localhost:5515/ node tests/batch-2710-e2e.mjs [outDir]
 import { openCardFolds } from './open-folds.mjs';
 import { chromium, webkit, devices } from 'playwright';
@@ -754,6 +756,8 @@ async function iphone(wk, who, path) {
 await step('"הצעות שנשלחו" by month: the imported old contracts left out; a new contract read by itself with its amounts; what was not read under "חוזים שצריך לבדוק"; no 0 ₪ row', async () => {
   // Monday 9.11.2026 (docs/ops.md, section 117). Ofir's contract of אבי was uploaded on 4.11.
   clockAt = NOV;
+  // October's agreement, as the list reads it (made on 10.10, signed on 12.10).
+  Object.assign(QUOTE, { created_at: '2026-10-10T10:00:00+03:00', monthly_gross_agorot: 460200, term_gross_agorot: 5522400, token: 'tok-050' });
   const aviFile = contractRows(avi.id)[0];
   aviFile.created_at = '2026-11-04T10:00:00+02:00';
   // One of the old contracts the owner imported on 27.10.2026 (no row), and Irit's contract of 13.10
@@ -848,7 +852,7 @@ await step('"הצעות שנשלחו" by month: the imported old contracts left 
     await p.waitForFunction(() => /AST-2026-050/.test(document.getElementById('rows').textContent));
     assert.equal(await p.locator('#rows tr.is-manual').count(), 0);
     assert.deepEqual([await chip('הכול'), await chip('נחתמו')], ['1', '1']);
-    assert.match(await p.innerText('#stats'), /נשלח באוקטובר[^]*נחתם באוקטובר/);
+    assert.match(await p.innerText('#stats'), /נשלח באוקטובר[^]*55,224[^]*נחתם באוקטובר[^]*55,224/);
     assert.equal(await p.isDisabled('#month-prev'), true);
     assert.ok(await noHScroll(p));
     await shot(p, `${name}-october`);

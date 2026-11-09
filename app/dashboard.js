@@ -291,7 +291,8 @@ async function loadManual() {
       ...manualAmounts(m), tier: m.package_name || '', doc: 'חוזה ידני', signable: 'true', path: byId[m.file_id]?.storage_path || null,
     })),
     // Only the clients this person sees (the database answers no others).
-    check: sorted.check.filter((x) => clients[x.clientId]).map((x) => ({ ...x, name: x.row?.business || nameOf(x.clientId) })),
+    // Named as the office knows the client (what the reading found may be wrong).
+    check: sorted.check.filter((x) => clients[x.clientId]).map((x) => ({ ...x, name: nameOf(x.clientId) || x.row?.business || '' })),
     toRead: sorted.toRead.filter((f) => clients[f.client_id]),
   };
 }
