@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { clocksFor, clockTime, clockDigits, DEAL_CLOCKS, ANSWER_CLOCKS, SOON_MINUTES } from '../app/clocks.js';
+import { clocksFor, clockTime, clockDigits, DEAL_CLOCKS, ANSWER_CLOCKS, CALL_CLOCKS, SOON_MINUTES } from '../app/clocks.js';
 import { applicableProcesses, ANSWERED, WAIT, IMPORT_NOTE } from '../app/protocol-logic.js';
 
 const at = (s) => new Date(s);
@@ -17,54 +17,58 @@ const clocks = (person, client, checks, now, kind = null) => clocksFor(person, [
   .filter((c) => !kind || c.kind === kind);
 const brief = (list) => list.map((c) => [c.kind, c.proc.id, iso(c.deadline), c.state]);
 
-// The contract has 10 office minutes (the owner's decision of 3.10.2026), the group and the meeting date 5.
-test('new deal at 17:58 on Thursday: office clocks of 5, 5 and 10 minutes, due Sunday 09:03 and 09:08 (winter time)', () => {
+// Until v13 the contract had 10 office minutes and the group 5 (the owner's decision of 3.10.2026).
+// (v13: the contract's preparing and sending, and the group (2), left the protocol: only the meeting's date has a clock.)
+test('new deal at 17:58 on Thursday: one office clock of 5 minutes (the meeting date), due Sunday 09:03 (winter time)', () => {
   const c = { id: 'a', name: 'פיצה נאפולי', deal_at: '2026-10-22T17:58:00+03:00', status: 'active', phone: '050-0000000' };
   const due = iso(at('2026-10-25T09:03:00+02:00'));
-  const now1 = clocks('irit', c, {}, '2026-10-22T17:59:00+03:00');
-  assert.deepEqual(brief(now1), [['deal', 'p02', due, 'running'], ['deal', 'p03', due, 'running'], ['deal', 'p01', iso(at('2026-10-25T09:08:00+02:00')), 'running']]);
-  assert.deepEqual(now1.map((x) => [x.what, x.minutes]), [['קבוצה', 5], ['מועד אפיון', 5], ['חוזה', 10]]);
+  // (Only the deal clocks here: process 1 still has its own due time, a 'soon' clock.)
+  const deals = (person, now) => clocks(person, c, {}, now, 'deal');
+  const now1 = deals('irit', '2026-10-22T17:59:00+03:00');
+  assert.deepEqual(brief(now1), [['deal', 'p03', due, 'running']]);
+  assert.deepEqual(now1.map((x) => [x.what, x.minutes]), [['מועד אפיון', 5]]);
+  assert.deepEqual(Object.keys(DEAL_CLOCKS), ['p03']);
   // One minute left on Thursday and three on Sunday; the clock runs.
-  assert.deepEqual([now1[0].remaining, now1[0].paused, now1[0].office, now1[0].phone], [4 * 6e4, false, true, '050-0000000']);
-  assert.deepEqual([now1[2].remaining, now1[2].people], [9 * 6e4, ['irit']]); // the contract: one minute on Thursday and eight on Sunday
+  assert.deepEqual([now1[0].remaining, now1[0].paused, now1[0].office, now1[0].phone, now1[0].people], [4 * 6e4, false, true, '050-0000000', ['irit']]);
   // After 18:00 the clock stops with three minutes left, until Sunday 09:00.
   const night = clockTime(now1[0], at('2026-10-22T20:00:00+03:00'));
   assert.deepEqual([night.state, night.remaining, night.paused, iso(night.resumeAt)], ['running', 3 * 6e4, true, iso(at('2026-10-25T09:00:00+02:00'))]);
-  assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-24T12:00:00+03:00')).map((x) => x[3]), ['running', 'running', 'running']); // Saturday
+  assert.deepEqual(brief(deals('irit', '2026-10-24T12:00:00+03:00')).map((x) => x[3]), ['running']); // Saturday
   const sunday = clockTime(now1[0], at('2026-10-25T09:02:00+02:00'));
   assert.deepEqual([sunday.remaining, sunday.paused], [6e4, false]);
-  // Ran out at 09:03 (the contract at 09:08): red in the bar until the end of Sunday, gone on Monday (it is in "overdue").
-  assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-25T09:03:00+02:00')).map((x) => x[3]), ['expired', 'expired', 'running']);
-  assert.deepEqual(brief(clocks('irit', c, {}, '2026-10-25T09:08:00+02:00')).map((x) => x[3]), ['expired', 'expired', 'expired']);
-  assert.equal(clocks('irit', c, {}, '2026-10-25T23:30:00+02:00').length, 3);
-  assert.equal(clocks('irit', c, {}, '2026-10-26T08:00:00+02:00').length, 0);
-  // Whose: Irit's alone (Lior's items of 2 left in v12); Ilai none. The owner sees each with its people.
+  // Ran out at 09:03: red in the bar until the end of Sunday, gone on Monday (it is in "overdue").
+  assert.deepEqual(brief(deals('irit', '2026-10-25T09:03:00+02:00')).map((x) => x[3]), ['expired']);
+  assert.equal(deals('irit', '2026-10-25T23:30:00+02:00').length, 1);
+  assert.equal(deals('irit', '2026-10-26T08:00:00+02:00').length, 0);
+  // Whose: Irit's alone; Lior and Ilai none. The owner sees it with its people.
   assert.equal(clocks('lior', c, {}, '2026-10-22T17:59:00+03:00').length, 0);
   assert.equal(clocks('ilai', c, {}, '2026-10-22T17:59:00+03:00').length, 0);
-  const all = clocks(null, c, {}, '2026-10-22T17:59:00+03:00');
-  assert.deepEqual(all.map((x) => [x.proc.id, x.people]), [['p02', ['irit']], ['p03', ['irit']], ['p01', ['irit']]]);
+  const all = deals(null, '2026-10-22T17:59:00+03:00');
+  assert.deepEqual(all.map((x) => [x.proc.id, x.people]), [['p03', ['irit']]]);
 });
 
-test('the contract clock stops when the contract was sent; a finished or waiting process has no clock', () => {
+test('the meeting date clock stops once the date is set; a finished or waiting process has no clock', () => {
   const c = { id: 'a', name: 'פיצה נאפולי', deal_at: '2026-10-05T10:00:00+03:00', status: 'active' };
   const now = '2026-10-05T10:04:00+03:00';
-  // Sent within its 10 minutes: the signature is the client's, with a clock of its own.
-  const sent = done(['p01.prepared', 'p01.sent'], '2026-10-05T10:03:00+03:00');
-  assert.deepEqual(clocks('irit', c, sent, now).map((x) => x.proc.id), ['p02', 'p03']);
-  assert.deepEqual(DEAL_CLOCKS.p01.until, ['p01.prepared', 'p01.sent']);
-  // Process 2 complete, process 3 waiting on the client.
-  const checks = { ...sent, ...done(P2, '2026-10-05T10:02:00+03:00'), [WAIT({ id: 'p03' })]: { state: 'done', at: '2026-10-05T10:03:00+03:00', note: '{}' } };
-  assert.deepEqual(clocks('irit', c, checks, now), []);
-  // Imported or cancelled clients have no clocks.
-  assert.deepEqual(clocks('irit', c, done([...P1, ...P2, ...P3], '2026-10-05T10:00:00+03:00', IMPORT_NOTE), now), []);
+  const deals = (client, checks) => clocks('irit', client, checks, now, 'deal');
+  assert.deepEqual(deals(c, {}).map((x) => x.proc.id), ['p03']);
+  // (v13: no contract clock: preparing and sending the contract left the protocol.)
+  assert.deepEqual(deals(c, done(['p01.prepared', 'p01.sent'], '2026-10-05T10:03:00+03:00')).map((x) => x.proc.id), ['p03']);
+  // The meeting's date saved in the system closes 3 by itself (p03.date).
+  assert.deepEqual(deals({ ...c, characterizer: 'ofir', char_at: '2026-10-07T10:00:00+03:00' }, {}), []);
+  // Process 3 waiting on the client.
+  const checks = { [WAIT({ id: 'p03' })]: { state: 'done', at: '2026-10-05T10:03:00+03:00', note: '{}' } };
+  assert.deepEqual(deals(c, checks), []);
+  // Imported or cancelled clients have no clocks (v13: an imported client's meeting is a date, not a mark).
+  assert.deepEqual(clocks('irit', { ...c, characterizer: 'ofir', char_at: '2026-10-01T10:00:00+03:00' }, done([...P1, ...P2, ...P3], '2026-10-05T10:00:00+03:00', IMPORT_NOTE), now), []);
   assert.deepEqual(clocks('irit', { ...c, status: 'cancelled' }, {}, now), []);
   assert.deepEqual(clocks(null, { ...c, status: 'ended' }, {}, now), []);
 });
 
 test('erev chag: a deal at 12:58 on erev Yom Kippur is due Tuesday 09:03', () => {
   const c = { id: 'e', name: 'מאפה שקד', deal_at: '2026-09-20T12:58:00+03:00', status: 'active' };
-  const list = clocks('irit', c, {}, '2026-09-20T12:59:00+03:00');
-  assert.deepEqual(brief(list), [['p02', '09:03'], ['p03', '09:03'], ['p01', '09:08']].map(([p, t]) => ['deal', p, iso(at(`2026-09-22T${t}:00+03:00`)), 'running']));
+  const list = clocks('irit', c, {}, '2026-09-20T12:59:00+03:00', 'deal');
+  assert.deepEqual(brief(list), [['deal', 'p03', iso(at('2026-09-22T09:03:00+03:00')), 'running']]);
   assert.equal(list[0].remaining, 4 * 6e4); // one minute before 13:00, three on Tuesday
   // The office closed at 13:00 and Monday is Yom Kippur: stopped until Tuesday 09:00.
   for (const when of ['2026-09-20T13:30:00+03:00', '2026-09-21T11:00:00+03:00']) {
@@ -78,66 +82,30 @@ const mid = { id: 'b', name: 'קפה גליה', phone: '050-0000001', deal_at: '
 const early = done([...P1, ...P2, ...P3], '2026-09-28T09:03:00+03:00');
 const sent = { ...early, ...done(['p07.sent'], '2026-10-05T10:00:00+03:00'), ...done(['p23.sent'], '2026-10-05T11:00:00+03:00'), ...done(['p26.sent'], '2026-10-05T12:00:00+03:00') };
 
-test('"the client did not answer": 10, 10 and 5 office minutes from the sending', () => {
-  const list = clocks('irit', mid, sent, '2026-10-05T12:01:00+03:00', 'answer');
-  // What ran out first (longest ago), then what is still running.
-  assert.deepEqual(brief(list), [
-    ['answer', 'p07', iso(at('2026-10-05T10:10:00+03:00')), 'expired'],
-    ['answer', 'p23', iso(at('2026-10-05T11:10:00+03:00')), 'expired'],
-    ['answer', 'p26', iso(at('2026-10-05T12:05:00+03:00')), 'running'],
-  ]);
-  assert.deepEqual(list.map((x) => [x.minutes, x.what, x.people, x.phone]), [
-    [10, ANSWER_CLOCKS.p07.what, ['irit'], '050-0000001'], [10, 'יתרת הגרפיקות', ['irit'], '050-0000001'], [5, 'הסרטונים', ['irit'], '050-0000001'],
-  ]);
-  assert.equal(list[2].remaining, 4 * 6e4);
-  assert.equal(iso(list[0].sentAt), iso(at('2026-10-05T10:00:00+03:00')));
-  assert.equal(list[0].id, `answer:b:p07:${iso(list[0].sentAt)}`);
-  // Irit calls: they are hers, not Lior's (the owner sees them too).
-  assert.equal(clocks('lior', mid, sent, '2026-10-05T12:01:00+03:00', 'answer').length, 0);
-  assert.equal(clocks(null, mid, sent, '2026-10-05T12:01:00+03:00', 'answer').length, 3);
-  // Sent at 17:55: five minutes today, five tomorrow from 09:00.
-  const late = clocks('irit', mid, { ...early, ...done(['p07.sent'], '2026-10-05T17:55:00+03:00') }, '2026-10-05T17:56:00+03:00', 'answer');
-  assert.equal(iso(late[0].deadline), iso(at('2026-10-06T09:05:00+03:00')));
-  assert.equal(late[0].remaining, 9 * 6e4);
+test('"the client did not answer": no clock any more (v13: Irit\'s call to the client left 7, 23 and 26)', () => {
+  assert.equal(CALL_CLOCKS, false);
+  assert.deepEqual(clocks('irit', mid, sent, '2026-10-05T12:01:00+03:00', 'answer'), []);
+  assert.deepEqual(clocks(null, mid, sent, '2026-10-05T12:01:00+03:00', 'answer'), []);
+  assert.deepEqual(clocks('irit', mid, { ...early, ...done(['p07.sent'], '2026-10-05T17:55:00+03:00') }, '2026-10-05T17:56:00+03:00', 'answer'), []);
+  // The approvals still say what waits on the client (app/client-waits.js).
+  assert.deepEqual([ANSWER_CLOCKS.p07.minutes, ANSWER_CLOCKS.p23.approval, ANSWER_CLOCKS.p26.approval], [10, 'p23.approved', 'p27.approved']);
 });
 
-test('the answer (or a call, an approval, a wait) stops the clock; only after this sending', () => {
+test('the answer mark still exists; with no call clock there is nothing to stop (v13)', () => {
   const now = '2026-10-05T12:01:00+03:00';
   const p07 = applicableProcesses(mid).find((p) => p.id === 'p07');
   assert.equal(ANSWERED(p07), 'p07.answered');
   const procs = (checks) => clocks('irit', mid, checks, now, 'answer').map((x) => x.proc.id);
-  assert.deepEqual(procs({ ...sent, ...done(['p07.answered'], '2026-10-05T10:06:00+03:00') }), ['p23', 'p26']);
-  assert.deepEqual(procs({ ...sent, ...done(['p07.call'], '2026-10-05T10:12:00+03:00') }), ['p23', 'p26']);
-  assert.deepEqual(procs({ ...sent, ...done(['p07.approved', 'p27.approved'], '2026-10-05T12:00:30+03:00') }), ['p23']);
-  assert.deepEqual(procs({ ...sent, 'p23.wait': { state: 'done', at: '2026-10-05T11:20:00+03:00', note: '{}' } }), ['p07', 'p26']);
-  // A wait that began before the sending (say, for the client's material) is not an answer to it.
-  const waitFrom = (at, note = '{}') => ({ [WAIT(p07)]: { state: 'done', at, note } });
-  assert.deepEqual(procs({ ...sent, ...waitFrom('2026-10-05T09:00:00+03:00') }), ['p07', 'p23', 'p26']);
-  assert.deepEqual(procs({ ...sent, ...waitFrom('2026-10-05T10:05:00+03:00') }), ['p23', 'p26']);
-  // Edited after the sending, the wait keeps its start (`since`): still from before.
-  const edited = JSON.stringify({ reason: 'חומרים', recheck: null, since: '2026-10-05T09:00:00+03:00' });
-  assert.deepEqual(procs({ ...sent, ...waitFrom('2026-10-05T10:05:00+03:00', edited) }), ['p07', 'p23', 'p26']);
-  // An answer to an earlier sending does not stop the clock of the next one (sent again after a fix).
-  const again = { ...sent, ...done(['p07.answered'], '2026-10-05T09:30:00+03:00') };
-  assert.deepEqual(procs(again), ['p07', 'p23', 'p26']);
-  // Imported history, or "not relevant", is not a sending.
-  assert.deepEqual(procs({ ...sent, ...done(['p07.sent', 'p23.sent'], '2026-10-05T10:00:00+03:00', IMPORT_NOTE) }), ['p26']);
-  assert.deepEqual(procs({ ...sent, 'p26.sent': { state: 'na', at: '2026-10-05T12:00:00+03:00' } }), ['p07', 'p23']);
-  // An answered clock stays gone the next day too; an unanswered one leaves the bar at midnight.
-  assert.equal(clocks('irit', mid, sent, '2026-10-06T09:00:00+03:00', 'answer').length, 0);
+  assert.deepEqual(procs(sent), []);
+  assert.deepEqual(procs({ ...sent, ...done(['p07.answered'], '2026-10-05T09:30:00+03:00') }), []);
 });
 
-test('second shoot round: the videos clock and its answer mark carry the round', () => {
+test('second shoot round: the answer mark carries the round; no clock (v13)', () => {
   const c = { ...mid, id: 'r', rounds: [{ n: 2, shoot_type: 'dms', shoot_at: '2026-10-01T10:00:00+03:00', start_at: '2026-09-30T09:00:00+03:00' }] };
   const r2 = applicableProcesses(c).find((p) => p.id === 'r2-p26');
   assert.equal(ANSWERED(r2), 'r2.p26.answered');
   const checks = { ...early, ...done(['r2.p26.sent'], '2026-10-05T12:00:00+03:00') };
-  const list = clocks('irit', c, checks, '2026-10-05T12:01:00+03:00', 'answer');
-  assert.deepEqual(brief(list), [['answer', 'r2-p26', iso(at('2026-10-05T12:05:00+03:00')), 'running']]);
-  assert.equal(clocks('irit', c, { ...checks, ...done(['r2.p26.answered'], '2026-10-05T12:02:00+03:00') }, '2026-10-05T12:03:00+03:00', 'answer').length, 0);
-  assert.equal(clocks('irit', c, { ...checks, ...done(['r2.p27.approved'], '2026-10-05T12:02:00+03:00') }, '2026-10-05T12:03:00+03:00', 'answer').length, 0);
-  // The first round's approval is not the second round's.
-  assert.equal(clocks('irit', c, { ...checks, ...done(['p27.approved'], '2026-10-05T12:02:00+03:00') }, '2026-10-05T12:03:00+03:00', 'answer').length, 1);
+  assert.deepEqual(clocks('irit', c, checks, '2026-10-05T12:01:00+03:00', 'answer'), []);
 });
 
 test('the answer mark fits the database check on item keys', () => {
@@ -186,12 +154,12 @@ test('an office-time deadline within the hour is stopped before 09:00', () => {
 
 test('most urgent first across clients: ran out, then least time left', () => {
   const deal = { id: 'n', name: 'פיצה נאפולי', deal_at: '2026-10-05T11:59:00+03:00', status: 'active' };
-  const list = clocksFor('irit', [deal, mid], { b: sent }, { now: at('2026-10-05T12:01:00+03:00') });
-  assert.deepEqual(list.map((x) => [x.kind, x.proc.id, x.state]), [
-    ['answer', 'p07', 'expired'], ['answer', 'p23', 'expired'],
-    ['deal', 'p02', 'running'], ['deal', 'p03', 'running'], // 3 minutes left
-    ['answer', 'p26', 'running'], // 4 minutes left
-    ['deal', 'p01', 'running'], // the contract: 8 minutes left
+  const older = { id: 'm', name: 'מאפה שקד', deal_at: '2026-10-05T11:50:00+03:00', status: 'active' };
+  const list = clocksFor('irit', [deal, older, mid], { b: sent }, { now: at('2026-10-05T12:01:00+03:00') }).filter((x) => x.kind === 'deal');
+  // (v13: no answer clocks and no contract or group clocks: only the meeting dates.)
+  assert.deepEqual(list.map((x) => [x.kind, x.proc.id, x.state, x.remaining]), [
+    ['deal', 'p03', 'expired', -6 * 6e4], // ran out at 11:55
+    ['deal', 'p03', 'running', 3 * 6e4], // 3 minutes left
   ]);
 });
 

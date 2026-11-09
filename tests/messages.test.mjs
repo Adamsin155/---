@@ -44,7 +44,8 @@ test('welcome after the group opens: team, next three dates, what we need, Thurs
   for (const line of ['ליאור: מנהל הלקוח', 'עירית: תפעול ולקוחות', 'אופיר: אפיון העסק', 'עילאי: גרפיקה']) assert.ok(text.includes(line), line);
   assert.ok(text.includes('פגישת האפיון: יום ב׳ 12.10 בשעה 10:00'));
   assert.ok(text.includes('עמוד מסודר ו־9 גרפיקות ראשונות לאישור: ביום האפיון, יום ב׳ 12.10'));
-  // v6: the shoot day is set by the end of the business day after the group opened.
+  // v6: the shoot day is set by the end of the business day after the group opened (v13: after the signing,
+  // or without it the deal, Sunday 11.10: the same Monday).
   assert.ok(text.includes('קביעת יום הצילום: עד יום ב׳ 12.10'), 'v6: the business day after the group');
   // A client that started before v6 keeps promise ה4: 3 business days from the meeting.
   assert.ok(messageText(suggest({ ...base, protocol_version: 5 }, checks, [], '2026-10-11T10:00:00+03:00').options[0], T).includes('קביעת יום הצילום: עד יום ה׳ 15.10'), 'promise ה4');
@@ -180,9 +181,10 @@ test('Thursday: the update in three lines from the system\'s data replaces the d
   const text = messageText(s.options[0], T);
   assert.equal(text, [
     'היי דנה, העדכון השבועי שלנו:',
-    'מה עשינו השבוע: פתחנו את קבוצת העבודה, קבענו את פגישת האפיון וקיימנו את פגישת האפיון.',
+    // (v13: the group (2) and the marks of 3 left the protocol, and the client approves no shoot date.)
+    'מה עשינו השבוע: קיימנו את פגישת האפיון.',
     'מה הלאה: קביעת יום הצילום וסידור העמודים ברשתות.',
-    'מה צריך מכם: צבעי המותג, תמונות, סרטונים קיימים, אישור על 9 הגרפיקות הראשונות ואישור מועד ליום הצילום.',
+    'מה צריך מכם: צבעי המותג, תמונות, סרטונים קיימים ואישור על 9 הגרפיקות הראשונות.',
     'סוף שבוע נעים!',
   ].join('\n'));
   // Another day: the daily message.
@@ -261,12 +263,10 @@ test('a notice of delay: on the promised date, or a business day before it when 
   assert.equal(wed.options.find((o) => o.ref === 'p12').vars['תאריך'], 'יום ה׳ 15.10');
   // Since v6 the shoot day is Irit's own target (the business day after the group): no notice to the client.
   assert.deepEqual(kinds(suggest(base, content, [], '2026-10-14T10:00:00+03:00')), ['daily:daily.content', 'delay:p12']);
-  // Everyone confirmed the date but the client: the date is theirs to approve.
+  // Until v13, everyone but the client having confirmed the date made it the client's to approve.
+  // (v13: the approvals left the protocol: old marks of them change nothing, the date is ours to set.)
   const oks = ['p11.influencers', 'p11.ok.influencers', 'p11.ok.lior', 'p11.ok.photographer'].reduce((a, k) => ({ ...a, ...item(k, '2026-10-13T12:00:00+03:00') }), {});
-  assert.deepEqual(kinds(suggest(v5, { ...content, ...oks }, [], '2026-10-14T10:00:00+03:00')), ['daily:daily.content', 'delay:p12']);
-  // Without the photographer's confirmation, it is still ours.
-  const { 'p11.ok.photographer': _, ...noPhotographer } = oks;
-  assert.ok(suggest(v5, { ...content, ...noPhotographer }, [], '2026-10-14T10:00:00+03:00').options.some((o) => o.ref === 'p11'));
+  assert.deepEqual(kinds(suggest(v5, { ...content, ...oks }, [], '2026-10-14T10:00:00+03:00')), ['daily:daily.content', 'delay:p11', 'delay:p12']);
 });
 
 test('one proactive message per Israel day: 00:30 in Israel (21:30 UTC) is already the next day', () => {
@@ -392,7 +392,8 @@ test('the shoot day passed: no "the shoot day is coming"; from its evening, edit
 });
 
 test('the welcome lists only dates still ahead', () => {
-  const checks = item('p02.opened', '2026-10-13T09:10:00+03:00');
+  // (v13: the shoot day counts from the signing, p01.signed, no longer from the group.)
+  const checks = { ...item('p02.opened', '2026-10-13T09:10:00+03:00'), ...item('p01.signed', '2026-10-13T09:10:00+03:00') };
   const now = '2026-10-13T10:00:00+03:00';
   // A client that started before v6: the meeting was last week and its 3-day deadline
   // for the shoot day passed too: none of them is listed.
@@ -402,7 +403,7 @@ test('the welcome lists only dates still ahead', () => {
   const text = messageText(past.options[0], T);
   assert.doesNotMatch(text, /5\.10|8\.10/);
   assert.deepEqual(unfilledIn(text), ['[התאריכים הקרובים]']);
-  // Since v6 the shoot day is set by the end of the business day after the group: ahead.
+  // Since v6 the shoot day is set by the end of the business day after the signing (v13; it was the group): ahead.
   const v6 = messageText(suggest({ ...base, char_at: '2026-10-05T10:00:00+03:00' }, checks, [], now).options[0], T);
   assert.match(v6, /התאריכים הקרובים:\nקביעת יום הצילום: עד יום ד׳ 14\.10\n\n/);
   // The meeting passed, the shoot day is set and ahead: only the shoot.

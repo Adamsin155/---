@@ -288,16 +288,15 @@ test('the station: where, how long, what next and by whom, the month, the pace a
   assert.equal(+s.lastContact, +at('2026-10-12T16:00:00+03:00'));
   assert.equal(s.waiting, false);
   assert.deepEqual([s.current.who, s.current.procId], ['lior', 'p12']); // 12א left with v12
-  // A shoot day not set yet: the milestone has no date, and must be set by process 11's deadline.
-  // Since protocol v8 process 11 cannot be closed without a date, so this is only a history
-  // that was brought in (the note "ייבוא") with no date typed.
+  // A shoot day not set yet. Until v13 a history brought in (the note "ייבוא") could close 11 with no
+  // date typed, and the milestone then had no date. (v13: 11 closes only by a date in the system
+  // (p11.date): old imported marks of it leave it open, so the next step is still Irit's setting of
+  // the day, by 11's deadline.)
   const later = at('2026-10-16T10:00:00+03:00');
   const history = Object.fromEntries(Object.entries(done(c, ['p11'], '2026-10-14T10:00:00+03:00')).map(([k, v]) => [k, { ...v, note: 'ייבוא' }]));
   const withScripts = { ...checks, ...history, ...done(c, ['p12', 'p13'], '2026-10-14T10:00:00+03:00') };
   const n = station(c, clientState(c, withScripts, later), { checks: withScripts, now: later }).next;
-  // v12: nobody closes the shoot day; Irit sets it (11), so the milestone is said as hers.
-  assert.deepEqual([n.what, n.when, n.who], ['יום הצילום', null, 'irit']);
-  assert.equal(+n.mustSetBy, +at('2026-10-15T18:00:00+03:00'));
+  assert.deepEqual([n.what, +n.when, n.who, n.procId], ['קביעת יום הצילום', +at('2026-10-15T18:00:00+03:00'), 'irit', 'p11']);
   assert.deepEqual(contractMonth({ deal_at: '2026-10-11T09:00:00+03:00', contract_end: '2027-10-11' }, at('2026-12-20T10:00:00+02:00')), { n: 3, of: 12, text: 'חודש 3 מתוך 12' });
 });
 
@@ -306,7 +305,8 @@ test('the timeline: done with who and when (automatic marked), now, and planned 
   const checks = { ...done(c, ['p01'], '2026-10-11T09:00:00+03:00', 'נחתם במערכת: AST-2026-0001', 'system'), ...done(c, ['p02'], '2026-10-11T09:04:00+03:00') };
   const now = at('2026-10-11T12:00:00+03:00');
   const tl = timeline(c, clientState(c, checks, now), checks, now);
-  assert.deepEqual(tl.done.map((x) => [x.procId, x.auto, x.by]), [['p01', true, 'system'], ['p02', false, 'irit@x.test']]);
+  // (v13: the group, 2, left the protocol: an old mark of it is no longer a step done.)
+  assert.deepEqual(tl.done.map((x) => [x.procId, x.auto, x.by]), [['p01', true, 'system']]);
   assert.deepEqual(tl.current.map((x) => x.procId), ['p03']);
   assert.equal(tl.current[0].who, 'irit');
   // The meeting has no date yet: it must be set by process 3's deadline (5 minutes from the deal).

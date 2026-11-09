@@ -235,7 +235,8 @@ test('every write tool: annotated as a write, says what it changes and to dry-ru
 
 // ── Every tool: a dry run writes nothing, and then the real call writes as the owner ──
 const CASES = [
-  ['mark_protocol_item', { client: 'רון', item: 'p03.who', state: 'done' }, (db) => db.protocol_checks.some((r) => r.item_key === 'p03.who' && r.state === 'done')],
+  // (v13: p03.who left the protocol; the access arriving, 5, is an item every client has.)
+  ['mark_protocol_item', { client: 'רון', item: 'p05.access', state: 'done' }, (db) => db.protocol_checks.some((r) => r.item_key === 'p05.access' && r.state === 'done')],
   ['update_client', { client: 'רון', package_name: 'Podcast · נטלי', characterizer: 'אופיר' }, (db) => db.clients[0].package_name === 'Podcast · נטלי' && db.clients[0].characterizer === 'ofir'],
   ['set_client_date', { client: 'רון', which: 'characterization', at: '2026-11-20T10:00' }, (db) => db.clients[0].char_at === '2026-11-20T08:00:00.000Z'],
   ['give_task', { person: 'יריב', text: 'לסיים את הסרטון', client: 'רון' }, (db) => db.staff_tasks.some((t) => t.assignee === 'yariv' && t.client_id === ID.c1)],
@@ -282,23 +283,26 @@ for (const [name, args, done] of CASES) {
 test('mark: what waits, a form, a call, "לא רלוונטי" without a reason, and an approval are refused as on the card', async () => {
   const w = world();
   const r = (args) => call(w, 'owner', 'mark_protocol_item', { client: 'רון', dry_run: false, ...args });
-  assert.equal((await r({ item: 'p03.scheduled', state: 'done' })).code, 'blocked', 'the meeting\'s date is missing');
+  // (v13: "נקבעה פגישה" left; "לקבוע אפיון" closes by the date itself, and without it waits.)
+  assert.equal((await r({ item: 'p03.date', state: 'done' })).code, 'blocked', 'the meeting\'s date is missing');
+  assert.equal((await r({ item: 'p03.scheduled', state: 'done' })).code, 'not_found', 'a retired item');
   assert.equal((await r({ item: 'p07.approved', state: 'done' })).code, 'blocked', 'sent to the client first');
-  assert.equal((await r({ item: 'p14.day', state: 'done' })).code, 'via_card', 'the daily follow-up');
+  // (v13: the daily follow-up, p14.day, left the protocol: there is no daily answer to refuse any more.)
+  assert.equal((await r({ item: 'p14.day', state: 'done' })).code, 'not_found', 'a retired item');
   assert.equal((await r({ item: 'p12.link', state: 'done' })).code, 'via_form');
-  assert.equal((await r({ item: 'p03.who', state: 'na' })).code, 'reason_required');
-  assert.equal((await r({ item: 'p03.who', state: 'clear' })).code, 'nothing_to_change');
-  assert.equal((await r({ item: 'p03.who', state: 'na', note: 'הטלפון 050-1112222' })).code, 'personal_details');
+  assert.equal((await r({ item: 'p05.access', state: 'na' })).code, 'reason_required');
+  assert.equal((await r({ item: 'p05.access', state: 'clear' })).code, 'nothing_to_change');
+  assert.equal((await r({ item: 'p05.access', state: 'na', note: 'הטלפון 050-1112222' })).code, 'personal_details');
   assert.equal((await r({ item: 'nothing like this', state: 'done' })).code, 'not_found');
-  assert.equal((await r({ item: 'p03.who', state: 'maybe' })).code, 'bad_input');
+  assert.equal((await r({ item: 'p05.access', state: 'maybe' })).code, 'bad_input');
   assert.deepEqual(writes(w), []);
   // Optional: "לא נדרש" with no reason; then cleared (the one delete), and a done one must be cleared before "na".
   assert.equal((await r({ item: 'p05.menu', state: 'na' })).done, true);
-  assert.equal((await r({ item: 'p03.who', state: 'done' })).done, true);
-  assert.equal((await r({ item: 'p03.who', state: 'na', note: 'x' })).code, 'is_done');
-  assert.equal((await r({ item: 'p03.who', state: 'done' })).code, 'nothing_to_change');
-  assert.equal((await r({ item: 'p03.who', state: 'clear' })).done, true);
-  assert.ok(!w.db.protocol_checks.some((x) => x.item_key === 'p03.who'));
+  assert.equal((await r({ item: 'p05.access', state: 'done' })).done, true);
+  assert.equal((await r({ item: 'p05.access', state: 'na', note: 'x' })).code, 'is_done');
+  assert.equal((await r({ item: 'p05.access', state: 'done' })).code, 'nothing_to_change');
+  assert.equal((await r({ item: 'p05.access', state: 'clear' })).done, true);
+  assert.ok(!w.db.protocol_checks.some((x) => x.item_key === 'p05.access'));
   assert.deepEqual(writes(w).map((x) => x.method), ['POST', 'POST', 'DELETE']);
   // Several items with the same words: the keys come back.
   const many = await r({ item: 'אישר', state: 'done' });
@@ -306,13 +310,13 @@ test('mark: what waits, a form, a call, "לא רלוונטי" without a reason, 
   assert.ok(many.candidates.every((c) => /^(r\d+\.)?p\d/.test(c.key)));
 });
 
-test('mark: the Gantt\'s guard reads the Gantt; item 24 closes Ofir\'s folder task with it', async () => {
+test('mark: the Gantt\'s old item is gone (v13); item 24 closes Ofir\'s folder task with it', async () => {
   const w = world();
   const items = clientState(w.db.clients[0], {}, new Date(NOW)).states.flatMap((s) => s.proc.items.map((i) => i.key));
-  assert.ok(items.includes('p29.filled') && items.includes('p24.folder'), 'the fixture has these processes');
-  assert.equal((await call(w, 'owner', 'mark_protocol_item', { client: 'רון', item: 'p29.filled', state: 'done', dry_run: false })).code, 'guard');
-  w.db.client_gantt.push({ client_id: ID.c1, kind: 'video', state: 'planned' });
-  assert.equal((await call(w, 'owner', 'mark_protocol_item', { client: 'רון', item: 'p29.filled', state: 'done', dry_run: false })).done, true);
+  // (v13: "הגאנט מלא" (p29.filled, with the Gantt's guard) left the protocol: the system closes 28 by
+  // itself, p28.auto, once every content row of the Gantt is scheduled.)
+  assert.ok(!items.includes('p29.filled') && items.includes('p28.auto') && items.includes('p24.folder'), 'the fixture has these processes');
+  assert.equal((await call(w, 'owner', 'mark_protocol_item', { client: 'רון', item: 'p29.filled', state: 'done', dry_run: false })).code, 'not_found');
   const p = await call(w, 'owner', 'mark_protocol_item', { client: 'רון', item: 'p24.folder', state: 'done', dry_run: false });
   assert.equal(p.done, true, JSON.stringify(p));
   assert.ok(w.db.client_tasks[0].done_at, 'the folder task is closed with the item');

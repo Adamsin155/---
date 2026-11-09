@@ -36,13 +36,15 @@ const rows = (t) => t.items.map((x) => [x.client?.name || x.title, x.text, x.lat
 const UPTO_CHAR = ['p01', 'p02', 'p03', 'p04', 'p05', 'p05b', 'p06'];
 const UPTO_SHOOT = [...UPTO_CHAR, 'p07', 'p07a', 'p07b', 'p08', 'p08b', 'p09', 'p10', 'p11', 'p12a', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17', 'p17b', 'p18', 'p18b', 'p19', 'p19b', 'p21'];
 
-test('the eleven topics, in the protocol\'s order and with the protocol\'s own words', () => {
+test('the nine topics, in the protocol\'s order and with the protocol\'s own words', () => {
   const got = controlTopics({ clients: [], stateOf: () => ({ states: [] }), now: NOW });
   assert.deepEqual(got.map((t) => t.key), TOPIC_KEYS);
-  assert.equal(got.length, 11);
-  // Step 19 of Irit's protocol: the first eleven of process 32's list (the twelfth, the daily messages, has its own page).
-  assert.deepEqual(got.map((t) => t.label), REVIEW_TOPICS.p32.slice(0, 11));
-  assert.deepEqual(got.map((t) => t.label), ['חוזים', 'חתימות', 'קבוצות WhatsApp', 'הודעות פתיחה', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם']);
+  // (v13: "קבוצות WhatsApp" and "הודעות פתיחה" left the protocol with process 2: eleven topics became nine.)
+  assert.equal(got.length, 9);
+  // Step 19 of Irit's protocol: process 32's list but its last (the daily messages, which has its own page).
+  assert.deepEqual(got.map((t) => t.label), REVIEW_TOPICS.p32.slice(0, 9));
+  assert.deepEqual(got.map((t) => t.label), ['חוזים', 'חתימות', 'פגישות אפיון', 'ימי צילום', 'משימות פתוחות', 'אישורי לקוחות', 'תיקונים', 'עובדים שטרם סיימו משימות', 'לקוחות שצריך לחזור אליהם']);
+  assert.ok(!TOPIC_KEYS.includes('groups') && !TOPIC_KEYS.includes('intro'));
   assert.ok(got.every((t) => t.count === 0 && t.late === 0 && t.items.length === 0));
   assert.equal(topicLabel('fixes'), 'תיקונים');
 });
@@ -65,40 +67,43 @@ test('contracts and signatures: Stav\'s deals before there is a client, and proc
     { id: 'd4', business_name: 'בוטל', status: 'cancelled', created_at: IL(2026, 10, 12, 9).toISOString() },
     { id: 'd5', business_name: 'חריג', status: 'approval', created_at: IL(2026, 10, 20, 9, 40).toISOString() },
   ];
+  void a; void p;
   const t = topics(w);
-  // Late first, then the oldest.
+  // Stav's deals only. (v13: a client's "the contract was not prepared / prepared and not sent" left
+  // the protocol; its unsigned contract is in "חתימות".)
   assert.deepEqual(rows(t.contracts), [
-    ['חדש', 'החוזה לא הוכן', true],
     ['פיצה רמי', 'עסקה מהשטח: להכין חוזה', true], // the 10 office minutes ran out at 09:10
-    ['הוכן', 'החוזה הוכן ולא נשלח', true],
     ['חריג', 'חוזה מותאם: מוכן לשליחה', false],
   ]);
-  assert.equal(t.contracts.items[1].href, 'clients.html'); // nobody took it: the card, where the button is
-  assert.equal(t.contracts.items[0].hash, 'p01');
-  assert.equal(t.contracts.late, 3);
+  assert.equal(t.contracts.items[0].href, 'clients.html'); // nobody took it: the card, where the button is
+  assert.equal(t.contracts.late, 1);
+  // Signatures: every client in work not signed yet (since the sending when it was marked, else the
+  // deal), oldest first; Stav's sent deal too.
   assert.deepEqual(rows(t.signatures), [
     ['נשלח', 'החוזה נשלח ולא נחתם', true],   // sent on Thursday: three business days
+    ['חדש', 'החוזה נשלח ולא נחתם', false],   // the deal was yesterday
+    ['הוכן', 'החוזה נשלח ולא נחתם', false],
     ['מוסך דוד', 'החוזה נשלח ולא נחתם', false], // sent yesterday
   ]);
   assert.equal(ageText(t.signatures.items[0].since, NOW), '3 ימי עסקים');
   assert.equal(ageText(t.signatures.items[1].since, NOW), 'מאתמול');
-  assert.equal(t.signatures.items[1].href, 'quotes.html');
-  // Without the deals (a viewer who may not read them): the clients' own process 1 only.
-  assert.deepEqual(rows(topics({ ...w, deals: null }).contracts).map((x) => x[0]), ['חדש', 'הוכן']);
+  assert.equal(t.signatures.items[0].hash, 'p01');
+  assert.equal(t.signatures.items.find((x) => x.title === 'מוסך דוד').href, 'quotes.html');
+  assert.ok(!t.signatures.items.some((x) => x.client?.name === 'חתום' || x.client?.name === 'מבוטל'));
+  // Without the deals (a viewer who may not read them): no contracts row at all.
+  assert.deepEqual(rows(topics({ ...w, deals: null }).contracts), []);
 });
 
-test('the WhatsApp group and the intro message: a client with no group is not listed twice', () => {
+test('the WhatsApp group and the intro message: no topic any more (v13: process 2 left the protocol)', () => {
   const w = world();
   client(w, { name: 'בלי קבוצה' });
   const g = client(w, { name: 'בלי הודעה' });
   mark(w, g, 'p02.opened', IL(2026, 10, 19, 9, 4));
-  const ok = client(w, { name: 'הכול' });
-  all(w, ok, ['p02'], IL(2026, 10, 19, 9, 4));
   const t = topics(w);
-  assert.deepEqual(rows(t.groups), [['בלי קבוצה', 'הקבוצה לא נפתחה', true]]);
-  assert.deepEqual(rows(t.intro), [['בלי הודעה', 'לא נשלחה הודעת היכרות', true]]);
-  assert.equal(t.intro.items[0].hash, 'p02');
-  assert.equal(ageText(t.intro.items[0].since, NOW), 'מאתמול');
+  assert.equal(t.groups, undefined);
+  assert.equal(t.intro, undefined);
+  // Nothing about a group anywhere in the control.
+  assert.ok(!Object.values(t).some((x) => x.items.some((i) => /קבוצה|הודעת היכרות/.test(i.text) || i.hash === 'p02')));
 });
 
 test('characterization meetings: today and the next business day, none set, and a meeting that passed without being saved', () => {
@@ -128,25 +133,24 @@ test('shoot days: the coming week, and a client whose day should have been set',
   const w = world();
   const soon = client(w, { name: 'ביום חמישי', shoot_at: IL(2026, 10, 22, 10).toISOString(), char_at: IL(2026, 10, 12, 10).toISOString() });
   all(w, soon, [...UPTO_CHAR, 'p11'], IL(2026, 10, 13, 9), IMPORT_NOTE);
-  const open = client(w, { name: 'לא סגור', shoot_at: IL(2026, 10, 26, 10).toISOString() });
-  mark(w, open, 'p02.opened', IL(2026, 10, 19, 9, 4));
-  const far = client(w, { name: 'רחוק', shoot_at: IL(2026, 11, 20, 10).toISOString() });
-  mark(w, far, 'p02.opened', IL(2026, 10, 19, 9, 4));
-  const none = client(w, { name: 'לא נקבע', deal_at: IL(2026, 10, 13, 9).toISOString() });
-  mark(w, none, 'p02.opened', IL(2026, 10, 13, 9, 4));
-  client(w, { name: 'אין קבוצה עדיין' }); // 11 starts when the group is opened: this one is in "קבוצות"
+  // (v13: a date in the system is the closed shoot day: no "עוד לא סגור מול כולם".)
+  client(w, { name: 'נקבע', shoot_at: IL(2026, 10, 26, 10).toISOString() });
+  client(w, { name: 'רחוק', shoot_at: IL(2026, 11, 20, 10).toISOString() });
+  client(w, { name: 'לא נקבע', deal_at: IL(2026, 10, 13, 9).toISOString() });
+  // (v13: 11 counts from the signing, or the deal: a client without a group is listed too, due today.)
+  client(w, { name: 'עסקה אתמול' });
   const t = topics(w);
   assert.deepEqual(rows(t.shoots), [
     ['ביום חמישי', 'יום צילום', false],
-    ['לא סגור', 'יום צילום · עוד לא סגור מול כולם', false],
-    ['לא נקבע', 'לא נקבע יום צילום', true], // due the business day after the group: a week ago
+    ['נקבע', 'יום צילום', false],
+    ['לא נקבע', 'לא נקבע יום צילום', true], // due the business day after the deal: a week ago
+    ['עסקה אתמול', 'לא נקבע יום צילום', false],
   ]);
-  assert.deepEqual(t.shoots.items.map((x) => x.info), [true, false, false]);
+  assert.deepEqual(t.shoots.items.map((x) => x.info), [true, true, false, false]);
   // An extra round's shoot day is a shoot day too.
   const r = client(w, { name: 'סבב', char_at: IL(2026, 9, 1, 10).toISOString(), shoot_at: IL(2026, 9, 10, 10).toISOString(), rounds: [{ n: 2, shoot_type: 'dms', shoot_at: IL(2026, 10, 21, 10).toISOString(), start_at: IL(2026, 10, 12, 10).toISOString(), editor: null }] });
   all(w, r, UPTO_SHOOT, IL(2026, 9, 10, 18), IMPORT_NOTE);
-  assert.deepEqual(rows(topics(w).shoots)[0], ['סבב', 'יום צילום · סבב 2 · עוד לא סגור מול כולם', true]);
-  assert.equal(topics(w).shoots.items[0].hash, 'r2-p11');
+  assert.deepEqual(rows(topics(w).shoots)[0], ['סבב', 'יום צילום · סבב 2', false]);
 });
 
 test('open tasks, late first; corrections the client asked for; client approvals', () => {
@@ -210,7 +214,7 @@ test('employees who have not finished, and the clients to get back to', () => {
   mark(w, a, 'p01.wait', IL(2026, 10, 19, 16), JSON.stringify({ reason: 'חוזר מחו״ל', recheck: '2026-10-20' }));
   const b = client(w, { name: 'מזמן' });
   mark(w, b, 'p01.wait', IL(2026, 10, 14, 9), JSON.stringify({ reason: 'לא עונה', recheck: '2026-10-25' }));
-  mark(w, b, 'p02.wait', IL(2026, 10, 15, 9), JSON.stringify({ reason: '', recheck: null }));
+  mark(w, b, 'p03.wait', IL(2026, 10, 15, 9), JSON.stringify({ reason: '', recheck: null })); // (v13: 3, since 2 left the protocol)
   const c = client(w, { name: 'מאתמול' });
   mark(w, c, 'p01.wait', IL(2026, 10, 19, 9, 30), JSON.stringify({ reason: 'חוזה אצל השותף', recheck: '2026-10-22' }));
   client(w, { name: 'לא ממתין' });

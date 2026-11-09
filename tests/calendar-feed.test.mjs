@@ -192,9 +192,12 @@ test('feed: deadlines of one\'s own open processes: the editor\'s editing, never
   assert.equal(feed('nadia').filter((e) => e.kind === 'due').length, 0);
   assert.deepEqual(feed('anna'), []);
   assert.equal(feed('owner').filter((e) => e.kind === 'due').length, 0);
-  // Irit's own: setting Ron's shoot day, and her part of Galia's editing (22א).
+  // Irit's own: her open work on Ron (7) and her part of Galia's editing.
+  // (v13: Ron's shoot day has a date in the system, so 11 closed by itself: no deadline for it.)
   const irit = feed('irit').filter((e) => e.kind === 'due').map((e) => e.uid);
-  assert.ok(irit.some((u) => u.includes(`${A.id}-p11-irit`)), irit.join());
+  assert.ok(irit.some((u) => u.includes(`${A.id}-p07-irit`)), irit.join());
+  assert.ok(irit.some((u) => u.includes(`${B.id}-p27-irit`)), irit.join());
+  assert.ok(!irit.some((u) => u.includes(`${A.id}-p11-irit`)), irit.join());
   assert.ok(!irit.some((u) => u.includes(C.id)));
   // The meeting and shoot-day processes are events, not deadlines.
   assert.ok(!feed('ofir').some((e) => e.kind === 'due' && /-p04-/.test(e.uid)));

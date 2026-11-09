@@ -106,7 +106,7 @@ test('the next three dates are the promised ones (section 4), in order; none pas
   for (const m of [...list, ...l2]) assert.doesNotMatch(m.label, /יעד|פנימי|באיחור/);
 });
 
-test('"מה אנחנו צריכים ממך": materials, access by a call, approvals, the shoot date, the survey', () => {
+test('"מה אנחנו צריכים ממך": materials, access by a call, approvals, the survey; no shoot date to approve (v13)', () => {
   const now = IL(2026, 10, 13, 11);
   const d = data({ shootAt: IL(2026, 10, 20, 11).toISOString() }, marks({ 'p04.ended': now, 'p05.logo': null }),
     { items: [{ item: 'graphics9', key: 'p07.approved', shootRound: 1, state: 'waiting', round: 1 }, { item: 'scripts', key: 'p13.approved', shootRound: 1, state: 'fixing', round: 2 }], surveys: { due: ['shoot'], answered: [] } });
@@ -115,10 +115,11 @@ test('"מה אנחנו צריכים ממך": materials, access by a call, approv
     'לשלוח לנו בוואטסאפ: צבעי המותג, תמונות, סרטונים שכבר יש לכם',
     'גישות לרשתות: נתאם איתכם שיחה קצרה. לא שולחים סיסמאות בהודעה',
     'לאשר או לבקש תיקון: 9 הגרפיקות הראשונות',
-    'לאשר לנו בקבוצה את מועד יום הצילום: יום ג׳ 20.10 בשעה 11:00',
+    // (v13: a shoot day set in the system is the closed day: the client is no longer asked to approve it.)
     'שאלה קצרה אחת, לא חובה',
   ]);
   assert.deepEqual(needsFromYou(data({}), now), []);
+  assert.ok(!needsFromYou(data({ shootAt: IL(2026, 10, 20, 11).toISOString() }), now).some((n) => n.key.startsWith('shootok')));
 });
 
 test('the team: first names and roles only', () => {
