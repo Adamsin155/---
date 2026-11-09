@@ -29,8 +29,9 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   mcp-logic.js, mcp-draft.js         mcp (Claude accounts: who may connect, prepare_contract_draft)
 //   monthly-rounds.js                  reminders (a monthly client's editing round, opened every month)
 //   gantt-auto.js                      reminders (protocol v13: the scheduling closes when the Gantt is all scheduled)
+//   editor-auto.js                     reminders (the editor's hand-off to Ofir, p24.notify, once the editing is all marked)
 //   mark-guard-rules.js, gantt-template.js, shoot-crew.js  mcp (the owner's write tools: the card's guards, the shoot's crew)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js'];
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).

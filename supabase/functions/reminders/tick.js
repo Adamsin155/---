@@ -26,6 +26,7 @@ import { atIL, DIGESTS, FOLD, REMINDER_PEOPLE, BATCH, VOID_WHEN_GONE } from '../
 import { isBusinessDay } from '../_shared/app/protocol-logic.js';
 import { monthlyRoundPlans } from '../_shared/app/monthly-rounds.js';
 import { ganttReadyPlans } from '../_shared/app/gantt-auto.js';
+import { editorReadyPlans } from '../_shared/app/editor-auto.js';
 import { clientState } from '../_shared/app/protocol-logic.js';
 
 const MIN = 6e4;
@@ -172,12 +173,34 @@ async function closeScheduling({ db, input, now, stats }) {
   }
 }
 
+// The editor's hand-off to Ofir (docs/ops.md, section 121; app/editor-auto.js): the editing (22) and
+// the Drive (24) are all marked but "העורך עדכן את אופיר" is not, so the system writes p24.notify,
+// once (db.writeMarks never writes over a mark that exists), by nobody (by_email '', as p28.auto).
+// Put into this tick's view, so Ofir's and Irit's "מוכן לבדיקה" ring goes out in this same tick.
+async function handToOfir({ db, input, now, stats }) {
+  const plans = editorReadyPlans(input.clients, input.checks, (c, cs) => clientState(c, cs, now));
+  for (const { client, marks } of plans) {
+    try {
+      await db.writeMarks({ client, marks });
+      const at = now.toISOString();
+      for (const m of marks) {
+        if (!input.checks.some((r) => r.client_id === client.id && r.item_key === m.item_key)) input.checks.push({ client_id: client.id, ...m, by_email: '', at });
+      }
+      stats.handedToOfir += marks.length;
+    } catch (err) {
+      stats.handedToOfirFailed += 1;
+      console.error('reminders: the hand-off to Ofir was not written', err?.code || err?.name || 'error');
+    }
+  }
+}
+
 /** @param {{ db: any, push: any, wa?: any, now?: Date }} args */
 export async function runTick({ db, push, wa = null, now = new Date() }) {
-  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0, monthly: 0, monthlyFailed: 0, scheduled: 0, scheduledFailed: 0 };
+  const stats = { steps: 0, pushed: 0, queued: 0, app: 0, stale: 0, digests: 0, failed: 0, removed: 0, noDevice: 0, dropped: 0, recovered: 0, lost: 0, rejected: 0, errors: 0, monthly: 0, monthlyFailed: 0, scheduled: 0, scheduledFailed: 0, handedToOfir: 0, handedToOfirFailed: 0 };
   const input = await db.load(now);
   if (typeof db.openMonthlyRound === 'function') await openMonthlyRounds({ db, input, now, stats });
   if (typeof db.writeMarks === 'function') await closeScheduling({ db, input, now, stats });
+  if (typeof db.writeMarks === 'function') await handToOfir({ db, input, now, stats });
   const env = buildEnv({ ...input, now });
   const all = candidates(env);
   const active = new Set(all.map((r) => r.key));
