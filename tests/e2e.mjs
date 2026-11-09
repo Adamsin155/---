@@ -238,7 +238,9 @@ await step('preview renders text safely and matches summary', async () => {
   assert.match(docText, /ללא עלות/);
   assert.match(docText, /8 תכנים בכל חודש/);
   assert.match(docText, /הסכם התקשרות/);
-  assert.match(docText, /תנאי ההסכם/);
+  // The old system's words (LEGAL_VERSION 3, 9.11.2026): its sections and six clauses.
+  assert.match(docText, /הסכם התקשרות ותנאים/);
+  assert.match(docText, /מי אנחנו/);
   assert.match(docText, /6,900 ₪ לחודש \+ מע״מ כחוק/);
   assert.match(docText, /514729938/);
   assert.match(docText, /הרצל 12, תל אביב/);
@@ -401,7 +403,7 @@ await step('quote (view only): no legal text, link opens without signing', async
   await p.locator('#btn-preview').click();
   const doc = await p.locator('#dlg-preview').innerText();
   assert.match(doc, /הצעת מחיר/);
-  assert.doesNotMatch(doc, /תנאי ההסכם/);
+  assert.doesNotMatch(doc, /תנאי ההסכם|הסכם התקשרות ותנאים/);
   assert.doesNotMatch(doc, /חתימות הצדדים/);
   await p.keyboard.press('Escape');
   await p.locator('#btn-link').click();
@@ -485,7 +487,8 @@ await step('discount: up to 200 ILS a month, shown in summary, document and agre
   await d.locator('#btn-preview').click();
   const doc = await text(d, '#preview-body');
   assert.match(doc, /הנחה/);
-  assert.match(doc, /לאחר הנחה של 200 ₪ לחודש/);
+  // The old wording (LEGAL_VERSION 3): the price after the discount; the table has the discount line.
+  assert.match(doc, /התמורה עבור החבילה הינה 3,700 ₪ לחודש \+ מע״מ כחוק/);
   assert.match(doc, /לחתימה בתוך 72 שעות מההפקה/);
   assert.deepEqual(d.errors, []);
 });

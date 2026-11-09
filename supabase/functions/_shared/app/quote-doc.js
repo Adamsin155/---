@@ -276,7 +276,7 @@ export function renderQuoteDoc(model, meta = {}) {
       h('p', { class: 'qd-words-p' }, w.intro.after),
     );
     const pkgWords = h('section', { class: 'qd-section qd-words' },
-      sectionHead(w.package.title, model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'),
+      sectionHead(w.package.title),
       h('div', { class: 'qd-pkg' },
         h('div', {},
           h('div', { class: 'qd-pkg-name', dir: 'auto' }, pkg.tierName),
@@ -289,7 +289,13 @@ export function renderQuoteDoc(model, meta = {}) {
     const why = h('section', { class: 'qd-section qd-words' },
       sectionHead(w.why.title), h('p', { class: 'qd-words-p' }, w.why.text));
     const details = h('section', { class: 'qd-section qd-words' },
-      sectionHead(w.details.title), hero, groups(w.details.groups));
+      sectionHead(w.details.title, model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'), hero,
+      // The numbers of the package, as the old page's tiles under "פירוט החבילה".
+      counted.length ? h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
+        h('div', { class: 'qd-cell-n num' }, String(i.qty)),
+        h('div', { class: 'qd-cell-l' }, i.label),
+      ))) : null,
+      groups(w.details.groups));
     const notesWords = c.notes ? h('section', { class: 'qd-section' },
       sectionHead('הערות נוספות'), h('p', { class: 'qd-notes' }, c.notes)) : null;
     const pricingWords = h('section', { class: 'qd-section qd-pricing' },
