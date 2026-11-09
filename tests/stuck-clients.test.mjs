@@ -275,10 +275,20 @@ test('B: Irit rings after a business day and then daily in her digest, Lior afte
 
 test('B: when the validity runs out unsigned, Irit rings once more and the daily lines stop', () => {
   const w = world();
-  w.unsigned.push(quote()); // valid until Wednesday 14.10 09:11
+  // Valid until Wednesday 14.10 09:11, and the client opened it (docs/ops.md, section 118).
+  w.unsigned.push(quote({ first_viewed_at: IL(2026, 10, 12, 10).toISOString() }));
   const wed = due(w, IL(2026, 10, 14, 9, 11));
   assert.deepEqual(of(wed, 'unsigned').map((r) => `${r.step}@${r.person}:${r.level}`), ['expired@irit:ring']);
   assert.equal(of(wed, 'unsigned')[0].title, 'פג תוקף ההסכם בלי חתימה: מאפיית הדקל');
+  // The tab "פג תוקף" is where it is; the words send no one to a cancel button.
+  assert.equal(of(wed, 'unsigned')[0].url, 'quotes.html#expired');
+  assert.match(of(wed, 'unsigned')[0].body, /אם עדיין רלוונטי: לשלוח לו הסכם חדש/);
+  assert.doesNotMatch(of(wed, 'unsigned')[0].body, /לבטל/);
+  // Never opened: it was only made; silence when it runs out, and no daily line after it.
+  const quiet = world();
+  quiet.unsigned.push(quote());
+  assert.deepEqual(of(due(quiet, IL(2026, 10, 14, 9, 11)), 'unsigned'), []);
+  assert.deepEqual(of(due(quiet, IL(2026, 10, 14, 12)), 'unsigned'), []);
   // The steps of before the expiry are not sent after it, even when the engine was down then.
   assert.deepEqual(of(due(w, IL(2026, 10, 14, 12)), 'unsigned').map((r) => r.step), ['expired']);
 });

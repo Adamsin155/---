@@ -228,7 +228,7 @@ async function loadUnsigned(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 2 * 864e5).toISOString();
   try {
     const rows = await all(() => admin.from('quotes')
-      .select('id, number, client_name, business:model->client->>company, signable:model->>signable, valid:model->>validHours, status, approval, approval_at, created_at, created_by_email, expires_at')
+      .select('id, number, client_name, business:model->client->>company, signable:model->>signable, valid:model->>validHours, status, approval, approval_at, created_at, created_by_email, expires_at, first_viewed_at')
       .eq('status', 'sent').or(`expires_at.is.null,expires_at.gte."${since}"`).order('id'));
     if (!rows.length) return rows;
     const { data: deals } = await admin.from('deal_requests').select('quote_id, created_by_email').in('quote_id', rows.map((r: Row) => r.id));

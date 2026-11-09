@@ -1659,7 +1659,7 @@ RULES.push(
 //     The numbers are UNSIGNED and MEETING_DATE: each is a one-line change.
 import { isSales } from './protocol.js';
 import {
-  UNSIGNED, UNSIGNED_URL, waitsForSignature, expiredUnsigned, unsignedTimes, businessOf as unsignedBusiness, sentWords,
+  UNSIGNED, UNSIGNED_URL, waitsForSignature, quoteTab, unsignedTimes, businessOf as unsignedBusiness, sentWords,
 } from './unsigned-logic.js';
 // A ring that would fall in the window the morning digest swallows (FOLD) rings right
 // after it instead: it asks for a phone call, and must not become one line among others.
@@ -1700,7 +1700,9 @@ RULES.push(
       const out = [];
       for (const q of env.unsigned || []) {
         const waits = waitsForSignature(q, env.now);
-        const lapsed = !waits && expiredUnsigned(q, env.now);
+        // Ran out unsigned: rung only for one the client opened, as the tab "פג תוקף" lists it (the
+        // owner, 9.11.2026; docs/ops.md, section 118). One never opened was only made: silence.
+        const lapsed = !waits && quoteTab(q, env.now) === 'expired';
         const t = waits || lapsed ? unsignedTimes(q) : null;
         if (!t) continue;
         const seller = env.personOf(q.seller_email);
@@ -1713,7 +1715,7 @@ RULES.push(
       return out;
     },
     steps: (i, env) => (i.lapsed ? [
-      { id: 'expired', from: 'lapsedAt', to: UNSIGNED.follows, level: 'ring', url: () => 'quotes.html', title: () => `פג תוקף ההסכם בלי חתימה: ${i.name}`, body: () => 'הלקוח כבר לא יכול לחתום בקישור הזה. להכין לו הסכם חדש, או לבטל את הישן ב״הצעות שנשלחו״.' },
+      { id: 'expired', from: 'lapsedAt', to: UNSIGNED.follows, level: 'ring', url: () => 'quotes.html#expired', title: () => `פג תוקף ההסכם בלי חתימה: ${i.name}`, body: () => 'הלקוח פתח את ההסכם ולא חתם, והקישור כבר לא בתוקף. אם עדיין רלוונטי: לשלוח לו הסכם חדש.' },
     ] : [
       { id: 'irit', from: 'ring', to: UNSIGNED.follows, level: 'ring', expires: 'expires', title: () => `ההסכם עוד לא נחתם: ${i.name}`, body: () => `${sentWords(i.anchors.event, env.now)}. להתקשר ללקוח; תזכורת בוואטסאפ והקישור לחתימה מחכים ב״הצעות שנשלחו״.` },
       ...(isBusinessDay(env.now) && daysBetweenIL(i.anchors.ring, env.now) >= 1 ? [{
