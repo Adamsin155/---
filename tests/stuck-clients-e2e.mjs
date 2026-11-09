@@ -167,7 +167,7 @@ try {
     await line.click();
     await page.waitForSelector('#rows tr');
     await settle(page);
-    assert.equal(await text(page.locator('#filters .chip[aria-pressed="true"]')), 'ממתינות לחתימה2');
+    assert.equal(await text(page.locator('#filters .chip[aria-pressed="true"]')), 'ממתין לחתימה2');
     // The same two, the one that waits longest first; never the one a manager holds, the signed, the cancelled, the expired.
     assert.deepEqual(await page.locator('#rows tr td[data-label="מספר"] .num').allInnerTexts(), ['AST-2026-0001', 'AST-2026-0002']);
     for (const row of await page.locator('#rows tr').all()) {

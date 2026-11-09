@@ -357,7 +357,7 @@ try {
     assert.match(await row.locator('.pill').innerText(), /^נצפה/); // the client opened it a moment ago
     assert.deepEqual(await row.locator('.acts .btn').allInnerTexts(), ['תזכורת בוואטסאפ', 'פתיחה', 'העתקת קישור', 'ביטול']);
     // No "באישור מנהל" chip; this contract waits for its signature, so that chip is there (docs/ops.md, section 47).
-    assert.deepEqual((await irit.locator('#filters .chip').allInnerTexts()).map((t) => t.replace(/[\s\d]+$/, '')), ['הכול', 'ממתינות לחתימה', 'ממתינות', 'נחתמו', 'פג תוקף', 'בוטלו']);
+    assert.deepEqual((await irit.locator('#filters .chip').allInnerTexts()).map((t) => t.replace(/[\s\d]+$/, '')), ['ממתין לחתימה', 'נחתם', 'פג תוקף']);
   });
 
   // ── Irit builds a custom contract ──────────
@@ -462,7 +462,8 @@ try {
   });
 
   await step('quotes.html: what it changed, as information; no "ממתין לאישור", no "באישור מנהל" chip', async () => {
-    await irit.goto(`${BASE}quotes.html`);
+    // Signed a moment ago: in the tab "נחתם" (docs/ops.md, section 118).
+    await irit.goto(`${BASE}quotes.html#signed`);
     const row = irit.locator('#rows tr', { hasText: custom.number });
     await row.waitFor();
     assert.match(await row.locator('.apv-cell').innerText(), /^6 שינויים מהחבילה\s*30 סרטונים במקום 25 · 0 קולאבים באינסטגרם במקום 1 · הנחה חודשית 350 ₪/);

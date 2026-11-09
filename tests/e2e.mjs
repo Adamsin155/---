@@ -486,7 +486,7 @@ await step('discount: up to 200 ILS a month, shown in summary, document and agre
   const doc = await text(d, '#preview-body');
   assert.match(doc, /הנחה/);
   assert.match(doc, /לאחר הנחה של 200 ₪ לחודש/);
-  assert.match(doc, /לחתימה בתוך 72 שעות מההפקה/);
+  assert.match(doc, /לחתימה בתוך 7 ימים מההפקה/);
   assert.deepEqual(d.errors, []);
 });
 
@@ -532,6 +532,8 @@ await step('dashboard on mobile: cards show status and actions, expired filter',
   await m.locator('#lg-email').fill('seller@astrateg.test');
   await m.locator('#lg-pass').fill('correct-horse');
   await m.locator('#lg-submit').click();
+  // The tab "פג תוקף" (docs/ops.md, section 118: only a contract the client opened).
+  await m.locator('#filters button', { hasText: 'פג תוקף' }).click();
   await m.locator('#rows tr').first().waitFor();
   const overflow = await m.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `horizontal overflow ${overflow}px`);

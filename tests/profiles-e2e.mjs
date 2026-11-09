@@ -452,7 +452,7 @@ await step('money: the amounts in "הצעות שנשלחו" are the owners\' and
     assert.equal(await o.page.locator('#rows td.amt').count(), 3, name);
     if (viewport !== PHONE) assert.equal(await o.page.locator('#th-amt').isVisible(), true, name);
     const stats = await o.page.innerText('#stats');
-    assert.match(stats, /נשלח החודש · כולל מע״מ/, name);
+    assert.match(stats, /ממתין לחתימה · כולל מע״מ/, name);
     assert.match(stats, /נחתם החודש · כולל מע״מ/, name);
     assert.match(stats, MONEY, name);
     // In his manager profile.
