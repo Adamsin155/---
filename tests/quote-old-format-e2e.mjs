@@ -170,6 +170,17 @@ async function signIn(page, who) {
   await page.locator('#list-block').waitFor();
 }
 const shot = async (page, name, fullPage = true) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage }); };
+// The whole page in screens of the viewport, to look at each part at its real size.
+async function parts(page, name) {
+  if (!OUT) return;
+  const h = await page.evaluate(() => document.documentElement.scrollHeight);
+  const vh = page.viewportSize().height;
+  for (let i = 0, y = 0; y < h; i += 1, y += vh) {
+    await page.evaluate((top) => window.scrollTo(0, top), y);
+    await page.waitForTimeout(80);
+    await page.screenshot({ path: `${OUT}/${name}-part${i + 1}.png` });
+  }
+}
 const text = (page, sel) => page.locator(sel).first().innerText();
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const ils = (n) => `${new Intl.NumberFormat('he-IL').format(n)} ₪`;
@@ -324,6 +335,7 @@ try {
       assert.match(await text(client, '.qd-closing-contact'), /info@astrateg\.com/);
       assert.ok(await noSideScroll(client), 'no sideways scroll');
       await shot(client, `02-client-agreement-${tag}`);
+      await parts(client, `02-client-agreement-${tag}`);
       await client.context().close();
     });
   }
@@ -361,6 +373,7 @@ try {
       assert.ok(await client.locator('#signbox').isHidden());
       assert.ok(await noSideScroll(client));
       await shot(client, `04-client-quote-${tag}`);
+      await parts(client, `04-client-quote-${tag}`);
       await client.context().close();
     }
   });

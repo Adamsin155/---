@@ -302,7 +302,7 @@ function renderSummary() {
   const model = currentModel();
   const t = model.totals;
   const tier = TIERS.find((x) => x.id === state.tier);
-  $('sum-pkg').textContent = tier.name;
+  $('sum-pkg').textContent = model.package.shownName || tier.name;
   $('sum-inf').textContent = model.package.influencer;
 
   const line = (name, val, cls = '') => h('li', { class: cls },
@@ -360,7 +360,7 @@ function renderSummary() {
   $('sum-diff').hidden = !diff.length;
   $('sum-diff').classList.toggle('is-ai', diff.length > 0 && aiTagged());
   // Information only (no manager approves since 29.10.2026): the owners see it in "הצעות שנשלחו".
-  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה מותאם אישית'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה`
+  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, customOn() ? 'חוזה מותאם אישית' : 'שינויים להצעה הזו'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה`
     + (aiTagged() ? ' · הוכן עם AI' : '')] : []));
   return t;
 }
@@ -384,7 +384,7 @@ function renderDocType() {
   const differs = exceptionOf(selectionToSend()).length > 0;
   $('btn-link').textContent = signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
   $('act-hint').textContent = differs
-    ? 'חוזה מותאם אישית: הקישור נוצר מיד · מה ששונה מהחבילה נשמר ב״הצעות שנשלחו״'
+    ? `${customOn() ? 'חוזה מותאם אישית' : 'שינויים להצעה הזו'}: הקישור נוצר מיד · מה ששונה מהחבילה נשמר ב״הצעות שנשלחו״`
     : signable
         ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
         : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';

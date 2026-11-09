@@ -149,13 +149,15 @@
   border: 1px solid #E4DCFB;
 }
 .qd-cover-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.qd-cover .qd-logo { height: 70px; }
+.qd-cover .qd-logo, .qd-closing-logo { background: #FFFFFF; border-radius: 14px; padding: 8px 12px; box-shadow: 0 4px 14px rgba(3, 20, 50, 0.06); }
+.qd-cover .qd-logo { height: 78px; }
 .qd-cover .qd-type { margin: 0; background: #FFFFFF; }
 .qd-cover-title { margin: 26px 0 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--qd-ink); }
 .qd-cover-pkg {
   margin-top: 6px; font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05;
   color: var(--qd-accent); text-transform: uppercase;
 }
+.qd-cover-inf { margin-top: 6px; font-size: 16px; font-weight: 500; color: var(--qd-ink-2); }
 .qd-cover .qd-meta { margin-top: 18px; padding-top: 12px; border-top: 1px solid #E4DCFB; }
 
 /* The closing words (the old document's last page). */
@@ -170,7 +172,7 @@
 .qd-closing p { margin: 0; }
 .qd-closing-text { font-size: 15px; line-height: 1.7; color: var(--qd-ink-2); max-width: 520px; margin-inline: auto !important; }
 .qd-closing-big { margin-top: 12px !important; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; color: var(--qd-accent); }
-.qd-closing-logo { display: block; height: 64px; width: auto; margin: 18px auto 10px; }
+.qd-closing-logo { display: block; height: 72px; width: auto; margin: 18px auto 12px; }
 .qd-closing-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; font-size: 13px; color: var(--qd-ink-2); }
 .qd-dot { color: var(--qd-muted); }
 
@@ -214,7 +216,7 @@
   .qd-pkg-price { text-align: start; }
   .qd-clauses { columns: 1; }
   .qd-cover { padding: 18px 16px 16px; border-radius: 14px; }
-  .qd-cover .qd-logo { height: 52px; }
+  .qd-cover .qd-logo { height: 58px; padding: 6px 9px; }
   .qd-cover-title { margin-top: 18px; font-size: 24px; }
   .qd-cover-pkg { font-size: 32px; }
   .qd-closing { padding: 24px 16px 20px; }
