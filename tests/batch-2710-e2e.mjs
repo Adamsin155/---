@@ -781,6 +781,23 @@ await step('"הצעות שנשלחו" by month: the imported old contracts left 
   const readsOf = (from) => reads.slice(from).map((r) => r.fileId);
   const iritRowBefore = JSON.stringify(rowsOf(irit));
   const ZERO = formatILS(0);
+  // The three tabs (the owner, 9.11.2026; docs/ops.md, section 118): November's links as the list
+  // reads them (the fake answers every column, so the aliased ones are on the row). Two wait for a
+  // signature, one expired after the client opened it; everything else is not listed at all.
+  const link = (n, x) => ({ id: `eeeeeeee-0000-4000-8000-0000000000${n}`, number: `AST-2026-0${n}`, token: `tok-0${n}`, status: 'sent', signable: 'true', valid: '168', approval: 'none', phone: '050-0000000', doc: 'הסכם התקשרות', tier: 'Social', ...x });
+  const LINKS = [
+    link(60, { client_name: 'ממתין ותיק', created_at: '2026-11-06T10:00:00+02:00', expires_at: '2026-11-13T10:00:00+02:00', first_viewed_at: '2026-11-06T12:00:00+02:00', term_gross_agorot: 3000000, monthly_gross_agorot: 250000 }),
+    link(61, { client_name: 'ממתין חדש', created_at: '2026-11-08T10:00:00+02:00', expires_at: '2026-11-15T10:00:00+02:00', term_gross_agorot: 1800000, monthly_gross_agorot: 150000 }),
+    link(62, { client_name: 'פג אחרי צפייה', valid: '72', created_at: '2026-11-01T10:00:00+02:00', expires_at: '2026-11-04T10:00:00+02:00', first_viewed_at: '2026-11-02T10:00:00+02:00', term_gross_agorot: 2400000, monthly_gross_agorot: 200000 }),
+    link(63, { client_name: 'נסתר פג בלי צפייה', valid: '72', created_at: '2026-11-02T10:00:00+02:00', expires_at: '2026-11-05T10:00:00+02:00', term_gross_agorot: 700000 }),
+    link(64, { client_name: 'נסתר לצפייה', signable: 'false', doc: 'הצעת מחיר', created_at: '2026-11-03T10:00:00+02:00', expires_at: '2026-11-10T10:00:00+02:00', first_viewed_at: '2026-11-03T12:00:00+02:00', term_gross_agorot: 700000 }),
+    link(65, { client_name: 'נסתר בוטל', status: 'cancelled', created_at: '2026-11-04T10:00:00+02:00', expires_at: '2026-11-11T10:00:00+02:00', term_gross_agorot: 700000 }),
+    link(66, { client_name: 'נסתר לא אושר', approval: 'rejected', created_at: '2026-11-05T10:00:00+02:00', expires_at: '2026-11-12T10:00:00+02:00', term_gross_agorot: 700000 }),
+    // A cancelled link of September: no month of its own in the picker.
+    link(67, { client_name: 'נסתר בוטל בספטמבר', status: 'cancelled', created_at: '2026-09-15T10:00:00+03:00', expires_at: '2026-09-22T10:00:00+03:00' }),
+  ];
+  db.quotes.push(...LINKS);
+  const HIDDEN = /נסתר|AST-2026-06[3-7]/;
   let first = true;
   for (const [viewport, name] of [[{ width: 1366, height: 900 }, 'b12-quotes-month-1366'], [PHONE390, 'b13-quotes-month-390']]) {
     const ctx = await newContext(viewport, { now: NOV });
@@ -820,6 +837,31 @@ await step('"הצעות שנשלחו" by month: the imported old contracts left 
     assert.deepEqual(await p.locator('#month-pick option').allInnerTexts(), ['נובמבר 2026', 'אוקטובר 2026']);
     assert.equal(await p.isDisabled('#month-next'), true);
     assert.equal(await p.isDisabled('#month-prev'), false);
+    // Three tabs only, "ממתין לחתימה" first and open; their counts and the tiles count November.
+    const tabs = p.locator('#filters .chip');
+    const counts = async () => tabs.locator('.n').allInnerTexts();
+    assert.deepEqual(await tabs.evaluateAll((els) => els.map((e) => e.firstChild.textContent)), ['ממתין לחתימה', 'נחתם', 'פג תוקף']);
+    assert.equal(await tabs.nth(0).getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(await counts(), ['2', '3', '1']);
+    // Waiting: the one that waits longest first; nothing hidden.
+    assert.deepEqual(await p.locator('#rows tr .num').allInnerTexts(), ['AST-2026-060', 'AST-2026-061']);
+    assert.doesNotMatch(await p.innerText('#rows'), HIDDEN);
+    const tiles = await p.innerText('#stats');
+    assert.match(tiles, /ממתין לחתימה\s*2\s*נחתם\s*3\s*פג תוקף\s*1/);
+    assert.match(tiles, /נחתם החודש · כולל מע״מ\s*[^]*126,024[^]*ממתין לחתימה · כולל מע״מ\s*[^]*48,000/);
+    assert.doesNotMatch(tiles, /נשלח|הצעות/, 'no "הצעות" count and no "נשלח החודש" sum');
+    assert.ok(await noHScroll(p));
+    await shot(p, name);
+    // Expired: only the one the client opened.
+    await tabs.nth(2).click();
+    await p.waitForFunction(() => document.querySelectorAll('#filters .chip')[2].getAttribute('aria-pressed') === 'true');
+    assert.deepEqual(await p.locator('#rows tr .num').allInnerTexts(), ['AST-2026-062']);
+    assert.match(await p.innerText('#rows'), /פג תוקף/);
+    assert.ok(await noHScroll(p));
+    await shot(p, `${name}-expired`);
+    // Signed: the contracts uploaded by hand.
+    await tabs.nth(1).click();
+    await p.waitForFunction(() => document.querySelectorAll('#filters .chip')[1].getAttribute('aria-pressed') === 'true');
     // November: three contracts uploaded by hand, each with its amounts; no 0 ₪ row; the old ones not listed.
     const rows = await p.innerText('#rows');
     assert.equal(await p.locator('#rows tr').count(), 3);
@@ -834,25 +876,21 @@ await step('"הצעות שנשלחו" by month: the imported old contracts left 
     const aviRow = p.locator('#rows tr.is-manual', { hasText: '49,560' });
     assert.match(await aviRow.innerText(), /נחתם · חוזה ידני[^]*12 באוקטובר 2026/, 'its signing day beside its state');
     assert.match(await aviRow.innerText(), /4 בנובמבר 2026/, 'listed by the day it was uploaded');
-    // The tabs and the tiles count November.
-    const chip = async (label) => (await p.locator('#filters .chip', { hasText: label }).first().locator('.n').innerText());
-    assert.deepEqual([await chip('הכול'), await chip('נחתמו')], ['3', '3']);
-    const stats = await p.innerText('#stats');
-    assert.match(stats, /נשלח החודש[^]*126,024[^]*נחתם החודש[^]*126,024/);
-    assert.doesNotMatch(stats, /99,999/, 'a hidden quote is not summed');
+    assert.doesNotMatch(await p.innerText('#stats'), /99,999/, 'a hidden quote is not summed');
     // "חוזים שצריך לבדוק": the one not read and the one read without a price, each with "קריאת החוזה".
     assert.match(await p.innerText('#check-block'), /חוזים שצריך לבדוק[^]*מספרת רון/);
     for (const f of [heic, partial]) assert.equal(await p.locator(`#check-list a[href="client.html?id=${E.id}#read-${f.id}"]`).count(), 1);
     assert.ok(await noHScroll(p));
     const small = await p.locator('#check-list a, #month-bar button, #month-pick').evaluateAll((els) => els.filter((e) => e.getBoundingClientRect().height < 44).length);
     assert.equal(small, 0, '44px targets');
-    await shot(p, name);
+    await shot(p, `${name}-signed`);
     // October: its agreement, and no contract uploaded by hand; its sums by name.
     await p.selectOption('#month-pick', '2026-10');
     await p.waitForFunction(() => /AST-2026-050/.test(document.getElementById('rows').textContent));
     assert.equal(await p.locator('#rows tr.is-manual').count(), 0);
-    assert.deepEqual([await chip('הכול'), await chip('נחתמו')], ['1', '1']);
-    assert.match(await p.innerText('#stats'), /נשלח באוקטובר[^]*55,224[^]*נחתם באוקטובר[^]*55,224/);
+    assert.deepEqual(await counts(), ['0', '1', '0']);
+    assert.match(await p.innerText('#stats'), /נחתם באוקטובר · כולל מע״מ\s*[^]*55,224[^]*ממתין לחתימה · כולל מע״מ/);
+    assert.doesNotMatch(await p.innerText('#stats'), /נשלח/);
     assert.equal(await p.isDisabled('#month-prev'), true);
     assert.ok(await noHScroll(p));
     await shot(p, `${name}-october`);
@@ -862,6 +900,7 @@ await step('"הצעות שנשלחו" by month: the imported old contracts left 
     await ctx.close();
     first = false;
   }
+  db.quotes.splice(0, db.quotes.length, ...db.quotes.filter((q) => !LINKS.includes(q)));
   clockAt = NOW;
 });
 
