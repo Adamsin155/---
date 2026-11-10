@@ -302,6 +302,27 @@ try {
     });
   }
 
+  await step('while the file is made the button says "מכין PDF…"; when it fails, a message and the button back', async () => {
+    const client = await newPage(chrome);
+    await client.goto(quoteLink);
+    await client.locator('#doc .qd').waitFor();
+    const got = client.waitForEvent('download', { timeout: 90000 });
+    await client.locator('#btn-pdf').click();
+    assert.equal((await client.locator('#btn-pdf').innerText()).trim(), 'מכין PDF…');
+    await got;
+    await client.context().close();
+    const broken = await newPage(chrome, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await broken.route('**/app/vendor/html2canvas.min.js', (r) => r.abort());
+    await broken.goto(quoteLink);
+    await broken.locator('#doc .qd').waitFor();
+    await broken.locator('#btn-pdf').click();
+    await broken.locator('#toast').waitFor();
+    assert.equal(await broken.locator('#toast').innerText(), 'לא הצלחנו להכין את קובץ ה־PDF. נסו שוב.');
+    assert.equal((await broken.locator('#btn-pdf').innerText()).trim(), 'הורדת PDF');
+    await shot(broken, '06-client-pdf-error-390');
+    await broken.context().close();
+  });
+
   await step('the client signs; the PDF of the signed agreement has the signature', async () => {
     const client = await newPage(chrome, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await client.goto(agreementLink);

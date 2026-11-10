@@ -4,9 +4,9 @@
 // cover, signature. How:
 //  1. the document goes into a hidden frame 794 px wide (A4 at 96 dpi), with the site's fonts and
 //     quote.css only, so a phone draws it as a computer does (no phone layout in the file);
-//  2. the pages are cut between blocks and lines (splitPages): never through a line of text, a row,
-//     a box or a heading with what follows it;
-//  3. each page is drawn by html2canvas (app/vendor, MIT) at twice the size and kept as a JPEG;
+//  2. html2canvas (app/vendor, MIT) draws it once, at twice its size;
+//  3. the drawing is cut into A4 pages between blocks and lines (splitPages): never through a line
+//     of text, a row, a box or a heading with what follows it; each page is kept as a JPEG;
 //  4. the pages become a PDF (jpegPdf, below: A4, one picture per page), and the browser saves it.
 // Nothing leaves the device: the file is made in the browser.
 
@@ -15,6 +15,7 @@ const PAGE_H = Math.round((PAGE_W * 297) / 210);      // 1123
 const MARGIN = 40;                                    // white at the top of every page but the first, and at the bottom of all
 const SCALE = 2;
 const JPEG_QUALITY = 0.9;
+const MAX_PIXELS = 15e6;                            // one canvas, under what an iPhone allows
 const A4_PT = [595.28, 841.89];
 
 export const PDF_PAGE = { width: PAGE_W, height: PAGE_H, margin: MARGIN };
@@ -155,10 +156,36 @@ const sheet = (doc, href) => new Promise((resolve) => {
   doc.head.append(l);
 });
 
-// Every weight of Rubik the document uses, Hebrew and Latin (app/fonts/fonts.css, linked by the page).
-async function loadRubik(doc) {
+// The font. Rubik in app/fonts is one variable file, and Safari's canvas draws a variable font
+// only at its lightest weight (every heading came out thin, and the words ran into each other).
+// So the file uses fixed weights of the same Rubik (app/fonts/pdf, made from it with fontTools'
+// instancer; SIL OFL 1.1, app/fonts/OFL.txt), under a name of its own, both in the frame (the
+// layout, through a style sheet that html2canvas copies) and on this page (the canvas).
+const PDF_FONT = 'Rubik PDF';
+const WEIGHTS = [400, 500, 600, 700, 800];
+const RANGES = {
+  hebrew: 'U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F',
+  latin: 'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, '
+    + 'U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD',
+};
+const fontFiles = () => Object.keys(RANGES).flatMap((sub) => WEIGHTS.map((weight) => ({
+  weight, range: RANGES[sub], url: new URL(`./fonts/pdf/rubik-${sub}-${weight}.woff2`, import.meta.url).href,
+})));
+const fontCss = () => fontFiles().map((f) => `@font-face{font-family:'${PDF_FONT}';font-style:normal;`
+  + `font-weight:${f.weight};src:url('${f.url}') format('woff2');unicode-range:${f.range};}`).join('');
+let pageFonts = null;
+function fontsOnPage() {
+  if (!document.fonts || typeof FontFace === 'undefined') return Promise.resolve();
+  pageFonts ||= Promise.all(fontFiles().map((f) => {
+    const face = new FontFace(PDF_FONT, `url('${f.url}') format('woff2')`, { weight: String(f.weight), unicodeRange: f.range });
+    document.fonts.add(face);
+    return face.load();
+  })).catch((err) => { pageFonts = null; throw err; });
+  return pageFonts;
+}
+async function fontsIn(doc) {
   if (!doc.fonts) return;
-  await Promise.all(['400', '500', '600', '700', '800'].map((w) => doc.fonts.load(`${w} 16px Rubik`, 'אבג abc 123 ₪').catch(() => {})));
+  await Promise.all(WEIGHTS.map((w) => doc.fonts.load(`${w} 16px '${PDF_FONT}'`, 'אבג abc 123 ₪').catch(() => {})));
   await doc.fonts.ready;
 }
 
@@ -173,9 +200,10 @@ async function frameFor(docEl) {
   const d = frame.contentDocument;
   d.documentElement.lang = 'he';
   d.documentElement.dir = 'rtl';
-  await Promise.all([sheet(d, './fonts/fonts.css'), sheet(d, './styles/quote.css')]);
+  await sheet(d, './styles/quote.css');
   const style = d.createElement('style');
-  style.textContent = `html,body{margin:0;padding:0;background:#fff;width:${PAGE_W}px}`
+  style.textContent = `${fontCss()}html,body{margin:0;padding:0;background:#fff;width:${PAGE_W}px}`
+    + `.qd,.qd *{font-family:'${PDF_FONT}',system-ui,sans-serif!important}`
     // Letter spacing makes html2canvas draw letter by letter, and the letters drift: none in the file.
     + '.qd{max-width:none;width:100%;margin:0}.qd,.qd *{letter-spacing:0!important}'
     // The clauses in one column: two columns side by side have no place to cut a page between lines.
@@ -184,7 +212,7 @@ async function frameFor(docEl) {
   const article = d.importNode(docEl, true);
   d.body.append(article);
   void article.offsetHeight;
-  await loadRubik(d);
+  await fontsIn(d);
   await Promise.all([...article.querySelectorAll('img')].map((img) => (img.complete ? null : img.decode().catch(() => {}))));
   frame.style.height = `${Math.ceil(article.getBoundingClientRect().height) + 4}px`;
   return { frame, article };
@@ -247,33 +275,44 @@ const toJpeg = (canvas) => new Promise((resolve, reject) => {
 
 // docEl: the document as renderQuoteDoc made it. Returns a Blob (application/pdf).
 export async function makePdf(docEl, { title = '' } = {}) {
-  // html2canvas writes the letters on a canvas of this page, so the document's font (Rubik, every
-  // weight it uses) must be loaded here too, not only in the frame (else the words are drawn in
-  // another font and run into each other).
-  const [html2canvas] = await Promise.all([html2canvasLib(), loadRubik(document)]);
+  // html2canvas writes the letters on a canvas of this page, so the font must be loaded here too,
+  // not only in the frame (else the words are drawn in another font and run into each other).
+  const [html2canvas] = await Promise.all([html2canvasLib(), fontsOnPage()]);
   const { frame, article } = await frameFor(docEl);
   try {
-    const m = measure(article);
-    const pages = splitPages(m.total, { first: PAGE_H - MARGIN, rest: PAGE_H - 2 * MARGIN }, m);
+    // One drawing of the whole document, then cut into pages. The cuts are measured on the copy
+    // html2canvas draws (it is laid out a little differently from the frame: a cut measured on the
+    // frame went through a line). An iPhone draws at most about 16 million pixels on one canvas,
+    // so a long document is drawn a little smaller than twice its size.
+    const scale = Math.min(SCALE, Math.sqrt(MAX_PIXELS / (PAGE_W * article.getBoundingClientRect().height * 1.1)));
+    let m = null;
+    const whole = await wholeWords(() => html2canvas(article, {
+      scale, backgroundColor: '#ffffff', logging: false, useCORS: true,
+      windowWidth: PAGE_W, windowHeight: frame.offsetHeight, scrollX: 0, scrollY: 0,
+      onclone: async (copy, el) => {
+        await fontsIn(copy);
+        await Promise.all([...copy.images].map((img) => (img.complete ? null : img.decode().catch(() => {}))));
+        m = measure(el);
+      },
+    }));
+    const s = whole.width / PAGE_W;
+    const pages = splitPages(Math.min(m.total, whole.height / s), { first: PAGE_H - MARGIN, rest: PAGE_H - 2 * MARGIN }, m);
     const images = [];
+    const page = document.createElement('canvas');
+    page.width = Math.round(PAGE_W * s);
+    page.height = Math.round(PAGE_H * s);
+    const ctx = page.getContext('2d');
     for (const [i, p] of pages.entries()) {
-      const part = await wholeWords(() => html2canvas(article, {
-        x: 0, y: p.start, width: PAGE_W, height: p.end - p.start, scale: SCALE,
-        backgroundColor: '#ffffff', logging: false, useCORS: true,
-        windowWidth: PAGE_W, windowHeight: frame.offsetHeight, scrollX: 0, scrollY: 0,
-      }));
-      const page = document.createElement('canvas');
-      page.width = PAGE_W * SCALE;
-      page.height = PAGE_H * SCALE;
-      const ctx = page.getContext('2d');
+      const top = Math.round(p.start * s);
+      const h = Math.min(Math.round(p.end * s), whole.height) - top;
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, page.width, page.height);
-      ctx.drawImage(part, 0, (i ? MARGIN : 0) * SCALE);
+      if (h > 0) ctx.drawImage(whole, 0, top, whole.width, h, 0, Math.round((i ? MARGIN : 0) * s), whole.width, h);
       const blob = await toJpeg(page);
       images.push({ bytes: new Uint8Array(await blob.arrayBuffer()), width: page.width, height: page.height });
-      // Free the memory at once (an iPhone keeps little for canvases).
-      part.width = 0; part.height = 0; page.width = 0; page.height = 0;
     }
+    // Free the memory at once (an iPhone keeps little for canvases).
+    whole.width = 0; whole.height = 0; page.width = 0; page.height = 0;
     return new Blob([jpegPdf(images, { title })], { type: 'application/pdf' });
   } finally {
     frame.remove();
