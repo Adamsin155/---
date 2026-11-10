@@ -23,7 +23,7 @@
 //     "close" of a task are what the app does with them;
 //   - no phone, email or company number goes back: the contract's details are read from the system
 //     here and sent to create-quote, never shown; free text with an email or a long number is refused.
-import { PEOPLE, PROCESSES, CHARACTERIZERS, EDITORS, CLIENT_STATUS, TEAM_PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSilent } from '../_shared/app/protocol.js';
+import { PEOPLE, PROCESSES, CHARACTERIZERS, FORMER_PEOPLE, EDITORS, CLIENT_STATUS, TEAM_PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSilent } from '../_shared/app/protocol.js';
 import { clientState, blockers, isResolved, WAIT, WAITED, endWaitNote, roundsOf } from '../_shared/app/protocol-logic.js';
 import { guardOf, formOf, guardVerdict, ganttFacts, roundOfKey } from '../_shared/app/mark-guard-rules.js';
 import { GANTT_KINDS } from '../_shared/app/gantt-template.js';
@@ -326,7 +326,8 @@ async function setDateTool(ctx, a) {
 
   if (a.which === 'characterization') {
     if (a.round !== undefined || a.crew !== undefined) refuse('round ו־crew רק ליום צילום.', 'bad_input');
-    const person = a.characterizer === undefined ? client.characterizer || null : personKey(a.characterizer, CHARACTERIZERS.map((x) => PEOPLE[x]));
+    // A client still set to someone who left (Noam, 10.11.2026) moves to who replaced them (Ofir).
+    const person = a.characterizer === undefined ? FORMER_PEOPLE[client.characterizer] || client.characterizer || null : personKey(a.characterizer, CHARACTERIZERS.map((x) => PEOPLE[x]));
     if (!CHARACTERIZERS.includes(person)) refuse(`מי מבצע את האפיון? ${CHARACTERIZERS.map(personName).join(', ')}.`, 'bad_input');
     const first = !client.char_at;
     if (!first && +new Date(client.char_at) === +at && client.characterizer === person) refuse('הפגישה כבר במועד הזה ועם אותו אדם. לא שיניתי כלום.', 'nothing_to_change');

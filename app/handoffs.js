@@ -47,7 +47,7 @@ export const HANDOFFS = [
     // (`from` in handoffsFor; the card's "העברות" line has no button for him either).
     id: 'access', on: 'p05.access', label: 'גישות התקבלו',
     // One target per checker (optional: only the client's own is offered), so each record names
-    // its person: `p05.handoff.ofir` (old records `p05.handoff.noam` are simply not read any more).
+    // its person: `p05.handoff.ofir` (`p05.handoff.noam`, Noam's until she left on 10.11.2026, is in RETIRED).
     to: ['ofir'].map((p) => ({
       id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: 'p06.verified',
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
@@ -172,6 +172,7 @@ export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'ל�
 // Lior had taken the assignment names him.)
 const RETIRED = {
   'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית', 'p05.handoff.ilai': 'גישות התקבלו ← עילאי',
+  'p05.handoff.noam': 'גישות התקבלו ← נעם', // Noam left on 10.11.2026: her old records keep their words
   'p19.handoff.assigner': (note) => `יום הצילום הסתיים ← ${nameOf(note) || 'אופיר'}`,
 };
 export function describeMark(key, note = null) {

@@ -28,8 +28,8 @@ import { PEOPLE } from './protocol.js';
 
 // Who asks besides the owners: first "לאופיר, אדם, ליאור ועידן", then Irit and Ilai, and on the
 // same day (29.10.2026) "תוסיף כבר לכולם וזהו": every person of the staff. The generic 'editor'
-// account is not a person (viewerOf() gives it no `me`), so it does not ask.
-export const ASK_PEOPLE = Object.keys(PEOPLE).filter((k) => k !== 'editor');
+// account is not a person (viewerOf() gives it no `me`), so it does not ask. Nor does who left (Noam).
+export const ASK_PEOPLE = Object.keys(PEOPLE).filter((k) => k !== 'editor' && !PEOPLE[k].left);
 const known = (v) => !!v && !v.error;
 // The menu and the page (viewerOf() in protocol-ui.js).
 export const canAsk = (v) => isOwnerView(v) || (known(v) && ASK_PEOPLE.includes(v.me));

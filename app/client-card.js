@@ -5,7 +5,7 @@ import {
   PEOPLE, PROCESSES, SHOOT_TYPES, CLIENT_STATUS, LINKS, DELIVERABLES, CALL_TOPICS,
   STAFF_PEOPLE, ASSIGNABLE_PEOPLE, editorsFor, editorNames, NETWORKS, ESCALATIONS, BRIEF_FIELDS, BRIEF_REQUIRED, BRIEF_MUST, STATUS_FIELDS,
   PHOTOGRAPHERS, isSolo, crewOf, crewWords, shootTypeName, eliFilms, starWords,
-  pagesOwnerOf, isEditorOf,
+  pagesOwnerOf, isEditorOf, isFormer,
 } from './protocol.js';
 import { editorReadyKeys, NOTIFY as READY_KEY, AUTO_NOTE as READY_NOTE } from './editor-auto.js';
 // "מי מצלם" (25.10.2026): a day with influencers, or Lior and one photographer.
@@ -2804,7 +2804,12 @@ function openEdit(focusId = 'ed-name') {
   $('ed-deal').value = toLocal(c.deal_at);
   $('ed-status').value = c.status;
   $('ed-char-at').value = toLocal(c.char_at);
-  $('ed-characterizer').value = c.characterizer || '';
+  // An old client still set to someone who left (Noam, 10.11.2026) keeps the name it has; the list
+  // offers only who works here (client.html), so the name is added for this client alone.
+  const charSel = $('ed-characterizer');
+  charSel.querySelector('option[data-former]')?.remove();
+  if (isFormer(c.characterizer)) charSel.append(h('option', { value: c.characterizer, 'data-former': true }, `${PEOPLE[c.characterizer].name} (כבר לא במשרד)`));
+  charSel.value = c.characterizer || '';
   $('ed-logo').value = c.has_logo === null || c.has_logo === undefined ? '' : String(c.has_logo);
   $('ed-shoot-type').value = c.shoot_type || '';
   setCrew('ed', choiceOf(c));

@@ -20,7 +20,7 @@ test('who: the owners, Irit, Lior and Ofir; not Ilai, an editor, sales or an unk
   assert.equal(addsMeetings({ scope: 'sales', me: 'stav' }), false);
   assert.equal(addsMeetings({ error: 'x' }), false);
   assert.equal(addsMeetings(null), false);
-  assert.deepEqual(MEET_PEOPLE, ['noam', 'ofir', 'shiel', 'lior']); // Noam since 1.11.2026, Shiel since 9.11.2026
+  assert.deepEqual(MEET_PEOPLE, ['ofir', 'shiel', 'lior']); // Shiel since 9.11.2026; Noam left on 10.11.2026
 });
 
 test('finding a client: every word typed starts a word of the business or the name; open clients only', () => {

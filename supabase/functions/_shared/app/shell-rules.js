@@ -36,19 +36,19 @@ export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me ||
 // "אפיון" / "עדכון אפיון" / "אפיון חדש" (the owner, 27.10.2026): the characterization form at
 // any time, with no clock (intake.html?id=…&only=char, and intake.html with no client to pick
 // one): the owners, Irit, Lior and Ofir. public.characterizations is the office's to write.
-// Noam (1.11.2026) runs the meetings and is not the office: he writes the form too, on his own
-// screens (MEETING_PEOPLE).
-export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'noam', 'shiel']; // Shiel since 9.11.2026
+// Shiel (9.11.2026) runs the meetings and is not the office: he writes the form too, on his own
+// screens (MEETING_PEOPLE). (Noam did too, from 1.11 until she left on 10.11.2026.)
+export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'shiel']; // Shiel since 9.11.2026
 // Outside the office, who runs the characterization meeting itself: the end of the meeting and
 // its form (process 4, intake.html#end and #form) on the clients whose work is theirs.
-export const MEETING_PEOPLE = ['noam', 'shiel']; // Shiel (9.11.2026): characterizations only
-// Her own work like Ilai, but the list of clients is all of them, to reach any client's vault (the
-// owner, 1.11.2026). The database already answers her for every client (public.is_office()).
-export const ALL_CLIENTS_PEOPLE = ['noam', 'shiel'];
+export const MEETING_PEOPLE = ['shiel']; // Shiel (9.11.2026): characterizations only
+// His own work like Ilai, but the list of clients is all of them, to reach any client's vault (the
+// owner, 1.11.2026). The database already answers him for every client (public.is_office()).
+export const ALL_CLIENTS_PEOPLE = ['shiel'];
 export const listsAllClients = (me) => ALL_CLIENTS_PEOPLE.includes(me);
 export const writesChar = (v) => known(v) && (v.scope === 'office' || MEETING_PEOPLE.includes(v.me)) && (!v.me || CHAR_WRITERS.includes(v.me));
-// The index of the content Gantt: the office, Ilai and Noam (as worksCycle in month-ui.js).
-export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai' || v.me === 'noam');
+// The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
+export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
 // Who changes a Gantt: Ilai, Irit (22.10.2026), Ofir and Lior (4.11.2026) and the owner
 // (public.can_edit_gantt() decides).
 export const GANTT_EDITORS = ['ilai', 'irit', 'ofir', 'lior'];

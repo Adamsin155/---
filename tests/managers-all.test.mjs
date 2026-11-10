@@ -4,7 +4,7 @@
 // checks the database itself).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { scopeOf } from '../app/protocol.js';
 import {
   MANAGERS, isManager, seesFinance, seesQuoteMoney, canSeeQuoteList, canSeeDeals, canArchive, canPurge, canSeeTable, canSeeShootTable,
@@ -26,11 +26,16 @@ import { GATE_RPCS, GATE_FALLBACK_RPC } from '../supabase/functions/mcp/handler.
 const v = (me) => ({ me, scope: me ? scopeOf(me) : 'office', error: null });
 const OWNER = v(null);
 const THREE = ['irit', 'ofir', 'lior'];
-const REST = ['ilai', 'noam', 'nadia', 'nirel', 'eli', 'stav'];
+const REST = ['ilai', 'shiel', 'nadia', 'nirel', 'eli', 'stav'];
 const MIGRATION = readFileSync(new URL('../supabase/migrations/20261128100000_managers_all.sql', import.meta.url), 'utf8');
-// The persons a function of the migration names, as written in its "s.person in (...)".
+// The newest migration that defines a function wins (Noam left on 10.11.2026: 20261209100000_remove_noam.sql).
+const MIGRATIONS = new URL('../supabase/migrations/', import.meta.url);
+const NEWEST_FIRST = readdirSync(MIGRATIONS).filter((f) => /^\d{14}_.+\.sql$/.test(f) && f >= '20261128100000').sort().reverse()
+  .map((f) => readFileSync(new URL(f, MIGRATIONS), 'utf8'));
+// The persons a function names, as written in its "s.person in (...)".
 const personsOf = (fn) => {
-  const body = new RegExp(`function public\\.${fn}\\(\\)[\\s\\S]*?\\$\\$;`).exec(MIGRATION)?.[0] || '';
+  const re = new RegExp(`function public\\.${fn}\\(\\)[\\s\\S]*?\\$\\$;`, 'i');
+  const body = NEWEST_FIRST.map((sql) => re.exec(sql)?.[0]).find(Boolean) || '';
   return [...(/s\.person in \(([^)]*)\)/.exec(body)?.[1] || '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]).sort();
 };
 
@@ -97,7 +102,7 @@ test('kept the owners\': the permanent purge, the payments app, and every action
 });
 
 test('the work that was the owners\' or a colleague\'s: the app\'s lists match the database\'s', () => {
-  assert.deepEqual([...GANTT_EDITORS].sort(), personsOf('can_edit_gantt').filter((p) => p !== 'noam').sort());
+  assert.deepEqual([...GANTT_EDITORS].sort(), personsOf('can_edit_gantt'));
   // gantt.js keeps its own copy (its public view loads no menu module).
   const gantt = readFileSync(new URL('../app/gantt.js', import.meta.url), 'utf8');
   assert.deepEqual(JSON.parse(/export const GANTT_EDITORS = (\[[^\]]*\]);/.exec(gantt)[1].replace(/'/g, '"')), GANTT_EDITORS);

@@ -1,9 +1,8 @@
 // Process 6 passes to Ofir (the owner's decision of 28.10.2026: "להוריד מעילאי את כל עניין הגישות
 // לרשתות, זה צריך לעבור לאופיר"; docs/ops.md, section 71). Checking every login, opening new
 // networks and setting the pages up are Ofir's; Lior keeps the broken logins; nothing of 6 stays
-// Ilai's, who keeps his graphics, the Gantt and his read of the vault. Since 1.11.2026 the process
-// is the client's characterizer's, Noam or Ofir (tests/noam.test.mjs): this file's client is
-// Ofir's to characterize, so all of it still holds for him.
+// Ilai's, who keeps his graphics, the Gantt and his read of the vault. From 1.11 the process
+// was shared with Noam, who left on 10.11.2026 (tests/noam.test.mjs): it is Ofir's again.
 //   - the protocol: the owners, the work lists, who may write, no new protocol version;
 //   - the hand-off of 5 and the reminders go to Ofir, never to Ilai;
 //   - Ilai's characterization-day card has no access line and no page line; the vault's statuses
@@ -41,7 +40,7 @@ test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; not
   assert.equal(PROTOCOL_VERSION, 13); // 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026; this change did not move it
   assert.equal(PROTOCOL_HISTORY.at(-1).version, 13); // (v13: what the team marked "מיותר" left, 9.11.2026)
   // A new network to open is Ofir's to say: 5's own note says so.
-  assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה למבצע האפיון \(נעם או אופיר\) לפתוח/);
+  assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה לאופיר לפתוח/);
 });
 
 test('the lists: after the accesses, 6 is on Ofir\'s list and not on Ilai\'s', () => {
@@ -69,7 +68,7 @@ test('who writes 6: the office (Ofir among them); Ilai no more, and still his ow
 
 test('the hand-off of 5: to Ofir, never to himself; an old record to Ilai keeps its words', () => {
   const point = HANDOFFS.find((p) => p.id === 'access');
-  assert.deepEqual(point.to.map((t) => [t.id, t.person(client), t.proc, t.until]), [['ofir', 'ofir', 'p06', 'p06.verified'], ['noam', null, 'p06', 'p06.verified']]);
+  assert.deepEqual(point.to.map((t) => [t.id, t.person(client), t.proc, t.until]), [['ofir', 'ofir', 'p06', 'p06.verified']]);
   const checks = { 'p05.access': done(IL(2026, 10, 20, 11)) };
   const at = { now: IL(2026, 10, 20, 11, 1) };
   assert.deepEqual(handoffsFor(client, checks, 'p05.access', { ...at, from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]);

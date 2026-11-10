@@ -1,8 +1,9 @@
-// Shiel (the owner's decision of 9.11.2026; docs/ops.md, section 113): a characterizer like Noam
-// and Ofir who does ONLY the characterization, and gets no notification at all.
+// Shiel (the owner's decision of 9.11.2026; docs/ops.md, section 113): a characterizer like Ofir
+// who does ONLY the characterization, and gets no notification at all.
 //   - the people: his row, his scope ('own'), the lists the team screen and the function keep, the
 //     characterizers Irit can pick (the card, "קביעת מועד", "פגישה חדשה");
-//   - the owners: 4 and 5 are his for his client; 6, 8 and 8ב are Noam's; the hand-off of 5 goes to Noam;
+//   - the owners: 4 and 5 are his for his client; 6, 8 and 8ב are Ofir's (Noam's until she left on
+//     10.11.2026); the hand-off of 5 goes to Ofir;
 //   - nothing reaches him: no reminder of any rule, no digest, no line in the owners' 19:00 table, and
 //     nobody is reminded instead when his meeting is not marked (the rule `char`, step `irit`);
 //   - nobody can give him a task (staff tasks, the card's tasks, decisions, the pass, prep);
@@ -35,9 +36,10 @@ import { IMPORT_NOTE, CHAR_ENDED } from '../app/protocol-logic.js';
 import { dateIL } from '../app/tz.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
-const STAFF = ['irit', 'lior', 'ofir', 'ilai', 'noam', 'shiel', 'nadia'].map((p) => ({ email: `${p}@x`, person: p })).concat([{ email: 'owner@x', person: null }]);
+const STAFF = ['irit', 'lior', 'ofir', 'ilai', 'shiel', 'nadia'].map((p) => ({ email: `${p}@x`, person: p })).concat([{ email: 'owner@x', person: null }]);
 const base = { status: 'active', shoot_type: 'dms', has_logo: true, rounds: [], contract_end: '2027-12-31', deal_at: IL(2026, 11, 1, 10).toISOString(), created_by_email: 'irit@x', deliverables: { videos: 25, graphics: 36 } };
 const shiels = { ...base, id: 's1', name: 'מספרת שיאל', characterizer: 'shiel' };
+// An old client of Noam's (she left on 10.11.2026): Ofir's work now.
 const noams = { ...base, id: 'n1', name: 'קפה נעמה', characterizer: 'noam' };
 const ownersOf = (c, id) => {
   const p = applicableProcesses(c).find((x) => x.id === id);
@@ -75,15 +77,15 @@ test('the people: Shiel on the team, an own screen, a characterizer Irit can pic
   assert.equal(isSilent('noam'), false);
 });
 
-test('the owners: the meeting (4) and the logins (5) are his; the pages and the Highlights (6, 8, 8ב) are Noam\'s', () => {
+test('the owners: the meeting (4) and the logins (5) are his; the pages and the Highlights (6, 8, 8ב) are Ofir\'s', () => {
   assert.equal(characterizerOf(shiels), 'shiel');
-  assert.equal(pagesOwnerOf(shiels), 'noam');
+  assert.equal(pagesOwnerOf(shiels), 'ofir');
   assert.deepEqual(ownersOf(shiels, 'p04').filter((p) => p !== 'irit'), ['shiel']);
   assert.ok(ownersOf(shiels, 'p05').includes('shiel'));
-  for (const id of ['p06', 'p08', 'p08b']) assert.deepEqual(ownersOf(shiels, id), ['noam'], id);
-  assert.equal(lateRungOf('p08b', shiels), 'noam');
-  // Nothing of anyone else's client moves.
-  assert.equal(pagesOwnerOf(noams), 'noam');
+  for (const id of ['p06', 'p08', 'p08b']) assert.deepEqual(ownersOf(shiels, id), ['ofir'], id);
+  assert.equal(lateRungOf('p08b', shiels), 'ofir');
+  // Everyone else's client: Ofir's.
+  assert.equal(pagesOwnerOf(noams), 'ofir');
   assert.equal(pagesOwnerOf({ characterizer: 'lior' }), 'ofir');
   assert.equal(pagesOwnerOf({ characterizer: 'ofir' }), 'ofir');
   // Not Ofir's meeting: his fast ladder does not wait for it.
@@ -98,11 +100,11 @@ test('the owners: the meeting (4) and the logins (5) are his; the pages and the 
   assert.ok(!mine.includes('p06'));
 });
 
-test('the hand-off of 5: to Noam, also when Shiel marked it', () => {
+test('the hand-off of 5: to Ofir, also when Shiel marked it', () => {
   const checks = { 'p05.access': done('p05.access', IL(2026, 11, 2, 11), 'shiel@x') };
   const offers = (from) => handoffsFor(shiels, checks, 'p05.access', { now: IL(2026, 11, 2, 11, 1), from }).map((o) => [o.person, o.markKey]);
-  assert.deepEqual(offers('shiel'), [['noam', 'p05.handoff.noam']]);
-  assert.deepEqual(offers('irit'), [['noam', 'p05.handoff.noam']]);
+  assert.deepEqual(offers('shiel'), [['ofir', 'p05.handoff.ofir']]);
+  assert.deepEqual(offers('irit'), [['ofir', 'p05.handoff.ofir']]);
 });
 
 test('no reminder reaches Shiel, and nobody is told instead that his meeting is not marked', () => {
@@ -113,13 +115,13 @@ test('no reminder reaches Shiel, and nobody is told instead that his meeting is 
   assert.deepEqual(got.filter((r) => r.person === 'shiel').map((r) => r.key), []);
   assert.deepEqual(got.filter((r) => r.rule === 'char').map((r) => r.key), [], 'no "האפיון לא סומן" to Irit');
   assert.deepEqual(computeReminders({ ...w, now: IL(2026, 11, 8, 13, 45) }).filter((r) => r.rule === 'char'), []);
-  // The same week for Noam's client: he and Irit are told (the rule still works for everyone else).
+  // The same week for Noam's old client: Ofir and Irit are told (the rule still works for everyone else).
   const n = allWeek(world(noams, meeting), IL(2026, 11, 7, 18), 2);
-  assert.ok(n.some((r) => r.rule === 'char' && r.step === 'end' && r.person === 'noam'));
+  assert.ok(n.some((r) => r.rule === 'char' && r.step === 'end' && r.person === 'ofir'));
   assert.ok(n.some((r) => r.rule === 'char' && r.step === 'irit' && r.person === 'irit'));
 });
 
-test('after his meeting the work goes on to Noam: the access to check and the Highlights\' clock', () => {
+test('after his meeting the work goes on to Ofir: the access to check and the Highlights\' clock', () => {
   const meeting = IL(2026, 11, 8, 10);
   const w = world(shiels, meeting);
   const ck = w.checks[w.client.id];
@@ -127,8 +129,8 @@ test('after his meeting the work goes on to Noam: the access to check and the Hi
   ck[CHAR_ENDED] = { ...done(CHAR_ENDED, IL(2026, 11, 8, 11, 30), 'shiel@x'), client_id: w.client.id };
   ck['p05.access'] = { ...done('p05.access', IL(2026, 11, 8, 11, 30), 'shiel@x'), client_id: w.client.id };
   const at = candidates(buildEnv({ ...w, now: IL(2026, 11, 8, 11, 31) }));
-  assert.ok(at.some((r) => r.rule === 'access' && r.step === 'now' && r.person === 'noam'), JSON.stringify(at.map((r) => r.key)));
-  assert.ok(at.some((r) => r.rule === 'started' && r.person === 'noam'));
+  assert.ok(at.some((r) => r.rule === 'access' && r.step === 'now' && r.person === 'ofir'), JSON.stringify(at.map((r) => r.key)));
+  assert.ok(at.some((r) => r.rule === 'started' && r.person === 'ofir'));
   assert.deepEqual(at.filter((r) => r.person === 'shiel'), []);
 });
 
@@ -143,10 +145,10 @@ test('no digest, no table row: the morning digest and the owners\' 19:00 table l
   const sum = daySummary({ clients: e19.clients, checksOf: e19.checksOf, stateOf: e19.stateOf, tasks: [], personOf: e19.personOf, now: at19 });
   assert.deepEqual(sum.rows.filter((r) => r.person === 'shiel'), []);
   assert.ok(sum.items.every((x) => !x.who.includes('shiel')));
-  // The same for Noam's client: his late meeting is in the table (the table still works).
+  // The same for Noam's old client: the late meeting is in the table, as Ofir's (the table still works).
   const n = buildEnv({ ...world(noams, IL(2026, 11, 2, 10)), now: at19 });
   const nsum = daySummary({ clients: n.clients, checksOf: n.checksOf, stateOf: n.stateOf, tasks: [], personOf: n.personOf, now: at19 });
-  assert.ok(nsum.rows.some((r) => r.person === 'noam'), JSON.stringify(nsum.rows));
+  assert.ok(nsum.rows.some((r) => r.person === 'ofir'), JSON.stringify(nsum.rows));
 });
 
 test('nobody can give him a task', () => {
@@ -154,7 +156,8 @@ test('nobody can give him a task', () => {
   assert.ok(!ASSIGNEES().some((p) => p.key === 'shiel'), 'staff tasks ("נודניק")');
   assert.ok(!ASSIGNABLE_PEOPLE().some((p) => p.key === 'shiel'), 'the card\'s tasks, decisions, the pass, prep');
   assert.ok(STAFF_PEOPLE().some((p) => p.key === 'shiel'), 'still on the office\'s work lists and filters');
-  assert.ok(ASSIGNEES().some((p) => p.key === 'noam'));
+  assert.ok(ASSIGNEES().some((p) => p.key === 'ofir'));
+  assert.ok(!ASSIGNEES().some((p) => p.key === 'noam'), 'Noam left on 10.11.2026');
   // The pickers use the list without him.
   for (const f of ['app/client-card.js', 'app/decisions.js', 'app/pass.js', 'app/prep.js']) {
     const src = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
@@ -180,5 +183,6 @@ test('who writes: Shiel the items of 4 and 5; not 6, 8 or the office\'s', () => 
   for (const key of ['p04.address', 'p04.saved', 'p05.access', 'p05.logo']) assert.equal(mayWrite({ person: 'shiel', client: shiels, key }), true, key);
   for (const key of ['p06.verified', 'p08.done', 'p08b.posted', 'p04.followup', 'p05.vault', 'p07.made', 'p22a.assigned']) assert.equal(mayWrite({ person: 'shiel', client: shiels, key }), false, key);
   assert.equal(mayWrite({ person: 'shiel', client: shiels, key: 'p04.saved', note: 'ייבוא' }), false, 'no imported history');
-  assert.equal(mayWrite({ person: 'noam', client: shiels, key: 'p06.verified' }), true);
+  assert.equal(mayWrite({ person: 'ofir', client: shiels, key: 'p06.verified' }), true);
+  assert.equal(mayWrite({ person: 'noam', client: shiels, key: 'p06.verified' }), false, 'Noam left on 10.11.2026');
 });

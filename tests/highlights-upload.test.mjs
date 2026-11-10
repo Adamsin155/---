@@ -57,9 +57,9 @@ test('8ב in the protocol: right after 8, Ofir\'s, in "אפיון", one new key,
   assert.equal(PROCESSES[i - 1].id, 'p08');
   assert.deepEqual([p.num, p.title, p.phase], ['8ב', 'העלאת ה־Highlights לרשתות', 'parallel']);
   // Since 1.11.2026 the client's characterizer's: Ofir or Noam, Noam when none was set, Ofir when Lior ran the meeting.
-  assert.deepEqual(['ofir', 'noam', null, 'lior'].map((characterizer) => p.owners({ characterizer })), [['ofir'], ['noam'], ['noam'], ['ofir']]);
+  assert.deepEqual(['ofir', 'noam', null, 'lior'].map((characterizer) => p.owners({ characterizer })), [['ofir'], ['ofir'], ['ofir'], ['ofir']]);
   assert.deepEqual(p.items.map((x) => [x.key, x.label, !!x.optional]), [['p08b.posted', 'ה־Highlights הועלו לעמודי הלקוח ברשתות', false]]);
-  assert.equal(p.what, 'אחרי שה־Highlights מוכנים, מבצע האפיון (נעם או אופיר) מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.');
+  assert.equal(p.what, 'אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.');
   assert.deepEqual([p.start, p.due], [{ from: 'p08' }, { from: 'p08', minutes: 30 }]);
   assert.equal(onOfficeTime(p.due), true, '30 office minutes');
   const char = STATIONS.find((s) => s.key === 'char').procs;
@@ -152,7 +152,7 @@ test('the reminders: a quiet note to Ofir when it starts, a ring when 30 office 
   assert.match(late[0].title, /^באיחור: .*פיצה רון.* · 8ב · העלאת ה־Highlights לרשתות · אופיר$/);
   assert.deepEqual(Object.keys(LATE_RUNG), ['p08b']);
   assert.equal(lateRungOf('p08b', c), 'ofir', 'this client is Ofir\'s to characterize');
-  assert.equal(lateRungOf('p08b', { ...c, characterizer: 'noam' }), 'noam');
+  assert.equal(lateRungOf('p08b', { ...c, characterizer: 'noam' }), 'ofir'); // Noam left on 10.11.2026
   assert.ok(LATE_WATCHERS.includes('ofir'));
   // Whenever the engine runs (even catching up, with an empty log): Ofir never gets two
   // messages about this upload for the same minute.

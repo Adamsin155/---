@@ -349,7 +349,7 @@ test('set_client_date: a first meeting marks nothing (v13: the date closes "לק
   assert.equal((await s({ which: 'shoot', at: '2026-12-01T10:00', crew: 'nobody' })).code, 'bad_input');
   assert.equal((await s({ which: 'shoot', at: '2026-12-01T10:00', round: 5 })).code, 'not_found');
   assert.equal((await s({ which: 'characterization', at: '2026-11-20T10:00' })).done, true);
-  assert.equal(w.db.clients[0].characterizer, 'noam');
+  assert.equal(w.db.clients[0].characterizer, 'ofir', 'a client of Noam (she left on 10.11.2026) is Ofir meeting now');
   assert.ok(!w.db.protocol_checks.some((r) => r.item_key === 'p03.scheduled'), 'v13: nothing is marked');
   // Moving it marks nothing again.
   const n = w.db.protocol_checks.length;

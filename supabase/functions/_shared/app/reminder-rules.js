@@ -113,7 +113,7 @@ export const DIGESTS = { morning: '08:30', lists: ['12:00', '16:00'], owner: EOD
 // What is scheduled for 09:00–09:30 goes into the 08:30 digest instead.
 export const FOLD = { from: '09:00', to: '09:30' };
 // Rings a day each person is expected to get (section 5), for the owner's weekly report.
-export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, noam: 5, nirel: 3, nadia: 3, yariv: 3, anna: 3, eli: 3, owner: 1 };
+export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, nirel: 3, nadia: 3, yariv: 3, anna: 3, eli: 3, owner: 1 };
 // A step that should have gone out this long ago and never did (the engine was
 // down, or the rules were just switched on) is recorded as stale, never sent late.
 // A digest line belongs to the digest of its moment (the engine queues it within

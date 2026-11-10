@@ -553,7 +553,7 @@ function appGuide(ctx, i) {
 }
 
 function team() {
-  return { people: Object.values(PEOPLE).filter((p) => p.key !== 'editor').map((p) => ({ name: p.name, role: p.role })) };
+  return { people: Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.left).map((p) => ({ name: p.name, role: p.role })) };
 }
 
 const RUN = {

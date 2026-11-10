@@ -42,14 +42,14 @@ const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.edi
 // Kept as data, so a wording or a rule changes here without touching the pages.
 export const HANDOFFS = [
   {
-    // Ofir's from 28.10.2026 (the owner: the accesses are no longer Ilai's); since 1.11.2026 the
-    // client's characterizer's, Noam or Ofir (pagesOwnerOf). When he took the
+    // Ofir's from 28.10.2026 (the owner: the accesses are no longer Ilai's; Noam's clients from 1.11
+    // until she left on 10.11.2026; pagesOwnerOf). When he took the
     // accesses himself (he runs the characterization) he is offered no message to himself
     // (`from` in handoffsFor; the card's "העברות" line has no button for him either).
     id: 'access', on: 'p05.access', label: 'גישות התקבלו',
     // One target per checker (optional: only the client's own is offered), so each record names
-    // its person: `p05.handoff.ofir`, `p05.handoff.noam`.
-    to: ['ofir', 'noam'].map((p) => ({
+    // its person: `p05.handoff.ofir` (`p05.handoff.noam`, Noam's until she left on 10.11.2026, is in RETIRED).
+    to: ['ofir'].map((p) => ({
       id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: 'p06.verified',
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
       due: [{ label: 'יעד', proc: 'p06', minutes: 30 }],
@@ -173,6 +173,7 @@ export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'ל�
 // Lior had taken the assignment names him.)
 const RETIRED = {
   'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית', 'p05.handoff.ilai': 'גישות התקבלו ← עילאי',
+  'p05.handoff.noam': 'גישות התקבלו ← נעם', // Noam left on 10.11.2026: her old records keep their words
   'p19.handoff.assigner': (note) => `יום הצילום הסתיים ← ${nameOf(note) || 'אופיר'}`,
 };
 export function describeMark(key, note = null) {

@@ -213,14 +213,13 @@ export const PEOPLE = {
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
   eli: { key: 'eli', name: 'אלי', role: 'צלם ימי הצילום' },
-  // Noam (the owner's decision of 1.11.2026): the characterization meetings (4), the logins
-  // taken there (5), checking them and setting the pages up (6) and the Highlights (8, 8ב),
-  // as Ofir does: per client, whoever Irit picks as the characterizer (Noam by default).
-  // Ofir keeps every right he had (he is the office, which writes every key).
-  noam: { key: 'noam', name: 'נעם', role: 'אפיונים, הקמת דפים ו־Highlights' },
+  // Noam left the company (the owner, 10.11.2026); Ofir took over all her work (FORMER_PEOPLE).
+  // She stays here only so the history still shows her name (old marks, notes, and old clients
+  // whose `characterizer` is 'noam'). `left`: no list, picker, menu or table offers her.
+  noam: { key: 'noam', name: 'נעם', role: 'עבדה במשרד עד 10.11.2026', left: true },
   // Shiel (the owner's decision of 9.11.2026): characterizations only. The meetings (4) and the
   // logins taken there (5) of the clients he characterizes; their pages and Highlights (6, 8, 8ב)
-  // are Noam's (pagesOwnerOf). He gets no notification at all (SILENT_PEOPLE).
+  // are Ofir's (pagesOwnerOf). He gets no notification at all (SILENT_PEOPLE).
   shiel: { key: 'shiel', name: 'שיאל', role: 'אפיונים' },
   // Field sales (decision of 3.10.2026): sends new deals to Irit from deal.html and
   // sees only his own deals. Not part of the client protocol (no items, no clients).
@@ -230,17 +229,23 @@ export const PEOPLE = {
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
 
+// People who left, and who took their work over (Noam, 10.11.2026: Ofir). A client still set to
+// one of them is worked by the replacement; the history keeps the old name (characterizedBy).
+export const FORMER_PEOPLE = { noam: 'ofir' };
+export const isFormer = (person) => !!PEOPLE[person]?.left;
 // Who may run a characterization meeting (the client's `characterizer`), and who does
-// when none was set: Noam since 1.11.2026 (Ofir until then; he can still be picked, and
-// Lior only when nobody else can). Pages that need "who characterizes" read characterizerOf.
-export const CHARACTERIZERS = ['noam', 'ofir', 'shiel', 'lior'];
-export const DEFAULT_CHARACTERIZER = 'noam';
-export const characterizerOf = (c) => c?.characterizer || DEFAULT_CHARACTERIZER;
-// Whose are the pages and the Highlights (6, 8, 8ב) of a client: the one who characterizes
-// it, Noam or Ofir ("either Ofir or Noam does it", the owner, 1.11.2026); Noam when nobody
-// was set. When Lior ran the meeting (only when nobody else could) they stay Ofir's, as
-// they were before Noam. Shiel does only the characterization (9.11.2026): his clients' are Noam's.
-export const PAGES_INSTEAD = { lior: 'ofir', shiel: 'noam' };
+// when none was set: Ofir (Noam from 1.11 until she left on 10.11.2026; Lior only when
+// nobody else can). Pages that need "who characterizes" read characterizerOf.
+export const CHARACTERIZERS = ['ofir', 'shiel', 'lior'];
+export const DEFAULT_CHARACTERIZER = 'ofir';
+// Who ran (or will run) the meeting as written on the client: for history and names.
+export const characterizedBy = (c) => c?.characterizer || DEFAULT_CHARACTERIZER;
+// Who does the characterizer's work now (someone who left is replaced).
+export const characterizerOf = (c) => FORMER_PEOPLE[characterizedBy(c)] || characterizedBy(c);
+// Whose are the pages and the Highlights (6, 8, 8ב) of a client: Ofir's. The one who
+// characterizes it when that is Ofir; when Lior ran the meeting (only when nobody else
+// could) or Shiel did (he does only the characterization, 9.11.2026), still Ofir's.
+export const PAGES_INSTEAD = { lior: 'ofir', shiel: 'ofir' };
 export const pagesOwnerOf = (c) => PAGES_INSTEAD[characterizerOf(c)] || characterizerOf(c);
 // Who gets no notification at all (the owner, 9.11.2026: Shiel): no push, no WhatsApp, no reminder,
 // no line in the owners' 19:00 table, and nobody is reminded instead when his own work is late
@@ -252,15 +257,16 @@ export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 // the office screens (all clients, daily control, performance). 'own': only their
 // own work and the clients it belongs to. 'sales': only deal.html and their own
 // deals (no client is theirs). The owner (no person) sees the office.
-export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', noam: 'own', shiel: 'own', stav: 'sales', amos: 'sales' };
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', shiel: 'own', stav: 'sales', amos: 'sales' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
 
 // The people of the client protocol (everyone but the "assigned editor" placeholder
 // and sales): for owner pickers, work lists and the reminders' digests.
-export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales);
+// Who left (`left`) is in no list (only their name stays, for the history).
+export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales && !p.left);
 // Everyone on the team, sales too: the team screen (team.html) and who has reminders.
-export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
+export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.left);
 // Who can be given work (a task, a decision, a pass item): the protocol's people but the silent.
 export const ASSIGNABLE_PEOPLE = () => STAFF_PEOPLE().filter((p) => !isSilent(p.key));
 
@@ -451,9 +457,9 @@ export const CALL_TOPICS = [
 
 // Owners may depend on the client (who ran the characterization, which editor was assigned).
 const characterizer = (c) => [characterizerOf(c)];
-// Whoever characterizes takes the access in the meeting (Noam, Ofir or Lior, whoever ran it);
+// Whoever characterizes takes the access in the meeting (Ofir, Shiel or Lior, whoever ran it);
 // before anyone was set, Irit gets it from the client.
-const accessOwners = (c) => (CHARACTERIZERS.includes(c.characterizer) ? [c.characterizer] : ['irit']);
+const accessOwners = (c) => (CHARACTERIZERS.includes(characterizerOf(c)) && c.characterizer ? [characterizerOf(c)] : ['irit']);
 const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
 // A day like Natali's: hers, Niro's or that of "הצל" (28.10.2026).
 const isStar = (c) => isStarDay(c.shoot_type);
@@ -578,11 +584,11 @@ export const PROCESSES = [
     id: 'p03', num: '3', phase: 'onboarding', title: 'קביעת פגישת אפיון', owners: ['irit'],
     sla: 'עד 5 דקות מרגע שאיש המכירות שולח את פרטי הלקוח',
     due: { from: 'deal', minutes: 5 },
-    what: 'בודקים את הזמינות של מבצע האפיון (נעם, אופיר או שיאל), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
-    ownerNote: 'מבצע האפיון הוא נעם, אופיר או שיאל. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
+    what: 'בודקים את הזמינות של מבצע האפיון (אופיר או שיאל), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
+    ownerNote: 'מבצע האפיון הוא אופיר או שיאל. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
     needs: ['characterizer', 'char_at'],
     items: [
-      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (נעם, אופיר או שיאל, או ליאור כשהם לא יכולים)', retired: 13 },
+      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר או שיאל, או ליאור כשהם לא יכולים)', retired: 13 },
       { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון', retired: 13 },
       { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04', keep: ['char_at'] }, retired: 13 },
       { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן', retired: 13 },
@@ -652,7 +658,7 @@ export const PROCESSES = [
   },
   {
     id: 'p05', num: '5', phase: 'onboarding', title: 'לקיחת גישות לרשתות', owners: accessOwners,
-    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. אין רשתות: משימה למבצע האפיון (נעם או אופיר) לפתוח.',
+    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. אין רשתות: משימה לאופיר לפתוח.',
     sla: 'מיד במהלך או מיד לאחר פגישת האפיון',
     start: { from: 'char' }, due: { from: 'charEnd' },
     what: 'מקבלים מהלקוח גישה לכל הרשתות הרלוונטיות ולוקחים גם את חומרי המותג.',
@@ -687,8 +693,7 @@ export const PROCESSES = [
     ],
   },
   {
-    // Since 1.11.2026 the client's characterizer's, Noam or Ofir (pagesOwnerOf; Ofir keeps
-    // his rights on every client, he is the office).
+    // Ofir's (pagesOwnerOf; Noam's clients from 1.11 until she left on 10.11.2026).
     // Before that the whole process was Ofir's (the owner, 28.10.2026: "להוריד מעילאי את כל עניין הגישות
     // לרשתות, זה צריך לעבור לאופיר"): checking every login, opening the networks the client has
     // not got, setting the pages up and Metricool (his since v11). Lior keeps the broken logins.
@@ -763,7 +768,7 @@ export const PROCESSES = [
     id: 'p08', num: '8', phase: 'parallel', title: 'הכנת Highlights', owners: (c) => [pagesOwnerOf(c)],
     sla: 'עד שעתיים לאחר האפיון, במקביל לגרפיקות',
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
-    what: 'מבצע האפיון (נעם או אופיר) מכין עד 4 Highlights לפי העסק והמידע מפגישת האפיון.',
+    what: 'אופיר מכין עד 4 Highlights לפי העסק והמידע מפגישת האפיון.',
     items: [
       { key: 'p08.done', label: 'הוכנו עד 4 Highlights לפי השירותים, המוצרים ושפת העסק' },
       { key: 'p08.saved', label: 'ה־Highlights נשמרו במקום המסודר של הלקוח ומוכנים לעמוד' },
@@ -774,7 +779,7 @@ export const PROCESSES = [
     sla: 'עד 30 דקות עבודה מרגע שה־Highlights הוכנו',
     // v7: the Highlights are ready (process 8 complete: prepared and saved): Ofir uploaded them; since 1.11.2026 the characterizer (Noam or Ofir).
     start: { from: 'p08' }, due: { from: 'p08', minutes: 30 },
-    what: 'אחרי שה־Highlights מוכנים, מבצע האפיון (נעם או אופיר) מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.',
+    what: 'אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.',
     items: [
       { key: 'p08b.posted', label: 'ה־Highlights הועלו לעמודי הלקוח ברשתות' },
     ],
