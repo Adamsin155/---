@@ -18,6 +18,10 @@ const editorOf = (ctx) => ctx.editor || 'editor';
 // The second editor, when two work on the shoot together (editor2): a handoff of their own.
 const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.editor ? ctx.editor2 : null);
 
+// The editor took the work: the first marks of 22 (protocol v14: "התקבל הכונן", p22.received, left;
+// an old mark of it still counts).
+const EDITOR_STARTED = ['p22.received', 'p22.check.footage', 'p22.check.scripts', 'p22.missing'];
+
 // The handoff points, in protocol order (the reminder matrix, section 5 of the plan).
 //   on:    an item key (offered when it is checked), or a process id (offered when
 //          the check completes that process).
@@ -78,12 +82,12 @@ export const HANDOFFS = [
   {
     id: 'editor', on: 'p22a.assigned', label: 'עורך שויך',
     to: [{
-      id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: 'p22.received',
+      id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: EDITOR_STARTED,
       text: 'הלקוח {client} עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
       due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }, {
       // `optional`: no offer at all while the shoot has no second editor.
-      id: 'editor2', person: editor2Of, optional: true, who: 'העורך הנוסף', proc: 'p22', until: 'p22.received',
+      id: 'editor2', person: editor2Of, optional: true, who: 'העורך הנוסף', proc: 'p22', until: EDITOR_STARTED,
       text: 'הלקוח {client} עובר לעריכה אצלך, יחד עם עורך נוסף. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
       due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }],

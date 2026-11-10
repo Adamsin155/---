@@ -10,17 +10,16 @@
 // Ofir's quality control (25), the client's approval (26–27) and Ilai's steps (28–29ב) run exactly
 // as for any shoot round. Everything of the round that comes before the editing (the shoot day
 // and its preparation, and the assignment's own lines) is marked not relevant, the assignment
-// itself (22א) done with the client's editor, and "התקבל הכונן" (22) done, as there is no drive:
-// the round starts at the editing and rings nobody but the editor.
+// itself (22א) done with the client's editor: the round starts at the editing and rings nobody but
+// the editor. ("התקבל הכונן", p22.received, was marked done here too, as there is no drive, until
+// protocol v14 retired it: the editing starts at the assignment for every shoot.)
 import { PROCESSES, isRetired, editorsOf } from './protocol.js';
 import { roundsOf, isMonthlyRound, isBusinessDay, parseDate } from './protocol-logic.js';
 import { isMonthly, monthKey, monthTargetOf } from './edit-count.js';
 
 export const MONTHLY_NOTE = 'סבב חודשי (אוטומטי)';
 export const MONTHLY_NA_NOTE = 'סבב חודשי, בלי יום צילום';
-export const MONTHLY_DRIVE_NOTE = 'סבב חודשי, בלי כונן';
 export const ASSIGNED = 'p22a.assigned';
-export const RECEIVED = 'p22.received';
 
 // Every round process that comes before the editing (22) in the protocol's order, and the items
 // of them that apply to anyone (an item a protocol version retired applies to nobody). From
@@ -52,7 +51,6 @@ export function hasMonthWork(client, checks, key) {
 export const monthlyMarks = (n) => [
   ...NA_KEYS.map((k) => ({ item_key: `r${n}.${k}`, state: 'na', note: MONTHLY_NA_NOTE })),
   { item_key: `r${n}.${ASSIGNED}`, state: 'done', note: MONTHLY_NOTE },
-  { item_key: `r${n}.${RECEIVED}`, state: 'done', note: MONTHLY_DRIVE_NOTE },
 ];
 
 // What to write for one client now (checks: its marks, item key → { state, note, at }), or null:

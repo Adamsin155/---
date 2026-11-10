@@ -129,10 +129,20 @@
 //   - Ilai: 9 is one item (p09.file); 29ב keeps 4 points, "בגאנט ותואם לתזמון" one of them (ganttok);
 //     the scheduling (28) and the full Gantt (29) are one mark the system writes (GANTT_READY) when every
 //     content row of the Gantt is scheduled. Eli: two drive checks are one (p19b.checked).
+// v14 (the owner's decision of 10.11.2026, after the editors (Nadia, Yariv, Anna, Nirel) went over
+// their checklist, "סדר בסימונים"; docs/ops.md, section 123): what they marked "מיותר" left
+// (`retired: 14`), for every client, with its reminders and late lines:
+//   - 22: "התקבל הכונן" (p22.received), the logo and phone checks, "נערכו לפי התסריטים" (p22.edited),
+//     the B-Roll, closing and "כל הכמות" self-checks, and three of the five critical mistakes in the
+//     editor's self-check (stable, angles, export; Ofir still checks all five in 25). 22 keeps the
+//     footage and scripts checks, the spelling check, and sound and exposure.
+//   - 24: the Dropbox upload (p24.dropbox). The folder, the Drive and the notice to Ofir stay.
+//   The editing starts at the assignment (p22a.assigned, "the drive handed over"): the editor's page
+//   has no "ממתין לכונן" / "קיבלתי את הכונן והתחלתי" step, and "עוד לא התחלת" rings nobody.
 
 import { INFLUENCERS, STARS } from './catalog.js';
 
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 // The version that retired a process or an item (`retired`): what is retired applies to nobody.
 export const isRetired = (entry) => Number.isInteger(entry?.retired) && entry.retired <= PROTOCOL_VERSION;
 
@@ -148,6 +158,8 @@ export const CRITICAL_MISTAKES = [
   ['export', 'הגדרות ייצוא', 'הסרטונים יצאו רק בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הייצוא בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הסרטון לא יצא בהגדרות שהוגדרו מראש (בעיית פיקסלים)'],
 ];
 // The words of the group, wherever the five are listed.
+// v14: the editor's self-check (22) no longer asks these three (the editors: "מיותר"); Ofir's (25) does.
+export const EDITOR_MISTAKES_RETIRED = ['stable', 'angles', 'export'];
 export const CRITICAL_TITLE = 'חמש הטעויות הקריטיות של העריכה';
 // The line of a return for fixes that names a critical mistake.
 export const mistakeIssue = (key) => { const m = CRITICAL_MISTAKES.find(([k]) => k === key); return m ? `טעות קריטית · ${m[1]}: ${m[4]}` : ''; };
@@ -1062,19 +1074,21 @@ export const PROCESSES = [
     what: 'עורכים לפי התסריטים ולפי מה שצולם, בלי לשנות את משמעות הסרטון. יוצרים גיוון בקצב, ב־B-Roll, במעברים, במבנה ובהצגת הטקסטים.',
     rule: 'חסר לוגו, מספר טלפון או חומר: מדווחים מיד לעירית, לליאור או לאופיר (״לא התקבל״ בשורה), לא מגלים בסוף העריכה. אופיר לא אמור למצוא טעויות בסיסיות.',
     items: [
-      { key: 'p22.received', label: 'התקבל הכונן; עודכן שהעריכה התחילה' },
+      // v14: "התקבל הכונן" left (the editors: "מיותר"); the editing starts at the assignment (22א).
+      { key: 'p22.received', label: 'התקבל הכונן; עודכן שהעריכה התחילה', retired: 14 },
       { key: 'p22.check.footage', label: 'כל חומרי הצילום קיימים' },
       { key: 'p22.check.scripts', label: 'התסריטים וסדר הסרטונים ברורים' },
-      { key: 'p22.check.logo', label: 'יש לוגו תקין של העסק' },
-      { key: 'p22.check.phone', label: 'יש מספר טלפון תקין של העסק' },
-      { key: 'p22.edited', label: 'כל הסרטונים נערכו לפי התסריטים' },
+      { key: 'p22.check.logo', label: 'יש לוגו תקין של העסק', retired: 14 },
+      { key: 'p22.check.phone', label: 'יש מספר טלפון תקין של העסק', retired: 14 },
+      { key: 'p22.edited', label: 'כל הסרטונים נערכו לפי התסריטים', retired: 14 },
       { key: 'p22.self.spelling', label: 'בדיקה עצמית: אין שגיאות כתיב בכתוביות, כותרות, שמות, טלפונים, מחירים וטקסטים' },
-      { key: 'p22.self.broll', label: 'בדיקה עצמית: אותה תבנית B-Roll לא חוזרת ביותר מ־3 סרטונים' },
-      { key: 'p22.self.closing', label: 'בדיקה עצמית: סגיר נקי — לוגו, "לפרטים נוספים התקשרו" ומספר הטלפון, בלי תוספות' },
-      { key: 'p22.self.complete', label: 'בדיקה עצמית: כל כמות הסרטונים הושלמה ותואמת לתסריטים' },
+      { key: 'p22.self.broll', label: 'בדיקה עצמית: אותה תבנית B-Roll לא חוזרת ביותר מ־3 סרטונים', retired: 14 },
+      { key: 'p22.self.closing', label: 'בדיקה עצמית: סגיר נקי — לוגו, "לפרטים נוספים התקשרו" ומספר הטלפון, בלי תוספות', retired: 14 },
+      { key: 'p22.self.complete', label: 'בדיקה עצמית: כל כמות הסרטונים הושלמה ותואמת לתסריטים', retired: 14 },
       // v10: the five critical mistakes, before "מוכן לבדיקה". Not asked of an editing that was
-      // already handed to Ofir before they existed (`passedIf`).
-      ...CRITICAL_MISTAKES.map(([k, , l]) => ({ key: `p22.self.${k}`, label: `בדיקה עצמית: ${l}`, passedIf: 'p24.notify' })),
+      // already handed to Ofir before they existed (`passedIf`). v14: the editor keeps sound and
+      // exposure; stable, angles and export left the editor's self-check (Ofir checks all five, 25).
+      ...CRITICAL_MISTAKES.map(([k, , l]) => ({ key: `p22.self.${k}`, label: `בדיקה עצמית: ${l}`, passedIf: 'p24.notify', ...(EDITOR_MISTAKES_RETIRED.includes(k) ? { retired: 14 } : {}) })),
     ],
   },
   {
@@ -1115,7 +1129,7 @@ export const PROCESSES = [
       // The editor's since 3.11.2026 (was Ofir's, with a task opened at the assignment).
       { key: 'p24.folder', label: 'יש תיקייה מסודרת בדרייב עם שם הלקוח' },
       { key: 'p24.drive', label: 'כל הסרטונים הועלו לדרייב של הלקוח, וכל הקבצים נפתחים' },
-      { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true },
+      { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true, retired: 14 },
       { key: 'p24.notify', label: 'העורך עדכן את אופיר שהלקוח מוכן לבקרה', noBulk: true },
     ],
   },

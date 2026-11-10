@@ -726,8 +726,8 @@ export const RULES = [
   // (the rule `fast` at the end of this file); the rule `assign` (Ofir at once, the next
   // morning's digest, Lior's hard stop at 12:00 the next business day) is gone with it.
 
-  // 22–24: the editor. A ring on assignment, "not started" two office hours after
-  // the drive was handed over (Lior's list after four), days 2 and 3 in the digest,
+  // 22–24: the editor. A ring on assignment (protocol v14: the editing starts there; "עוד לא
+  // התחלת" and Lior's and Ofir's "עריכה לא התחילה" left with "התקבל הכונן"), days 2 and 3 in the digest,
   // and day 3 at 15:00. Paused editing stops it.
   {
     id: 'editing', event: 'עורך שויך והתקדמות עריכה (22, 24)', procs: ['p22', 'p24'],
@@ -752,9 +752,6 @@ export const RULES = [
         handover: { title: (i) => `העריכה של ${i.name} עברה ל${personName(i.who)}`, body: () => 'הלקוח כבר לא בעריכה אצלך.', url: () => 'editor.html' },
         title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.todo && todoText(i.todo), i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · '),
       },
-      { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
-      { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
-      { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
       // The last editing day: day 2 since protocol v11 (the owner, 21.10.2026), day 3 for a client from before.
       { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך ${i.days}: ${i.name}`, body: (i) => (i.days === 2 ? 'עד סוף היום: הכול בדרייב ואצל אופיר.' : '') },
       { id: 'day2pm', from: 'days', businessDays: 2, at: '15:00', when: (i) => i.days === 2, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 2: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },

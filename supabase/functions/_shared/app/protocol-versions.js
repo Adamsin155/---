@@ -228,6 +228,20 @@ export const PROTOCOL_HISTORY = [
       'p29b.c.gantt', 'p29b.c.match', 'p28.scheduled', 'p29.filled',
     ],
   },
+  {
+    version: 14, date: '2026-11-10', title: 'סדר בסימונים של העורכים',
+    changes: [
+      'ירדו הסימונים שהעורכים (נדיה, יריב, אנה וניראל) סימנו ״מיותר״, וגם התזכורות והאיחורים שלהם. גם אצל לקוחות שכבר באמצע.',
+      'העריכה (22) מתחילה בשיוך: אין יותר ״קיבלתי את הכונן והתחלתי״, ואין תזכורת ״עוד לא התחלת״.',
+      'נשארו בעריכה: כל חומרי הצילום קיימים, התסריטים ברורים, אין שגיאות כתיב, סאונד וחשיפה. ״מוכן לבדיקה״ שואל רק אותם, ואת הדרייב.',
+      'ירדו: לוגו וטלפון תקינים, ״נערכו לפי התסריטים״, תבנית הבי־רול, הסגיר, כל כמות הסרטונים, ייצוב, זוויות והגדרות ייצוא (אופיר עדיין בודק את חמש הטעויות), וההעלאה ל־Dropbox.',
+    ],
+    // For every client, of every version, as v12 and v13.
+    retired: [
+      'p22.received', 'p22.check.logo', 'p22.check.phone', 'p22.edited', 'p22.self.broll', 'p22.self.closing', 'p22.self.complete',
+      'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.dropbox',
+    ],
+  },
 ];
 
 export const LATEST = PROTOCOL_HISTORY.at(-1).version;
