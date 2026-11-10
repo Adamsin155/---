@@ -104,7 +104,7 @@
               <tbody id="ct-body"></tbody>
             </table>
           </div>
-          <p class="mt-money-note">סרטונים: לפי מה שהעורכים רשמו. גרפיקות: לפי הסימון ״הועלו לרשתות״. ימי צילום: יום שהתאריך שלו עבר.</p>
+          <p class="mt-money-note">סרטונים: לפי מה שהעורכים רשמו. גרפיקות: לפי הסימון ״הועלו לרשתות״. ימי צילום: יום שהתאריך שלו עבר. מספר שעודכן ביד גובר על הספירה.</p>
         </section>
 
         <!-- "ימי צילום": the clients the contract gives shoot days, and whether the next one is set (app/tracking-shoots.js). -->
@@ -119,6 +119,9 @@
               </select></div>
               <div class="field"><label for="sh-type">סוג ימי צילום</label><select class="input" id="sh-type"><option value="">הכל</option></select></div>
               <div class="field"><label for="sh-month">חודש סגירת חוזה</label><select class="input" id="sh-month"><option value="">הכל</option></select></div>
+              <div class="field"><label for="sh-ch14">אייטם בערוץ 14</label><select class="input" id="sh-ch14">
+                <option value="">הכל</option><option value="yes">יש אייטם בערוץ 14</option><option value="waiting">ערוץ 14 ממתין לקביעה</option>
+              </select></div>
             </div>
             <p class="mt-count" id="sh-count" role="status" aria-live="polite"></p>
             <div class="mt-wrap ct-wrap sh-wrap" id="sh-wrap" tabindex="0" role="region" aria-labelledby="sh-h">
@@ -130,6 +133,7 @@
                   <th scope="col"><span>ימי צילום שנותרו</span></th>
                   <th scope="col"><span>סוג / הטבה</span></th>
                   <th scope="col"><span>סטטוס</span></th>
+                  <th scope="col"><span>ערוץ 14</span></th>
                   <th scope="col"><span>פעולה</span></th>
                 </tr></thead>
                 <tbody id="sh-body"></tbody>
@@ -145,7 +149,7 @@
 
       <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
         <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
-        <p>מעקב הלקוחות פתוח לבעלים ולמנהלים. העבודה שלך נמצאת ב״המשימות שלי״.</p>
+        <p>מעקב הלקוחות פתוח לבעלים, למנהלים ולגרפיקאי. העבודה שלך נמצאת ב״המשימות שלי״.</p>
         <a class="btn" href="clients.html#mine">מעבר להמשימות שלי</a>
       </section>
     </div>

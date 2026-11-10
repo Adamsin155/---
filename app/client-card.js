@@ -3052,6 +3052,12 @@ mountSession(async (staff) => {
     const n = roundHash[2] ? Number(roundHash[2]) : null;
     if (!n || roundsOf(client).some((r) => r.n === n)) openRound(n);
   }
+  // "שינוי" / "שיוך" beside the editor in "מעקב לקוחות" (tracking.html, 10.11.2026): #assign opens this
+  // card's own editor dialog (the same one as the button beside "עורך"), for whoever may open it here.
+  if (client && location.hash === '#assign' && !own()) {
+    history.replaceState(null, '', location.pathname + location.search);
+    if (assignMode(clientState(client, checks, new Date()))) openCardAssign();
+  }
   const readHash = /^#read-([0-9a-f-]{36})$/.exec(location.hash);
   if (client && readHash && !own()) {
     history.replaceState(null, '', location.pathname + location.search + '#contract-docs');

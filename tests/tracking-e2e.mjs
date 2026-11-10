@@ -52,11 +52,11 @@ function office() {
     client(DANA, { name: 'דנה כהן', business: 'קפה דנה', editor: 'nadia', shoot_at: '2026-09-10T11:00:00+03:00', deliverables: { videos: 36, graphics: 36, shoot_days: 1 } }),
     client(AVI, {
       name: 'אבי לוי', business: 'מוסך אבי', editor: 'nadia', editor2: 'yariv', editor_split: { nadia: 11, yariv: 10 }, shoot_at: '2026-10-01T10:00:00+03:00',
-      rounds: [{ n: 2, shoot_at: '2026-11-05T10:00:00+02:00', start_at: '2026-10-15T09:00:00+03:00' }], deliverables: { videos: 42, graphics: 42, shoot_days: 2 },
+      rounds: [{ n: 2, shoot_at: '2026-11-05T10:00:00+02:00', start_at: '2026-10-15T09:00:00+03:00' }], deliverables: { videos: 42, graphics: 42, shoot_days: 2, ch14: 1 },
     }),
     client(ROMA, { name: 'רומן', business: 'Pizza Roma', shoot_at: null, deal_at: '2026-06-15T09:00:00+03:00', deliverables: { videos: 25, graphics: 20, shoot_days: 1 } }),
     client(ELIOR, { name: 'ניב בן שימול', business: 'אלאור בוטיק', editor: 'anna', shoot_at: '2026-09-15T11:00:00+03:00', deliverables: { videos_month: 8, graphics: 20, shoot_days: 1, shoot_monthly: true } }),
-    client(LONG, { name: 'ד״ר אלכסנדרה ברקוביץ׳-שטרנברג', business: LONG_NAME, editor: 'yariv', shoot_at: '2026-10-12T10:00:00+03:00', deliverables: { videos: 36, graphics: 36, shoot_days: 3 } }),
+    client(LONG, { name: 'ד״ר אלכסנדרה ברקוביץ׳-שטרנברג', business: LONG_NAME, editor: 'yariv', shoot_at: '2026-10-12T10:00:00+03:00', deliverables: { videos: 36, graphics: 36, shoot_days: 3, ch14: 2, ch14_dates: [{ at: '2026-11-12T10:00:00+02:00', by: 'lior', set_at: '2026-10-19T09:00:00+03:00' }] } }),
     client(ENDED, { name: 'סגור', business: 'עסק שהסתיים', status: 'ended', deliverables: { videos: 10 } }),
   ];
   const mark = (id, key, note = null) => db.protocol_checks.push({ client_id: id, item_key: key, state: 'done', note, by_email: emailOf('ilai'), at: '2026-10-01T09:00:00+03:00' });
@@ -168,7 +168,8 @@ async function search(page, name) {
 }
 
 async function phone(engine, { device = null, width = 390, name }) {
-  const { page, ctx } = await signedIn(office(), { person: 'irit', device, width, engine });
+  const db = office();
+  const { page, ctx } = await signedIn(db, { person: 'irit', device, width, engine });
   await numbers(page);
   // A card, not a table: the header row is out of sight, and nothing scrolls sideways.
   assert.equal(await page.locator('#ct thead').evaluate((el) => el.getBoundingClientRect().height <= 1), true);
@@ -182,15 +183,26 @@ async function phone(engine, { device = null, width = 390, name }) {
   await noOverflow(page);
   await shootsTab(page, name, { phone: true });
   await noOverflow(page);
+  await shootFixes(page, db, name, { phone: true });
+  await ch14(page, db, name, { phone: true });
+  await countFixes(page, db, name, { phone: true });
   // Irit's menu has it ("עוד" on a phone): the entry is there.
   assert.ok(await page.locator('a[href="tracking.html"]').count() >= 1, 'in her menu');
   await ctx.close();
 }
 
 async function desktop(engine, { person = 'irit', width = 1366, name }) {
-  const { page, ctx } = await signedIn(office(), { person, width, engine });
+  const db = office();
+  const { page, ctx } = await signedIn(db, { person, width, engine });
   await numbers(page);
   assert.deepEqual((await page.locator('#ct thead th').allInnerTexts()).map((t) => t.trim()), ['לקוח', 'עורך', 'סרטונים נערכו', 'גרפיקות הועלו', 'ימי צילום']);
+  if (person === 'lior') {
+    // Lior reads: no number to tap, no editor link; he does set the Channel 14 dates.
+    assert.equal(await page.locator('#ct .ct-fix').count(), 0, 'no fix on the first tab');
+    assert.equal(await page.locator('#ct .ct-ed-change').count(), 0);
+  } else {
+    assert.equal(await page.locator(`#ct-${AVI} .ct-ed-change`).getAttribute('href'), `client.html?id=${AVI}#assign`);
+  }
   // A table: the five cells of a row side by side, on one line.
   const tops = await page.locator(`#ct-${AVI} td`).evaluateAll((tds) => tds.map((td) => Math.round(td.getBoundingClientRect().top)));
   assert.equal(new Set(tops).size, 1, 'one line');
@@ -199,6 +211,19 @@ async function desktop(engine, { person = 'irit', width = 1366, name }) {
   await shot(page, `tracking-${name}`, { fullPage: true });
   await search(page, name);
   await shootsTab(page, name, { phone: false });
+  if (person === 'lior') {
+    assert.equal(await page.locator('#sh .ct-fix').count(), 0, 'no fix on "ימי צילום"');
+    assert.ok(await page.locator('#sh .sh-14-set').count() >= 2, 'Lior sets the Channel 14 dates');
+  } else {
+    // All eight columns in sight at 1366, with the Channel 14 one.
+    const fit = await page.locator('#sh-wrap').evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    await shot(page, 'tracking-shoots-before-fix-1366', { fullPage: true });
+    assert.ok(fit[0] <= fit[1] + 1, `the table fits: ${fit}`);
+    await shootFixes(page, db, name, { phone: false });
+    await ch14(page, db, name, { phone: false });
+    await countFixes(page, db, name, { phone: false });
+    await page.locator('#tab-shoots').click();
+  }
   await page.locator(`#sh-${ROMA} .sh-act a`).click();
   await page.waitForURL(/client\.html\?id=/);
   await ctx.close();
@@ -220,7 +245,12 @@ async function shootsTab(page, name, { phone }) {
   assert.equal(await page.locator('#tab-shoots').getAttribute('aria-selected'), 'true');
   // The order: waiting first, the oldest deal first; then the set; then the done.
   assert.deepEqual(await shIds(page), [ROMA, ELIOR, LONG, AVI, DANA]);
-  assert.deepEqual((await page.locator('#sh-stats .v').allInnerTexts()).map((t) => t.trim()), ['3', '1', '1', '1']);
+  assert.deepEqual((await page.locator('#sh-stats .v').allInnerTexts()).map((t) => t.trim()), ['3', '1', '1', '1', '2']);
+  assert.equal(await text(page.locator('#sh-stats .sh-stat-sub')), '0 נקבעו מתוך 2');
+  // Channel 14: מוסך אבי waits; the long name has two items, the first set.
+  assert.match(await text(shCell(page, AVI, 6)), /ממתין לקביעה/);
+  assert.match(await text(shCell(page, LONG, 6)), /נקבע · 12.11.*ממתין לקביעה/);
+  assert.equal(await shCell(page, DANA, 6).getAttribute('class'), 'sh-14 is-none');
   assert.equal(await text(page.locator('#sh-foot')), 'סה״כ: 3 לקוחות שטרם נקבע להם יום צילום');
   assert.equal(await text(page.locator('#sh-count')), '5 לקוחות');
   // The cells.
@@ -249,7 +279,10 @@ async function shootsTab(page, name, { phone }) {
   await noOverflow(page);
   if (!phone) {
     // All seven columns in sight at 1366: the table does not scroll sideways.
-    assert.ok(await page.locator('#sh-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the table fits');
+    const fit = await page.locator('#sh-wrap').evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    if (fit[0] > fit[1] + 1) await shot(page, `tracking-shoots-wide-${name}`, { fullPage: true });
+    if (fit[0] > fit[1] + 1) console.log(await page.locator('#sh thead th').evaluateAll((ths) => ths.map((t) => Math.round(t.getBoundingClientRect().width))));
+    assert.ok(fit[0] <= fit[1] + 1, `the table fits: ${fit}`);
   }
   await page.waitForTimeout(300); // the tab's colour has settled
   await shot(page, `tracking-shoots-${name}`, { fullPage: true });
@@ -304,6 +337,245 @@ async function shootsTab(page, name, { phone }) {
   await page.waitForSelector('#sh-body tr[data-id]');
 }
 
+// ── Fixed by hand (10.11.2026) ──
+const dlg = (page) => page.locator('#fx-dlg');
+const fld = (page, id) => page.locator(`#fx-dlg #${id}`);
+// Emptied with Backspace, key by key, then typed key by key.
+async function retype(box, value) {
+  await box.click();
+  await box.press('End');
+  const n = (await box.inputValue()).length;
+  for (let i = 0; i < n; i += 1) await box.press('Backspace');
+  assert.equal(await box.inputValue(), '');
+  if (value) await box.pressSequentially(value, { delay: 40 });
+  assert.equal(await box.inputValue(), value);
+}
+async function save(page) {
+  await fld(page, 'fx-save').click();
+  await dlg(page).waitFor({ state: 'hidden' });
+  await settle(page);
+}
+const avi = (db) => db.clients.find((c) => c.id === AVI);
+const dialogFits = async (page) => {
+  const box = await dlg(page).boundingBox();
+  const vw = await page.evaluate(() => window.innerWidth);
+  assert.ok(box.x >= 0 && box.x + box.width <= vw + 1, 'the dialog fits the screen');
+};
+
+// Tab 1: "סרטונים נערכו" 12/42 → 15/40; the graphics refused above the package, then 10; both back to the count.
+async function countFixes(page, db, name, { phone }) {
+  await page.locator('#tab-videos').click();
+  await page.locator(`#ct-${AVI} [data-fix="videos"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.match(await text(page.locator('#fx-h')), /סרטונים נערכו · מוסך אבי/);
+  assert.match(await text(page.locator('#fx-auto')), /12 \/ 42/);
+  assert.equal(await fld(page, 'fx-a').inputValue(), '12');
+  assert.equal(await fld(page, 'fx-b').inputValue(), '42');
+  assert.equal(await fld(page, 'fx-reset').count(), 0, 'nothing fixed yet: no way back to show');
+  await retype(fld(page, 'fx-a'), '15');
+  await retype(fld(page, 'fx-b'), '400');
+  await fld(page, 'fx-b').press('Backspace');
+  assert.equal(await fld(page, 'fx-b').inputValue(), '40');
+  await dialogFits(page);
+  await shot(page, `tracking-fix-dialog-${name}`);
+  await save(page);
+  assert.match(await text(cell(page, AVI, 2)), /15 \/ 40/);
+  assert.match(await text(cell(page, AVI, 2)), /עודכן ביד · עירית · 20\.10/);
+  assert.equal(avi(db).deliverables.tracking.videos.done, 15);
+  assert.equal(avi(db).deliverables.tracking.videos.of, 40);
+  assert.equal(avi(db).deliverables.tracking.videos.by, 'irit');
+  assert.equal(avi(db).deliverables.videos, 42, 'the package itself is not touched');
+  assert.equal(avi(db).deliverables.ch14, 1, 'the rest of the deliverables kept');
+  // The graphics: more than the package is refused; then 10.
+  await page.locator(`#ct-${AVI} [data-fix="graphics"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-a'), '50');
+  await fld(page, 'fx-save').click();
+  assert.equal(await text(fld(page, 'fx-err')), 'אי אפשר יותר ממה שבחבילה.');
+  assert.equal(await dlg(page).isVisible(), true);
+  await retype(fld(page, 'fx-a'), '10');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 3)), /10 \/ 42.*עודכן ביד · עירית/);
+  await noOverflow(page);
+  await page.locator(`#ct-${AVI}`).scrollIntoViewIfNeeded();
+  await shot(page, `tracking-fixed-${name}`, { fullPage: !phone });
+  // Back to the count: the fields emptied (videos), and the button (graphics).
+  await page.locator(`#ct-${AVI} [data-fix="videos"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.match(await text(page.locator('#fx-dlg .fx-by')), /עודכן ביד · עירית · 20\.10/);
+  await retype(fld(page, 'fx-a'), '');
+  await retype(fld(page, 'fx-b'), '');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 2)), /12 \/ 42/);
+  assert.equal(await cell(page, AVI, 2).locator('.ct-by').count(), 0);
+  assert.equal(avi(db).deliverables.tracking.videos, undefined);
+  await page.locator(`#ct-${AVI} [data-fix="graphics"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await fld(page, 'fx-reset').click();
+  await dlg(page).waitFor({ state: 'hidden' });
+  await settle(page);
+  assert.match(await text(cell(page, AVI, 3)), /9 \/ 42/);
+  assert.equal(avi(db).deliverables.tracking, undefined, 'nothing fixed: the key itself is gone');
+  // "The latest update wins" (the owner, 10.11.2026): 20 by hand; then Nadia types one more (8 → 9):
+  // the count again (13 / 42), no "עודכן ביד"; Irit fixes again: hers again.
+  await page.locator(`#ct-${AVI} [data-fix="videos"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-a'), '20');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 2)), /20 \/ 42.*עודכן ביד/);
+  assert.deepEqual(avi(db).deliverables.tracking.videos.auto, { done: 12, of: 42 }, 'the count kept with the fix');
+  db.editor_progress.find((r) => r.client_id === AVI && r.editor === 'nadia').edited = 9;
+  await page.locator('#btn-refresh').click();
+  await page.waitForFunction((id) => /13 \/ 42/.test(document.querySelector(`#ct-${id} [data-kind="videos"]`)?.textContent || ''), AVI);
+  assert.equal(await cell(page, AVI, 2).locator('.ct-by').count(), 0, 'the count moved: no "עודכן ביד"');
+  await page.locator(`#ct-${AVI} [data-fix="videos"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.equal(await fld(page, 'fx-a').inputValue(), '13');
+  await retype(fld(page, 'fx-a'), '21');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 2)), /21 \/ 42.*עודכן ביד · עירית/);
+  // The graphics: 10 by hand, then 23ב is marked: all 42, the count's.
+  await page.locator(`#ct-${AVI} [data-fix="graphics"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-a'), '10');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 3)), /10 \/ 42.*עודכן ביד/);
+  db.protocol_checks.push({ client_id: AVI, item_key: 'p23b.posted', state: 'done', note: null, by_email: emailOf('ilai'), at: '2026-10-20T10:05:00+03:00' });
+  await page.locator('#btn-refresh').click();
+  await page.waitForFunction((id) => /42 \/ 42/.test(document.querySelector(`#ct-${id} [data-kind="graphics"]`)?.textContent || ''), AVI);
+  assert.equal(await cell(page, AVI, 3).locator('.ct-by').count(), 0);
+  // Back as it was for the next steps.
+  db.protocol_checks.pop();
+  db.editor_progress.find((r) => r.client_id === AVI && r.editor === 'nadia').edited = 8;
+  delete avi(db).deliverables.tracking;
+  await page.locator('#btn-refresh').click();
+  await page.waitForFunction((id) => /12 \/ 42/.test(document.querySelector(`#ct-${id} [data-kind="videos"]`)?.textContent || ''), AVI);
+}
+
+// Tab 2: מוסך אבי from 2 days (1 left, set for 5.11) to 3 days, 2 left, "ממתין לקביעה", every month.
+async function shootFixes(page, db, name, { phone }) {
+  await page.locator('#tab-shoots').click();
+  await page.locator(`#sh-${AVI} .sh-total .ct-fix`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.equal(await fld(page, 'fx-a').inputValue(), '2');
+  assert.equal(await fld(page, 'fx-b').inputValue(), '1');
+  await retype(fld(page, 'fx-a'), '3');
+  await retype(fld(page, 'fx-b'), '2');
+  await fld(page, 'fx-status').selectOption('waiting');
+  await fld(page, 'fx-monthly').check();
+  await dialogFits(page);
+  await page.waitForTimeout(250);
+  await shot(page, `tracking-shoots-fix-dialog-${name}`);
+  await save(page);
+  assert.match(await text(shCell(page, AVI, 2)), /^3/);
+  assert.match(await text(shCell(page, AVI, 3)), /^2/);
+  assert.match(await text(shCell(page, AVI, 5)), /ממתין לקביעה/);
+  assert.match(await text(shCell(page, AVI, 4)), /יום צילום כל חודש/);
+  assert.match(await text(shCell(page, AVI, 0)), /עודכן ביד · עירית · 20\.10/);
+  assert.deepEqual({ ...avi(db).deliverables.tracking.shoots, at: 'x' }, { agreed: 3, status: 'waiting', by: 'irit', at: 'x', auto: { held: 1, agreed: 2, dates: '2026-10-01|2026-11-05' } }, 'held = 3 − 2 = the count: not kept');
+  assert.equal(avi(db).deliverables.shoot_monthly, true);
+  assert.deepEqual((await page.locator('#sh-stats .v').allInnerTexts()).map((t) => t.trim()), ['4', '0', '2', '2', '2'], 'now 3 days, waiting, every month');
+  await noOverflow(page);
+  await page.locator(`#sh-${AVI}`).scrollIntoViewIfNeeded();
+  await shot(page, `tracking-shoots-fixed-${name}`, { fullPage: !phone });
+  // Back: the count again, and not every month.
+  await page.locator(`#sh-${AVI} .sh-fix-status`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.equal(await fld(page, 'fx-status').inputValue(), 'waiting');
+  await fld(page, 'fx-monthly').uncheck();
+  await fld(page, 'fx-reset').click();
+  await dlg(page).waitFor({ state: 'hidden' });
+  await settle(page);
+  assert.match(await text(shCell(page, AVI, 5)), /נקבע · 5\.11/);
+  assert.equal(avi(db).deliverables.tracking, undefined);
+  // "חזרה לספירה" takes the fix away only; the switch is set from the same dialog's "שמירה".
+  assert.equal(avi(db).deliverables.shoot_monthly, true);
+  await page.locator(`#sh-${AVI} .sh-total .ct-fix`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await fld(page, 'fx-monthly').uncheck();
+  await save(page);
+  assert.equal(avi(db).deliverables.shoot_monthly, undefined);
+  assert.equal(avi(db).deliverables.tracking, undefined);
+}
+
+// Tab 2: Channel 14 for מוסך אבי, the date and the time typed key by key (a wrong day first).
+async function ch14(page, db, name, { phone }) {
+  await page.locator('#tab-shoots').click();
+  await page.locator(`#sh-${AVI} .sh-14-set`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.match(await text(page.locator('#fx-h')), /ערוץ 14 · מוסך אבי/);
+  const day = fld(page, 'fx-d0');
+  const time = fld(page, 'fx-t0');
+  await retype(day, '32.11');
+  await retype(time, '1030');
+  await fld(page, 'fx-save').click();
+  assert.equal(await text(fld(page, 'fx-err')), 'אין תאריך כזה.');
+  await day.press('End');
+  for (let i = 0; i < 5; i += 1) await day.press('Backspace');
+  await day.pressSequentially('25.111', { delay: 40 });
+  await day.press('Backspace');
+  assert.equal(await day.inputValue(), '25.11');
+  await retype(time, '10:30');
+  await dialogFits(page);
+  await shot(page, `tracking-ch14-dialog-${name}`);
+  await save(page);
+  assert.match(await text(shCell(page, AVI, 6)), /נקבע · 25\.11/);
+  assert.equal(await text(page.locator('#sh-stats .sh-stat-sub')), '1 נקבעו מתוך 2');
+  const kept = avi(db).deliverables.ch14_dates;
+  assert.equal(kept.length, 1);
+  assert.equal(new Date(kept[0].at).toISOString(), '2026-11-25T08:30:00.000Z', '10:30 in Israel');
+  assert.equal(kept[0].by, 'irit');
+  // The filter.
+  await page.selectOption('#sh-ch14', 'yes');
+  assert.deepEqual((await shIds(page)).sort(), [AVI, LONG].sort());
+  await page.selectOption('#sh-ch14', 'waiting');
+  assert.deepEqual(await shIds(page), [LONG]);
+  await page.locator('#sh-wrap').scrollIntoViewIfNeeded();
+  await shot(page, `tracking-ch14-filter-${name}`, { fullPage: !phone });
+  // Two items: one date each.
+  await page.locator(`#sh-${LONG} .sh-14-set`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#fx-dlg .fx-item').count(), 2);
+  assert.equal(await fld(page, 'fx-d0').inputValue(), '12.11.2026');
+  assert.equal(await fld(page, 'fx-t0').inputValue(), '10:00');
+  assert.equal(await fld(page, 'fx-d1').inputValue(), '');
+  await dialogFits(page);
+  await shot(page, `tracking-ch14-two-${name}`);
+  await page.locator('#fx-dlg .dlg-foot .btn-ghost').click();
+  await dlg(page).waitFor({ state: 'hidden' });
+  await page.selectOption('#sh-ch14', '');
+  assert.equal((await shIds(page)).length, 5);
+  // Taken away: the date emptied.
+  await page.locator(`#sh-${AVI} .sh-14-set`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-d0'), '');
+  await save(page);
+  assert.match(await text(shCell(page, AVI, 6)), /ממתין לקביעה/);
+  assert.equal(avi(db).deliverables.ch14_dates, undefined);
+}
+
+// Ilai: the first tab only; he fixes the graphics, nothing else.
+async function ilai(engine, { device = null, width = 390, name }) {
+  const db = office();
+  const { page, ctx } = await signedIn(db, { person: 'ilai', device, width, engine });
+  assert.equal(await page.locator('#ct-tabs').isVisible(), false, 'no tabs: the first one only');
+  assert.equal(await page.locator('#view-shoots').isVisible(), false);
+  const kinds = await page.locator('#ct .ct-fix').evaluateAll((els) => els.map((el) => el.dataset.fix));
+  assert.equal(kinds.length, 5);
+  assert.ok(kinds.every((k) => k === 'graphics'), 'graphics only');
+  assert.equal(await page.locator('#ct .ct-ed-change').count(), 0);
+  await page.locator(`#ct-${AVI} [data-fix="graphics"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-a'), '12');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 3)), /12 \/ 42.*עודכן ביד · עילאי · 20\.10/);
+  assert.equal(avi(db).deliverables.tracking.graphics.by, 'ilai');
+  assert.ok(await page.locator('a[href="tracking.html"]').count() >= 1, 'in his menu');
+  await noOverflow(page);
+  await shot(page, `tracking-ilai-${name}`, { fullPage: true });
+  await ctx.close();
+}
+
 // The open tab is kept: in the address (#shoots), and on this device for a plain visit.
 async function remembered(engine) {
   const a = await signedIn(office(), { person: 'irit', width: 1366, engine, path: 'tracking.html#shoots', wait: '#sh-body tr[data-id]' });
@@ -338,10 +610,12 @@ async function noAccess(engine) {
 
 const engines = { chromium: await chromium.launch(), webkit: await webkit.launch() };
 try {
-  await step('Irit on an iPhone 13 (WebKit): the cards, the numbers, the dates, the search key by key', () => phone(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));
-  await step('Irit on Chromium 390: the same', () => phone(engines.chromium, { width: 390, name: 'chromium390' }));
+  if (process.env.ONLY !== 'desktop') await step('Irit on an iPhone 13 (WebKit): the cards, the numbers, the dates, the search key by key', () => phone(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));
+  if (process.env.ONLY !== 'desktop') await step('Irit on Chromium 390: the same', () => phone(engines.chromium, { width: 390, name: 'chromium390' }));
   await step('Irit at 1366: the table, five columns; the tab "ימי צילום"; its button opens the card', () => desktop(engines.chromium, { name: 'irit-1366' }));
   await step('Lior at 1366: he sees it too', () => desktop(engines.chromium, { person: 'lior', name: 'lior-1366' }));
+  await step('Ilai on an iPhone 13 (WebKit): the first tab only, he fixes the graphics', () => ilai(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));
+  await step('Ilai at 1366: the same', () => ilai(engines.chromium, { width: 1366, name: '1366' }));
   await step('the open tab is kept: #shoots in the address, the last tab on this device', () => remembered(engines.chromium));
   await step('Nadia (an editor): refused, back to her tasks, not in her menu', () => noAccess(engines.chromium));
   await step('no page errors and no CSP violations', () => { assert.deepEqual(errors, []); noCspViolations(); });
