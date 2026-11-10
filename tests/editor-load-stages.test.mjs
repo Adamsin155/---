@@ -1,4 +1,4 @@
-// The editors' load by stage (the owner, 10.11.2026; docs/ops.md, section 124): "בעריכה" is only
+// The editors' load by stage (the owner, 10.11.2026; docs/ops.md, section 125): "בעריכה" is only
 // what the editor still edits (assigned, not handed to Ofir yet); the fixes (Ofir's return, or the
 // client's notes) count again as "בתיקונים"; what is finished and waits for Ofir or the client is
 // apart ("ממתינים ללקוח") and never in the load the suggestion reads; once Irit marked "הלקוח אישר

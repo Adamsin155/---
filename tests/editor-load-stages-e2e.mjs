@@ -1,4 +1,4 @@
-// qa.html "עומס עורכים" by stage (the owner, 10.11.2026; docs/ops.md, section 124), Ofir signed in,
+// qa.html "עומס עורכים" by stage (the owner, 10.11.2026; docs/ops.md, section 125), Ofir signed in,
 // against the office of tests/flow-world.mjs (Tuesday 20.10.2026, 10:00 in Israel; invented names):
 //   - each editor's line: "N לקוחות בעריכה · M בתיקונים" (the load), and the finished ones apart,
 //     muted, "N ממתינים ללקוח"; a client the client approved is not there at all;
