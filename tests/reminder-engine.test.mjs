@@ -440,7 +440,7 @@ test('assign an editor (22א): Ofir alone, no clock and no ring per client (30.1
   none(due(w, IL(2026, 10, 18, 12)), 'assign12');
 });
 
-test('editing (22, 24), a client from before protocol v11: assigned, not started after 2 office hours (Lior after 4), days 2 and 3, day 3 at 15:00', () => {
+test('editing (22, 24), a client from before protocol v11: assigned, days 2 and 3, day 3 at 15:00; no "not started" since v14', () => {
   const w = world();
   const c = client(w, { shoot_at: IL(2026, 10, 15, 11).toISOString(), editor: 'nadia', protocol_version: 10 });
   importTo(w, c, 'post');
@@ -448,18 +448,15 @@ test('editing (22, 24), a client from before protocol v11: assigned, not started
   mark(w, c, 'p22a.assigned', IL(2026, 10, 18, 10));
   const now = one(due(w, IL(2026, 10, 18, 10)), 'editing', 'assigned', 'nadia');
   assert.match(now.body, /בדרייב ואצל אופיר עד ד׳ 21\.10 18:00 · סגירה עד ה׳ 22\.10 18:00/);
-  none(due(w, IL(2026, 10, 18, 11, 59)), 'editing', 'nostart');
-  one(due(w, IL(2026, 10, 18, 12)), 'editing', 'nostart', 'nadia');
-  const at14 = due(w, IL(2026, 10, 18, 14));
-  assert.equal(one(at14, 'editing', 'nostartLior', 'lior').list, true);
-  assert.equal(one(at14, 'editing', 'ofir', 'ofir').level, 'quiet');
+  // Protocol v14: "התקבל הכונן" left, and with it "עוד לא התחלת" and Lior's and Ofir's "עריכה לא התחילה".
+  for (const at of [IL(2026, 10, 18, 12), IL(2026, 10, 18, 14), IL(2026, 10, 19, 17)]) {
+    for (const step of ['nostart', 'nostartLior', 'ofir']) none(due(w, at), 'editing', step);
+  }
   assert.equal(one(due(w, IL(2026, 10, 20, 8, 30)), 'editing', 'day2', 'nadia').level, 'digest');
   one(due(w, IL(2026, 10, 21, 8, 30)), 'editing', 'day3', 'nadia');
   none(due(w, IL(2026, 10, 21, 14, 59)), 'editing', 'day3pm');
   one(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm', 'nadia');
-  // Started: no "not started"; paused: nothing; ready for QA: done.
-  mark(w, c, 'p22.received', IL(2026, 10, 18, 11));
-  none(due(w, IL(2026, 10, 18, 14)), 'editing', 'nostart');
+  // Ready for QA: done.
   // An old pause stops nothing since 5.11.2026: the editing rings go on.
   mark(w, c, 'p22.pause', IL(2026, 10, 19, 11), JSON.stringify({ reason: 'משימה דחופה' }));
   one(due(w, IL(2026, 10, 21, 15)), 'editing', 'day3pm', 'nadia');

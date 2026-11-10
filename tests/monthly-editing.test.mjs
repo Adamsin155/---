@@ -260,7 +260,7 @@ test('the tick opens the month once; again the same minute or the next day: noth
   assert.equal(s1.monthlyFailed, 0);
   assert.deepEqual(db.clients[0].rounds, [{ n: 2, month: '2026-11', monthly: true, editor: 'anna', start_at: NOV4.toISOString() }]);
   assert.deepEqual(db.clients[1].rounds, []);
-  assert.equal(db.rows.filter((r) => r.item_key.startsWith('r2.')).length, NA_KEYS.length + 2);
+  assert.equal(db.rows.filter((r) => r.item_key.startsWith('r2.')).length, NA_KEYS.length + 1); // v14: no "התקבל הכונן"
   assert.equal(db.rows.find((r) => r.item_key === 'r2.p22a.assigned').note, MONTHLY_NOTE);
   // This tick already saw the round: the editor's own "new client in editing" went out, nobody else's.
   const told = db.log.filter((r) => /:r2-/.test(r.key));
