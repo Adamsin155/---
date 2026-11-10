@@ -25,6 +25,7 @@ import { videosPerDay } from './production.js';
 import { isMonthly, monthKey, monthTargetOf } from './edit-count.js';
 import { shootHistory } from './shoot-table.js';
 import { partsIL } from './tz.js';
+import { fixOf, applyCount, applyShootCount } from './tracking-fix-logic.js';
 
 // The clients in work: active, or in their last month ("ending"); also those still in landing
 // (a client in landing is a client for every list; docs/ops.md, section 41). Not the ended ones.
@@ -122,13 +123,14 @@ export function shootDates(s) {
 export function trackingRows(clients, { checks = {}, progress = [], months = [], posted = {} } = {}, now = new Date()) {
   return (clients || []).filter(inWork).map((c) => {
     const cs = checks[c.id] || {};
+    // A number fixed by hand stands in place of the count (app/tracking-fix-logic.js).
     return {
       id: c.id,
       label: clientLabel(c),
       editor: editorText(c),
-      videos: videosOf(c, cs, progress, months, now),
-      graphics: graphicsOf(c, cs, posted[c.id] || 0),
-      shoots: shootDaysOf(c, cs, now),
+      videos: applyCount(videosOf(c, cs, progress, months, now), fixOf(c, 'videos'), { month: isMonthly(c) ? monthKey(now) : null }),
+      graphics: applyCount(graphicsOf(c, cs, posted[c.id] || 0), fixOf(c, 'graphics')),
+      shoots: applyShootCount(shootDaysOf(c, cs, now), fixOf(c, 'shoots')),
     };
   }).sort((a, b) => a.label.localeCompare(b.label, 'he'));
 }

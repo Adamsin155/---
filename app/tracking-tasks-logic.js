@@ -47,7 +47,7 @@ export function fromClientTask(t, clients = {}) {
   if (!kind) return null;
   const c = clients[t.client_id];
   return {
-    id: `c-${t.id}`, from: 'client', kind, person: t.owner, who: personName(t.owner),
+    id: `c-${t.id}`, rawId: t.id, from: 'client', kind, person: t.owner, who: personName(t.owner),
     clientId: t.client_id || null, client: c ? clientLabel(c) : '',
     title: oneLine(t.title), brief: briefText(t.brief),
     createdAt: t.created_at || null, dueOn: t.due_on || null,
@@ -60,7 +60,7 @@ export function fromStaffTask(t, clients = {}) {
   const c = t.client_id ? clients[t.client_id] : null;
   // The task's text is the title; a long one is cut here (the whole text is in "משימות לעובדים").
   return {
-    id: `s-${t.id}`, from: 'staff', kind, person: t.assignee, who: personName(t.assignee),
+    id: `s-${t.id}`, rawId: t.id, from: 'staff', kind, person: t.assignee, who: personName(t.assignee),
     clientId: c ? t.client_id : null, client: c ? clientLabel(c) : oneLine(t.client_name),
     title: shorten(t.body, 160), brief: briefText(t.brief),
     createdAt: t.created_at || null, dueOn: null,

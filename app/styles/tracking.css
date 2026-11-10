@@ -52,7 +52,7 @@
 .sh-stats .ow-stat { grid-template-rows: 1fr auto; align-content: stretch; }
 .sh-stats .ow-stat .v { font-size: 40px; align-self: end; }
 .sh-stats .is-waiting .v { color: var(--ds-amber, #855400); }
-.sh-tools { grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)); }
+.sh-tools { grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(120px, 1fr)); }
 .sh .sh-deal { white-space: nowrap; }
 .sh .sh-deal .num { font-variant-numeric: tabular-nums; }
 .sh .sh-kinds { display: flex; flex-wrap: wrap; gap: 4px 6px; }
@@ -78,10 +78,11 @@
   .sh-tools .mt-search { grid-column: 1 / -1; }
   .sh .sh-kinds { justify-content: flex-end; }
   .sh tbody td.sh-type { max-inline-size: none; flex-wrap: nowrap; }
-  .sh-tools .field:last-child { grid-column: 1 / -1; }
   .sh tbody td.sh-act { display: block; padding-block-start: 8px; }
   .sh tbody td.sh-act::before { content: none; }
   .sh tbody td.sh-act .btn { inline-size: 100%; min-height: 44px; justify-content: center; }
+}
+
 /* Tab 3, "משימות לעורכים ולגרפיקאי" (app/tracking-tasks.js): the same table look, two rows of
    chips (quotes.css .chip) and "משימה חדשה" beside them. A phone: each task is a card. */
 .tt-h { margin: 0; font-size: 18px; }
@@ -146,4 +147,61 @@
   .tt tbody tr.tt-none-row { padding: 0; background: none; }
   .tt tbody tr.tt-none-row td { display: block; }
   .tt tbody tr.tt-none-row td::before { content: none; }
+}
+
+/* ── A number fixed by hand (10.11.2026; app/tracking-fix.js) ──
+   Whoever may fix it sees the number as a quiet button with a pencil; under a fixed number, a small
+   line "עודכן ביד · עירית · 10.11". The others see the number as before. */
+.ct-fix {
+  display: inline-flex; align-items: center; gap: 6px; min-block-size: 36px; padding: 2px 8px; margin-inline: -8px;
+  border: 1px dashed transparent; border-radius: var(--ds-r-ctl, 10px); background: none; color: inherit; font: inherit; cursor: pointer;
+}
+.ct-fix:hover { border-color: var(--control-edge, #C8CEDB); background: var(--ds-soft, #F3F5F9); }
+.ct-fix:focus-visible { outline: 2px solid var(--ds-navy, #1B2A4A); outline-offset: 1px; }
+.ct-fix:disabled { opacity: .6; cursor: progress; }
+.ct-pen { font-size: 13px; color: var(--muted); line-height: 1; }
+.ct-by { display: block; margin-block-start: 2px; font-size: 12px; font-weight: 600; color: var(--k-purple, #5B3BA8); white-space: nowrap; }
+.ct .is-fixed .num, .sh .is-fixed .sh-total .num, .sh .is-fixed .sh-left .num { color: var(--k-purple, #5B3BA8); }
+.ct .ct-ed-in { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ct .ct-ed-change { font-size: 13px; font-weight: 600; color: var(--ds-navy-2, #33468A); }
+.sh .sh-fix-status { margin-inline: -8px; }
+.tt .tt-toggle { margin-inline: -8px; }
+.tt .tt-due-fix { margin-inline: -8px; }
+
+/* The dialog. */
+.fx-dlg { inline-size: min(460px, calc(100vw - 24px)); }
+.fx-dlg .dlg-head h2 { font-size: 19px; overflow-wrap: anywhere; }
+.fx-dlg .fx-auto { margin: 0 0 10px; }
+.fx-dlg .fx-by { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--k-purple, #5B3BA8); }
+.fx-pair { display: flex; align-items: flex-end; gap: 10px; }
+.fx-pair .fx-field { flex: 1 1 0; min-inline-size: 0; margin: 0; }
+.fx-slash { padding-block-end: 12px; font-size: 20px; color: var(--muted); }
+.fx-dlg .field { margin-block-end: 12px; }
+.fx-dlg .input { font-size: 16px; } /* 16px: no zoom on focus in iOS */
+.fx-dlg .fx-num { text-align: center; font-variant-numeric: tabular-nums; }
+.fx-dlg .fx-check { display: flex; align-items: center; gap: 10px; min-block-size: 44px; }
+.fx-dlg .fx-item { margin: 0 0 6px; padding: 0; border: 0; }
+.fx-dlg .fx-item legend { padding: 0; margin-block-end: 4px; font-weight: 600; }
+.fx-dlg .fx-reset { margin-inline-end: auto; min-block-size: 44px; }
+.fx-dlg .dlg-foot .btn { min-block-size: 44px; }
+
+/* "ימי צילום": the Channel 14 column and tile. */
+.sh .sh-14 { white-space: nowrap; }
+.sh .sh-14-items { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.sh .sh-14-set { margin-block-start: 6px; min-height: 36px; white-space: nowrap; }
+.sh .sh-none { color: var(--muted); }
+.sh-stats .sh-stat-sub { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.sh-stats .sh-stat-14 { grid-template-rows: 1fr auto auto; }
+
+@media (max-width: 760px) {
+  .ct-fix { min-block-size: 44px; }
+  .ct tbody td .ct-by, .sh tbody td .ct-by { flex: 0 0 100%; text-align: end; }
+  .sh tbody td:first-child { flex-wrap: wrap; }
+  .sh .sh-14-items { align-items: flex-end; }
+  .sh tbody td.sh-14 { flex-wrap: wrap; }
+  .sh tbody td.sh-14 .sh-14-set { flex: 0 0 100%; min-height: 44px; justify-content: center; }
+  .sh tbody td.sh-14.is-none { display: none; }
+  .sh-stats .sh-stat-14 { grid-column: 1 / -1; }
+  .fx-dlg .dlg-foot { flex-direction: column-reverse; align-items: stretch; }
+  .fx-dlg .fx-reset { margin: 0; }
 }

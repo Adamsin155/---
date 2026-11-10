@@ -28,7 +28,7 @@ test('who is an editor and who the graphic designer', () => {
 test('a task of the client card and one of "משימות לעובדים" become the same kind of row', () => {
   const a = fromClientTask({ id: 1, client_id: 'c1', title: '  לעצב  באנר ', owner: 'ilai', due_on: '2026-11-12', done_at: null, created_at: daysAgo(2), brief: { change: 'צבע  כחול', problem: '' } }, clients);
   assert.deepEqual(a, {
-    id: 'c-1', from: 'client', kind: 'graphic', person: 'ilai', who: 'עילאי', clientId: 'c1', client: 'קפה דנה · דנה כהן',
+    id: 'c-1', rawId: 1, from: 'client', kind: 'graphic', person: 'ilai', who: 'עילאי', clientId: 'c1', client: 'קפה דנה · דנה כהן',
     title: 'לעצב באנר', brief: 'צבע כחול', createdAt: daysAgo(2), dueOn: '2026-11-12', state: 'open', doneAt: null,
   });
   const b = fromStaffTask({ id: 9, assignee: 'nadia', body: 'לערוך\nרילס', client_id: 'gone', client_name: 'לקוח ישן', status: 'done', done_at: daysAgo(1), created_at: daysAgo(3) }, clients);

@@ -23,6 +23,8 @@ import { isShootMonthly, monthName } from './monthly-shoot.js';
 import { FLAGS } from './contract-summary.js';
 import { inWork, dayMonth } from './tracking-logic.js';
 import { partsIL, dayKeyIL } from './tz.js';
+import { fixOf } from './tracking-fix-logic.js';
+import { ch14Of } from './tracking-ch14-logic.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 // 'YYYY-MM' of the Israel month of a moment.
@@ -68,8 +70,12 @@ export function setHash(client) {
 export function shootRow(client, checks = {}, now = new Date()) {
   const h = shootHistory(client, checks, now);
   const monthly = isShootMonthly(client);
-  const total = h.agreed || null;
-  const remaining = total ? Math.max(0, total - h.held) : null;
+  // A number fixed by hand stands in place of the count (app/tracking-fix-logic.js).
+  const fix = fixOf(client, 'shoots');
+  const autoTotal = h.agreed || null;
+  const total = fix?.agreed ?? autoTotal;
+  const held = fix?.held ?? h.held;
+  const remaining = total ? Math.max(0, total - held) : null;
   let status;
   let date = h.next;
   if (monthly) {
@@ -80,6 +86,9 @@ export function shootRow(client, checks = {}, now = new Date()) {
   } else {
     status = date ? 'set' : remaining === 0 ? 'done' : 'waiting';
   }
+  const autoStatus = status;
+  if (fix?.status) status = fix.status;
+  if (status === 'waiting') date = null;
   const past = date && dayKeyIL(date) < dayKeyIL(now);
   const deal = parseDate(client.deal_at);
   const cardUrl = `client.html?id=${encodeURIComponent(client.id)}`;
@@ -88,11 +97,14 @@ export function shootRow(client, checks = {}, now = new Date()) {
     label: clientLabel(client),
     dealAt: deal,
     dealMonth: deal ? monthOf(deal) : '',
-    total, held: h.held, remaining, monthly,
+    total, held, remaining, monthly,
+    auto: { held: h.held, agreed: autoTotal, status: autoStatus },
+    fix: fix ? { by: fix.by, at: fix.at, held: fix.held ?? null, agreed: fix.agreed ?? null, status: fix.status || null } : null,
+    ch14: ch14Of(client, now),
     types: typeNames(client),
     benefits: benefitsOf(client),
     status, date,
-    statusText: status === 'set' ? `${past ? 'צולם החודש' : STATUS.set} · ${dayMonth(date)}` : STATUS[status],
+    statusText: status === 'set' ? (date ? `${past ? 'צולם החודש' : STATUS.set} · ${dayMonth(date)}` : STATUS.set) : STATUS[status],
     action: status === 'waiting' ? { text: 'קביעת יום צילום', href: cardUrl + setHash(client), set: true }
       : { text: 'צפה בפרטים', href: cardUrl, set: false },
   };
@@ -122,6 +134,13 @@ export function shootTiles(rows) {
     monthly: rows.filter((r) => r.monthly).length,
   };
 }
+// The filter "אייטם בערוץ 14" (the owner, 10.11.2026): '' (everyone) | 'yes' | 'waiting' (an item without a date).
+export const CH14_FILTER = [['yes', 'יש אייטם בערוץ 14'], ['waiting', 'ערוץ 14 ממתין לקביעה']];
+function ch14Match(r, v) {
+  if (!v) return true;
+  if (!r.ch14) return false;
+  return v === 'waiting' ? !r.ch14.set : true;
+}
 
 // The filters' choices, from the rows themselves.
 //   types: [{ value, label }] — every name that comes, by name, then "יום צילום כל חודש".
@@ -139,9 +158,9 @@ export function monthOptions(rows) {
 // The filters: { status: '' | 'waiting' | 'set', type: '' | name | 'monthly', month: '' | 'YYYY-MM', q }.
 // The search: the client's name, any part of it (as the first tab).
 const plain = (s) => String(s || '').toLocaleLowerCase('he').replace(/\s+/g, ' ').trim();
-export function filterShoots(rows, { status = '', type = '', month = '', q = '' } = {}) {
+export function filterShoots(rows, { status = '', type = '', month = '', q = '', ch14 = '' } = {}) {
   const t = plain(q);
-  return rows.filter((r) => (!status || r.status === status)
+  return rows.filter((r) => (!status || r.status === status) && ch14Match(r, ch14)
     && (!type || (type === 'monthly' ? r.monthly : r.types.includes(type)))
     && (!month || r.dealMonth === month)
     && (!t || plain(r.label).includes(t)));
