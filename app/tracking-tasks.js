@@ -63,7 +63,7 @@ function chipGroup(label, list, key, counts) {
     ...list.map(([k, text]) => h('button', {
       type: 'button', class: 'chip', 'data-tt': key, 'data-v': k, 'aria-pressed': String(state[key] === k),
       onclick: () => { state[key] = k; state.shown = PAGE_SIZE; draw(); state.host.querySelector(`[data-tt="${key}"][data-v="${k}"]`)?.focus(); },
-    }, text, h('span', { class: 'n' }, String(counts[k])))));
+    }, text, ' ', h('span', { class: 'n' }, String(counts[k])))));
 }
 
 function kindChip(kind) {
@@ -88,15 +88,16 @@ function draw() {
   const { host } = state;
   if (!host) return;
   const now = new Date();
-  const counts = chipCounts(state.rows, state);
-  const list = filterTasks(state.rows, state);
+  const chosen = { kind: state.kind, state: state.status };
+  const counts = chipCounts(state.rows, chosen);
+  const list = filterTasks(state.rows, chosen);
   const page = list.slice(0, state.shown);
   const gives = isManager(state.viewer);
   fill(host,
     h('div', { class: 'tt-tools' },
       h('div', { class: 'tt-filters' },
         chipGroup('למי', KINDS, 'kind', counts.kind),
-        chipGroup('מצב', STATES, 'status', counts.status)),
+        chipGroup('מצב', STATES, 'status', counts.state)),
       gives ? h('button', { type: 'button', class: 'btn btn-primary tt-new', id: 'tt-new', onclick: openForm }, icon('plus', { size: 18 }), 'משימה חדשה') : null),
     h('p', { class: 'mt-count tt-count', id: 'tt-count', role: 'status', 'aria-live': 'polite' },
       list.length === state.rows.length ? tasksWord(list.length) : `${tasksWord(list.length)} מתוך ${state.rows.length}`),

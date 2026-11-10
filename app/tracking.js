@@ -82,5 +82,5 @@ mountSession(async (staff) => {
   $('ct-page').hidden = false;
   // Tab 3, "משימות לעורכים ולגרפיקאי" (app/tracking-tasks.js): its own data, beside the table's.
   const tasks = import('./tracking-tasks.js').then((m) => m.renderTasksTab($('tt-host'), { viewer: v }));
-  await Promise.all([load(), tasks.catch(() => {})]);
+  await Promise.all([load(), tasks.catch((e) => console.error(e))]);
 });
