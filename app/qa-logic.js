@@ -366,17 +366,17 @@ export function suggestAssignment({ client, n = null, shootType, joint = false, 
   return pick(first.editor, 'load', reason);
 }
 
-// What the editor works on (10.11.2026): "5 בעריכה · 2 בתיקונים", or "אין לקוחות בעריכה".
+// What the editor works on (10.11.2026): "5 לקוחות בעריכה · 2 בתיקונים", or "אין לקוחות בעריכה".
 export function workText(l) {
   const jobs = l?.jobs || [];
   const fixes = jobs.filter((j) => j.stage === 'fixes').length;
   const editing = jobs.length - fixes;
   if (!jobs.length) return clientsInEditing(0);
-  return [editing ? `${editing} בעריכה` : null, fixes ? `${fixes} בתיקונים` : null].filter(Boolean).join(' · ');
+  return [editing ? clientsInEditing(editing) : null, fixes ? `${fixes} בתיקונים` : null].filter(Boolean).join(' · ');
 }
 // What the editor finished and waits for Ofir or the client (not in the load): "21 ממתינים ללקוח".
-export const waitingText = (n) => (n ? `${n} ממתינים ללקוח` : null);
-// "נדיה: 5 בעריכה · 2 בתיקונים · 21 ממתינים ללקוח · אחת עצורה · 3 משימות פתוחות"
+export const waitingText = (n) => (n ? (n === 1 ? 'אחד ממתין ללקוח' : `${n} ממתינים ללקוח`) : null);
+// "נדיה: 5 לקוחות בעריכה · 2 בתיקונים · 21 ממתינים ללקוח · אחת עצורה · 3 משימות פתוחות"
 export function loadText(l) {
   return [
     workText(l),

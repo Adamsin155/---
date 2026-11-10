@@ -139,7 +139,7 @@ test('editor states: waiting → editing → QA → fixes → QA → client → 
   assert.equal(stOf(c, checks).key, 'done');
 });
 
-test('editor states: the client approved without notes opens button 4; a text-only return; a round of its own', () => {
+test("editor states: the client's fixes done open button 4, the client's approval closes the job (10.11.2026); a text-only return; a round of its own", () => {
   const { c, checks } = postWorld();
   checks['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   checks['p22.received'] = done(IL(2026, 10, 18, 11));
@@ -151,8 +151,14 @@ test('editor states: the client approved without notes opens button 4; a text-on
   assert.deepEqual(P.firstReturnOf(checks, ''), { videos: [] }, 'no video named: the whole batch');
   checks['p24.notify'] = done(IL(2026, 10, 20, 15));
   checks['p25.approved'] = done(IL(2026, 10, 20, 16));
-  checks['p27.approved'] = done(IL(2026, 10, 21, 10));
+  // The client's fixes done: button 4 (the final versions).
+  checks['p27.notes'] = done(IL(2026, 10, 20, 17), 'לקצר את הפתיח');
+  assert.equal(stOf(c, checks).key, 'clientFixes');
+  checks['p27.fixes'] = done(IL(2026, 10, 21, 9));
   assert.equal(stOf(c, checks).key, 'final');
+  // The client approved (10.11.2026): the job left the editor, nothing more is asked.
+  checks['p27.approved'] = done(IL(2026, 10, 21, 10));
+  assert.equal(stOf(c, checks).key, 'done');
   // A shoot round edited by someone else, and one by Nadia.
   const r = baseClient({ editor: 'yariv', rounds: [{ n: 2, shoot_type: 'dms', shoot_at: IL(2026, 11, 5, 11).toISOString(), editor: 'nadia', start_at: IL(2026, 10, 25).toISOString() }] });
   const rc = { 'r2.p22a.assigned': done(IL(2026, 11, 6, 10)) };

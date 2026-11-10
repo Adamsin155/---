@@ -504,8 +504,12 @@ test('27: the editor\'s time ends at the final versions (p27.final), not at Ilai
   // Final versions after the deadline are the editor's lateness.
   const lateFinal = { ...closed, ...item('p27.final', new Date(due.getTime() + 36e5).toISOString(), null, 'nadia@x.test') };
   assert.equal(rowsAt(lateFinal, now)[0].onTime, false);
-  // Not marked "final": nothing is counted for 27 until it closes.
-  assert.deepEqual(rowsAt(before, now), []);
+  // Not marked "final" (10.11.2026): the client's approval ended the editor's part (p27.final is not
+  // asked of the editor once the client approved), so 27 counts from it.
+  assert.deepEqual(rowsAt(before, now).map((r) => r.completedAt.toISOString()), [new Date('2026-10-20T09:00:00+03:00').toISOString()]);
+  // Neither final nor approved: nothing is counted for 27 until it closes.
+  const { 'p27.approved': _drop, ...unapproved } = before;
+  assert.deepEqual(rowsAt(unapproved, now), []);
 });
 
 // The owner's page review of 20.10.2026: "הבא: שיוך עורך · ליאור" was wrong. Assigning the
