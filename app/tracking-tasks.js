@@ -60,6 +60,7 @@ const state = { host: null, viewer: null, rows: [], kind: 'all', status: 'all', 
 
 function chipGroup(label, list, key, counts) {
   return h('div', { class: 'filters tt-chips', role: 'group', 'aria-label': label },
+    h('span', { class: 'tt-chips-l', 'aria-hidden': 'true' }, label),
     ...list.map(([k, text]) => h('button', {
       type: 'button', class: 'chip', 'data-tt': key, 'data-v': k, 'aria-pressed': String(state[key] === k),
       onclick: () => { state[key] = k; state.shown = PAGE_SIZE; draw(); state.host.querySelector(`[data-tt="${key}"][data-v="${k}"]`)?.focus(); },
@@ -78,8 +79,8 @@ function row(r, now) {
     h('td', { 'data-label': 'המשימה', class: 'tt-what' },
       h('span', { class: 'tt-title', dir: 'auto' }, r.title),
       r.brief ? h('span', { class: 'tt-brief', dir: 'auto' }, r.brief) : null),
-    h('td', { 'data-label': 'הוכנסה', class: 'tt-d' }, h('span', { class: 'num', dir: 'ltr' }, shortDay(r.createdAt, now) || '—')),
-    h('td', { 'data-label': 'תאריך יעד', class: 'tt-d' }, h('span', { class: 'num', dir: 'ltr' }, shortDay(r.dueOn, now) || '—')),
+    h('td', { 'data-label': 'הוכנסה', class: 'tt-d tt-in' }, h('span', { class: 'num', dir: 'ltr' }, shortDay(r.createdAt, now) || '—')),
+    h('td', { 'data-label': 'יעד', class: `tt-d tt-due${r.dueOn ? '' : ' is-empty'}` }, h('span', { class: 'num', dir: 'ltr' }, shortDay(r.dueOn, now) || '—')),
     h('td', { 'data-label': 'אחראי/ת', class: 'tt-who' }, r.who),
     h('td', { 'data-label': 'סטטוס', class: 'tt-s' }, pill(STATE_TEXT[r.state], r.state === 'done' ? 'ok' : 'info')));
 }

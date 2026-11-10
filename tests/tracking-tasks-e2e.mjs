@@ -93,14 +93,13 @@ async function signedIn(db, { person, width = 390, device = null, engine }) {
   });
   const page = await ctx.newPage();
   watchCsp(page);
-  if (process.env.DEBUG) { page.on('request', (r) => { if (/rest\/v1\/(clients|client_tasks|staff_tasks)/.test(r.url())) console.log('REQ', r.method(), decodeURIComponent(r.url()).slice(0, 200)); }); page.on('requestfinished', (r) => console.log('DONE', r.url().slice(0, 120))); page.on('console', (m) => console.log('CONSOLE', m.text())); }
   page.on('pageerror', (e) => errors.push(`${person}: ${e}`));
   page.on('console', (msg) => { if (msg.type() === 'error' && !/Failed to load resource/.test(msg.text())) errors.push(`${person}: ${msg.text()}`); });
   await page.goto(`${BASE}tracking.html`);
   await page.fill('#lg-email', emailOf(person));
   await page.fill('#lg-pass', 'correct-horse');
   await page.click('#lg-submit');
-  await page.waitForSelector('#tt-body tr[data-id]').catch(async (e) => { console.log(page.url(), await page.locator('#tt-host').innerHTML().catch(() => 'none'), await page.locator('#state').innerText().catch(() => '')); throw e; });
+  await page.waitForSelector('#tt-body tr[data-id]');
   await settle(page);
   if (SHOTS) await page.waitForTimeout(900);
   return { page, ctx, sent };
