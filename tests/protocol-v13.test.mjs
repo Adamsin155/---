@@ -24,7 +24,7 @@ const done = (at, note = null) => ({ state: 'done', at: at.toISOString(), note }
 const keysOf = (c) => applicableProcesses(c).flatMap((p) => [p.id, ...p.items.map((i) => i.key)]);
 
 test('version 13: every retired key is in protocol.js as retired: 13, and applies to no client (rounds too)', () => {
-  assert.equal(PROTOCOL_VERSION, 13);
+  assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, tests/protocol-v14.test.mjs)
   const all = new Map(PROCESSES.flatMap((p) => [[p.id, p], ...p.items.map((i) => [i.key, i])]));
   for (const k of RETIRED) {
     assert.ok(all.has(k), k);

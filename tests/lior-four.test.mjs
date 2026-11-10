@@ -25,7 +25,7 @@ const base = (o = {}) => ({
 const byId = (c) => new Map(applicableProcesses(c).map((p) => [p.id, p]));
 
 test('the protocol: version 12, Lior\'s four things and nothing else of his but 34 and 35', () => {
-  assert.equal(PROTOCOL_VERSION, 13); // v13 (9.11.2026) left Lior's four things as they were
+  assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, docs/ops.md section 123); v13 (9.11.2026) left Lior's four things as they were
   const c = base({ shoot_type: 'natali', shoot_at: IL(2026, 11, 20, 11).toISOString(), status: 'ending' });
   const mine = [...byId(c).values()].filter((p) => p.items.some((i) => i.owners.includes('lior'))).map((p) => p.id);
   assert.deepEqual(mine.sort(), ['p12', 'p13', 'p30', 'p34', 'p35', 'p36']);
