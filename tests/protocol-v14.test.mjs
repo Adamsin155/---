@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PROCESSES, PROTOCOL_VERSION, CRITICAL_MISTAKES } from '../app/protocol.js';
-import { applicableProcesses, clientState } from '../app/protocol-logic.js';
+import { applicableProcesses, clientState, openItemsFor } from '../app/protocol-logic.js';
 import { PROTOCOL_HISTORY } from '../app/protocol-versions.js';
 import { editingCases, editorState, START_CHECKS, selfCheck, readyKeys, CHECK_OF } from '../app/production.js';
 import { editorReadyKeys, NOTIFY } from '../app/editor-auto.js';
@@ -40,7 +40,7 @@ const done = (at, note = null, by = 'nadia@x') => ({ state: 'done', at: at.toISO
 test('version 14: each line of the owner\'s list is one item, retired: 14, and applies to no client (rounds, any version)', () => {
   assert.equal(PROTOCOL_VERSION, 14);
   const items = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, i])));
-  assert.deepEqual(MAPPING.map(([, k]) => k).sort(), [...RETIRED].sort());
+  assert.deepEqual(MAPPING.map(([, k]) => k).sort(), RETIRED.filter((k) => /^p2[24]\./.test(k)).sort()); // the editors' list
   for (const [label, key] of MAPPING) {
     assert.ok(items.has(key), key);
     assert.equal(items.get(key).retired, 14, key);
@@ -110,4 +110,63 @@ test('the WhatsApp hand-off to the editor and "already started" read the editor\
   assert.equal(editorStarted({ ...cs, 'p24.folder': done(IL(2026, 11, 4, 10, 30)) }), true);
   assert.equal(editorStarted({ ...cs, 'r2.p22.check.footage': done(IL(2026, 11, 4, 10, 30)) }), false, 'another shoot');
   assert.equal(editorStarted({ ...cs, 'r2.p22.check.footage': done(IL(2026, 11, 4, 10, 30)) }, 'r2.'), true);
+});
+
+// The characterizer's one mark per process (the owner, 10.11.2026; Ofir marked "לאחד"): old key → new key.
+const MERGED = {
+  'p05.got': ['p05.access', 'p05.allnets', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos', 'p05.menu'],
+  'p06.ok': ['p06.verified', 'p06.newpages', 'p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look', 'p06.metricool'],
+  'p08.ok': ['p08.done', 'p08.saved', 'p08b.posted'],
+};
+const cz = { ...base, characterizer: 'noam', editor: null, char_at: IL(2026, 11, 2, 10).toISOString(), deal_at: IL(2026, 11, 1, 10).toISOString() };
+const stOf = (c, cs, now) => clientState(c, cs, now);
+const proc = (c, cs, now, id) => stOf(c, cs, now).states.find((s) => s.proc.id === id);
+
+test('the characterizer: one item in 5, 6 and 8 (8ב left); 4 and the others of 5 unchanged', () => {
+  const live = (id) => applicableProcesses({ ...cz, has_logo: false }).find((p) => p.id === id)?.items.map((i) => i.key);
+  assert.deepEqual(live('p05'), ['p05.got', 'p05.newlogo']); // Ilai's new logo stays
+  assert.deepEqual(live('p06'), ['p06.ok']);
+  assert.deepEqual(live('p08'), ['p08.ok']);
+  assert.equal(live('p08b'), undefined);
+  assert.deepEqual(live('p04'), ['p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved']);
+  const items = new Map(PROCESSES.flatMap((p) => p.items.map((i) => [i.key, i])));
+  assert.deepEqual([items.get('p05.got').label, items.get('p06.ok').label, items.get('p08.ok').label], ['התקבלו הגישות והחומרים', 'הגישות נבדקו, הרשתות סודרו וחוברו ל־Metricool', 'ה־Highlights הוכנו והועלו לרשתות']);
+  for (const [k, old] of Object.entries(MERGED)) for (const o of old) assert.ok(RETIRED.includes(o) || (o === 'p08b.posted' && RETIRED.includes('p08b')), `${o} → ${k}`);
+});
+
+test('old marks: all of them done → the process is done; one missing → the one mark is asked; the one mark alone → done', () => {
+  const now = IL(2026, 11, 3, 12);
+  const at = IL(2026, 11, 2, 12);
+  const d = (k) => [k, done(at, null, 'noam@x')];
+  for (const [k, old] of Object.entries(MERGED)) {
+    const pid = k.slice(0, 3);
+    const base0 = { 'p04.ended': done(IL(2026, 11, 2, 11)), ...(pid === 'p06' ? { 'p05.access': done(at) } : {}) };
+    const required = old.filter((o) => !['p05.menu', 'p06.newpages'].includes(o));
+    const all = { ...base0, ...Object.fromEntries(required.map(d)) };
+    assert.equal(proc(cz, all, now, pid).complete, true, `${k}: all old marks`);
+    const less = { ...all };
+    delete less[required[required.length - 1]];
+    assert.equal(proc(cz, less, now, pid).complete, false, `${k}: one old mark missing`);
+    assert.ok(openItemsFor('noam', cz, less, stOf(cz, less, now), now).some((o) => o.item.key === k), `${k} asked of the characterizer`);
+    assert.equal(proc(cz, { ...base0, [k]: done(at, null, 'noam@x') }, now, pid).complete, true, `${k}: the one mark`);
+  }
+  // A client of version 7 imported without "אין עוד" (p05.allnets came in version 8): not reopened.
+  const v7 = { ...cz, protocol_version: 7 };
+  const imp = Object.fromEntries(['p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos'].map((k) => [k, { state: 'done', at: at.toISOString(), note: 'ייבוא' }]));
+  assert.equal(proc(v7, { 'p04.ended': done(IL(2026, 11, 2, 11)), ...imp }, now, 'p05').complete, true);
+  // 6 starts from the access (the vault, the client's form) or from 5's one mark, whichever first.
+  assert.equal(+proc(cz, { 'p04.ended': done(IL(2026, 11, 2, 11)), 'p05.got': done(IL(2026, 11, 2, 12, 15)) }, now, 'p06').startAt, +IL(2026, 11, 2, 12, 15));
+});
+
+test('the hand-off of 5 and the reminders of 6 follow the one marks; nothing of 8ב rings', () => {
+  const at = IL(2026, 11, 2, 12);
+  const cs = { 'p04.ended': done(IL(2026, 11, 2, 11)), 'p05.got': done(at, null, 'irit@x') };
+  assert.deepEqual(handoffsFor(cz, cs, 'p05.got', { now: IL(2026, 11, 2, 12, 1), from: 'irit' }).map((o) => [o.person, o.markKey]), [['noam', 'p05.handoff.noam']]);
+  const staff = [{ email: 'irit@x', person: 'irit' }, { email: 'ofir@x', person: 'ofir' }, { email: 'lior@x', person: 'lior' }, { email: 'noam@x', person: 'noam' }];
+  const w = (checks) => ({ clients: [cz], checks: { c1: checks }, tasks: [], access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [], staff });
+  const rings = (checks, now) => computeReminders({ ...w(checks), now, log: [] }).filter((r) => r.rule === 'access').map((r) => `${r.step}@${r.person}`);
+  assert.deepEqual(rings(cs, at), ['now@noam']);
+  assert.deepEqual(rings({ ...cs, 'p06.ok': done(IL(2026, 11, 2, 12, 10), null, 'noam@x') }, IL(2026, 11, 2, 12, 30)), [], '6 done: nothing more');
+  const all = computeReminders({ ...w({ ...cs, 'p08.done': done(at), 'p08.saved': done(at) }), now: IL(2026, 11, 2, 13), log: [] });
+  assert.deepEqual(all.filter((r) => r.rule === 'highlightsUpload'), []);
 });

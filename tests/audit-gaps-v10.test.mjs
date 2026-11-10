@@ -209,6 +209,7 @@ test('11. the access check (6): when its 30 minutes pass Ofir is rung himself, a
   const w5 = world();
   const { c: c5 } = afterMeeting(w5);
   for (const k of PROCESSES.find((p) => p.id === 'p06').items.map((i) => i.key)) delete w5.checks[c5.id][k];
+  delete w5.checks[c5.id]['p05.got']; // v14: 5's one mark is an event of its own; here only the imported access
   mark(w5, c5, 'p05.access', IL(2026, 10, 5, 12, 30), IMPORT_NOTE);
   assert.deepEqual(of(walk(w5, IL(2026, 10, 5, 12, 30), IL(2026, 10, 5, 13, 5)), 'access'), []);
   // Ofir took the accesses himself (he runs the characterization): he is not told what he just

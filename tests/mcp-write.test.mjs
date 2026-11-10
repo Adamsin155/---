@@ -236,7 +236,7 @@ test('every write tool: annotated as a write, says what it changes and to dry-ru
 // ── Every tool: a dry run writes nothing, and then the real call writes as the owner ──
 const CASES = [
   // (v13: p03.who left the protocol; the access arriving, 5, is an item every client has.)
-  ['mark_protocol_item', { client: 'רון', item: 'p05.access', state: 'done' }, (db) => db.protocol_checks.some((r) => r.item_key === 'p05.access' && r.state === 'done')],
+  ['mark_protocol_item', { client: 'רון', item: 'p05.got', state: 'done' }, (db) => db.protocol_checks.some((r) => r.item_key === 'p05.got' && r.state === 'done')],
   ['update_client', { client: 'רון', package_name: 'Podcast · נטלי', characterizer: 'אופיר' }, (db) => db.clients[0].package_name === 'Podcast · נטלי' && db.clients[0].characterizer === 'ofir'],
   ['set_client_date', { client: 'רון', which: 'characterization', at: '2026-11-20T10:00' }, (db) => db.clients[0].char_at === '2026-11-20T08:00:00.000Z'],
   ['give_task', { person: 'יריב', text: 'לסיים את הסרטון', client: 'רון' }, (db) => db.staff_tasks.some((t) => t.assignee === 'yariv' && t.client_id === ID.c1)],
@@ -290,20 +290,20 @@ test('mark: what waits, a form, a call, "לא רלוונטי" without a reason, 
   // (v13: the daily follow-up, p14.day, left the protocol: there is no daily answer to refuse any more.)
   assert.equal((await r({ item: 'p14.day', state: 'done' })).code, 'not_found', 'a retired item');
   assert.equal((await r({ item: 'p12.link', state: 'done' })).code, 'via_form');
-  assert.equal((await r({ item: 'p05.access', state: 'na' })).code, 'reason_required');
-  assert.equal((await r({ item: 'p05.access', state: 'clear' })).code, 'nothing_to_change');
-  assert.equal((await r({ item: 'p05.access', state: 'na', note: 'הטלפון 050-1112222' })).code, 'personal_details');
+  assert.equal((await r({ item: 'p05.got', state: 'na' })).code, 'reason_required');
+  assert.equal((await r({ item: 'p05.got', state: 'clear' })).code, 'nothing_to_change');
+  assert.equal((await r({ item: 'p05.got', state: 'na', note: 'הטלפון 050-1112222' })).code, 'personal_details');
   assert.equal((await r({ item: 'nothing like this', state: 'done' })).code, 'not_found');
-  assert.equal((await r({ item: 'p05.access', state: 'maybe' })).code, 'bad_input');
+  assert.equal((await r({ item: 'p05.got', state: 'maybe' })).code, 'bad_input');
   assert.deepEqual(writes(w), []);
   // Optional: "לא נדרש" with no reason; then cleared (the one delete), and a done one must be cleared before "na".
-  assert.equal((await r({ item: 'p05.menu', state: 'na' })).done, true);
-  assert.equal((await r({ item: 'p05.access', state: 'done' })).done, true);
-  assert.equal((await r({ item: 'p05.access', state: 'na', note: 'x' })).code, 'is_done');
-  assert.equal((await r({ item: 'p05.access', state: 'done' })).code, 'nothing_to_change');
-  assert.equal((await r({ item: 'p05.access', state: 'clear' })).done, true);
-  assert.ok(!w.db.protocol_checks.some((x) => x.item_key === 'p05.access'));
-  assert.deepEqual(writes(w).map((x) => x.method), ['POST', 'POST', 'DELETE']);
+  assert.equal((await r({ item: 'p05.menu', state: 'na' })).code, 'not_found', 'v14: retired, 5 is one mark (p05.got)');
+  assert.equal((await r({ item: 'p05.got', state: 'done' })).done, true);
+  assert.equal((await r({ item: 'p05.got', state: 'na', note: 'x' })).code, 'is_done');
+  assert.equal((await r({ item: 'p05.got', state: 'done' })).code, 'nothing_to_change');
+  assert.equal((await r({ item: 'p05.got', state: 'clear' })).done, true);
+  assert.ok(!w.db.protocol_checks.some((x) => x.item_key === 'p05.got'));
+  assert.deepEqual(writes(w).map((x) => x.method), ['POST', 'DELETE']); // (v14: p05.menu left; its write is gone)
   // Several items with the same words: the keys come back.
   const many = await r({ item: 'אישר', state: 'done' });
   assert.equal(many.code, 'ambiguous');

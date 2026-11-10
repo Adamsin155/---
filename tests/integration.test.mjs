@@ -78,9 +78,10 @@ test('a case is fresh when its rule says so, or when its whole process is newer 
   // (v13: 7א left the protocol; 14 is no longer the daily follow-up. 19ב and 29ב stay wholly newer: their v13
   // items replace items of versions 4 and 10.)
   // (v14: 22 keeps only items of versions 2 and 10, so for a client of version 1 it is wholly newer too.)
-  assert.deepEqual(whole, ['p05b', 'p07b', 'p08b', 'p17b', 'p18b', 'p19b', 'p22a', 'p22', 'p23b', 'p29b']);
+  // (v14: 8ב left, one mark in 8.)
+  assert.deepEqual(whole, ['p05b', 'p07b', 'p17b', 'p18b', 'p19b', 'p22a', 'p22', 'p23b', 'p29b']);
   const v5 = applicableProcesses({ id: 'x', shoot_type: 'dms', rounds: [], protocol_version: 5 });
-  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07b', 'p08b', 'p23b', 'p29b']);
+  assert.deepEqual(v5.filter((p) => freshCase({}, { proc: p })).map((p) => p.id), ['p05b', 'p07b', 'p23b', 'p29b']);
   // Only finalReady names its item; the rule list has no other `fresh`.
   assert.deepEqual(RULES.filter((r) => typeof r.fresh === 'function').map((r) => r.id), ['finalReady']);
 });

@@ -27,7 +27,8 @@ test('the lists copied from browser modules are the same as there', () => {
   assert.deepEqual(PAUSE_PROCS, ['p22', 'p27']);
   for (const k of Object.keys(EXTRA_MARKS)) {
     // The photographer's marks (the key of the raw material per script is a constant of production.js, which shoot.js writes); the editor's.
-    const file = k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : 'editor.js';
+    // (v14: the old marks of 5 the characterization form still writes.)
+    const file = k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : /^p05\./.test(k) ? 'characterization.js' : 'editor.js';
     assert.ok(src(file).includes(`'${k}'`), `${k} is written in ${file}`);
   }
 });

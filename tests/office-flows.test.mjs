@@ -420,10 +420,10 @@ test('Ilai\'s characterization day: one line per client with the nearest due; th
   // Process 6 open in full does not keep his card: it is not his.
   marks(w, c, ['p07.made', ...GANTT_KEYS, 'p05.newlogo'], IL(2026, 10, 20, 13));
   assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now }).length, 0);
-  assert.ok(openItemsFor('ofir', c, w.checks[c.id], stateOfW(w, now)(c), now).some((e) => e.item.key === 'p06.verified'));
+  assert.ok(openItemsFor('ofir', c, w.checks[c.id], stateOfW(w, now)(c), now).some((e) => e.item.key === 'p06.ok')); // v14: one mark
   assert.deepEqual(openItemsFor('ilai', c, w.checks[c.id], stateOfW(w, now)(c), now).filter((e) => e.proc.id === 'p06'), []);
   // Everything done: still no card.
-  marks(w, c, ['p06.verified', ...PAGE_KEYS, 'p06.metricool'], IL(2026, 10, 20, 13));
+  marks(w, c, ['p06.ok', ...PAGE_KEYS], IL(2026, 10, 20, 13));
   assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now }).length, 0);
 });
 

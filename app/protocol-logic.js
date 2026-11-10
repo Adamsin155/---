@@ -6,7 +6,7 @@
 import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf, starProcess, isRetired } from './protocol.js';
 import { SPECS, TERM_MONTHS, PACKAGES, PAID_ADDONS } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
-import { adjustForVersion, laterDue } from './protocol-versions.js';
+import { adjustForVersion, laterDue, itemSince, versionOf } from './protocol-versions.js';
 import {
   dateIL, dayKeyIL, weekdayIL, atTimeIL, endOfDayIL, addDaysIL, daysBetweenIL, partsIL,
 } from './tz.js';
@@ -765,13 +765,16 @@ function withoutFreshAfterImport(procs, checks) {
 // no mark of its own, the client passed it before it existed: it is history ("אם
 // רלוונטי" in the card), in nobody's list, and it holds nothing open. Whatever the
 // client's version, and with or without the migration's own mark.
-function withoutPassed(procs, checks) {
+function withoutPassed(procs, checks, client = null) {
   // (v13: `passedIf` may name several marks, any one of them: Eli's merged drive check.
   // v14: `{ all: [...] }`, every one of them: the characterizer's one mark of 5, 6 and 8, passed by
-  // the old items it replaced once all of them are resolved.)
+  // the old items it replaced once all of them are resolved. An old item added in a version after the
+  // client's own (p05.allnets of v8, p08b.posted of v7) was never asked of it whole: it is not waited for.)
+  const v = client ? versionOf(client) : Infinity;
   const resolvedIn = (round, k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state);
+  const oldDone = (round, k) => resolvedIn(round, k) || itemSince(k) > v;
   const passedBy = (i, round) => {
-    if (i.passedIf?.all) return i.passedIf.all.every((k) => resolvedIn(round, k)) ? i.passedIf.all[i.passedIf.all.length - 1] : null;
+    if (i.passedIf?.all) return i.passedIf.all.every((k) => oldDone(round, k)) && i.passedIf.all.some((k) => resolvedIn(round, k)) ? [...i.passedIf.all].reverse().find((k) => resolvedIn(round, k)) : null;
     return [].concat(i.passedIf).find((k) => resolvedIn(round, k)) || null;
   };
   const passed = (i, round) => !!i.passedIf && !checks[i.key] && !!passedBy(i, round);
@@ -804,7 +807,7 @@ function withNeeded(procs, checks) {
 }
 
 export function clientState(client, checks = {}, now = new Date()) {
-  const procs = withNeeded(withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks), checks);
+  const procs = withNeeded(withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks, client), checks);
   const phaseList = phasesFor(client);
   const phaseIndex = (key) => phaseList.findIndex((p) => p.key === key);
   // In landing nothing has a deadline; after it, deadlines are counted from landed_at.
