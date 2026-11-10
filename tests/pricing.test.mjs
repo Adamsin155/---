@@ -201,7 +201,7 @@ test('agreement text follows the selected package (the old wording, LEGAL_VERSIO
   // The same six clauses, the platforms and "הוראות נוספות" for every package; nothing undefined.
   for (const s of [sel('social', 'natali'), sel('social-tv', 'simeon', ['photographer']), sel('podcast', 'simeon'), sel('social', 'natali', [], { extraCh14: true })]) {
     const m = buildQuoteModel({ ...s, docType: 'agreement' }, { name: 'x' });
-    assert.deepEqual(m.legal.map((x) => x.title), ['תקופת ההסכם', 'התמורה ותנאי תשלום', 'לוחות זמנים ותכני הלקוח', 'תיקונים ואישורים', 'אחריות ותוצאות פרסומיות', 'שונות', 'פלטפורמות וחסימת חשבונות', 'הוראות נוספות']);
+    assert.deepEqual(m.legal.map((x) => x.title), ['תקופת ההסכם', 'התמורה ותנאי תשלום', 'לוחות זמנים ותכני הלקוח', 'תיקונים ואישורים', 'אחריות ותוצאות פרסומיות', 'שונות', 'פלטפורמות וחסימת חשבונות']);
     assert.doesNotMatch(JSON.stringify([m.legal, m.wording]), /undefined|NaN/);
   }
 });
@@ -286,31 +286,24 @@ test('the agreement is the old system\'s six clauses, word for word', async () =
   assert.deepEqual(q.wording, { ...a.wording, cover: { title: 'הצעת מחיר נירו לוי', packageName: 'Social all in one' } });
 });
 
-// The owner, 9.11.2026: the old text, no exit before the end of the term, and 12 protections put
-// back (docs/contract-old-text-removed.md), with the platforms chapter of 27.10.2026 word for word.
-test('the agreement keeps the 12 protections put back on 9.11 and has no early exit', async () => {
+// The owner, 9.11.2026: the old text and no exit before the end of the term; 10.11.2026: only the old
+// text and the platforms chapter of 27.10.2026 word for word (the 12 protections are out again).
+test('the agreement is the old six clauses and the platforms chapter, with no early exit', async () => {
   const { RESTORED } = await import('../app/legal.js');
   const at = (m) => Object.fromEntries(m.legal.flatMap((s, i) => s.items.map((t, j) => [t, `${i + 1}.${j + 1}`])));
   const a = buildQuoteModel({ ...sel('social-tv', 'natali'), docType: 'agreement' }, { name: 'x' });
   const n = at(a);
-  assert.equal(n[RESTORED.mediaBudget], '2.4');
-  assert.equal(n[RESTORED.pause], '2.5');
-  assert.equal(n[RESTORED.lateCancel(true)], '3.4');
-  assert.equal(n[RESTORED.force], '3.5');
-  assert.equal(n[RESTORED.indemnity], '5.3');
-  assert.equal(n[RESTORED.cap], '5.4');
-  assert.equal(n[RESTORED.wholeAgreement], '6.3');
+  assert.deepEqual(Object.keys(RESTORED), ['platforms']);
+  assert.deepEqual(a.legal.map((s) => s.items.length), [2, 3, 3, 3, 2, 2, 4]);
+  assert.equal(a.legal.length, 7);
+  assert.equal(a.legal[6].title, 'פלטפורמות וחסימת חשבונות');
   assert.deepEqual(RESTORED.platforms.map((t) => n[t]), ['7.1', '7.2', '7.3', '7.4']);
   assert.match(RESTORED.platforms[3], /^חסימת פלטפורמות: אסטרטג אינה אחראית לחסימה, להגבלה, להשעיה או להסרה של עמוד, חשבון, פרסום או תוכן של הלקוח על ידי הפלטפורמות \(לרבות Facebook, Instagram ו־TikTok\)/);
   assert.match(RESTORED.platforms[2], /אינו פוטר את הלקוח מתשלום ואינו מזכה אותו בהחזר או בזיכוי/);
-  assert.deepEqual([RESTORED.influencerAway, RESTORED.influencerUse, RESTORED.ch14, RESTORED.nonSolicit(true)].map((t) => n[t]), ['8.1', '8.2', '8.3', '8.4']);
-  // No exit: none of version 2's "50% of the rest / 30 days notice" anywhere.
+  // None of the protections of 9.11.
   const all = JSON.stringify([a.legal, a.wording]);
+  assert.doesNotMatch(all, /תקציב המדיה לקמפיינים|להשהות את מתן השירותים|72 שעות|מילואים|ישפה|6 החודשים|ממצה את כל ההסכמות|ערוץ 14 כפוף|לא יתקשר ישירות|הוראות נוספות/);
+  // No exit: none of version 2's "50% of the rest / 30 days notice" anywhere.
   assert.doesNotMatch(all, /50%|30 ימים מראש|מיתרת התשלומים/);
   assert.match(a.legal[0].items[1], /^אין אפשרות לסיים את ההתקשרות לפני תום 12 החודשים, מכל סיבה שהיא/);
-  // Without Channel 14 there is no Channel 14 item; "בלי משפיענים" has no influencer items.
-  assert.ok(!buildQuoteModel({ ...sel('social', 'natali'), docType: 'agreement' }, { name: 'x' }).legal[7].items.includes(RESTORED.ch14));
-  const none = buildQuoteModel({ ...sel('social', 'natali'), custom: { noInfluencer: true }, docType: 'agreement' }, { name: 'x' });
-  assert.deepEqual(none.legal[7].items, [RESTORED.nonSolicit(false)]);
-  assert.doesNotMatch(JSON.stringify(none.legal), /משפיען/);
 });
