@@ -1033,6 +1033,10 @@ function renderHead(s) {
         // The client's email and company number (28.10.2026): the office's, with the phone.
         fact('אימייל', c.contact_email ? h('a', { href: `mailto:${c.contact_email}`, dir: 'ltr' }, c.contact_email) : null),
         fact('ח.פ / ת.ז', c.company_id ? h('span', { dir: 'ltr', class: 'num' }, c.company_id) : null),
+        // Irit (10.11.2026): "הערות" on the client next to the company number, phone and email
+        // (clients.notes, written in "עריכת פרטים"); no longer at the foot of the card.
+        fact('הערות', c.notes ? h('span', { class: 'cc-notes' }, c.notes) : null,
+          h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'btn-notes', onclick: () => openEdit('ed-notes') }, c.notes ? 'עריכה' : 'הוספה')),
         fact('כתובת העסק', c.address),
         fact('פרטי העסקה התקבלו', c.deal_at ? formatStamp(c.deal_at) : null),
         fact('פגישת אפיון', c.char_at ? `${formatStamp(c.char_at)}${charBy ? ` · ${charBy}` : ''}` : charBy, calendarMenu('char')),
@@ -1049,7 +1053,6 @@ function renderHead(s) {
     own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractDocs(), contractBlock(s), deliverablesBlock(s)),
     // The documents signed in the old system, when there are any (the owner, 25.10.2026).
     own() || !legacy?.length ? null : fold('legacy', 'חוזים מהמערכת הישנה', legacySum(legacy.length), legacyBlock()),
-    c.notes ? h('p', { class: 'cc-notes' }, c.notes) : null,
   );
   // "העברה לארכיון": rare and final, at the foot of the card (the owner, 20.10.2026), still asked first.
   const foot = $('cc-foot');

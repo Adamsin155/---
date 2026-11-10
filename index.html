@@ -140,6 +140,24 @@
             <legend class="field-label">חבילה <span class="legend-note">· השוואת כמויות שנתיות</span></legend>
             <div class="tiers" id="tiers"></div>
           </fieldset>
+          <!-- "שינויים להצעה הזו" (the owner, 9.11.2026; docs/ops.md, section 118): the managers change the
+               package's price and its name for this quote only. The catalog is unchanged; create-quote
+               takes them from the managers alone. -->
+          <div class="quote-edit" id="quote-edit" hidden>
+            <div class="group-head"><h3 id="qe-h">שינויים להצעה הזו בלבד</h3><span class="meta">המחירון לא משתנה</span></div>
+            <div class="qe-grid">
+              <div class="field">
+                <label for="qe-price">מחיר החבילה לחודש (₪, לפני מע״מ)</label>
+                <div class="discount-input"><input class="input" id="qe-price" type="number" inputmode="numeric" min="0" max="100000" step="1" dir="ltr" aria-describedby="qe-price-was"><span aria-hidden="true">₪</span></div>
+                <small id="qe-price-was"></small>
+              </div>
+              <div class="field">
+                <label for="qe-name">שם החבילה בהצעה</label>
+                <input class="input" id="qe-name" maxlength="60" autocomplete="off" enterkeyhint="done" aria-describedby="qe-name-hint">
+                <small id="qe-name-hint">כך יופיע בהצעה. ריק: השם מהמחירון.</small>
+              </div>
+            </div>
+          </div>
           <div class="included" id="included"></div>
         </div>
       </section>

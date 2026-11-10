@@ -51,6 +51,9 @@ let reviseId = null;
 const MCP_DRAFT = DEAL_PARAM || REVISE_PARAM ? {} : draftFromHash(location.hash);
 // "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
 let office = false;
+// "שינויים להצעה הזו" (the package's price and its name for this quote): the managers' (isManager
+// in app/manager-rules.js: the owners, Irit, Ofir, Lior); create-quote refuses them from anyone else.
+let editor = false;
 // "הכנת חוזה עם AI" (the owner, 25.10.2026): the preparation that filled this contract,
 // { runId, marks }. `runId` (the contract-ai function's record) marks the contract "הוכן ע״י AI"
 // in "הצעות שנשלחו"; `marks` holds the value each field got, for the "מולא אוטומטית" tags (a field
@@ -143,7 +146,8 @@ function renderTiers() {
     // The chosen package in a custom contract: what this contract holds, not the catalog's numbers (the owner, 1.11.2026).
     const own = state.tier === tier.id && customOn();
     const qty = own ? effectiveQuantities(selectionToSend()) : null;
-    const price = own && Number.isInteger(state.custom.price) ? state.custom.price : pkg.price;
+    // The price typed for this quote ("שינויים להצעה הזו" or the custom contract's).
+    const price = state.tier === tier.id && Number.isInteger(editedPrice()) ? editedPrice() : pkg.price;
     const months = own && Number.isInteger(state.custom.termMonths) ? state.custom.termMonths : TERM_MONTHS;
     return h('div', { class: 'tier' },
       h('input', {
@@ -298,7 +302,7 @@ function renderSummary() {
   const model = currentModel();
   const t = model.totals;
   const tier = TIERS.find((x) => x.id === state.tier);
-  $('sum-pkg').textContent = tier.name;
+  $('sum-pkg').textContent = model.package.shownName || tier.name;
   $('sum-inf').textContent = model.package.influencer;
 
   const line = (name, val, cls = '') => h('li', { class: cls },
@@ -356,7 +360,7 @@ function renderSummary() {
   $('sum-diff').hidden = !diff.length;
   $('sum-diff').classList.toggle('is-ai', diff.length > 0 && aiTagged());
   // Information only (no manager approves since 29.10.2026): the owners see it in "הצעות שנשלחו".
-  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, 'חוזה מותאם אישית'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה`
+  $('sum-diff').replaceChildren(...(diff.length ? [h('strong', {}, customOn() ? 'חוזה מותאם אישית' : 'שינויים להצעה הזו'), ` · ${diff.length === 1 ? 'שינוי אחד' : `${diff.length} שינויים`} מהחבילה`
     + (aiTagged() ? ' · הוכן עם AI' : '')] : []));
   return t;
 }
@@ -380,7 +384,7 @@ function renderDocType() {
   const differs = exceptionOf(selectionToSend()).length > 0;
   $('btn-link').textContent = signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
   $('act-hint').textContent = differs
-    ? 'חוזה מותאם אישית: הקישור נוצר מיד · מה ששונה מהחבילה נשמר ב״הצעות שנשלחו״'
+    ? `${customOn() ? 'חוזה מותאם אישית' : 'שינויים להצעה הזו'}: הקישור נוצר מיד · מה ששונה מהחבילה נשמר ב״הצעות שנשלחו״`
     : signable
         ? 'הלקוח קורא את ההסכם וחותם אונליין · נשמר ב״הצעות שנשלחו״'
         : 'הלקוח צופה בהצעה, בלי חתימה · נשמר ב״הצעות שנשלחו״';
@@ -411,8 +415,9 @@ const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(Number(v)))
 // What goes to the server (and into every preview): the selection with the changes
 // made by hand, without anything that equals the package.
 function selectionToSend() {
-  const { custom: c, ...rest } = state;
-  if (!c) return rest;
+  const { custom: c, edit, ...rest } = state;
+  const e = quoteEdit(edit);
+  if (!c) return Object.keys(e).length ? normalizeSelection({ ...rest, custom: e }) : rest;
   const custom = { discount: rest.discount || 0 };
   const qty = Object.fromEntries(Object.entries(c.qty || {}).filter(([k, v]) => {
     const def = CUSTOM_QTY.find((q) => q.key === k);
@@ -430,12 +435,70 @@ function selectionToSend() {
   if (String(c.terms || '').trim()) custom.terms = c.terms;
   if (c.noInfluencer === true) custom.noInfluencer = true;
   if (c.addonsIncluded === true) custom.addonsIncluded = true;
+  if (e.packageName) custom.packageName = e.packageName;
   return normalizeSelection({ ...rest, discount: 0, custom });
 }
+
+/* ── "שינויים להצעה הזו" (the owner, 9.11.2026; docs/ops.md, section 123) ──
+   The managers change, for this quote only, the package's monthly price (the influencer's package;
+   the totals follow) and its name as the document shows it. state.edit = { price?, name? }; with a
+   custom contract on, the price is the custom contract's own (one price, two fields that show it).
+   What goes to the server is selection.custom.price and .packageName, checked and recomputed there. */
+const NAME_STRIP = /[<>{}`\u0000-\u001f\u007f]/g;
+function quoteEdit(edit) {
+  if (!editor || !edit || typeof edit !== 'object') return {};
+  const out = {};
+  if (Number.isInteger(edit.price) && edit.price >= 0 && edit.price <= CUSTOM_LIMITS.priceMax) out.price = edit.price;
+  const name = String(edit.name ?? '').replace(NAME_STRIP, '').replace(/\s+/g, ' ').trim().slice(0, CUSTOM_LIMITS.packageName);
+  if (name) out.packageName = name;
+  return out;
+}
+// The package's price typed for this quote, or undefined (the catalog's).
+function editedPrice() {
+  if (customOn()) return Number.isInteger(state.custom.price) ? state.custom.price : undefined;
+  return editor && Number.isInteger(state.edit?.price) ? state.edit.price : undefined;
+}
+function setEditedPrice(price, focus) {
+  if (customOn()) {
+    const custom = { ...state.custom };
+    if (price === undefined) delete custom.price; else custom.price = price;
+    update({ custom }, { focus });
+  } else {
+    const edit = { ...(state.edit || {}) };
+    if (price === undefined) delete edit.price; else edit.price = price;
+    update({ edit }, { focus });
+  }
+}
+function renderQuoteEdit() {
+  $('quote-edit').hidden = !editor;
+  if (!editor) return;
+  const pkg = PACKAGES[packageId(state.tier, state.influencer)];
+  const p = editedPrice();
+  const changed = Number.isInteger(p) && p !== pkg.price;
+  if (document.activeElement !== $('qe-price')) $('qe-price').value = String((Number.isInteger(p) ? p : pkg.price) / 100);
+  $('qe-price').closest('.discount-input').classList.toggle('is-changed', changed);
+  $('qe-price-was').textContent = changed ? `במחירון: ${formatILS(pkg.price)} · שונה להצעה הזו` : `כמו במחירון: ${formatILS(pkg.price)}`;
+  if (document.activeElement !== $('qe-name')) $('qe-name').value = state.edit?.name || '';
+  $('qe-name').placeholder = TIERS.find((t) => t.id === state.tier).name;
+}
+$('qe-price').addEventListener('input', (e) => {
+  const pkg = PACKAGES[packageId(state.tier, state.influencer)];
+  const raw = e.target.value;
+  const price = raw === '' || !Number.isFinite(Number(raw)) ? pkg.price : clampInt(raw, 0, CUSTOM_LIMITS.priceMax / 100) * 100;
+  setEditedPrice(price === pkg.price ? undefined : price, 'qe-price');
+});
+$('qe-name').addEventListener('input', (e) => {
+  const edit = { ...(state.edit || {}) };
+  if (e.target.value.trim()) edit.name = e.target.value.slice(0, CUSTOM_LIMITS.packageName); else delete edit.name;
+  update({ edit }, { focus: 'qe-name' });
+});
+// Leaving a field: it shows what counts (a price past the limit, a blank one back to the catalog's).
+for (const id of ['qe-price', 'qe-name']) $(id).addEventListener('blur', () => renderQuoteEdit());
 // The most the discount field takes: 200 ₪ (800 ₪ in a podcast package, 28.10.2026), or the whole
 // monthly price in a custom contract.
 function discountMax() {
-  if (!customOn()) return maxDiscountFor(state.tier) / 100;
+  // A price lowered for this quote: never a discount bigger than the price.
+  if (!customOn()) return Math.min(maxDiscountFor(state.tier), computeTotals(selectionToSend()).monthlyList) / 100;
   return Math.floor(computeTotals(selectionToSend()).monthlyList / 100);
 }
 
@@ -556,11 +619,14 @@ function renderCustom() {
 }
 
 function setCustom(on) {
+  // The price typed for this quote moves with the switch: one price, shown in both fields.
+  const { price: edited, ...edit } = state.edit || {};
   if (on) {
-    state = { ...state, custom: state.custom || {} };
+    state = { ...state, edit, custom: { ...(Number.isInteger(edited) ? { price: edited } : {}), ...(state.custom || {}) } };
   } else {
     const { custom, ...rest } = state;
-    state = { ...rest, discount: Math.min(rest.discount || 0, maxDiscountFor(rest.tier)) };
+    const kept = Number.isInteger(custom?.price) ? { ...edit, price: custom.price } : edit;
+    state = { ...rest, edit: kept, discount: Math.min(rest.discount || 0, maxDiscountFor(rest.tier)) };
     $('discount').value = String(state.discount / 100);
   }
   syncCustomInputs();
@@ -795,6 +861,7 @@ function render({ focus } = {}) {
   renderPaid();
   renderFree();
   renderCustom();
+  renderQuoteEdit();
   const t = renderSummary();
   announce(t);
   if (focus) {
@@ -863,6 +930,12 @@ function restoreDraft(forDeal = null, forRevise = null) {
     const { selection } = reconcile({ ...emptySelection(), ...draft.state, free: { ...emptySelection().free, ...draft.state.free } });
     state = selection;
     if (state.custom === null || typeof state.custom !== 'object') delete state.custom;
+    // "שינויים להצעה הזו": only a whole price in range and a name in text survive a refresh.
+    const e = state.edit && typeof state.edit === 'object' ? state.edit : {};
+    state.edit = {
+      ...(Number.isInteger(e.price) && e.price >= 0 && e.price <= CUSTOM_LIMITS.priceMax ? { price: e.price } : {}),
+      ...(typeof e.name === 'string' && e.name.trim() ? { name: e.name.slice(0, CUSTOM_LIMITS.packageName) } : {}),
+    };
     const a = draft.ai;
     ai = a && typeof a === 'object' && a.marks && typeof a.marks === 'object'
       ? { runId: typeof a.runId === 'string' ? a.runId : null, marks: a.marks } : null;
@@ -1099,12 +1172,13 @@ async function refreshSession() {
         m.mountShell(staff.email);
         const v = await m.viewerFor(staff.email);
         if (!v.error && !rules.canBuildQuote(v)) { deny(menu.homeLink(v)); return staff; }
-        // "חוזה מותאם אישית" is offered to the office only.
-        const was = office;
+        // "חוזה מותאם אישית" is offered to the office only; "שינויים להצעה הזו" to the managers.
+        const was = [office, editor];
         office = !v.error && v.scope === 'office';
-        if (office !== was) render();
+        editor = !v.error && rules.isManager(v);
+        if (office !== was[0] || editor !== was[1]) render();
       } catch { /* the menu could not be drawn; the server still decides who creates a quote */ }
-    } else if (office) { office = false; render(); }
+    } else if (office || editor) { office = false; editor = false; render(); }
     return staff;
   } catch {
     return null;
