@@ -40,6 +40,12 @@ let formOpen = false;
 let showOpen = false;    // the giver's open tasks: folded until asked for (or until one is sent)
 let showClosed = false;
 let onChange = () => {};
+// The form alone, in a dialog of another page ("משימה חדשה" in tracking.html's tab
+// "משימות לעורכים ולגרפיקאי", 10.11.2026): the same form and the same sending, the people
+// offered limited to `only`; `onCancel()` when it is put away.
+let formOnly = false;
+let only = null;
+let onCancel = () => {};
 
 // ── Data ────────────────────────────────────
 // The tasks this login may read (its own, the ones it gave; the owner: all). null:
@@ -114,6 +120,7 @@ async function send(form) {
   showOpen = true; // what was just sent is shown
   const who = personName(v.args.p_assignee);
   toast(nagOpen(new Date()) ? `הנודניק נשלח ל${who}. תזכורת כל ${NAG_EVERY} דקות עד ״בוצע״.` : `הנודניק נשמר. התזכורות ל${who} יתחילו ${formatWhen(nextNagAt(new Date(), new Date()))}.`);
+  if (formOnly) { onChange(v.args); return; }
   await refreshStaffTasks();
   onChange();
   box?.querySelector('#st-new')?.focus();
@@ -189,7 +196,7 @@ function newForm() {
     h('div', { class: 'field' },
       h('label', { for: 'st-assignee' }, 'למי'),
       h('select', { class: 'input', id: 'st-assignee', name: 'assignee', required: true, 'aria-describedby': 'st-assignee-err', onchange: (e) => { clearError(e.currentTarget); briefBox.hidden = !needsBrief(e.currentTarget.value); } },
-        h('option', { value: '' }, 'בחירת עובד/ת'), ...ASSIGNEES().map((p) => h('option', { value: p.key }, p.name))),
+        h('option', { value: '' }, 'בחירת עובד/ת'), ...ASSIGNEES().filter((p) => !only || only.includes(p.key)).map((p) => h('option', { value: p.key, selected: only?.length === 1 }, p.name))),
       h('div', { class: 'err', id: 'st-assignee-err', hidden: true })),
     h('div', { class: 'field' },
       h('label', { for: 'st-body' }, 'מה צריך לעשות'),
@@ -207,7 +214,7 @@ function newForm() {
     h('p', { class: 'hint' }, `העובד/ת יקבל/ו התראה מיד, ואז כל ${NAG_EVERY} דקות עד ״בוצע״, בימי עבודה 09:00–20:00.`),
     h('div', { class: 'st-acts' },
       h('button', { type: 'submit', class: 'btn st-send', id: 'st-send' }, 'שליחת הנודניק'),
-      h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { formOpen = false; render(); box.querySelector('#st-new')?.focus(); } }, 'ביטול')));
+      h('button', { type: 'button', class: 'btn btn-ghost', onclick: () => { formOpen = false; if (formOnly) { onCancel(); return; } render(); box.querySelector('#st-new')?.focus(); } }, 'ביטול')));
 }
 
 // Rebuilds the options (a hidden <option> still shows on an iPhone).
@@ -224,6 +231,7 @@ function filterClients(q) {
 
 function render() {
   if (!box) return;
+  if (formOnly) { fill(box, newForm()); return; }
   const now = new Date();
   const gives = canGive(viewer);
   const { mine, given } = taskLists(tasks, viewer, now);
@@ -271,6 +279,22 @@ export async function mountStaffTasks(el, who, { changed = () => {} } = {}) {
   await refreshStaffTasks();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStaffTasks(); });
   setInterval(() => { if (!document.hidden) refreshStaffTasks(); }, 60e3);
+}
+
+// The form alone (see formOnly): `people` the person keys it offers (one: chosen already),
+// `changed(args)` after a task was sent, `cancel()` on "ביטול". Not with mountStaffTasks on the same page.
+export async function mountStaffTaskForm(el, who, { people = null, changed = () => {}, cancel = () => {} } = {}) {
+  if (!el || !canGive(who)) return false;
+  box = el;
+  viewer = who;
+  onChange = changed;
+  onCancel = cancel;
+  formOnly = true;
+  only = people;
+  await loadClients();
+  formOpen = true;
+  render();
+  return true;
 }
 
 export async function refreshStaffTasks() {
