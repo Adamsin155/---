@@ -128,10 +128,27 @@
 //   - Ilai: 9 is one item (p09.file); 29ב keeps 4 points, "בגאנט ותואם לתזמון" one of them (ganttok);
 //     the scheduling (28) and the full Gantt (29) are one mark the system writes (GANTT_READY) when every
 //     content row of the Gantt is scheduled. Eli: two drive checks are one (p19b.checked).
+// v14 (the owner's decision of 10.11.2026, after the editors (Nadia, Yariv, Anna, Nirel) went over
+// their checklist, "סדר בסימונים"; docs/ops.md, section 126): what they marked "מיותר" left
+// (`retired: 14`), for every client, with its reminders and late lines:
+//   - 22: "התקבל הכונן" (p22.received), the logo and phone checks, "נערכו לפי התסריטים" (p22.edited),
+//     the B-Roll, closing and "כל הכמות" self-checks, and three of the five critical mistakes in the
+//     editor's self-check (stable, angles, export; Ofir still checks all five in 25). 22 keeps the
+//     footage and scripts checks, the spelling check, and sound and exposure.
+//   - 24: the Dropbox upload (p24.dropbox). The folder, the Drive and the notice to Ofir stay.
+//   The editing starts at the assignment (p22a.assigned, "the drive handed over"): the editor's page
+//   has no "ממתין לכונן" / "קיבלתי את הכונן והתחלתי" step, and "עוד לא התחלת" rings nobody.
+//   - The characterizer (Noam, Shiel, Ofir; Ofir marked "לאחד" on all of it): one mark per process.
+//     5: "התקבלו הגישות והחומרים" (p05.got) for the seven items; 6: "הגישות נבדקו, הרשתות סודרו
+//     וחוברו ל־Metricool" (p06.ok) for the nine; 8 and 8ב: "ה־Highlights הוכנו והועלו לרשתות"
+//     (p08.ok, in 8; 8ב left whole). The old keys are still written where the system writes them
+//     (the vault, the client's logins form, the characterization form's materials), as marks: once
+//     all of them are resolved, the merged item is passed by them (`passedIf: { all }`), so a client
+//     whose old marks were all done is done. 4 (the characterization form) is unchanged.
 
 import { INFLUENCERS, STARS } from './catalog.js';
 
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 // The version that retired a process or an item (`retired`): what is retired applies to nobody.
 export const isRetired = (entry) => Number.isInteger(entry?.retired) && entry.retired <= PROTOCOL_VERSION;
 
@@ -147,6 +164,8 @@ export const CRITICAL_MISTAKES = [
   ['export', 'הגדרות ייצוא', 'הסרטונים יצאו רק בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הייצוא בהגדרות שהוגדרו מראש, בלי בעיית פיקסלים', 'הסרטון לא יצא בהגדרות שהוגדרו מראש (בעיית פיקסלים)'],
 ];
 // The words of the group, wherever the five are listed.
+// v14: the editor's self-check (22) no longer asks these three (the editors: "מיותר"); Ofir's (25) does.
+export const EDITOR_MISTAKES_RETIRED = ['stable', 'angles', 'export'];
 export const CRITICAL_TITLE = 'חמש הטעויות הקריטיות של העריכה';
 // The line of a return for fixes that names a critical mistake.
 export const mistakeIssue = (key) => { const m = CRITICAL_MISTAKES.find(([k]) => k === key); return m ? `טעות קריטית · ${m[1]}: ${m[4]}` : ''; };
@@ -212,14 +231,13 @@ export const PEOPLE = {
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
   eli: { key: 'eli', name: 'אלי', role: 'צלם ימי הצילום' },
-  // Noam (the owner's decision of 1.11.2026): the characterization meetings (4), the logins
-  // taken there (5), checking them and setting the pages up (6) and the Highlights (8, 8ב),
-  // as Ofir does: per client, whoever Irit picks as the characterizer (Noam by default).
-  // Ofir keeps every right he had (he is the office, which writes every key).
-  noam: { key: 'noam', name: 'נעם', role: 'אפיונים, הקמת דפים ו־Highlights' },
+  // Noam left the company (the owner, 10.11.2026); Ofir took over all her work (FORMER_PEOPLE).
+  // She stays here only so the history still shows her name (old marks, notes, and old clients
+  // whose `characterizer` is 'noam'). `left`: no list, picker, menu or table offers her.
+  noam: { key: 'noam', name: 'נעם', role: 'עבדה במשרד עד 10.11.2026', left: true },
   // Shiel (the owner's decision of 9.11.2026): characterizations only. The meetings (4) and the
   // logins taken there (5) of the clients he characterizes; their pages and Highlights (6, 8, 8ב)
-  // are Noam's (pagesOwnerOf). He gets no notification at all (SILENT_PEOPLE).
+  // are Ofir's (pagesOwnerOf). He gets no notification at all (SILENT_PEOPLE).
   shiel: { key: 'shiel', name: 'שיאל', role: 'אפיונים' },
   // Field sales (decision of 3.10.2026): sends new deals to Irit from deal.html and
   // sees only his own deals. Not part of the client protocol (no items, no clients).
@@ -229,17 +247,23 @@ export const PEOPLE = {
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
 
+// People who left, and who took their work over (Noam, 10.11.2026: Ofir). A client still set to
+// one of them is worked by the replacement; the history keeps the old name (characterizedBy).
+export const FORMER_PEOPLE = { noam: 'ofir' };
+export const isFormer = (person) => !!PEOPLE[person]?.left;
 // Who may run a characterization meeting (the client's `characterizer`), and who does
-// when none was set: Noam since 1.11.2026 (Ofir until then; he can still be picked, and
-// Lior only when nobody else can). Pages that need "who characterizes" read characterizerOf.
-export const CHARACTERIZERS = ['noam', 'ofir', 'shiel', 'lior'];
-export const DEFAULT_CHARACTERIZER = 'noam';
-export const characterizerOf = (c) => c?.characterizer || DEFAULT_CHARACTERIZER;
-// Whose are the pages and the Highlights (6, 8, 8ב) of a client: the one who characterizes
-// it, Noam or Ofir ("either Ofir or Noam does it", the owner, 1.11.2026); Noam when nobody
-// was set. When Lior ran the meeting (only when nobody else could) they stay Ofir's, as
-// they were before Noam. Shiel does only the characterization (9.11.2026): his clients' are Noam's.
-export const PAGES_INSTEAD = { lior: 'ofir', shiel: 'noam' };
+// when none was set: Ofir (Noam from 1.11 until she left on 10.11.2026; Lior only when
+// nobody else can). Pages that need "who characterizes" read characterizerOf.
+export const CHARACTERIZERS = ['ofir', 'shiel', 'lior'];
+export const DEFAULT_CHARACTERIZER = 'ofir';
+// Who ran (or will run) the meeting as written on the client: for history and names.
+export const characterizedBy = (c) => c?.characterizer || DEFAULT_CHARACTERIZER;
+// Who does the characterizer's work now (someone who left is replaced).
+export const characterizerOf = (c) => FORMER_PEOPLE[characterizedBy(c)] || characterizedBy(c);
+// Whose are the pages and the Highlights (6, 8) of a client: Ofir's. The one who
+// characterizes it when that is Ofir; when Lior ran the meeting (only when nobody else
+// could) or Shiel did (he does only the characterization, 9.11.2026), still Ofir's.
+export const PAGES_INSTEAD = { lior: 'ofir', shiel: 'ofir' };
 export const pagesOwnerOf = (c) => PAGES_INSTEAD[characterizerOf(c)] || characterizerOf(c);
 // Who gets no notification at all (the owner, 9.11.2026: Shiel): no push, no WhatsApp, no reminder,
 // no line in the owners' 19:00 table, and nobody is reminded instead when his own work is late
@@ -251,15 +275,16 @@ export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 // the office screens (all clients, daily control, performance). 'own': only their
 // own work and the clients it belongs to. 'sales': only deal.html and their own
 // deals (no client is theirs). The owner (no person) sees the office.
-export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', noam: 'own', shiel: 'own', stav: 'sales', amos: 'sales' };
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', shiel: 'own', stav: 'sales', amos: 'sales' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
 
 // The people of the client protocol (everyone but the "assigned editor" placeholder
 // and sales): for owner pickers, work lists and the reminders' digests.
-export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales);
+// Who left (`left`) is in no list (only their name stays, for the history).
+export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales && !p.left);
 // Everyone on the team, sales too: the team screen (team.html) and who has reminders.
-export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor');
+export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.left);
 // Who can be given work (a task, a decision, a pass item): the protocol's people but the silent.
 export const ASSIGNABLE_PEOPLE = () => STAFF_PEOPLE().filter((p) => !isSilent(p.key));
 
@@ -450,9 +475,9 @@ export const CALL_TOPICS = [
 
 // Owners may depend on the client (who ran the characterization, which editor was assigned).
 const characterizer = (c) => [characterizerOf(c)];
-// Whoever characterizes takes the access in the meeting (Noam, Ofir or Lior, whoever ran it);
+// Whoever characterizes takes the access in the meeting (Ofir, Shiel or Lior, whoever ran it);
 // before anyone was set, Irit gets it from the client.
-const accessOwners = (c) => (CHARACTERIZERS.includes(c.characterizer) ? [c.characterizer] : ['irit']);
+const accessOwners = (c) => (CHARACTERIZERS.includes(characterizerOf(c)) && c.characterizer ? [characterizerOf(c)] : ['irit']);
 const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
 // A day like Natali's: hers, Niro's or that of "הצל" (28.10.2026).
 const isStar = (c) => isStarDay(c.shoot_type);
@@ -577,11 +602,11 @@ export const PROCESSES = [
     id: 'p03', num: '3', phase: 'onboarding', title: 'קביעת פגישת אפיון', owners: ['irit'],
     sla: 'עד 5 דקות מרגע שאיש המכירות שולח את פרטי הלקוח',
     due: { from: 'deal', minutes: 5 },
-    what: 'בודקים את הזמינות של מבצע האפיון (נעם, אופיר או שיאל), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
-    ownerNote: 'מבצע האפיון הוא נעם, אופיר או שיאל. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
+    what: 'בודקים את הזמינות של מבצע האפיון (אופיר או שיאל), ומתאמים עם הלקוח פגישה פיזית במועד המוקדם ביותר. עד 3 פגישות אפיון ביום; לכל פגישה משוריין חלון של שעתיים. פתיחת הקבוצה וקביעת האפיון נעשות במקביל.',
+    ownerNote: 'מבצע האפיון הוא אופיר או שיאל. ליאור יוצא לאפיון רק כשהם לא יכולים ואין עובד אחר. מי שהיה אמור לצאת מודיע לו ומעביר שם, מועד, כתובת ושעה.',
     needs: ['characterizer', 'char_at'],
     items: [
-      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (נעם, אופיר או שיאל, או ליאור כשהם לא יכולים)', retired: 13 },
+      { key: 'p03.who', label: 'נקבע מי מבצע את האפיון (אופיר או שיאל, או ליאור כשהם לא יכולים)', retired: 13 },
       { key: 'p03.available', label: 'נבדקה זמינות מבצע האפיון', retired: 13 },
       { key: 'p03.scheduled', label: 'נקבעה פגישה פיזית במועד המוקדם ביותר, בחלון של שעתיים', requiresFields: ['characterizer', 'char_at'], setHere: { unless: 'p04', keep: ['char_at'] }, retired: 13 },
       { key: 'p03.calendar', label: 'הפגישה הוכנסה ליומן', retired: 13 },
@@ -651,24 +676,28 @@ export const PROCESSES = [
   },
   {
     id: 'p05', num: '5', phase: 'onboarding', title: 'לקיחת גישות לרשתות', owners: accessOwners,
-    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. אין רשתות: משימה למבצע האפיון (נעם או אופיר) לפתוח.',
+    ownerNote: 'מי שמבצע את האפיון לוקח את הגישות בפגישה. אחרת עירית בודקת מול הלקוח אילו רשתות יש לו ואם הוא יודע את הגישות. אין רשתות: משימה לאופיר לפתוח.',
     sla: 'מיד במהלך או מיד לאחר פגישת האפיון',
     start: { from: 'char' }, due: { from: 'charEnd' },
     what: 'מקבלים מהלקוח גישה לכל הרשתות הרלוונטיות ולוקחים גם את חומרי המותג.',
     rule: 'כל גישה תקינה נכנסת מיד לכספת הגישות במערכת. אין להשאיר גישות רק בוואטסאפ, בהודעות פרטיות או אצל אחד העובדים.',
     needs: ['characterizer', 'has_logo'],
     items: [
-      { key: 'p05.access', label: 'התקבלה גישה לכל הרשתות הרלוונטיות' },
+      // v14 (Ofir: "לאחד"): one mark for the characterizer. The seven below it are retired; the system
+      // still writes some of them (the vault, the client's form, the characterization form's materials),
+      // and when all of them are resolved this one is passed by them.
+      { key: 'p05.got', label: 'התקבלו הגישות והחומרים', passedIf: { all: ['p05.access', 'p05.allnets', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos'] } },
+      { key: 'p05.access', label: 'התקבלה גישה לכל הרשתות הרלוונטיות', retired: 14 },
       { key: 'p05.vault', label: 'כל הגישות הוכנסו לכספת הגישות במערכת', owners: ['irit'], retired: 13 },
       // v8: one login saved is not "every network". The system does not hold the list of
       // the client's networks, so it asks: the card names what was saved (the note of
       // p05.access) and "אין עוד" closes it. The client's own form closes it by itself.
-      { key: 'p05.allnets', label: 'אין ללקוח עוד רשתות שחסרה להן גישה', requires: ['p05.access'], noBulk: true, word: 'אין עוד' },
-      { key: 'p05.logo', label: 'לוגו' },
-      { key: 'p05.colors', label: 'צבעי מותג' },
-      { key: 'p05.photos', label: 'תמונות' },
-      { key: 'p05.videos', label: 'סרטונים קיימים' },
-      { key: 'p05.menu', label: 'תפריט או מחירון', optional: true },
+      { key: 'p05.allnets', label: 'אין ללקוח עוד רשתות שחסרה להן גישה', requires: ['p05.access'], noBulk: true, word: 'אין עוד', retired: 14 },
+      { key: 'p05.logo', label: 'לוגו', retired: 14 },
+      { key: 'p05.colors', label: 'צבעי מותג', retired: 14 },
+      { key: 'p05.photos', label: 'תמונות', retired: 14 },
+      { key: 'p05.videos', label: 'סרטונים קיימים', retired: 14 },
+      { key: 'p05.menu', label: 'תפריט או מחירון', optional: true, retired: 14 },
       // v10: not ticked while the client's files hold no logo (app/mark-guards.js).
       { key: 'p05.newlogo', label: 'עילאי הכין לוגו חדש (אין ללקוח לוגו)', owners: ['ilai'], when: (c) => c.has_logo === false, guard: 'logoFile' },
     ],
@@ -686,8 +715,7 @@ export const PROCESSES = [
     ],
   },
   {
-    // Since 1.11.2026 the client's characterizer's, Noam or Ofir (pagesOwnerOf; Ofir keeps
-    // his rights on every client, he is the office).
+    // Ofir's (pagesOwnerOf; Noam's clients from 1.11 until she left on 10.11.2026).
     // Before that the whole process was Ofir's (the owner, 28.10.2026: "להוריד מעילאי את כל עניין הגישות
     // לרשתות, זה צריך לעבור לאופיר"): checking every login, opening the networks the client has
     // not got, setting the pages up and Metricool (his since v11). Lior keeps the broken logins.
@@ -695,20 +723,23 @@ export const PROCESSES = [
     // Who owns an item needs no new protocol version (app/protocol-versions.js).
     id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: (c) => [pagesOwnerOf(c)],
     sla: 'עד 30 דקות מרגע קבלת הגישות',
-    start: { from: 'item:p05.access' }, due: { from: 'item:p05.access', minutes: 30 },
+    // v14: from the access (the vault, the client's form) or the characterizer's one mark of 5, whichever came first.
+    start: { from: 'item:p05.access|p05.got' }, due: { from: 'item:p05.access|p05.got', minutes: 30 },
     what: 'בודקים שכל שם משתמש וסיסמה עובדים. גישה לא תקינה: מתקשרים ללקוח ומאפסים או משחזרים איתו. אין עמודים: פותחים עמודים חדשים באותו חלון זמן.',
     items: [
-      { key: 'p06.verified', label: 'כל שמות המשתמש והסיסמאות נבדקו ועובדים' },
+      // v14 (Ofir: "לאחד"): one mark for the nine below it (retired); all of them done passes it.
+      { key: 'p06.ok', label: 'הגישות נבדקו, הרשתות סודרו וחוברו ל־Metricool', passedIf: { all: ['p06.verified', 'p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look', 'p06.metricool'] } },
+      { key: 'p06.verified', label: 'כל שמות המשתמש והסיסמאות נבדקו ועובדים', retired: 14 },
       { key: 'p06.recovered', label: 'גישות לא תקינות אופסו או שוחזרו עם הלקוח והוכנסו לכספת', owners: ['lior'], optional: true, retired: 12 },
-      { key: 'p06.newpages', label: 'נפתחו רשתות חדשות (אם לא היו) והגישות הוכנסו לכספת', optional: true },
-      { key: 'p06.name', label: 'שם העמוד סודר' },
-      { key: 'p06.bio', label: 'Bio נכתב או תוקן' },
-      { key: 'p06.details', label: 'פרטי העסק עודכנו' },
-      { key: 'p06.phone', label: 'הטלפון נבדק' },
-      { key: 'p06.address', label: 'הכתובת נבדקה' },
-      { key: 'p06.look', label: 'נראות העמוד סודרה' },
+      { key: 'p06.newpages', label: 'נפתחו רשתות חדשות (אם לא היו) והגישות הוכנסו לכספת', optional: true, retired: 14 },
+      { key: 'p06.name', label: 'שם העמוד סודר', retired: 14 },
+      { key: 'p06.bio', label: 'Bio נכתב או תוקן', retired: 14 },
+      { key: 'p06.details', label: 'פרטי העסק עודכנו', retired: 14 },
+      { key: 'p06.phone', label: 'הטלפון נבדק', retired: 14 },
+      { key: 'p06.address', label: 'הכתובת נבדקה', retired: 14 },
+      { key: 'p06.look', label: 'נראות העמוד סודרה', retired: 14 },
       // v11: Ofir's, right after he took the accesses (5); since 28.10.2026 the whole process was his, the characterizer's (Noam or Ofir) since 1.11.2026.
-      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool' },
+      { key: 'p06.metricool', label: 'כל הרשתות חוברו ל־Metricool', retired: 14 },
     ],
   },
   {
@@ -759,21 +790,23 @@ export const PROCESSES = [
     ],
   },
   {
+    // v14 (Ofir: "לאחד"): 8 and 8ב are one mark, here; 8ב left. The upload is part of the two hours.
     id: 'p08', num: '8', phase: 'parallel', title: 'הכנת Highlights', owners: (c) => [pagesOwnerOf(c)],
     sla: 'עד שעתיים לאחר האפיון, במקביל לגרפיקות',
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
-    what: 'מבצע האפיון (נעם או אופיר) מכין עד 4 Highlights לפי העסק והמידע מפגישת האפיון.',
+    what: 'אופיר מכין עד 4 Highlights לפי העסק והמידע מפגישת האפיון, ומעלה אותם לעמודי הלקוח ברשתות.',
     items: [
-      { key: 'p08.done', label: 'הוכנו עד 4 Highlights לפי השירותים, המוצרים ושפת העסק' },
-      { key: 'p08.saved', label: 'ה־Highlights נשמרו במקום המסודר של הלקוח ומוכנים לעמוד' },
+      { key: 'p08.ok', label: 'ה־Highlights הוכנו והועלו לרשתות', passedIf: { all: ['p08.done', 'p08.saved', 'p08b.posted'] } },
+      { key: 'p08.done', label: 'הוכנו עד 4 Highlights לפי השירותים, המוצרים ושפת העסק', retired: 14 },
+      { key: 'p08.saved', label: 'ה־Highlights נשמרו במקום המסודר של הלקוח ומוכנים לעמוד', retired: 14 },
     ],
   },
   {
-    id: 'p08b', num: '8ב', phase: 'parallel', title: 'העלאת ה־Highlights לרשתות', owners: (c) => [pagesOwnerOf(c)],
+    id: 'p08b', num: '8ב', phase: 'parallel', title: 'העלאת ה־Highlights לרשתות', owners: (c) => [pagesOwnerOf(c)], retired: 14,
     sla: 'עד 30 דקות עבודה מרגע שה־Highlights הוכנו',
     // v7: the Highlights are ready (process 8 complete: prepared and saved): Ofir uploaded them; since 1.11.2026 the characterizer (Noam or Ofir).
     start: { from: 'p08' }, due: { from: 'p08', minutes: 30 },
-    what: 'אחרי שה־Highlights מוכנים, מבצע האפיון (נעם או אופיר) מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.',
+    what: 'אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.',
     items: [
       { key: 'p08b.posted', label: 'ה־Highlights הועלו לעמודי הלקוח ברשתות' },
     ],
@@ -1061,19 +1094,21 @@ export const PROCESSES = [
     what: 'עורכים לפי התסריטים ולפי מה שצולם, בלי לשנות את משמעות הסרטון. יוצרים גיוון בקצב, ב־B-Roll, במעברים, במבנה ובהצגת הטקסטים.',
     rule: 'חסר לוגו, מספר טלפון או חומר: מדווחים מיד לעירית, לליאור או לאופיר (״לא התקבל״ בשורה), לא מגלים בסוף העריכה. אופיר לא אמור למצוא טעויות בסיסיות.',
     items: [
-      { key: 'p22.received', label: 'התקבל הכונן; עודכן שהעריכה התחילה' },
+      // v14: "התקבל הכונן" left (the editors: "מיותר"); the editing starts at the assignment (22א).
+      { key: 'p22.received', label: 'התקבל הכונן; עודכן שהעריכה התחילה', retired: 14 },
       { key: 'p22.check.footage', label: 'כל חומרי הצילום קיימים' },
       { key: 'p22.check.scripts', label: 'התסריטים וסדר הסרטונים ברורים' },
-      { key: 'p22.check.logo', label: 'יש לוגו תקין של העסק' },
-      { key: 'p22.check.phone', label: 'יש מספר טלפון תקין של העסק' },
-      { key: 'p22.edited', label: 'כל הסרטונים נערכו לפי התסריטים' },
+      { key: 'p22.check.logo', label: 'יש לוגו תקין של העסק', retired: 14 },
+      { key: 'p22.check.phone', label: 'יש מספר טלפון תקין של העסק', retired: 14 },
+      { key: 'p22.edited', label: 'כל הסרטונים נערכו לפי התסריטים', retired: 14 },
       { key: 'p22.self.spelling', label: 'בדיקה עצמית: אין שגיאות כתיב בכתוביות, כותרות, שמות, טלפונים, מחירים וטקסטים' },
-      { key: 'p22.self.broll', label: 'בדיקה עצמית: אותה תבנית B-Roll לא חוזרת ביותר מ־3 סרטונים' },
-      { key: 'p22.self.closing', label: 'בדיקה עצמית: סגיר נקי — לוגו, "לפרטים נוספים התקשרו" ומספר הטלפון, בלי תוספות' },
-      { key: 'p22.self.complete', label: 'בדיקה עצמית: כל כמות הסרטונים הושלמה ותואמת לתסריטים' },
+      { key: 'p22.self.broll', label: 'בדיקה עצמית: אותה תבנית B-Roll לא חוזרת ביותר מ־3 סרטונים', retired: 14 },
+      { key: 'p22.self.closing', label: 'בדיקה עצמית: סגיר נקי — לוגו, "לפרטים נוספים התקשרו" ומספר הטלפון, בלי תוספות', retired: 14 },
+      { key: 'p22.self.complete', label: 'בדיקה עצמית: כל כמות הסרטונים הושלמה ותואמת לתסריטים', retired: 14 },
       // v10: the five critical mistakes, before "מוכן לבדיקה". Not asked of an editing that was
-      // already handed to Ofir before they existed (`passedIf`).
-      ...CRITICAL_MISTAKES.map(([k, , l]) => ({ key: `p22.self.${k}`, label: `בדיקה עצמית: ${l}`, passedIf: 'p24.notify' })),
+      // already handed to Ofir before they existed (`passedIf`). v14: the editor keeps sound and
+      // exposure; stable, angles and export left the editor's self-check (Ofir checks all five, 25).
+      ...CRITICAL_MISTAKES.map(([k, , l]) => ({ key: `p22.self.${k}`, label: `בדיקה עצמית: ${l}`, passedIf: 'p24.notify', ...(EDITOR_MISTAKES_RETIRED.includes(k) ? { retired: 14 } : {}) })),
     ],
   },
   {
@@ -1114,7 +1149,7 @@ export const PROCESSES = [
       // The editor's since 3.11.2026 (was Ofir's, with a task opened at the assignment).
       { key: 'p24.folder', label: 'יש תיקייה מסודרת בדרייב עם שם הלקוח' },
       { key: 'p24.drive', label: 'כל הסרטונים הועלו לדרייב של הלקוח, וכל הקבצים נפתחים' },
-      { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true },
+      { key: 'p24.dropbox', label: 'התוכן הועלה ל־Dropbox (לפי הצורך)', optional: true, retired: 14 },
       { key: 'p24.notify', label: 'העורך עדכן את אופיר שהלקוח מוכן לבקרה', noBulk: true },
     ],
   },
@@ -1153,8 +1188,10 @@ export const PROCESSES = [
     what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
       { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true, retired: 13 },
-      { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
-      { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב של הלקוח, בלי גרסאות ישנות שמבלבלות', noBulk: true },
+      // The owner, 10.11.2026: once the client approved the videos (p27.approved) the job left the
+      // editor; neither is asked of them then (`passedIf`), and Ilai's "קיבלתי" waits for the approval.
+      { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true, passedIf: 'p27.approved' },
+      { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב של הלקוח, בלי גרסאות ישנות שמבלבלות', noBulk: true, passedIf: 'p27.approved' },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
       { key: 'p27.toilai', label: 'עילאי קיבל את הגרסאות הסופיות לתזמון ולגאנט (״קיבלתי״)', owners: ['ilai'], requires: ['p27.final'] },
     ],

@@ -4,11 +4,18 @@
 // (עריכה / גרפיקה), the task, the day it was put in, the due day, who, and "בתהליך" / "הושלם".
 // Chips: הכל / עורכים / גרפיקאי and הכל / פתוחות / הושלמו. "משימה חדשה" opens the same form as
 // "משימות לעובדים" in "המשימות שלי" (app/staff-tasks-ui.js, mountStaffTaskForm), limited to the
-// people of the chip. Read-only otherwise: nothing is marked here.
+// people of the chip. Irit and the owners (10.11.2026): a tap on the status turns "בתהליך" into
+// "הושלם" and back (the card's task: client_tasks.done_at, app/protocol-data.js setTaskDone; a
+// "משימות לעובדים" task: public.staff_task_done, and public.staff_task_reopen once its migration
+// is in), and a tap on the due day of a card's task changes it (client_tasks.due_on; a task of
+// "משימות לעובדים" has no due day). Lior and Ofir read.
 // The rows: app/tracking-tasks-logic.js; docs/ops.md, section 122.
 import { supabase, sessionEmail } from './supa.js';
-import { h, fill, errorText, viewerOf } from './protocol-ui.js';
+import { h, fill, errorText, viewerOf, toast } from './protocol-ui.js';
 import { isManager } from './manager-rules.js';
+import { setTaskDone } from './protocol-data.js';
+import { canFix } from './tracking-fix-logic.js';
+import { openDueFix } from './tracking-fix.js';
 import { icon, pill } from './kit.js';
 import { mountStaffTaskForm } from './staff-tasks-ui.js';
 import {
@@ -80,9 +87,54 @@ function row(r, now) {
       h('span', { class: 'tt-title', dir: 'auto' }, r.title),
       r.brief ? h('span', { class: 'tt-brief', dir: 'auto' }, r.brief) : null),
     h('td', { 'data-label': 'הוכנסה', class: 'tt-d tt-in' }, h('span', { class: 'num', dir: 'ltr' }, shortDay(r.createdAt, now) || '—')),
-    h('td', { 'data-label': 'יעד', class: `tt-d tt-due${r.dueOn ? '' : ' is-empty'}` }, h('span', { class: 'num', dir: 'ltr' }, shortDay(r.dueOn, now) || '—')),
+    dueCell(r, now),
     h('td', { 'data-label': 'אחראי/ת', class: 'tt-who' }, r.who),
-    h('td', { 'data-label': 'סטטוס', class: 'tt-s' }, pill(STATE_TEXT[r.state], r.state === 'done' ? 'ok' : 'info')));
+    h('td', { 'data-label': 'סטטוס', class: 'tt-s' }, canFix(state.viewer)
+      ? h('button', {
+        type: 'button', class: 'ct-fix tt-toggle', 'data-toggle': r.id,
+        'aria-label': `${STATE_TEXT[r.state]}: ${r.title}. ${r.state === 'done' ? 'להחזיר לבתהליך' : 'לסמן הושלם'}`,
+        onclick: (e) => toggle(r, e.currentTarget),
+      }, pill(STATE_TEXT[r.state], r.state === 'done' ? 'ok' : 'info'), h('span', { class: 'ct-pen', 'aria-hidden': 'true' }, '⇄'))
+      : pill(STATE_TEXT[r.state], r.state === 'done' ? 'ok' : 'info')));
+}
+
+// The due day: a card's task can be given one (Irit, the owners); a task of "משימות לעובדים" has none.
+function dueCell(r, now) {
+  const text = shortDay(r.dueOn, now) || '—';
+  const fixes = canFix(state.viewer) && r.from === 'client';
+  const empty = !r.dueOn && !fixes;
+  return h('td', { 'data-label': 'יעד', class: `tt-d tt-due${empty ? ' is-empty' : ''}` }, fixes
+    ? h('button', {
+      type: 'button', class: 'ct-fix tt-due-fix', 'aria-label': `תאריך יעד של ${r.title}: ${r.dueOn ? text : 'אין'}. שינוי`,
+      onclick: () => openDueFix({ task: r, saved: reload }),
+    }, h('span', { class: 'num', dir: 'ltr' }, text), h('span', { class: 'ct-pen', 'aria-hidden': 'true' }, '✎'))
+    : h('span', { class: 'num', dir: 'ltr', title: r.from === 'staff' ? 'למשימה מ״משימות לעובדים״ אין תאריך יעד' : null }, text));
+}
+
+// "בתהליך" ↔ "הושלם".
+const REOPEN_MISSING = 'להחזיר משימה מ״משימות לעובדים״ לבתהליך אפשר רק אחרי עדכון במסד הנתונים (staff_task_reopen). בינתיים: משימה חדשה.';
+async function toggle(r, btn) {
+  const done = r.state !== 'done';
+  if (r.from === 'staff' && done && !window.confirm(`לסמן ״הושלם״ על המשימה ל${r.who}? התזכורות ייעצרו.`)) return;
+  btn.disabled = true;
+  try {
+    if (r.from === 'client') await setTaskDone(r.rawId, done);
+    else {
+      const { error } = await supabase.rpc(done ? 'staff_task_done' : 'staff_task_reopen', { p_id: r.rawId });
+      if (error) {
+        if (!done && (error.code === 'PGRST202' || /could not find the function/i.test(error.message || ''))) throw Object.assign(new Error(REOPEN_MISSING), { said: true });
+        if (/only the assignee or whoever gave it|not allowed/.test(error.message || '')) throw Object.assign(new Error('רק מי שנתן/ה את המשימה או מי שקיבל/ה אותה יכולים לסמן אותה.'), { said: true });
+        throw error;
+      }
+    }
+  } catch (err) {
+    btn.disabled = false;
+    toast(err?.said ? err.message : `לא נשמר. ${errorText(err)}`);
+    return;
+  }
+  toast(done ? 'סומן ״הושלם״.' : 'הוחזר ל״בתהליך״.');
+  await reload();
+  state.host?.querySelector(`[data-toggle="${r.id}"]`)?.focus();
 }
 
 function draw() {

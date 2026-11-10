@@ -18,6 +18,10 @@ const editorOf = (ctx) => ctx.editor || 'editor';
 // The second editor, when two work on the shoot together (editor2): a handoff of their own.
 const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.editor ? ctx.editor2 : null);
 
+// The editor took the work: the first marks of 22 (protocol v14: "התקבל הכונן", p22.received, left;
+// an old mark of it still counts).
+const EDITOR_STARTED = ['p22.received', 'p22.check.footage', 'p22.check.scripts'];
+
 // The handoff points, in protocol order (the reminder matrix, section 5 of the plan).
 //   on:    an item key (offered when it is checked), or a process id (offered when
 //          the check completes that process).
@@ -41,15 +45,16 @@ const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.edi
 // Kept as data, so a wording or a rule changes here without touching the pages.
 export const HANDOFFS = [
   {
-    // Ofir's from 28.10.2026 (the owner: the accesses are no longer Ilai's); since 1.11.2026 the
-    // client's characterizer's, Noam or Ofir (pagesOwnerOf). When he took the
+    // Ofir's from 28.10.2026 (the owner: the accesses are no longer Ilai's; Noam's clients from 1.11
+    // until she left on 10.11.2026; pagesOwnerOf). When he took the
     // accesses himself (he runs the characterization) he is offered no message to himself
     // (`from` in handoffsFor; the card's "העברות" line has no button for him either).
-    id: 'access', on: 'p05.access', label: 'גישות התקבלו',
+    // v14 (Ofir: "לאחד"): offered when 5 is complete (its one mark p05.got, or the last of its old marks).
+    id: 'access', on: 'p05', label: 'גישות התקבלו',
     // One target per checker (optional: only the client's own is offered), so each record names
-    // its person: `p05.handoff.ofir`, `p05.handoff.noam`.
-    to: ['ofir', 'noam'].map((p) => ({
-      id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: 'p06.verified',
+    // its person: `p05.handoff.ofir` (`p05.handoff.noam`, Noam's until she left on 10.11.2026, is in RETIRED).
+    to: ['ofir'].map((p) => ({
+      id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: ['p06.ok', 'p06.verified'],
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
       due: [{ label: 'יעד', proc: 'p06', minutes: 30 }],
     })),
@@ -78,12 +83,12 @@ export const HANDOFFS = [
   {
     id: 'editor', on: 'p22a.assigned', label: 'עורך שויך',
     to: [{
-      id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: 'p22.received',
+      id: 'editor', person: editorOf, who: 'העורך המשויך', proc: 'p22', until: EDITOR_STARTED,
       text: 'הלקוח {client} עובר לעריכה אצלך. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
       due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }, {
       // `optional`: no offer at all while the shoot has no second editor.
-      id: 'editor2', person: editor2Of, optional: true, who: 'העורך הנוסף', proc: 'p22', until: 'p22.received',
+      id: 'editor2', person: editor2Of, optional: true, who: 'העורך הנוסף', proc: 'p22', until: EDITOR_STARTED,
       text: 'הלקוח {client} עובר לעריכה אצלך, יחד עם עורך נוסף. הכונן, התסריטים והלוגו בכרטיס הלקוח.',
       due: [{ label: 'בדרייב של הלקוח ואצל אופיר לבקרה', proc: 'p24' }, { label: 'סגירה, כולל תיקוני הלקוח', proc: 'p27' }],
     }],
@@ -172,6 +177,7 @@ export const toName = (person) => (nameOf(person) ? `ל${nameOf(person)}` : 'ל�
 // Lior had taken the assignment names him.)
 const RETIRED = {
   'p07.handoff.irit': '9 גרפיקות מוכנות לבדיקה ← עירית', 'p05.handoff.ilai': 'גישות התקבלו ← עילאי',
+  'p05.handoff.noam': 'גישות התקבלו ← נעם', // Noam left on 10.11.2026: her old records keep their words
   'p19.handoff.assigner': (note) => `יום הצילום הסתיים ← ${nameOf(note) || 'אופיר'}`,
 };
 export function describeMark(key, note = null) {

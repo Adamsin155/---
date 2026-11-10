@@ -8,11 +8,11 @@ import { accessUrl, waitingLink } from './access-logic.js';
 
 export const LINK_COLS = 'id, client_id, created_at, created_by, expires_at, revoked_at, revoked_by, submitted_at, attempts, summary, client_note';
 // Who makes, copies and revokes a link (can_manage_access_links() in the database decides).
-export const LINK_MANAGERS = ['irit', 'lior', 'ofir', 'noam']; // Noam since 3.11.2026 (the owner)
-export const canManageAccessLinks = ({ me = null, scope = 'office', error = null } = {}) => !error && (scope === 'office' || me === 'noam') && (me === null || LINK_MANAGERS.includes(me));
+export const LINK_MANAGERS = ['irit', 'lior', 'ofir']; // Noam (3.11 to 10.11.2026) left the company
+export const canManageAccessLinks = ({ me = null, scope = 'office', error = null } = {}) => !error && scope === 'office' && (me === null || LINK_MANAGERS.includes(me));
 // Who sees a link's state and what the client chose (never a login): the office as the
 // database knows it (is_office(): the owner, Irit, Lior, Ofir and Ilai, whose screens are his own work).
-export const seesAccessLinks = ({ me = null, scope = 'office', error = null } = {}) => !error && (scope === 'office' || me === 'ilai' || me === 'noam');
+export const seesAccessLinks = ({ me = null, scope = 'office', error = null } = {}) => !error && (scope === 'office' || me === 'ilai');
 
 // The table is missing until the migration is applied: the screens then show nothing of the form.
 export const missingAccessLinks = (err) => err?.code === '42P01' || err?.code === 'PGRST205'

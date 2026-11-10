@@ -3,20 +3,26 @@
 // Three tabs since 10.11.2026 (Irit): "סרטונים וגרפיקות" (this table), "ימי צילום"
 // (app/tracking-shoots.js) and "משימות לעורכים ולגרפיקאי" (app/tracking-tasks.js); the open one is
 // in the address (#shoots, #tasks) and kept on this device for the next visit.
-// The owners and the managers (Irit, Lior, Ofir: isManager). Read-only: nothing is marked or saved
-// here, and nothing of money is read (the work columns only, as the editors' pages read them).
+// The owners and the managers (Irit, Lior, Ofir: isManager), and Ilai (the first tab only).
+// A number is fixed by hand (10.11.2026): Irit and the owners tap it; Ilai the graphics only;
+// Lior and Ofir read (app/tracking-fix-logic.js, the dialogs app/tracking-fix.js). Nothing of
+// money is read (the work columns only, as the editors' pages read them).
 // The counting: app/tracking-logic.js; docs/ops.md, section 122.
 import { loadChecks, loadDirectory } from './protocol-data.js';
 import { loadWorkClients, loadEditorProgress, loadEditorMonths } from './production-data.js';
 import { loadPostedGraphics } from './gantt-data.js';
-import { monthKey } from './edit-count.js';
-import { isManager } from './manager-rules.js';
+import { monthKey, isMonthly } from './edit-count.js';
 import { $, fill, h, errorText, mountSession, directory, viewerOf } from './protocol-ui.js';
 import { trackingRows, searchTracking, complete, ratioText, shootDates, clientsWord } from './tracking-logic.js';
-import { showShoots } from './tracking-shoots.js';
+import { canOpenTracking, onlyFirstTab, canFix, canFixKind, fixLine } from './tracking-fix-logic.js';
+import { canAssignFromCard } from './card-assign-logic.js';
+import { openCountFix } from './tracking-fix.js';
+import { showShoots, setShootsViewer } from './tracking-shoots.js';
 import { renderTasksTab } from './tracking-tasks.js';
 
 let rows = [];
+let clientsById = new Map();
+let viewer = null;
 let q = '';
 let lastLoad = 0;
 const cardUrl = (id) => `client.html?id=${encodeURIComponent(id)}`;
@@ -37,7 +43,8 @@ async function doLoad() {
       loadEditorProgress().catch(() => null), loadEditorMonths(null, monthKey(now)).catch(() => null), loadPostedGraphics(),
     ]);
     rows = trackingRows(clients, { checks, progress, months, posted }, now);
-    showShoots(clients, checks, now);
+    clientsById = new Map(clients.map((c) => [c.id, c]));
+    if (!onlyFirstTab(viewer)) showShoots(clients, checks, now);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -50,23 +57,40 @@ async function doLoad() {
 // ── Render ──────────────────────────────────
 // A count: "7 / 25" (numbers left to right), a green ✓ when it is complete, and "החודש" for a
 // monthly client's videos.
-function countCell(label, x, extra = null) {
+// Whoever may fix it taps the number (a button); "עודכן ביד · עירית · 10.11" under a number fixed by hand.
+function countCell(r, kind, label, x, extra = null) {
   const ok = complete(x);
-  return h('td', { 'data-label': label, class: ok ? 'ct-n is-done' : 'ct-n' },
-    h('span', { class: 'ct-val' },
-      h('span', { class: 'num', dir: 'ltr' }, ratioText(x)),
-      x.month ? h('span', { class: 'ct-month' }, ' החודש') : null,
-      ok ? h('span', { class: 'ct-ok', role: 'img', 'aria-label': 'הושלם' }, '✓') : null),
+  const val = [
+    h('span', { class: 'num', dir: 'ltr' }, ratioText(x)),
+    x.month ? h('span', { class: 'ct-month' }, ' החודש') : null,
+    ok ? h('span', { class: 'ct-ok', role: 'img', 'aria-label': 'הושלם' }, '✓') : null];
+  const fixes = canFixKind(viewer, kind);
+  return h('td', { 'data-label': label, 'data-kind': kind, class: `${ok ? 'ct-n is-done' : 'ct-n'}${x.fix ? ' is-fixed' : ''}` },
+    fixes ? h('button', {
+      type: 'button', class: 'ct-val ct-fix', 'data-fix': kind, 'aria-label': `תיקון ${label} של ${r.label}: ${ratioText(x)}`,
+      onclick: (e) => openFix(r, kind, e.currentTarget),
+    }, ...val, h('span', { class: 'ct-pen', 'aria-hidden': 'true' }, '✎')) : h('span', { class: 'ct-val' }, ...val),
+    x.fix ? h('span', { class: 'ct-by' }, fixLine(x.fix)) : null,
     extra);
+}
+function openFix(r, kind) {
+  const client = clientsById.get(r.id);
+  if (!client) return;
+  const x = kind === 'videos' ? r.videos : kind === 'graphics' ? r.graphics : r.shoots;
+  openCountFix({ client, kind, x, viewer, month: kind === 'videos' && isMonthly(client) ? monthKey(new Date()) : null, saved: () => load() });
 }
 function row(r) {
   const dates = shootDates(r.shoots);
+  // "שינוי": the editor's dialog of the client card (app/assign-dialog.js), opened there (#assign).
+  const change = canFix(viewer) && canAssignFromCard(viewer)
+    ? h('a', { class: 'ct-ed-change', href: `${cardUrl(r.id)}#assign`, 'aria-label': `${r.editor ? 'שינוי' : 'שיוך'} עורך ל${r.label}` }, r.editor ? 'שינוי' : 'שיוך')
+    : null;
   return h('tr', { 'data-id': r.id, id: `ct-${r.id}` },
     h('td', {}, h('a', { class: 'mt-name', href: cardUrl(r.id) }, r.label)),
-    h('td', { 'data-label': 'עורך', class: 'ct-ed' }, r.editor || '—'),
-    countCell('סרטונים נערכו', r.videos),
-    countCell('גרפיקות הועלו', r.graphics),
-    countCell('ימי צילום', r.shoots, dates.length ? h('span', { class: 'ct-dates' }, ...dates.map((t) => h('span', {}, t))) : null));
+    h('td', { 'data-label': 'עורך', class: 'ct-ed' }, h('span', { class: 'ct-ed-in' }, h('span', {}, r.editor || '—'), change)),
+    countCell(r, 'videos', 'סרטונים נערכו', r.videos),
+    countCell(r, 'graphics', 'גרפיקות הועלו', r.graphics),
+    countCell(r, 'shoots', 'ימי צילום', r.shoots, dates.length ? h('span', { class: 'ct-dates' }, ...dates.map((t) => h('span', {}, t))) : null));
 }
 function render() {
   if ($('ct-q').value !== q) $('ct-q').value = q;
@@ -123,7 +147,14 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && la
 mountSession(async (staff) => {
   const [dir, v] = await Promise.all([loadDirectory(), viewerOf(staff.email)]);
   Object.assign(directory, dir);
-  if (v?.error || !isManager(v)) { $('no-access').hidden = false; return; }
+  if (v?.error || !canOpenTracking(v)) { $('no-access').hidden = false; return; }
+  viewer = v;
+  setShootsViewer(v, () => load());
+  // Ilai: the first tab only, to fix his graphics.
+  if (onlyFirstTab(v)) {
+    $('ct-tabs').hidden = true;
+    view = 'videos';
+  }
   $('ct-page').hidden = false;
   setView(view);
   await load();

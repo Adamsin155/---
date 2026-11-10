@@ -2,7 +2,7 @@
 // "קביעת מועד" dialogs do (app/clients.js openMeet / openShoot), for the calendar page's
 // Google suggestions and its "פגישה חדשה" (the owner, 21.10.2026). The same fields, the
 // same rules, the same questions:
-//   - a meeting: a day and an hour, and who runs it (Noam or Ofir, or Lior); updateClient({ char_at,
+//   - a meeting: a day and an hour, and who runs it (Ofir or Shiel, or Lior); updateClient({ char_at,
 //     characterizer }). Since protocol v13 the date itself closes Irit's line "לקבוע אפיון" (until
 //     then a first date also marked "נקבעה פגישה", p03.scheduled);
 //   - a shoot day: a day and an hour and who films (a choice of app/shoot-crew.js: the shoot
@@ -23,7 +23,7 @@ import { nextShootDay } from './shoot-plan.js';
 import { dayKeyIL } from './tz.js';
 import { CHARACTERIZERS } from './protocol.js';
 
-export const MEET_PEOPLE = CHARACTERIZERS; // Noam, Ofir, or Lior when nobody else can (app/protocol.js)
+export const MEET_PEOPLE = CHARACTERIZERS; // Ofir, Shiel, or Lior when nobody else can (app/protocol.js)
 const refuse = (text) => Object.assign(new Error(text), { rule: true });
 
 // → { row, marked: null } (row: the client as saved). Throws { rule: true } with a sentence to show.

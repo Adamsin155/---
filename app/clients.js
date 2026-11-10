@@ -50,7 +50,7 @@ import { hasProfiles, modeOf } from './manager-rules.js';
 import { profileOf, managerTabs, opensClients, writesChar, listsAllClients } from './shell-rules.js';
 // The signed contract's file in "לקוח חדש" (27.10.2026); the upload itself (app/files-ui.js) loads only when one is chosen.
 import { CONTRACT_KIND, CONTRACT_LABEL, MANUAL_CONTRACT_NOTE, contractFileProblem } from './contract-file.js';
-import { folderItemOf } from './qa-logic.js';
+import { folderItemOf, jobStage, workText, waitingText } from './qa-logic.js';
 import { uploadStepOf } from './files-logic.js';
 // 3.10.2026: Stav's deals waiting for a contract (the office), and Stav's own page.
 import { mountDeals, refreshDeals } from './deal-ui.js';
@@ -2979,6 +2979,9 @@ $('status-form').addEventListener('submit', async (e) => {
 // ── Editor load (Ofir, stage 5: before assigning a client to an editor) ──
 const EDIT_STEPS = [['p22', 'עריכה'], ['p24', 'העלאה לדרייב והעברה לאופיר'], ['p27', 'תיקונים וסגירה']];
 // Every editing job not finished in post: the client's own, and each extra shoot round's.
+// `stage` as qa.html counts it (app/qa-logic.js jobStage, 10.11.2026): 'editing' and 'fixes'
+// are the editor's load; 'waiting' (finished, with Ofir or the client) is not; once the
+// client approved the videos the job is not here at all.
 function editingJobs() {
   const out = [];
   for (const c of clients.filter(inWork)) {
@@ -2986,13 +2989,14 @@ function editingJobs() {
     const st = (id) => s.states.find((x) => x.proc.id === id) || null;
     // A shoot with two editors is in the load of each of them.
     for (const u of [{ x: c, pre: '', round: null }, ...roundsOf(c).map((r) => ({ x: r, pre: `r${r.n}-`, round: r.n }))]) {
-      const end = st(`${u.pre}p27`);
-      if (!u.x.editor || !end || end.complete) continue;
-      for (const editor of editorsOf(u.x)) out.push({ c, editor, round: u.round, steps: EDIT_STEPS.map(([id, label]) => ({ label, s: st(`${u.pre}${id}`) })).filter((x) => x.s) });
+      const stage = jobStage(checks[c.id] || {}, u.pre.replace('-', '.'), { p24: st(`${u.pre}p24`), p27: st(`${u.pre}p27`) });
+      if (!u.x.editor || !stage) continue;
+      for (const editor of editorsOf(u.x)) out.push({ c, editor, round: u.round, stage, steps: EDIT_STEPS.map(([id, label]) => ({ label, s: st(`${u.pre}${id}`) })).filter((x) => x.s) });
     }
   }
   return out;
 }
+const inLoad = (j) => j.stage !== 'waiting';
 // Shot and waiting for Ofir to assign an editor (process 22א).
 const awaitingEditor = () => clients.filter(inWork).flatMap((c) => stateOf(c).states
   .filter((x) => x.proc.id.replace(/^r\d+-/, '') === 'p22a' && x.ready && !x.complete).map((x) => ({ c, x })));
@@ -3009,12 +3013,14 @@ function editorSection(now) {
         h('a', { class: 'wclient', href: clientUrl(c.id, `#${x.proc.id}`) }, clientLabel(c)), ' ',
         h('span', {}, procLabel(x.proc)), ' ', statusBadge(x.status, x.dueAt, now))))) : null,
     h('ul', { class: 'editor-list' }, ...EDITORS.map((key) => {
-      const mine = jobs.filter((j) => j.editor === key);
+      const mine = jobs.filter((j) => j.editor === key && inLoad(j));
+      const waits = jobs.filter((j) => j.editor === key && !inLoad(j)).length;
       const openTasks = tasks.filter((t) => t.owner === key && live(clientOf(t.client_id) || { status: 'cancelled' })).length;
       return h('li', { class: 'editor-card' },
         h('div', { class: 'editor-head' },
           personChip(key),
-          h('span', { class: 'editor-count' }, `${mine.length} ${mine.length === 1 ? 'לקוח' : 'לקוחות'} בעריכה · ${openTasks} ${openTasks === 1 ? 'משימה פתוחה' : 'משימות פתוחות'}`)),
+          h('span', { class: 'editor-count' }, `${workText({ jobs: mine })} · ${openTasks} ${openTasks === 1 ? 'משימה פתוחה' : 'משימות פתוחות'}`),
+          waits ? h('span', { class: 'editor-count muted' }, waitingText(waits)) : null),
         mine.length ? h('ul', { class: 'edit-jobs' }, ...mine.map((j) => h('li', {},
           h('a', { class: 'wclient', href: clientUrl(j.c.id, `#${j.steps[0]?.s.proc.id || ''}`) }, clientLabel(j.c), j.round ? ` · סבב ${j.round}` : ''),
           h('ol', { class: 'edit-steps' }, ...j.steps.map(({ label, s }) => h('li', {},
@@ -3257,7 +3263,7 @@ function weeklyCalls(log, days, now) {
 }
 
 // Editing jobs an editor holds now, against the cap (null for anyone else).
-const editorLoad = (key) => (EDITORS.includes(key) ? editingJobs().filter((j) => j.editor === key).length : null);
+const editorLoad = (key) => (EDITORS.includes(key) ? editingJobs().filter((j) => j.editor === key && inLoad(j)).length : null);
 const TEAM_COLS = ['עובד', 'פתוחים', 'באיחור', 'להשבוע', 'בזמן', 'זמן חציוני מול נורמה', 'עומס עריכה', 'החזרות לתיקון', 'לא רלוונטי', 'שינויי מועד'];
 
 async function renderPerformance() {

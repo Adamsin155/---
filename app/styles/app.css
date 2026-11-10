@@ -413,6 +413,7 @@ textarea.input { min-height: 104px; resize: vertical; }
 .term-note { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
 .actions { padding: 16px 20px 20px; display: grid; gap: 8px; border-top: 1px solid var(--line); }
 .actions .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.actions .pair > :only-child { grid-column: 1 / -1; }
 .actions .act-hint { font-size: 12.5px; color: var(--muted); margin: -2px 0 6px; text-align: center; }
 .actions .act-group { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 .summary .btn:not(.btn-primary) { border-color: rgba(255, 255, 255, .7); color: #fff; }
@@ -437,6 +438,7 @@ textarea.input { min-height: 104px; resize: vertical; }
 .btn:hover { background: var(--accent-soft); color: var(--text); }
 .btn:active:not(:disabled) { transform: scale(.96); }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn[aria-busy="true"] { cursor: progress; opacity: .75; }
 .btn-primary { background: var(--pink); border-color: var(--pink); color: var(--on-pink); }
 .btn-primary:hover { background: var(--pink-hover); border-color: var(--pink-hover); color: var(--on-pink); box-shadow: 0 6px 16px color-mix(in srgb, var(--pink) 30%, transparent); }
 .btn-ghost { border-color: var(--line-strong); font-weight: 500; }

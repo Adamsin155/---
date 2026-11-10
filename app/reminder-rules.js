@@ -112,7 +112,7 @@ export const DIGESTS = { morning: '08:30', lists: ['12:00', '16:00'], owner: EOD
 // What is scheduled for 09:00–09:30 goes into the 08:30 digest instead.
 export const FOLD = { from: '09:00', to: '09:30' };
 // Rings a day each person is expected to get (section 5), for the owner's weekly report.
-export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, noam: 5, nirel: 3, nadia: 3, yariv: 3, anna: 3, eli: 3, owner: 1 };
+export const RING_TARGETS = { irit: 8, lior: 6, ofir: 5, ilai: 5, nirel: 3, nadia: 3, yariv: 3, anna: 3, eli: 3, owner: 1 };
 // A step that should have gone out this long ago and never did (the engine was
 // down, or the rules were just switched on) is recorded as stale, never sent late.
 // A digest line belongs to the digest of its moment (the engine queues it within
@@ -309,7 +309,7 @@ export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
 // (8ב: whoever uploads the client's Highlights, `highlightsUpload`): `late` does not tell that
 // watcher again; the other still hears. A value may depend on the client: since 1.11.2026 8ב
-// is the characterizer's, Noam or Ofir (pagesOwnerOf), and Noam is no watcher, so when it is
+// is the characterizer's, Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026), and Noam is no watcher, so when it is
 // his both Ofir and Lior hear.
 export const LATE_RUNG = { p08b: (c) => pagesOwnerOf(c) };
 export const lateRungOf = (procId, client) => {
@@ -391,7 +391,7 @@ export const RULES = [
     instances(env) {
       const out = [];
       for (const c of env.clients) {
-        // 8 (the Highlights) is the client's characterizer's since 1.11.2026: Noam or Ofir (pagesOwnerOf).
+        // 8 (the Highlights) is the client's characterizer's since 1.11.2026: Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026).
         const TEAM = [['ilai', ['p07', 'p09'], 'p07'], [pagesOwnerOf(c), ['p08'], 'p08'], ['lior', ['p10'], 'p10']];
         const p4 = env.stateOf(c).states.find((s) => s.proc.id === 'p04');
         if (!p4) continue;
@@ -418,14 +418,17 @@ export const RULES = [
 
   // 5→6: access received. Whoever checks them at once (30 minutes to check); Lior after 30
   // office minutes. Process 6 was Ofir's from 28.10.2026 (it was Ilai's); since 1.11.2026 it is
-  // the client's characterizer's, Noam or Ofir (pagesOwnerOf). When the checker took the
+  // the client's characterizer's, Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026). When the checker took the
   // accesses himself (he runs the characterization) he is not told what he just marked
   // (`self`); his deadline ring and Lior's stay. (The step ids keep their old names.)
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
-      return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
-        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check('p05.access')?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt('p05.access') } }));
+      // v14: the access came (the vault, the client's form) or the characterizer's one mark of 5 (p05.got),
+      // whichever first; it stops once 6 is done (its one mark p06.ok, or the old p06.verified).
+      const gotKey = (i) => ['p05.access', 'p05.got'].filter((k) => i.doneAt(k)).sort((a, b) => i.doneAt(a) - i.doneAt(b))[0];
+      return casesOf(env, 'p06', (i) => !i.pre && !i.s.complete && !i.resolved('p06.verified') && !i.s.wait && !!gotKey(i))
+        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check(gotKey(i))?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt(gotKey(i)) } }));
     },
     steps: [
       { id: 'now', to: (i) => i.checker, level: 'ring', exempt: 'clock', when: (i) => !i.self, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
@@ -482,7 +485,7 @@ export const RULES = [
         const checks = env.checksOf(c);
         const got = checks['p05.access'];
         const gotAt = got?.state === 'done' ? new Date(got.at) : null;
-        const verified = ['done', 'na'].includes(checks['p06.verified']?.state);
+        const verified = ['p06.verified', 'p06.ok'].some((k) => ['done', 'na'].includes(checks[k]?.state));
         // `access` rings Ofir for this very event when the form itself marked 5.
         const covered = !!gotAt && Math.abs(gotAt - at) < MIN && !verified;
         const have = (l.summary || []).filter((s) => s.choice === 'have').map((s) => platformName(s.network, s.label));
@@ -726,8 +729,8 @@ export const RULES = [
   // (the rule `fast` at the end of this file); the rule `assign` (Ofir at once, the next
   // morning's digest, Lior's hard stop at 12:00 the next business day) is gone with it.
 
-  // 22–24: the editor. A ring on assignment, "not started" two office hours after
-  // the drive was handed over (Lior's list after four), days 2 and 3 in the digest,
+  // 22–24: the editor. A ring on assignment (protocol v14: the editing starts there; "עוד לא
+  // התחלת" and Lior's and Ofir's "עריכה לא התחילה" left with "התקבל הכונן"), days 2 and 3 in the digest,
   // and day 3 at 15:00. Paused editing stops it.
   {
     id: 'editing', event: 'עורך שויך והתקדמות עריכה (22, 24)', procs: ['p22', 'p24'],
@@ -752,9 +755,6 @@ export const RULES = [
         handover: { title: (i) => `העריכה של ${i.name} עברה ל${personName(i.who)}`, body: () => 'הלקוח כבר לא בעריכה אצלך.', url: () => 'editor.html' },
         title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.todo && todoText(i.todo), i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · '),
       },
-      { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
-      { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
-      { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
       // The last editing day: day 2 since protocol v11 (the owner, 21.10.2026), day 3 for a client from before.
       { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך ${i.days}: ${i.name}`, body: (i) => (i.days === 2 ? 'עד סוף היום: הכול בדרייב ואצל אופיר.' : '') },
       { id: 'day2pm', from: 'days', businessDays: 2, at: '15:00', when: (i) => i.days === 2, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 2: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
@@ -1357,7 +1357,7 @@ export const RULES = [
 
   // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and the checker are told
   // (quiet): Ofir checked the accesses from 28.10.2026 (Ilai was told until then); since 1.11.2026
-  // the client's characterizer, Noam or Ofir (pagesOwnerOf). The step id stays 'ofir'.
+  // the client's characterizer, Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026). The step id stays 'ofir'.
   {
     id: 'accessClosed', event: 'גישה שבורה נסגרה (6)', procs: ['p06'],
     instances(env) {
@@ -1387,14 +1387,17 @@ export const RULES = [
     // Ilai still hears the finals are in the Drive, but Lior's list never calls it late.
     fresh: (i) => i.fresh('p27.toilai'),
     instances(env) {
-      return casesOf(env, 'p27', (i) => !!i.doneAt('p27.final') && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
-        const at = i.doneAt('p27.final');
+      // The final versions in the Drive, or the client's approval of the videos (10.11.2026: then
+      // nothing more is asked of the editor, p27.final is `passedIf` p27.approved).
+      const handed = (i) => i.doneAt('p27.final') || i.doneAt('p27.approved');
+      return casesOf(env, 'p27', (i) => !!handed(i) && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
+        const at = handed(i);
         const start = nextWorkMoment(at);
         return { ...i, id: `${i.proc.id}@${at.toISOString()}`, anchors: { event: at, close: atTimeIL(start, erevOn(start) ? WORK_HOURS.erevEnd : WORK_HOURS.end) } };
       });
     },
     steps: [
-      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `גרסאות סופיות בדרייב: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
+      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `${i.doneAt('p27.final') ? 'גרסאות סופיות בדרייב' : 'הלקוח אישר את הסרטונים'}: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
       { id: 'lior', from: 'close', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `עילאי לא סימן ״קיבלתי״ על הגרסאות הסופיות: ${i.name}`, body: () => 'באותו יום עסקים.' },
     ],
   },
@@ -1421,7 +1424,8 @@ export const RULES = [
           if (baseId(s.proc.id) === 'p04' && i.resolved(CHAR_ENDED)) continue;
           // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.
-          if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
+          // (Since 10.11.2026 the client's approval too: then p27.final is not asked of the editor.)
+          if (baseId(s.proc.id) === 'p27' && (i.resolved('p27.final') || i.resolved('p27.approved'))) continue;
           // Sent to the client and waiting for the client's answer (8.10.2026; docs/ops.md, section
           // 48): nobody in the office is late, so nobody is named as late.
           // Nor while the fix the client asked for is being made: that task has its own due day and carries the lateness.
@@ -1523,11 +1527,12 @@ export const RULES = [
 
   // 8ב (v7, the owner's decision of 6.10.2026): the Highlights are ready (process 8
   // complete, not by importing history). Whoever just finished them (Ofir; since 1.11.2026
-  // the client's characterizer, Noam or Ofir: pagesOwnerOf) is told quietly
+  // the client's characterizer, Ofir: pagesOwnerOf) is told quietly
   // and has 30 office minutes to upload them and mark it; when they pass without the
   // mark he rings (a client that started before v7: the item is new for it, so no
   // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).
   {
+    // v14: 8ב left (one mark in 8, p08.ok): its process applies to nobody, so this rule rings nobody.
     id: 'highlightsUpload', event: 'Highlights מוכנים: להעלות לרשתות (8ב)', procs: ['p08b'],
     instances(env) {
       return casesOf(env, 'p08b', (i) => !!i.finishedAt('p08') && !!i.s.startAt && !!i.s.dueAt && !halted(i))
@@ -2191,7 +2196,8 @@ const PEOPLE_RULES = [
       // The videos: the editor waits for notes, and hears there are none (Ilai's ladder starts when 27 closes).
       {
         id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && i.editor.length > 0 && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
-        title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'מה שנשאר פתוח אצלך בתהליך 27 מופיע בעמוד העריכה.',
+        // Since 10.11.2026 the approval closes the job for the editor (p27.fixes / p27.final are `passedIf` it).
+        title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'העבודה שלך על הסרטונים הסתיימה. אין צורך בסימון נוסף.',
       },
     ],
   },

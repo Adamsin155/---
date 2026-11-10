@@ -10,6 +10,7 @@ import {
   effectiveQuantities,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
+import { downloadPdf, pdfFileName } from './pdf-export.js';
 import { iconSquare, headIcon, noteIcon } from './kit.js';
 // "הכנת חוזה עם AI" (docs/ops.md, section 68): the result set on the builder, and its tags.
 // "בדיוק כמו שכתבתי (חוזה חופשי)" (29.10.2026; section 79): the text as custom contracts exactly as
@@ -383,6 +384,18 @@ function renderDocType() {
   // what a custom one changed from the package is kept with it for the owners to see.
   const differs = exceptionOf(selectionToSend()).length > 0;
   $('btn-link').textContent = signable ? 'יצירת קישור לחתימה' : 'יצירת קישור לצפייה';
+  // A price offer goes out as a PDF (the owner, 10.11.2026): "הורדת PDF" first and big; an
+  // agreement keeps the link to sign first, and the PDF beside the HTML file.
+  const pdf = $('btn-pdf');
+  if (signable) {
+    $('btn-html').before(pdf);
+    pdf.className = 'btn btn-ghost btn-sm';
+    $('btn-link').className = 'btn btn-primary';
+  } else {
+    $('btn-link').before(pdf);
+    pdf.className = 'btn btn-primary';
+    $('btn-link').className = 'btn';
+  }
   $('act-hint').textContent = differs
     ? `${customOn() ? 'חוזה מותאם אישית' : 'שינויים להצעה הזו'}: הקישור נוצר מיד · מה ששונה מהחבילה נשמר ב״הצעות שנשלחו״`
     : signable
@@ -1066,20 +1079,23 @@ $('btn-preview').addEventListener('click', (e) => {
   $('dlg-preview').querySelector('.close').focus();
 });
 
-$('btn-print').addEventListener('click', async () => {
+// "הורדת PDF": the document as a .pdf file, at once, no print dialog (the owner, 10.11.2026;
+// docs/ops.md, section 124). A price offer needs no client name; an agreement keeps its checks.
+$('btn-pdf').addEventListener('click', async (e) => {
   if (!validateClient()) return;
-  const doc = renderQuoteDoc(currentModel());
-  $('print-root').replaceChildren(doc);
-  await Promise.all([...doc.querySelectorAll('img')].map((img) => img.decode().catch(() => {})));
-  window.print();
+  const model = currentModel();
+  await downloadPdf(e.currentTarget, renderQuoteDoc(model), pdfFileName(model), {
+    onError: () => toast('לא הצלחנו להכין את קובץ ה־PDF. נסו שוב.'),
+  });
 });
 
-// Ctrl+P prints the current quote too, never a stale or empty page.
+// Ctrl+P prints the current document too, never a stale or empty page: a price offer always
+// (no name needed), an agreement once it has the client's name.
 window.addEventListener('beforeprint', () => {
-  const name = $('c-name').value.trim();
-  $('print-root').replaceChildren(name
+  const ready = !DOC_TYPES[state.docType].signable || $('c-name').value.trim();
+  $('print-root').replaceChildren(ready
     ? renderQuoteDoc(currentModel())
-    : h('p', { style: 'font: 16px sans-serif; padding: 40px' }, 'כדי להדפיס הצעת מחיר יש למלא את שם הלקוח.'));
+    : h('p', { style: 'font: 16px sans-serif; padding: 40px' }, 'כדי להדפיס הסכם התקשרות יש למלא את שם הלקוח.'));
 });
 
 function localStamp() {

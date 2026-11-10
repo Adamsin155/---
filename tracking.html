@@ -46,9 +46,11 @@
   <link rel="modulepreload" href="app/production-data.js">
   <link rel="modulepreload" href="app/gantt-data.js">
   <link rel="modulepreload" href="app/edit-count.js">
-  <link rel="modulepreload" href="app/manager-rules.js">
   <link rel="modulepreload" href="app/protocol-ui.js">
   <link rel="modulepreload" href="app/tracking-logic.js">
+  <link rel="modulepreload" href="app/tracking-fix-logic.js">
+  <link rel="modulepreload" href="app/card-assign-logic.js">
+  <link rel="modulepreload" href="app/tracking-fix.js">
   <link rel="modulepreload" href="app/tracking-shoots.js">
   <link rel="modulepreload" href="app/tracking-tasks.js">
   <link rel="modulepreload" href="app/supa.js">
@@ -60,17 +62,21 @@
   <link rel="modulepreload" href="app/protocol.js">
   <link rel="modulepreload" href="app/production.js">
   <link rel="modulepreload" href="app/tz.js">
-  <link rel="modulepreload" href="app/team-rules.js">
   <link rel="modulepreload" href="app/session-store.js">
   <link rel="modulepreload" href="app/quote-doc.js">
   <link rel="modulepreload" href="app/protocol-logic.js">
   <link rel="modulepreload" href="app/shoot-prep.js">
   <link rel="modulepreload" href="app/set-password.js">
   <link rel="modulepreload" href="app/login-ui.js">
+  <link rel="modulepreload" href="app/manager-rules.js">
   <link rel="modulepreload" href="app/visit.js">
   <link rel="modulepreload" href="app/whatsapp.js">
   <link rel="modulepreload" href="app/shell.js">
   <link rel="modulepreload" href="app/shoot-table.js">
+  <link rel="modulepreload" href="app/team-rules.js">
+  <link rel="modulepreload" href="app/qa-logic.js">
+  <link rel="modulepreload" href="app/monthly-shoot.js">
+  <link rel="modulepreload" href="app/tracking-ch14-logic.js">
   <link rel="modulepreload" href="app/kit.js">
   <link rel="modulepreload" href="app/tracking-shoots-logic.js">
   <link rel="modulepreload" href="app/staff-tasks-ui.js">
@@ -91,8 +97,8 @@
   <link rel="modulepreload" href="app/shell-rules.js">
   <link rel="modulepreload" href="app/health.js">
   <link rel="modulepreload" href="app/manager-table.js">
+  <link rel="modulepreload" href="app/fast-ladder.js">
   <link rel="modulepreload" href="app/shoot-plan.js">
-  <link rel="modulepreload" href="app/monthly-shoot.js">
   <link rel="modulepreload" href="app/contract-summary.js">
   <link rel="modulepreload" href="app/staff-tasks-logic.js">
   <link rel="modulepreload" href="app/legal.js">
@@ -166,7 +172,7 @@
               <tbody id="ct-body"></tbody>
             </table>
           </div>
-          <p class="mt-money-note">סרטונים: לפי מה שהעורכים רשמו. גרפיקות: לפי הסימון ״הועלו לרשתות״. ימי צילום: יום שהתאריך שלו עבר.</p>
+          <p class="mt-money-note">סרטונים: לפי מה שהעורכים רשמו. גרפיקות: לפי הסימון ״הועלו לרשתות״. ימי צילום: יום שהתאריך שלו עבר. מספר שעודכן ביד גובר על הספירה.</p>
         </section>
 
         <!-- "ימי צילום": the clients the contract gives shoot days, and whether the next one is set (app/tracking-shoots.js). -->
@@ -181,6 +187,9 @@
               </select></div>
               <div class="field"><label for="sh-type">סוג ימי צילום</label><select class="input" id="sh-type"><option value="">הכל</option></select></div>
               <div class="field"><label for="sh-month">חודש סגירת חוזה</label><select class="input" id="sh-month"><option value="">הכל</option></select></div>
+              <div class="field"><label for="sh-ch14">אייטם בערוץ 14</label><select class="input" id="sh-ch14">
+                <option value="">הכל</option><option value="yes">יש אייטם בערוץ 14</option><option value="waiting">ערוץ 14 ממתין לקביעה</option>
+              </select></div>
             </div>
             <p class="mt-count" id="sh-count" role="status" aria-live="polite"></p>
             <div class="mt-wrap ct-wrap sh-wrap" id="sh-wrap" tabindex="0" role="region" aria-labelledby="sh-h">
@@ -192,6 +201,7 @@
                   <th scope="col"><span>ימי צילום שנותרו</span></th>
                   <th scope="col"><span>סוג / הטבה</span></th>
                   <th scope="col"><span>סטטוס</span></th>
+                  <th scope="col"><span>ערוץ 14</span></th>
                   <th scope="col"><span>פעולה</span></th>
                 </tr></thead>
                 <tbody id="sh-body"></tbody>
@@ -207,7 +217,7 @@
 
       <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
         <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
-        <p>מעקב הלקוחות פתוח לבעלים ולמנהלים. העבודה שלך נמצאת ב״המשימות שלי״.</p>
+        <p>מעקב הלקוחות פתוח לבעלים, למנהלים ולגרפיקאי. העבודה שלך נמצאת ב״המשימות שלי״.</p>
         <a class="btn" href="clients.html#mine">מעבר להמשימות שלי</a>
       </section>
     </div>

@@ -160,7 +160,7 @@ function renderHead() {
         ...roundsOf(c).map((r) => h('option', { value: String(r.n), selected: round === r.n }, `סבב ${r.n}`)))) : null);
 }
 
-// Noam (1.11.2026, MEETING_PEOPLE) is not the office: the meeting's end and its form only.
+// Shiel (MEETING_PEOPLE) is not the office: the meeting's end and its form only.
 let meetingOnly = false;
 const shownSections = () => (meetingOnly ? SECTIONS.filter(([k]) => k === 'end' || k === 'form') : SECTIONS);
 
@@ -933,7 +933,7 @@ mountSession(async (staff) => {
   Object.assign(directory, await loadDirectory());
   if (v.error) { $('state').textContent = VIEWER_UNKNOWN; $('app').hidden = true; return; }
   // "אפיון חדש" and the form alone (27.10.2026): the owners, Irit, Lior and Ofir.
-  // "מסמך אפיון": whoever reads the characterization (the office, Noam, Ilai, Nirel on her clients).
+  // "מסמך אפיון": whoever reads the characterization (the office, Shiel, Ilai, Nirel on her clients).
   if (docMode) {
     if (scope === 'office' || MEETING_PEOPLE.includes(me) || readsChar(me)) { await showDoc(); return; }
     $('app').hidden = true;
@@ -943,7 +943,7 @@ mountSession(async (staff) => {
   if (!id || charOnly) {
     if (!writesChar(v)) {
       $('app').hidden = true;
-      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר, לנעם ולשיאל.' : 'לא נבחר לקוח.';
+      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר ולשיאל.' : 'לא נבחר לקוח.';
       return;
     }
     if (!id) { await showPicker(); return; }

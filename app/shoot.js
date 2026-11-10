@@ -637,7 +637,7 @@ mountSession(async (staff) => {
   } else if (viewer.scope === 'office' && !viewer.error) {
     mode = 'lior';
     // Lior runs the day; the owner may too (decision 23). The rest of the office watches.
-    // Irit and Ofir too since 4.11.2026 (the managers); Ilai and Noam watch.
+    // Irit and Ofir too since 4.11.2026 (the managers); Ilai watches.
     canAct = me === 'lior' || me === null || me === 'irit' || me === 'ofir';
   } else {
     $('no-access').hidden = false;
