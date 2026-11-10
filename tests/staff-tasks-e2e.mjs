@@ -239,7 +239,7 @@ try {
     await irit.click('#st-new');
     await irit.locator('#st-form').waitFor();
     assert.equal(await irit.evaluate(() => document.activeElement.id), 'st-assignee');
-    assert.deepEqual(await texts(irit, '#st-assignee option'), ['בחירת עובד/ת', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי', 'נעם', 'סתיו', 'עמוס', 'הבעלים']);
+    assert.deepEqual(await texts(irit, '#st-assignee option'), ['בחירת עובד/ת', 'עירית', 'ליאור', 'אופיר', 'עילאי', 'ניראל', 'נדיה', 'יריב', 'אנה', 'אלי', 'סתיו', 'עמוס', 'הבעלים']);
     assert.deepEqual(await texts(irit, '#st-client option'), ['בלי לקוח', 'פיצה רון · רון כהן', 'קפה דנה']);
     // The search narrows the list by business or person; one match is chosen (25.10.2026).
     await irit.fill('#st-client-q', 'דנה');

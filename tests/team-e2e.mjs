@@ -220,7 +220,7 @@ await step('owner sees everyone: owner first, then the protocol people, with the
   await owner.waitForSelector('#team-list .tm-row');
   assert.equal(await owner.locator('#no-access').isHidden(), true);
   const people = await owner.locator('#team-list .tm-row').evaluateAll((els) => els.map((e) => e.dataset.person));
-  assert.deepEqual(people, ['owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'shiel', 'stav', 'amos']); // Noam since 1.11.2026, Shiel since 9.11.2026
+  assert.deepEqual(people, ['owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'shiel', 'stav', 'amos']); // Shiel since 9.11.2026 (Noam, 1.11 to 10.11.2026, left)
   assert.match(await text(owner, '#row-owner'), /הבעלים[\s\S]*זה אני/);
   assert.match(await text(owner, '#row-irit'), /עירית[\s\S]*irit@astrateg\.test[\s\S]*מחובר\/ה לאחרונה היום/);
   assert.match(await text(owner, '#row-lior'), /מחובר\/ה לאחרונה אתמול/);
