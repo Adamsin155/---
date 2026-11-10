@@ -1,7 +1,8 @@
 // "מעקב לקוחות", the tab "ימי צילום" (Irit's request, 10.11.2026; tracking.html#shoots): every
 // client in work that the contract gives shoot days, with how many it has, how many are left, and
 // whether the next one is set. Pure, no DOM (tests/tracking-shoots.test.mjs); the page is
-// app/tracking-shoots.js. Read-only: the date itself is set in the client's card.
+// app/tracking-shoots.js. The date itself is set in the client's card; numbers fixed by hand
+// (app/tracking-fix-logic.js) and the Channel 14 dates (app/tracking-ch14-logic.js) are read here.
 //
 // Where each value comes from (docs/ops.md, section 122):
 //   total      the contract's shoot days: deliverables.shoot_days + photo_days (shootHistory.agreed)
