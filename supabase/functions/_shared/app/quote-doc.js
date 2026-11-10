@@ -322,7 +322,7 @@ export function renderQuoteDoc(model, meta = {}) {
       h('p', { class: 'qd-terms' }, model.terms || termsText(model.selection)),
       isAgreement ? null : h('p', { class: 'qd-disclaimer' },
         'מסמך זה הוא הצעת מחיר לעיון בלבד, ואינו הצעה לכריתת חוזה. ההתקשרות תיכנס לתוקף רק בחתימה על הסכם ההתקשרות של אסטרטג. '
-        + `ההצעה בתוקף ${model.validHours || 48} שעות ממועד הפקתה, וזמינות המשפיענים כפופה לאישור במועד החתימה.`));
+        + `ההצעה בתוקף ${validityWords(model.validHours || 48)} ממועד הפקתה, וזמינות המשפיענים כפופה לאישור במועד החתימה.`));
     // A model of 9.11.2026 holds the closing in one sentence (closingBig came after): drawn as it is.
     const closing = h('section', { class: 'qd-closing' },
       h('p', { class: 'qd-closing-text' }, w.closing),
