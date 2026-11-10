@@ -39,7 +39,7 @@ test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; not
   assert.ok(!Object.values(by).flat().includes('ilai'));
   // Who owns an item is not a protocol version (app/protocol-versions.js): still 11, no new entry.
   assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, docs/ops.md section 123); 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026; this change did not move it
-  assert.equal(PROTOCOL_HISTORY.at(-1).version, 13); // (v13: what the team marked "מיותר" left, 9.11.2026)
+  assert.equal(PROTOCOL_HISTORY.at(-1).version, 14); // (v13: what the team marked "מיותר" left, 9.11.2026; v14: the editors', 10.11.2026)
   // A new network to open is Ofir's to say: 5's own note says so.
   assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה למבצע האפיון \(נעם או אופיר\) לפתוח/);
 });

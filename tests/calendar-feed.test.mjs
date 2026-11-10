@@ -186,7 +186,8 @@ test('feed: deadlines of one\'s own open processes: the editor\'s editing, never
   assert.deepEqual(ids, ['p22', 'p24', 'p27']);
   assert.equal(yariv[0].allDay, '2026-10-21');
   assert.match(yariv[0].title, /^יעד: 22 עריכת הסרטונים · קפה גליה$/);
-  assert.match(yariv[0].description, /• התקבל הכונן/);
+  assert.match(yariv[0].description, /• כל חומרי הצילום קיימים/); // v14: "התקבל הכונן" left
+  assert.doesNotMatch(yariv[0].description, /התקבל הכונן/);
   assert.match(yariv[0].description, new RegExp(`client\\.html\\?id=${B.id}#p22`));
   // Nadia edits Ron (not Galia) and has no deadline there yet; Anna and Nirel see nothing.
   assert.equal(feed('nadia').filter((e) => e.kind === 'due').length, 0);

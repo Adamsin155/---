@@ -432,7 +432,10 @@ test('4. the five critical mistakes are five ticks of the editor\'s self-check a
   // Ofir approves only with all eleven; "מוכן לבדיקה" of the editor marks all of his.
   assert.equal(p25.items.find((i) => i.key === 'p25.approved').requires.length, 11);
   assert.equal(QA_KINDS.videos.checks.length, 11);
-  assert.deepEqual(readyKeys(false).filter((k) => /sound|exposure|stable|angles|export/.test(k)), CRITICAL_MISTAKES.map(([k]) => `p22.self.${k}`));
+  // v14 (the editors' "סדר בסימונים"): the editor's "מוכן לבדיקה" keeps sound and exposure; stable, angles and export
+  // left the editor's self-check (retired: 14). Ofir still checks all five.
+  assert.deepEqual(readyKeys(false).filter((k) => /sound|exposure|stable|angles|export/.test(k)), ['p22.self.sound', 'p22.self.exposure']);
+  assert.deepEqual(five(p22, 'p22.self.').filter((i) => i.retired).map((i) => i.key), ['p22.self.stable', 'p22.self.angles', 'p22.self.export']);
   // One that fails goes back to the editor named.
   assert.equal(mistakeIssue('sound'), 'טעות קריטית · סאונד: בעיית סאונד, או מוזיקה שעוברת את המינוס 20 dB');
   assert.equal(mistakeIssue('export'), 'טעות קריטית · הגדרות ייצוא: הסרטון לא יצא בהגדרות שהוגדרו מראש (בעיית פיקסלים)');
@@ -443,7 +446,8 @@ test('4. the five critical mistakes are five ticks of the editor\'s self-check a
 });
 
 test('4. existing clients: mid-editing the five are work that is never late; an editing already handed over, and videos already approved, are never asked', () => {
-  const FIVE22 = CRITICAL_MISTAKES.map(([k]) => `p22.self.${k}`);
+  // v14: the editor keeps two of the five (sound, exposure); the other three left (retired: 14).
+  const FIVE22 = ['sound', 'exposure'].map((k) => `p22.self.${k}`);
   const FIVE25 = CRITICAL_MISTAKES.map(([k]) => `p25.q.${k}`);
   const old22 = PROCESSES.find((p) => p.id === 'p22').items.map((i) => i.key).filter((k) => !FIVE22.includes(k));
   // A version 9 client whose editor is in the middle of the editing: the five are his, shown as new, and do not make 22 late.

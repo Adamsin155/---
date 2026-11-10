@@ -21,7 +21,7 @@ const editor2Of = (ctx) => (ctx.editor && ctx.editor2 && ctx.editor2 !== ctx.edi
 
 // The editor took the work: the first marks of 22 (protocol v14: "התקבל הכונן", p22.received, left;
 // an old mark of it still counts).
-const EDITOR_STARTED = ['p22.received', 'p22.check.footage', 'p22.check.scripts', 'p22.missing'];
+const EDITOR_STARTED = ['p22.received', 'p22.check.footage', 'p22.check.scripts'];
 
 // The handoff points, in protocol order (the reminder matrix, section 5 of the plan).
 //   on:    an item key (offered when it is checked), or a process id (offered when
