@@ -62,12 +62,12 @@ test('the owners: the client\'s characterizer has 4, 6, 8 and 8ב, and 5 when he
     assert.deepEqual(ownersOf(c, 'p04').filter((p) => p !== 'irit'), [who], `${c.name} 4`);
     assert.deepEqual(ownersOf(c, 'p06'), [who], `${c.name} 6`);
     assert.deepEqual(ownersOf(c, 'p08'), [who], `${c.name} 8`);
-    assert.deepEqual(ownersOf(c, 'p08b'), [who], `${c.name} 8ב`);
+    assert.equal(applicableProcesses(c).find((p) => p.id === 'p08b'), undefined, 'v14: 8ב left (one mark in 8)');
     assert.ok(ownersOf(c, 'p05').includes(access), `${c.name} 5`);
   }
   // Lior runs a meeting only when nobody else can: the meeting and the logins are his; the pages and the Highlights stay Ofir's.
   assert.deepEqual(ownersOf(liors, 'p04').filter((p) => p !== 'irit'), ['lior']);
-  assert.deepEqual([ownersOf(liors, 'p06'), ownersOf(liors, 'p08'), ownersOf(liors, 'p08b')], [['ofir'], ['ofir'], ['ofir']]);
+  assert.deepEqual([ownersOf(liors, 'p06'), ownersOf(liors, 'p08')], [['ofir'], ['ofir']]);
   // The broken logins (p06.recovered) were Lior's; they left the protocol in v12 (to nobody).
   const p06 = applicableProcesses(noams).find((p) => p.id === 'p06');
   assert.equal(p06.items.find((i) => i.key === 'p06.recovered'), undefined);
@@ -84,19 +84,20 @@ test('the owners: the client\'s characterizer has 4, 6, 8 and 8ב, and 5 when he
 test('the work lists: 6 is on Noam\'s list for his client and on Ofir\'s for Ofir\'s', () => {
   const checks = {};
   for (const id of ['p01', 'p02', 'p03', 'p04']) for (const i of PROCESSES.find((p) => p.id === id).items.filter((x) => !x.optional && !x.when)) checks[i.key] = done(IL(2026, 10, 20, 8, 55));
-  checks['p05.access'] = done(IL(2026, 10, 20, 9));
+  checks['p05.access'] = done(IL(2026, 10, 20, 9)); // the vault / the client's form (v14: a mark that starts 6)
   const now = IL(2026, 10, 20, 9, 10);
   const open = (who, c) => openItemsFor(who, c, checks, clientState(c, checks, now), now).filter((e) => e.proc.id === 'p06').map((e) => e.item.key);
-  assert.ok(open('noam', noams).includes('p06.verified'));
+  assert.deepEqual(open('noam', noams), ['p06.ok']); // v14: one mark
   assert.deepEqual(open('ofir', noams), []);
-  assert.ok(open('ofir', ofirs).includes('p06.verified'));
+  assert.deepEqual(open('ofir', ofirs), ['p06.ok']);
   assert.deepEqual(open('noam', ofirs), []);
 });
 
 test('the hand-off of 5: to the client\'s characterizer, never to himself; each record names its person', () => {
-  const checks = { 'p05.access': done(IL(2026, 11, 2, 11)) };
+  // v14: offered when 5 is complete, by its one mark (p05.got).
+  const checks = { 'p05.got': done(IL(2026, 11, 2, 11)) };
   const at = { now: IL(2026, 11, 2, 11, 1) };
-  const offers = (c, from) => handoffsFor(c, checks, 'p05.access', { ...at, from }).map((o) => [o.person, o.markKey]);
+  const offers = (c, from) => handoffsFor(c, checks, 'p05.got', { ...at, from }).map((o) => [o.person, o.markKey]);
   assert.deepEqual(offers(noams, 'irit'), [['noam', 'p05.handoff.noam']]);
   assert.deepEqual(offers(ofirs, 'irit'), [['ofir', 'p05.handoff.ofir']]);
   assert.deepEqual(offers(noams, 'noam'), []);
@@ -129,12 +130,13 @@ test('the reminders of 6 and 8ב go to the client\'s characterizer; Ofir and Lio
 });
 
 test('who writes: Noam the items of 4, 5, 6, 8 and 8ב; Ofir everything, as before', () => {
-  const keys = ['p04.address', 'p04.saved', 'p05.access', 'p05.logo', 'p06.verified', 'p06.newpages', 'p06.metricool', 'p08.done', 'p08.saved', 'p08b.posted', 'p05.handoff.noam', 'p06.claim'];
+  // v14: one mark per process (p05.got, p06.ok, p08.ok); the old marks of 5 his pages still write stay his.
+  const keys = ['p04.address', 'p04.saved', 'p05.got', 'p05.access', 'p05.logo', 'p06.ok', 'p08.ok', 'p05.handoff.noam', 'p06.claim'];
   for (const key of keys) {
     assert.equal(mayWrite({ person: 'ofir', client: noams, key }), true, `ofir ${key}`);
   }
   for (const key of keys.filter((k) => k !== 'p06.claim')) assert.equal(mayWrite({ person: 'noam', client: noams, key }), true, `noam ${key}`);
-  for (const key of ['p04.followup', 'p05.vault', 'p06.recovered', 'p07.made', 'p07.ofir', 'p22a.assigned', 'p25.q.sound']) {
+  for (const key of ['p04.followup', 'p05.vault', 'p06.recovered', 'p07.made', 'p07.ofir', 'p22a.assigned', 'p25.q.sound', 'p06.verified', 'p06.metricool', 'p08.done', 'p08b.posted']) {
     assert.equal(mayWrite({ person: 'noam', client: noams, key }), false, `noam ${key}`);
   }
   assert.equal(mayWrite({ person: 'noam', client: noams, key: 'p04.saved', note: 'ייבוא' }), false, 'no imported history');
