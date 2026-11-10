@@ -349,7 +349,7 @@ await step('an editor lands on "המשימות שלי"; "הלקוחות שלי �
   assert.match(await text(page, `${card} .ed-day`), /^יום 1 מתוך 2$/);
   assert.equal(await text(page, `${card} .ed-dates`), 'אצל אופיר עד מחר 18:00 · סגירה עד חמישי');
   assert.match(await text(page, `${card} .ed-facts`), /4 סרטונים לפי החבילה/);
-  assert.match(await text(page, `${card} .ed-facts`), /צריך גם Dropbox/);
+  assert.match(await text(page, `${card} .ed-facts`), /צריך גם Dropbox/); // a fact, not a mark (v14: p24.dropbox left)
   // Drive and Dropbox; the scripts' link stands on its own, prominent (21.10.2026).
   assert.equal(await page.locator(`${card} .ed-links a`).count(), 2);
   assert.equal(await page.locator(`${card} a.ed-scripts-open`).count(), 1);
@@ -361,7 +361,11 @@ await step('an editor lands on "המשימות שלי"; "הלקוחות שלי �
   assert.match(await text(page, `${card} .ed-hl`), /אסור להגיד\s*לא להזכיר מחירים/);
   assert.match(await page.locator(`${card} .ed-brief`).textContent(), /כמה זמן לוקחת צביעה/); // the call's other answers
   assert.doesNotMatch(await page.content(), /מסר של קפה גולן/); // another editor's client
-  assert.equal(await text(page, `${card} .ed-state`), 'ממתין לכונן');
+  // Protocol v14: no "ממתין לכונן"; from the assignment the client is in editing, the one button "מוכן לבדיקה".
+  assert.equal(await text(page, `${card} .ed-state`), 'בעריכה');
+  assert.equal(await text(page, `#${A_ID}-go`), 'מוכן לבדיקה');
+  assert.doesNotMatch(await text(page, card), /קיבלתי את הכונן|ממתין לכונן/);
+  assert.equal(await page.locator('#dlg-start').count(), 0);
   // Never the client's own phone, nor the office's notes: not on the page and not even asked for.
   const html = await page.content();
   assert.ok(!html.includes('050-1234567') && !html.includes('הערה פנימית'), 'no private phone or office notes');
@@ -404,70 +408,37 @@ async function phone390(page, name, top = null) {
   await page.setViewportSize({ width: 360, height: 780 });
 }
 const materialTasks = () => db.client_tasks.filter((t) => t.client_id === A.id && t.title.startsWith('להשלים חומר:'));
-await step('(1) the drive arrived: the four lines and one tick; "משהו חסר?" opens "יש" / "חסר" on each line; any mix starts the editing; "חסר" goes to Irit with its words and the clock runs', async () => {
+await step('(1) v14: no start step; "חסר לוגו / טלפון / חומר" reports part of the footage and the phone, Lior gets a task, the editing goes on', async () => {
   const { page } = nadia;
-  await page.click(`#${A_ID}-go`);
-  await page.waitForSelector('#dlg-start[open]');
-  // One tick (3.11.2026): the four are lines to read, and "עברתי על הכול, הכול תקין" under them.
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'start-all');
-  assert.equal(await page.locator('#start-lines li').count(), 4);
-  assert.equal(await page.locator('#start-simple input[type="checkbox"]').count(), 1);
-  assert.equal(await page.locator('#start-detail').isHidden(), true);
-  assert.equal(await page.locator('#start-submit').isDisabled(), true);
-  assert.equal(await text(page, '#start-hint'), 'מסמנים ״עברתי על הכול, הכול תקין״, או ״משהו חסר?״.');
-  assert.ok(await height(page, 'label[for="start-all"]') >= 44);
-  await page.click('label[for="start-all"]');
-  assert.equal(await page.locator('#start-submit').isDisabled(), false);
-  await page.click('label[for="start-all"]');
-  assert.equal(await page.locator('#start-submit').isDisabled(), true);
-  await phone390(page, 'editor-start-one-tick-390');
-  if (OUT) {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.screenshot({ path: `${OUT}/editor-start-one-tick-1280.png` });
-    await page.setViewportSize({ width: 360, height: 780 });
-  }
-  await page.click('#start-some');
-  await page.waitForSelector('#start-detail:not([hidden])');
-  assert.equal(await page.locator('#start-simple').isHidden(), true);
-  assert.equal(await page.getAttribute('#start-some', 'aria-expanded'), 'true');
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'start-0-no');
-  assert.equal(await text(page, '#start-hint'), 'עונים ״יש״ או ״חסר״ בכל שורה.');
-  assert.equal(await page.locator('#start-list .ed-q').count(), 4);
-  // Two buttons per line, each big enough for a thumb.
-  for (const sel of ['label[for="start-0-yes"]', 'label[for="start-0-no"]']) assert.ok(await height(page, sel) >= 44, sel);
-  // The footage: only part of it is here.
-  await page.click('label[for="start-0-no"]');
-  await page.waitForSelector('#start-footage-more:not([hidden])');
-  assert.match(await text(page, '#start-footage-more .ed-have'), /^יש חומר ל־\s*מתוך 4 סרטונים$/);
-  for (const i of [1, 2]) await page.click(`label[for="start-${i}-yes"]`);
-  assert.equal(await page.locator('#start-submit').isDisabled(), true);
-  await page.click('label[for="start-3-no"]');
-  await page.fill('#start-phone-note', 'המספר בכרטיס לא עונה');
-  assert.equal(await page.locator('#start-submit').isDisabled(), false);
-  assert.equal(await text(page, '#start-hint'), 'מה שמסומן ״חסר״ יירשם כחסר, והעריכה ממשיכה.');
+  await page.click(`#${A_ID}-missing`);
+  await page.waitForSelector('#dlg-missing[open]');
+  // Nothing was confirmed "יש" (no start dialog): every missing thing is offered, the upload too.
+  assert.deepEqual(await page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-logo', 'miss-phone', 'miss-footage', 'miss-scripts', 'miss-upload']);
+  await page.click('#miss-footage');
+  await page.waitForSelector('#miss-footage-more:not([hidden])');
+  assert.match(await text(page, '#miss-footage-more .ed-have'), /^יש חומר ל־\s*מתוך 4 סרטונים$/);
+  await page.click('#miss-phone');
+  await page.locator('#miss-phone-note').pressSequentially('המספר בכרטיס לא עונהX', { delay: 10 });
+  await page.keyboard.press('Backspace');
+  assert.equal(await page.inputValue('#miss-phone-note'), 'המספר בכרטיס לא עונה');
   // For how many videos there is footage: a number, below her part.
-  await page.click('#start-submit');
-  assert.match(await text(page, '#start-err'), /כתבו לכמה סרטונים יש חומר/);
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'start-footage-have');
-  await page.fill('#start-footage-have', '4');
-  await page.click('#start-submit');
-  assert.match(await text(page, '#start-err'), /יש חומר לכל 4 הסרטונים\?/);
-  await page.fill('#start-footage-have', '2');
-  await page.fill('#start-footage-note', 'אין צילומי מוצר');
+  await page.click('#miss-go');
+  assert.match(await text(page, '#miss-err'), /כתבו לכמה סרטונים יש חומר/);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'miss-footage-have');
+  await page.fill('#miss-footage-have', '4');
+  await page.click('#miss-go');
+  assert.match(await text(page, '#miss-err'), /יש חומר לכל 4 הסרטונים\?/);
+  await page.fill('#miss-footage-have', '2');
+  await page.fill('#miss-footage-note', 'אין צילומי מוצר');
   assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
   assert.deepEqual(await unlabeled(page), [], 'form controls without a label');
-  await phone390(page, 'editor-start-partial-390');
-  if (OUT) {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.screenshot({ path: `${OUT}/editor-start-partial-1280.png` });
-    await page.setViewportSize({ width: 360, height: 780 });
-  }
-  await page.click('#start-submit');
-  await toastHas(page, 'וליאור משימה להשלים את החומר');
-  for (const k of ['p22.received', 'p22.check.scripts', 'p22.check.logo']) assert.ok(checkOf(A, k), k);
-  for (const k of ['p22.check.footage', 'p22.check.phone', 'p22.wait', 'p24.wait', 'p27.wait']) assert.equal(checkOf(A, k), null, k);
+  await phone390(page, 'editor-missing-partial-390');
+  await page.click('#miss-go');
+  await toastHas(page, 'ליאור קיבל משימה להשלים את החומר');
+  // Nothing retired is written (v14): no "התקבל הכונן", no logo or phone check.
+  for (const k of ['p22.received', 'p22.check.logo', 'p22.check.phone', 'p22.check.footage', 'p22.wait', 'p24.wait', 'p27.wait']) assert.equal(checkOf(A, k), null, k);
   assert.deepEqual(JSON.parse(checkOf(A, 'p22.missing').note), {
-    what: ['footage', 'phone'], note: '', notes: { footage: 'אין צילומי מוצר', phone: 'המספר בכרטיס לא עונה' }, have: 2, of: 4, going: true,
+    what: ['phone', 'footage'], note: '', notes: { footage: 'אין צילומי מוצר', phone: 'המספר בכרטיס לא עונה' }, have: 2, of: 4, going: true,
   });
   assert.deepEqual(materialTasks().map((t) => [t.owner, t.title, t.due_on]), [['lior', 'להשלים חומר: יש ל־2 מתוך 4 (אין צילומי מוצר) — לקבוע השלמה/יום צילום', '2026-10-20']]);
   // Not "חסום": editing, with the footage line and each missing thing with its words.
@@ -476,7 +447,6 @@ await step('(1) the drive arrived: the four lines and one tick; "משהו חסר
   assert.match(await text(page, `${card}-report`), /חסר חומר צילום · אין צילומי מוצר/);
   assert.match(await text(page, `${card}-report`), /חסר טלפון העסק · המספר בכרטיס לא עונה/);
   assert.match(await text(page, `${card}-report`), /עירית קיבלה הודעה .*העריכה ממשיכה\./);
-  assert.equal(await page.evaluate(() => document.activeElement.id), `${'c-aaaaaaaa-0000-4000-8000-000000000001'}-go`);
   assert.ok(await noHScroll(page));
   await phone390(page, 'editor-card-material-390', card);
 });
@@ -485,8 +455,8 @@ await step('"מה חסר?" while editing offers only what was not "יש"; "לד�
   const { page } = nadia;
   await page.click(`#${A_ID}-missing`);
   await page.waitForSelector('#dlg-missing[open]');
-  // Logo and scripts were "יש": not offered again. The upload is (there are videos now).
-  assert.deepEqual(await page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-phone', 'miss-footage', 'miss-upload']);
+  // Nothing was confirmed "יש" (v14: no start dialog): all five are offered, what was reported ticked.
+  assert.deepEqual(await page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-logo', 'miss-phone', 'miss-footage', 'miss-scripts', 'miss-upload']);
   assert.equal(await page.isChecked('#miss-footage'), true);
   assert.equal(await page.isChecked('#miss-phone'), true);
   assert.equal(await page.inputValue('#miss-footage-have'), '2');
@@ -506,7 +476,7 @@ await step('"מה חסר?" while editing offers only what was not "יש"; "לד�
   await toastHas(page, 'העריכה ממשיכה');
   const r = JSON.parse(checkOf(A, 'p22.missing').note);
   assert.deepEqual([r.what, r.have, r.going], [['footage'], 3, true]);
-  assert.ok(checkOf(A, 'p22.check.phone'), 'what is no longer missing came');
+  assert.equal(checkOf(A, 'p22.check.phone'), null, 'v14: the phone check left; it is simply no longer in the report');
   assert.equal(checkOf(A, 'p22.wait'), null);
   assert.equal(materialTasks().length, 1, 'one open task for Lior, not another');
   assert.equal(await text(page, `${card}-material`), 'חומר ל־3 מתוך 4');
@@ -524,8 +494,8 @@ await step('"מה חסר?" has one way out (5.11.2026): the report goes, the edi
   const { page } = nadia;
   await page.click(`#${A_ID}-missing`);
   await page.waitForSelector('#dlg-missing[open]');
-  // All four are "יש" by now: only the upload is left to report.
-  assert.deepEqual(await page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-upload']);
+  // The footage is "יש" by now (its check, from "הגיע הכול"); the rest is offered (v14: the logo and phone have no check).
+  assert.deepEqual(await page.locator('#miss-list .cbx').evaluateAll((l) => l.map((e) => e.id)), ['miss-logo', 'miss-phone', 'miss-scripts', 'miss-upload']);
   await page.click('#miss-go');
   assert.match(await text(page, '#miss-err'), /סמנו מה חסר/);
   await page.click('#miss-upload');
@@ -546,16 +516,18 @@ await step('"מה חסר?" has one way out (5.11.2026): the report goes, the edi
   assert.equal(checkOf(A, 'p22.missing'), null);
 });
 
-await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofir is told and his clock starts', async () => {
+await step('(2) "מוכן לבדיקה": the material checks and the self-check (v14: no Dropbox), then Ofir is told and his clock starts', async () => {
   const { page } = nadia;
   await page.click(`#${A_ID}-go`);
   await page.waitForSelector('#dlg-ready[open]');
-  // One tick (3.11.2026): the eleven are lines to read, and one checkbox for all of them.
-  assert.equal(await page.locator('#ready-list li').count(), 11); // six (with Dropbox), and the five critical mistakes (protocol v10)
+  // One tick (3.11.2026): the lines to read, and one checkbox for all of them. v14: the footage and the scripts
+  // (no start step any more), spelling and the Drive, and two critical mistakes (sound, exposure).
+  assert.equal(await page.locator('#ready-list li').count(), 6);
   assert.equal(await page.locator('#ready-list input').count(), 0);
   assert.equal(await page.locator('#dlg-ready input[type="checkbox"]').count(), 1);
-  assert.equal(await text(page, '#ready-critical'), 'חמש הטעויות הקריטיות של העריכה');
-  assert.match(await text(page, '#ready-list'), /Dropbox/);
+  assert.equal(await text(page, '#ready-critical'), 'טעויות קריטיות של העריכה');
+  assert.doesNotMatch(await text(page, '#ready-list'), /Dropbox|זוויות|ייצוא|רעידות|סגיר|בי־רול/);
+  assert.match(await text(page, '#ready-list'), /כל חומרי הצילום בכונן[^]*התסריטים וסדר הסרטונים ברורים/);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'ready-all');
   assert.ok(await height(page, 'label[for="ready-all"]') >= 44);
   assert.ok(await noHScroll(page), 'no horizontal scroll at 360px');
@@ -572,7 +544,9 @@ await step('(2) "מוכן לבדיקה": the self-check (with Dropbox), then Ofi
   await page.click('label[for="ready-all"]');
   await page.click('#ready-submit');
   await toastHas(page, 'נשלח לאופיר');
-  for (const k of ['p22.edited', 'p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p22.self.sound', 'p22.self.exposure', 'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.drive', 'p24.dropbox', 'p24.notify']) assert.ok(checkOf(A, k), k);
+  for (const k of ['p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure', 'p24.folder', 'p24.drive', 'p24.notify']) assert.ok(checkOf(A, k), k);
+  // What the editors marked "מיותר" is never written (v14).
+  for (const k of ['p22.received', 'p22.check.logo', 'p22.check.phone', 'p22.edited', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.dropbox']) assert.equal(checkOf(A, k), null, k);
   await openWait(page, card);
   assert.equal(await text(page, `${card} .ed-state`), 'אצל אופיר לבקרה');
   await page.waitForSelector('#handoff:not([hidden])');
@@ -668,11 +642,8 @@ await step('Nirel: an urgent brief while editing: "התחלתי" records the sta
   assert.doesNotMatch(await page.locator('#c-cccccccc-0000-4000-8000-000000000003').textContent(), /ייבוא/);
   assert.match(await page.locator('#c-cccccccc-0000-4000-8000-000000000003').textContent(), /עוד לא נרשמו דגשים/); // folded
   const nc = 'c-cccccccc-0000-4000-8000-000000000003';
-  // Start the editing first (all four checks).
-  await page.click(`#${nc}-go`);
-  await page.click('label[for="start-all"]');
-  await page.click('#start-submit');
-  await toastHas(page, 'התחלת');
+  // v14: the editing is on from the assignment (no "קיבלתי את הכונן").
+  assert.equal(await text(page, `#${nc} .ed-state`), 'בעריכה');
   const t = db.client_tasks[0];
   await page.click(`#t-${t.id}-start`);
   await toastHas(page, 'נרשם שהתחלת');
@@ -826,27 +797,16 @@ await step('the editor gets the uploaded logo FILE through a signed link; with n
   assert.equal(download.suggestedFilename(), 'Golan-Logo.png');
   assert.match(download.url(), /\/storage\/v1\/object\/sign\/client-files\/.*Golan-Logo\.png\?token=signed&download=Golan-Logo\.png$/);
   assert.deepEqual(signRequests, [['yariv', `${B.id}/logo/11111111-1111-4111-8111-111111111111-Golan-Logo.png`]]); // the live file, never the deleted one
-  // The start check stands on the same thing: nothing extra to say when the logo is there.
-  await yariv.page.click(`${cardB}-go`);
-  await yariv.page.waitForSelector('#dlg-start[open]');
-  assert.equal(await yariv.page.locator('#start-nologo').count(), 0);
-  await yariv.page.click('#dlg-start [data-close]');
   // The file is deleted from the client's files: neither a file nor a link is left.
   const file = db.client_files.find((x) => x.client_id === B.id && !x.deleted_at);
   file.deleted_at = serverNow();
   await reload(yariv.page);
   await yariv.page.waitForFunction((sel) => /אין לוגו בתיק הלקוח\./.test(document.querySelector(sel)?.textContent || ''), `${cardB} .ed-sheet`);
   assert.equal(await yariv.page.locator(`${cardB}-logo`).count(), 0);
-  await yariv.page.click(`${cardB}-go`);
-  await yariv.page.waitForSelector('#dlg-start[open]');
-  assert.match(await text(yariv.page, '#start-nologo-s'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״משהו חסר\?״\./);
+  // v14: no start dialog (its "אין לוגו" hint went with it); the card says so, and "חסר לוגו / טלפון / חומר" reports it.
   assert.ok(await noHScroll(yariv.page));
-  await yariv.page.click('#start-some');
-  assert.match(await text(yariv.page, '#start-nologo'), /אין לוגו בתיק הלקוח\. אם הוא לא אצלך: ״חסר״ בשורת הלוגו\./);
-  // "אי אפשר להתחיל בכלל" left on 5.11.2026: a line answered "חסר" is reported and the editing starts.
-  assert.equal(await yariv.page.locator('#start-missing').count(), 0);
-  await yariv.page.click('#dlg-start [data-close]');
-  assert.equal(checkOf(B, 'p22.received'), null, 'closing changes nothing');
+  assert.equal(await yariv.page.locator(`${cardB}-missing`).count(), 1);
+  assert.equal(checkOf(B, 'p22.received'), null, 'nothing retired is written');
   file.deleted_at = null;
   await yariv.ctx.close();
 });
