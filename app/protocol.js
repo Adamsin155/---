@@ -1153,8 +1153,10 @@ export const PROCESSES = [
     what: 'ללקוח סבב תיקונים אחד. עירית מקבלת את ההערות, מוודאת שהן ברורות ומתעדת; העורך מתקן, בודק מחדש ומחליף את הקבצים. בסוף הלקוח עובר לעילאי לתזמון ולגאנט.',
     items: [
       { key: 'p27.notes', label: 'הערות הלקוח התקבלו, ברורות ומתועדות', owners: ['irit'], optional: true, retired: 13 },
-      { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true },
-      { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב של הלקוח, בלי גרסאות ישנות שמבלבלות', noBulk: true },
+      // The owner, 10.11.2026: once the client approved the videos (p27.approved) the job left the
+      // editor; neither is asked of them then (`passedIf`), and Ilai's "קיבלתי" waits for the approval.
+      { key: 'p27.fixes', label: 'כל התיקונים בוצעו ונבדקו מחדש', optional: true, passedIf: 'p27.approved' },
+      { key: 'p27.final', label: 'הגרסאות הסופיות בדרייב של הלקוח, בלי גרסאות ישנות שמבלבלות', noBulk: true, passedIf: 'p27.approved' },
       { key: 'p27.approved', label: 'הלקוח אישר את הסרטונים', owners: ['irit'], requires: ['p26.sent'], noBulk: true },
       { key: 'p27.toilai', label: 'עילאי קיבל את הגרסאות הסופיות לתזמון ולגאנט (״קיבלתי״)', owners: ['ilai'], requires: ['p27.final'] },
     ],

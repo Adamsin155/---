@@ -213,11 +213,36 @@ export function editingDay(assignedAt, now = new Date()) {
 }
 export const dayText = (day, of) => (day === 0 ? 'שויך היום' : `יום ${day} מתוך ${of}`);
 
-// Each editor's load: the editing jobs (the client's and each round's) not closed
-// yet, which day of the editing each is on, which are paused, and open tasks. A job
-// with two editors counts for each of them (`second`: this editor is the second one).
+// Where one editing job stands for its editor (the owner, 10.11.2026: "בעריכה" is only what
+// the editor is still working on). `pre` is the round's prefix ('' or 'r2.'); p24 and p27 their states.
+//   'editing'  assigned and not handed to Ofir yet (24 not complete, "עדכנתי את אופיר" not marked)
+//   'fixes'    back with the editor: Ofir returned the videos (25), or the client's notes
+//              (p27.notes) wait for the fixes (p27.fixes / p27.final not marked)
+//   'waiting'  handed, nothing waits for the editor: with Ofir, sent to the client, with Ilai
+//   null       closed: 27 complete, or the client approved the videos (p27.approved, Irit)
+const resolvedMark = (cs, k) => ['done', 'na'].includes(cs[k]?.state);
+export function jobStage(cs, pre, { p24 = null, p27 = null } = {}) {
+  if (!p27 || p27.complete || cs[`${pre}p27.approved`]?.state === 'done') return null;
+  if (!p24?.complete && cs[`${pre}p24.notify`]?.state !== 'done') return 'editing';
+  if (qaState(cs, pre, 'videos').stage === 'fixing') return 'fixes';
+  if (cs[`${pre}p27.notes`]?.state === 'done' && !resolvedMark(cs, `${pre}p27.fixes`) && !resolvedMark(cs, `${pre}p27.final`)) return 'fixes';
+  return 'waiting';
+}
+// For whom a finished job waits: 'ofir' (his check, 25), 'irit' (approved, to send, 26),
+// 'client' (sent, the client's answer), 'final' (the final versions in the Drive).
+export function waitsForOf(cs, pre = '') {
+  const is = (k) => cs[`${pre}${k}`]?.state === 'done';
+  if (is('p27.final')) return 'final';
+  if (qaState(cs, pre, 'videos').stage !== 'approved') return 'ofir';
+  return is('p26.sent') ? 'client' : 'irit';
+}
+export const WAITS_FOR_TEXT = { ofir: 'אצל אופיר לבקרה', irit: 'אושר, לשליחה ללקוח', client: 'אצל הלקוח לאישור', final: 'הגרסאות הסופיות בדרייב' };
+// Each editor's load: the editing jobs (the client's and each round's) the editor works on
+// (`jobs`: stage 'editing' or 'fixes'), which day of the editing each is on, which are paused,
+// and open tasks; the ones finished and waiting for Ofir or the client apart (`waiting`), never
+// in the load. A job with two editors counts for each of them (`second`: this editor is the second one).
 export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Date() }) {
-  const load = Object.fromEntries(EDITORS.map((e) => [e, { editor: e, jobs: [], paused: 0, tasks: 0 }]));
+  const load = Object.fromEntries(EDITORS.map((e) => [e, { editor: e, jobs: [], waiting: [], paused: 0, tasks: 0 }]));
   for (const c of clients) {
     if (!inWork(c)) continue;
     const cs = checks[c.id] || {};
@@ -227,29 +252,35 @@ export function editorLoad({ clients, stateOf, checks, tasks = [], now = new Dat
     for (const u of units) {
       if (!u.editor || !load[u.editor]) continue;
       const p27 = st.find((s) => s.proc.id === `${u.pid}p27`);
-      if (!p27 || p27.complete) continue;
-      const p22 = st.find((s) => s.proc.id === `${u.pid}p22`);
       const p24 = st.find((s) => s.proc.id === `${u.pid}p24`);
+      const stage = jobStage(cs, u.pre, { p24, p27 });
+      if (!stage) continue;
+      const p22 = st.find((s) => s.proc.id === `${u.pid}p22`);
       const as = cs[`${u.pre}p22a.assigned`];
       // "יום X מתוך 3" of a client that came from the old system is counted from its activation.
       const floor = workFloor(c);
       const marked = as?.state === 'done' ? new Date(as.at) : null;
       const assignedAt = marked && floor && marked < floor ? floor : marked;
       const withOfir = !!p24?.complete || cs[`${u.pre}p24.notify`]?.state === 'done';
-      const pause = p22 ? pauseOf(p22.proc, cs) : null;
+      const pause = stage === 'waiting' || !p22 ? null : pauseOf(p22.proc, cs);
+      // A return of Ofir's has its own due (the return's); the client's notes, 27's.
+      const ret = stage === 'fixes' ? qaState(cs, u.pre, 'videos') : null;
       const job = {
         client: c, n: u.n, pre: u.pre, assignedAt, of: withOfir ? 4 : editingDaysOf(c), second: !!u.second,
         partner: (u.second ? u.x.editor : u.x.editor2) || null,
-        day: editingDay(assignedAt, now), paused: pause, stage: withOfir ? 'closing' : 'editing', landing: inLanding(c),
-        dueAt: (withOfir ? p27 : p24)?.dueAt || null,
+        day: editingDay(assignedAt, now), paused: pause, stage, landing: inLanding(c),
+        fixesBy: stage === 'fixes' ? (ret.stage === 'fixing' ? 'ofir' : 'client') : null,
+        waitsFor: stage === 'waiting' ? waitsForOf(cs, u.pre) : null,
+        dueAt: (stage === 'editing' ? p24?.dueAt : ret?.stage === 'fixing' ? ret.open?.due : p27?.dueAt) || null,
       };
-      load[u.editor].jobs.push(job);
+      load[u.editor][stage === 'waiting' ? 'waiting' : 'jobs'].push(job);
       if (pause) load[u.editor].paused += 1;
     }
   }
   const live = new Set(clients.filter(inWork).map((c) => c.id));
   for (const t of tasks) if (!t.done_at && load[t.owner] && live.has(t.client_id)) load[t.owner].tasks += 1;
-  for (const l of Object.values(load)) l.jobs.sort((a, b) => (a.dueAt || Infinity) - (b.dueAt || Infinity));
+  const byDue = (a, b) => (a.dueAt || Infinity) - (b.dueAt || Infinity);
+  for (const l of Object.values(load)) { l.jobs.sort(byDue); l.waiting.sort(byDue); }
   return load;
 }
 
@@ -277,9 +308,9 @@ export const CONTINUITY_TAG = 'מומלץ: ערך/ה בסבב הקודם';
 // Nothing is assigned without Ofir's tap (protocol v9 as it is); this only says whom his
 // tap would assign. Pure: the same load the list next to it shows.
 //
-// "Open work" is the number the load list shows for the editor: the clients in editing
-// (`jobs.length` of editorLoad, the paused ones too), so the suggestion never contradicts
-// the list. A tie goes to the one with fewer editing deadlines until the end of this week
+// "Open work" is the number the load list shows for the editor: the clients in editing and in
+// fixes (`jobs.length` of editorLoad, the paused ones too; never the finished ones waiting for
+// the client, `waiting`), so the suggestion never contradicts the list. A tie goes to the one with fewer editing deadlines until the end of this week
 // (Sunday to Saturday, Israel; a deadline already missed counts, a client in landing has
 // none), then to the team's order (EDITORS in app/protocol.js).
 const clientsInEditing = (n) => (n ? `${n === 1 ? 'לקוח אחד' : `${n} לקוחות`} בעריכה` : 'אין לקוחות בעריכה');
@@ -328,17 +359,28 @@ export function suggestAssignment({ client, n = null, shootType, joint = false, 
   // Nobody of the usual ones left (all excluded): whoever may still take it, Nirel too.
   const ranked = rankEditors(load, shootType, exclude, now);
   const [first, second] = ranked.length ? ranked : rankEditors(load, shootType, exclude, now, may);
-  const open = clientsInEditing(first.open);
+  const open = workText(load[first.editor]);
   const reason = !second || first.open < second.open ? `העומס הנמוך ביותר: ${open}`
     : first.week < second.week ? `${open}, ופחות יעדים השבוע`
       : `${open} · עומס שווה, לפי סדר הצוות`;
   return pick(first.editor, 'load', reason);
 }
 
-// "נדיה: 2 לקוחות בעריכה · 1 עצורה · 3 משימות"
+// What the editor works on (10.11.2026): "5 בעריכה · 2 בתיקונים", or "אין לקוחות בעריכה".
+export function workText(l) {
+  const jobs = l?.jobs || [];
+  const fixes = jobs.filter((j) => j.stage === 'fixes').length;
+  const editing = jobs.length - fixes;
+  if (!jobs.length) return clientsInEditing(0);
+  return [editing ? `${editing} בעריכה` : null, fixes ? `${fixes} בתיקונים` : null].filter(Boolean).join(' · ');
+}
+// What the editor finished and waits for Ofir or the client (not in the load): "21 ממתינים ללקוח".
+export const waitingText = (n) => (n ? `${n} ממתינים ללקוח` : null);
+// "נדיה: 5 בעריכה · 2 בתיקונים · 21 ממתינים ללקוח · אחת עצורה · 3 משימות פתוחות"
 export function loadText(l) {
   return [
-    clientsInEditing(l.jobs.length),
+    workText(l),
+    waitingText(l.waiting?.length || 0),
     l.paused ? `${l.paused === 1 ? 'אחת עצורה' : `${l.paused} עצורות`}` : null,
     l.tasks ? `${l.tasks === 1 ? 'משימה פתוחה' : `${l.tasks} משימות פתוחות`}` : null,
   ].filter(Boolean).join(' · ');

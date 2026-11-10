@@ -313,7 +313,7 @@ export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p2
 //   clientFixes  the client's notes: per video → p27.fixes
 //   final        → (4) "תיקונים הושלמו, הגרסאות הסופיות בדרייב"
 //   ilai         with Ilai until he marks "קיבלתי"
-//   done         closed
+//   done         closed: Ilai got it, or the client approved the videos (p27.approved)
 // `blocked` (a missing logo / phone / footage that stopped the editing), `report` (one
 // reported while the editing goes on) and `paused` can sit on any open state.
 export function editorState(job, checks) {
@@ -321,12 +321,14 @@ export function editorState(job, checks) {
   const is = (x) => done(checks, k(x));
   // Nothing is blocked or paused since 5.11.2026: an old p22.pause mark or blocking report is ignored.
   const base = { blocked: null, report: reportOf(checks, job.pre), paused: null };
-  if (ilaiGot(checks, job.pre)) return { ...base, key: 'done', blocked: null, report: null, paused: null };
+  // The client approved the videos (p27.approved, Irit; the owner, 10.11.2026): the job left the
+  // editor, nothing of 27 is asked of them any more (`passedIf` on p27.fixes and p27.final).
+  if (ilaiGot(checks, job.pre) || is('p27.approved')) return { ...base, key: 'done', blocked: null, report: null, paused: null };
   if (is('p27.final')) return { ...base, key: 'ilai' };
   if (!is('p22.received')) return { ...base, key: 'waiting' };
   if (is('p25.approved')) {
     const notes = clientNotesOf(checks, job.pre);
-    if (is('p27.approved') || resolved(checks, k('p27.fixes'))) return { ...base, key: 'final', notes };
+    if (resolved(checks, k('p27.fixes'))) return { ...base, key: 'final', notes };
     if (notes) return { ...base, key: 'clientFixes', notes, fixed: clientFixedOf(checks, job.pre) };
     return { ...base, key: 'client' };
   }
@@ -339,7 +341,8 @@ export const STATE_TEXT = {
   waiting: 'ממתין לכונן', editing: 'בעריכה', qa: 'אצל אופיר לבקרה', fixes: 'תיקונים מאופיר',
   client: 'אצל הלקוח לאישור', clientFixes: 'תיקוני הלקוח', final: 'לסגירה', ilai: 'אצל עילאי', done: 'הושלם',
 };
-// Button 4 is open only when Ofir approved and the client approved or their fixes are done.
+// Button 4 is open only when Ofir approved and the client's fixes are done (once the client
+// approved, the job is closed for the editor: 'done').
 export const canFinish = (st) => st?.key === 'final';
 
 // (1) the four checks when the drive arrives.

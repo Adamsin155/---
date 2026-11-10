@@ -7,7 +7,7 @@
 // The access check and the page setup (process 6) left this card on 28.10.2026: the whole
 // process is Ofir's (the owner), in his "המשימות שלי" (app/access-check.js, app/access-check-ui.js).
 import { PROCESSES, GANTT_READY, isRetired } from './protocol.js';
-import { IMPORT_NOTE } from './protocol-logic.js';
+import { IMPORT_NOTE, finalsMark } from './protocol-logic.js';
 import { qaState } from './office-marks.js';
 
 // v13: one item (p09.file); its seven columns left the protocol.
@@ -86,7 +86,9 @@ export function ilaiWork({ clients, stateOf, checks, now = new Date() }) {
     for (const s of st.states) {
       const base = s.proc.id.replace(/^r\d+-/, '');
       const pre = s.proc.keyBase.slice(0, -base.length);
-      if (base === 'p27' && cs[`${pre}p27.final`]?.state === 'done' && !done(cs, `${pre}p27.toilai`)) finals.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null, at: new Date(cs[`${pre}p27.final`].at) });
+      // The final versions in the Drive, or (since 10.11.2026) the client's approval of the videos.
+      const fin = finalsMark(cs, pre);
+      if (base === 'p27' && fin && !done(cs, `${pre}p27.toilai`)) finals.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null, at: new Date(fin.at) });
       // v13: until the system closed the scheduling (GANTT_READY; Ilai's p29.filled before v13).
       if (base === 'p29' && s.ready && !done(cs, `${pre}${GANTT_READY}`) && !done(cs, `${pre}p29.filled`)) gantt.push({ client: c, state: s, pre, n: s.proc.ctx?.round || null });
     }
