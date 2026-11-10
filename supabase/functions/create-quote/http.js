@@ -39,6 +39,25 @@ export async function callerIsOffice(rpc) {
   return !error && data === true;
 }
 
+// "שינויים להצעה הזו" (the owner, 9.11.2026; docs/ops.md, section 123): the package's monthly price
+// (selection.custom.price) and its name as the document shows it (selection.custom.packageName), for
+// one quote, the catalog unchanged. Only the managers: public.is_manager(), the owners (Adam and Idan,
+// staff with no person), Irit, Ofir and Lior. Anyone else of the office (Ilai) is refused, for a
+// price typed in "חוזה מותאם אישית" too (the same field). The engine (app/pricing.js) checks the
+// values themselves: the price 0 to 100,000 ₪, the name up to 60 characters with no markup, and the
+// totals are always computed from them on the server.
+export const QUOTE_EDIT_KEYS = ['price', 'packageName'];
+export const editsQuote = (sel) => !!sel?.custom && typeof sel.custom === 'object'
+  && QUOTE_EDIT_KEYS.some((k) => sel.custom[k] !== undefined && sel.custom[k] !== null);
+export async function callerMayEditQuote(rpc) {
+  try {
+    const { data, error } = await rpc('is_manager');
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
 // "הכנת חוזה עם AI" (docs/ops.md, sections 68 and 79): a contract prepared by the contract-ai
 // function is marked "הוכן ע״י AI". `aiRun` is the id that function gave back; it counts only for a successful
 // run of the caller's own, from the last AI_RUN_HOURS hours, not used for another contract yet

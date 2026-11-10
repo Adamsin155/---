@@ -13,6 +13,9 @@
 //
 // Who may call: the office only (public.is_office()), for every kind of quote, and
 // only from the office's own site (./http.js; security audit of 6.10.2026, ops.md 36).
+// The package's monthly price and its shown name (selection.custom.price, .packageName; the
+// builder's "שינויים להצעה הזו", 9.11.2026, docs/ops.md section 123): the managers only
+// (public.is_manager(); editsQuote and callerMayEditQuote in ./http.js).
 //
 // "הכנת חוזה עם AI" (25.10.2026, docs/ops.md, section 68): `aiRun: <run id>` from the contract-ai
 // function marks a new contract "הוכן ע״י AI". The run must be the caller's own, successful, from
@@ -27,7 +30,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
 import { isOAuthToken } from '../_shared/oauth-token.js';
-import { corsHeaders, callerIsOffice, aiRunProblem, mcpGateOf, mcpCallerIsOwner, MCP_GATE_HEADER } from './http.js';
+import { corsHeaders, callerIsOffice, aiRunProblem, mcpGateOf, mcpCallerIsOwner, MCP_GATE_HEADER, editsQuote, callerMayEditQuote } from './http.js';
 
 // The new secret key when the project has one, else the legacy service-role key (as the other
 // functions do; the owner, 21.10.2026: with the legacy key the insert failed, "הפעולה לא הושלמה").
@@ -125,6 +128,10 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     return json(400, { error: String((e as Error).message ?? e) });
+  }
+  // The package's price or name changed for this quote: the managers only (http.js, 9.11.2026).
+  if (editsQuote(selection) && !(await callerMayEditQuote((fn: string) => userClient.rpc(fn)))) {
+    return json(403, { error: 'not allowed: only the managers change the price or the package name' });
   }
 
   const exceptions = exceptionOf(selection);

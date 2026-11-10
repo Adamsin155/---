@@ -96,8 +96,10 @@ test('the totals are Natali\'s, and the agreement names the influencer', () => {
     assert.deepEqual(a, b);
     const m = buildQuoteModel({ ...sel('social', inf, [`${inf}-reel`]), docType: 'agreement' }, { name: 'x' });
     assert.equal(m.package.influencer, INFLUENCERS[inf].name);
-    const text = m.legal.map((s) => `${s.title} ${s.items.join(' ')}`).join(' ');
-    assert.ok(text.includes(`בהשתתפות ${INFLUENCERS[inf].name}`));
+    // The old wording (LEGAL_VERSION 3): the package's words name the influencer, as the old
+    // document named Niro ("יום צילום מקצועי ומרוכז עם נירו לוי").
+    const text = JSON.stringify([m.legal, m.wording]);
+    assert.ok(text.includes(`יום צילום מקצועי ומרוכז עם ${INFLUENCERS[inf].name}`));
     assert.ok(!text.includes('נטלי'), inf);
     // A reel at the influencer is a post at the influencer in the agreement too.
     const none = buildQuoteModel({ ...sel('social', inf), docType: 'agreement' }, { name: 'x' });

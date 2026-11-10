@@ -129,6 +129,53 @@
 }
 .qd-notes { white-space: pre-line; margin: 0; }
 
+/* The old system's words around the agreement (LEGAL_VERSION 3, app/legal.js agreementWording). */
+.qd-words-p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.7; color: var(--qd-ink-2); }
+.qd-words-h { margin: 14px 0 0; font-size: 14px; font-weight: 600; color: var(--qd-ink); break-after: avoid; }
+.qd-words-list.qd-checks { flex-direction: column; flex-wrap: nowrap; gap: 4px; margin-top: 6px; }
+.qd-words-list li { display: flex; gap: 6px; line-height: 1.55; font-size: 13.5px; }
+.qd-words-list li::before { flex: none; }
+.qd-words .qd-hero { margin: 0 0 10px; }
+.qd-words-list + .qd-words-p { margin-top: 10px; }
+.qd-words .qd-hero { margin: 16px 0 4px; }
+
+/* The cover (the old document's first page, in our brand; 9.11.2026). */
+.qd-cover {
+  position: relative; overflow: hidden; border-radius: 18px; padding: 26px 30px 24px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgba(248, 34, 114, 0.10), transparent 55%),
+    radial-gradient(110% 100% at 100% 100%, rgba(83, 2, 223, 0.12), transparent 60%),
+    var(--qd-soft);
+  border: 1px solid #E4DCFB;
+}
+.qd-cover-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.qd-cover .qd-logo, .qd-closing-logo { background: #FFFFFF; border-radius: 14px; padding: 8px 12px; box-shadow: 0 4px 14px rgba(3, 20, 50, 0.06); }
+.qd-cover .qd-logo { height: 78px; }
+.qd-cover .qd-type { margin: 0; background: #FFFFFF; }
+.qd-cover-title { margin: 26px 0 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; color: var(--qd-ink); }
+.qd-cover-pkg {
+  margin-top: 6px; font-size: 44px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.05;
+  color: var(--qd-accent); text-transform: uppercase; text-align: right;
+}
+.qd-cover-inf { margin-top: 6px; font-size: 16px; font-weight: 500; color: var(--qd-ink-2); }
+.qd-cover .qd-meta { margin-top: 18px; padding-top: 12px; border-top: 1px solid #E4DCFB; }
+
+/* The closing words (the old document's last page). */
+.qd-closing {
+  margin-top: 34px; padding: 30px 24px 24px; border-radius: 18px; text-align: center; break-inside: avoid;
+  background:
+    radial-gradient(100% 120% at 100% 0%, rgba(248, 34, 114, 0.10), transparent 55%),
+    radial-gradient(100% 120% at 0% 100%, rgba(83, 2, 223, 0.12), transparent 60%),
+    var(--qd-soft);
+  border: 1px solid #E4DCFB;
+}
+.qd-closing p { margin: 0; }
+.qd-closing-text { font-size: 15px; line-height: 1.7; color: var(--qd-ink-2); max-width: 520px; margin-inline: auto !important; }
+.qd-closing-big { margin-top: 12px !important; font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; color: var(--qd-accent); }
+.qd-closing-logo { display: block; height: 72px; width: auto; margin: 18px auto 12px; }
+.qd-closing-contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 8px; font-size: 13px; color: var(--qd-ink-2); }
+.qd-dot { color: var(--qd-muted); }
+
 /* Legal */
 .qd-clauses { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 28px; }
 .qd-clauses > li { break-inside: avoid; margin-bottom: 14px; }
@@ -168,6 +215,12 @@
   .qd-pkg { flex-direction: column; align-items: flex-start; }
   .qd-pkg-price { text-align: start; }
   .qd-clauses { columns: 1; }
+  .qd-cover { padding: 18px 16px 16px; border-radius: 14px; }
+  .qd-cover .qd-logo { height: 58px; padding: 6px 9px; }
+  .qd-cover-title { margin-top: 18px; font-size: 24px; }
+  .qd-cover-pkg { font-size: 32px; }
+  .qd-closing { padding: 24px 16px 20px; }
+  .qd-closing-big { font-size: 23px; }
   .qd-sign-grid { grid-template-columns: 1fr; }
   .qd-table .amt { padding-inline-start: 12px; width: auto; }
   .qd-table tr.total th, .qd-table tr.total td { font-size: 13.5px; }
@@ -181,4 +234,6 @@
   .qd-logo { height: 62px; }
   .qd-section { margin-top: 20px; }
   .qd-legal { break-before: page; }
+  .qd-cover, .qd-closing { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .qd--words .qd-intro { break-before: page; }
 }

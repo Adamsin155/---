@@ -177,3 +177,14 @@ label .tag-ai, legend .tag-ai, h3 .tag-ai, .tile-title .tag-ai { margin-inline-s
 .influencers.is-noinf { opacity: .45; }
 .inf-none { margin: 8px 0 0; font-size: 14px; font-weight: 600; color: var(--ds-ink); }
 .sh-next { min-height: 44px; }
+
+/* "שינויים להצעה הזו" (the managers, 9.11.2026; docs/ops.md, section 118): the package's price and
+   its name for this quote only, under the packages. */
+.quote-edit { margin-top: 14px; padding: 14px 16px; border-radius: var(--ds-r-item); border: 1px solid var(--ds-line); background: var(--ds-surface); }
+.quote-edit .group-head { margin-bottom: 10px; }
+.qe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.qe-grid .field { min-width: 0; }
+.qe-grid .discount-input { inline-size: 100%; }
+.qe-grid small { color: var(--ds-muted, #5B6680); font-size: 12.5px; }
+.discount-input.is-changed .input { border-color: var(--ds-navy-text); box-shadow: 0 0 0 2px var(--ds-soft); }
+@media (max-width: 640px) { .qe-grid .input { font-size: 16px; } }

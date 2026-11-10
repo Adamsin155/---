@@ -48,6 +48,8 @@ async function fakeSupabase(route) {
     return json(200, USER);
   }
   if (p === '/auth/v1/logout') return route.fulfill({ status: 204 });
+  // The special note for an employee (ops 114) reads its notes; none here.
+  if (p === '/rest/v1/staff_notes') return json(200, []);
   if (p === '/rest/v1/rpc/is_staff') return json(200, (req.headers().authorization || '').includes(JWT));
   // Who is signed in (app/shell.js): the owner, so the quote pages show the managers' switch.
   if (p === '/rest/v1/staff') return json(200, { person: null });
@@ -238,7 +240,9 @@ await step('preview renders text safely and matches summary', async () => {
   assert.match(docText, /ללא עלות/);
   assert.match(docText, /8 תכנים בכל חודש/);
   assert.match(docText, /הסכם התקשרות/);
-  assert.match(docText, /תנאי ההסכם/);
+  // The old system's words (LEGAL_VERSION 3, 9.11.2026): its sections and six clauses.
+  assert.match(docText, /הסכם התקשרות ותנאים/);
+  assert.match(docText, /מי אנחנו/);
   assert.match(docText, /6,900 ₪ לחודש \+ מע״מ כחוק/);
   assert.match(docText, /514729938/);
   assert.match(docText, /הרצל 12, תל אביב/);
@@ -314,6 +318,11 @@ await step('client link shows the same quote', async () => {
   assert.match(t, /97,704 ₪/);
   assert.equal(await client.locator('#s-name').inputValue(), '', 'signer types their own name');
   await shot(client, '05-client-mobile');
+  if (OUT) {
+    await client.setViewportSize({ width: 1440, height: 900 });
+    await shot(client, '05-client-desktop');
+    await client.setViewportSize({ width: 390, height: 844 });
+  }
   // The agreement as it prints (kept next to the screenshots, to compare a look change against it).
   if (OUT) await client.pdf({ path: `${OUT}/05-agreement-print.pdf`, format: 'A4', printBackground: true });
 });
@@ -401,7 +410,7 @@ await step('quote (view only): no legal text, link opens without signing', async
   await p.locator('#btn-preview').click();
   const doc = await p.locator('#dlg-preview').innerText();
   assert.match(doc, /הצעת מחיר/);
-  assert.doesNotMatch(doc, /תנאי ההסכם/);
+  assert.doesNotMatch(doc, /תנאי ההסכם|הסכם התקשרות ותנאים/);
   assert.doesNotMatch(doc, /חתימות הצדדים/);
   await p.keyboard.press('Escape');
   await p.locator('#btn-link').click();
@@ -485,7 +494,8 @@ await step('discount: up to 200 ILS a month, shown in summary, document and agre
   await d.locator('#btn-preview').click();
   const doc = await text(d, '#preview-body');
   assert.match(doc, /הנחה/);
-  assert.match(doc, /לאחר הנחה של 200 ₪ לחודש/);
+  // The old wording (LEGAL_VERSION 3): the price after the discount; the table has the discount line.
+  assert.match(doc, /התמורה עבור החבילה הינה 3,700 ₪ לחודש \+ מע״מ כחוק/);
   assert.match(doc, /לחתימה בתוך 7 ימים מההפקה/);
   assert.deepEqual(d.errors, []);
 });

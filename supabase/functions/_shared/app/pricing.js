@@ -5,9 +5,9 @@
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
   PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, maxDiscountFor, packageId,
-  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar, infText,
+  CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar, infText, isChoice,
 } from './catalog.js';
-import { PROVIDER, agreementSections, LEGAL_VERSION } from './legal.js';
+import { PROVIDER, agreementSections, agreementWording, LEGAL_VERSION } from './legal.js';
 
 export function emptySelection() {
   return {
@@ -110,6 +110,11 @@ export function validateSelection(sel) {
                 one, nothing of an influencer to add, and the document says so
      addonsIncluded true: the monthly price is the whole price; the paid add-ons chosen are
                 included in it (shown as "כלול במחיר", no price of their own)
+     packageName    the package's name as this document shows it (the owner, 9.11.2026: the
+                managers may rename the package for one quote; the catalog is unchanged).
+                Plain text, up to CUSTOM_LIMITS.packageName characters, no markup. With
+                `price`, the two "שינויים להצעה הזו" of the builder; create-quote takes
+                them from the managers only (supabase/functions/create-quote/http.js).
    Types and ranges are strict (catalog.js CUSTOM_QTY, CUSTOM_LIMITS); the totals are
    always computed here, never taken from the caller. Whatever equals the built-in
    rule is dropped (normalizeSelection), so a contract without deviations is exactly a
@@ -121,7 +126,9 @@ const cleanLine = (v) => String(v ?? '').replace(BIDI, '').replace(/\s+/g, ' ').
 const cleanBlock = (v) => String(v ?? '').replace(BIDI, '').replace(/\r\n?/g, '\n').replace(/[^\S\n]+/g, ' ')
   .split('\n').map((l) => l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded'];
+const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName'];
+// A name typed for the document: no markup and no control characters (it is drawn as text anyway).
+const NAME_BAD = /[<>{}\`\u0000-\u001f\u007f]/;
 // What an influencer brings to a package: none of it in a contract "בלי משפיענים".
 const INF_QTY = ['shootDays', 'collabs', 'stories'];
 const given = (v) => v !== undefined && v !== null;
@@ -161,8 +168,14 @@ function customErrors(sel, selectionOk) {
   for (const k of ['noInfluencer', 'addonsIncluded']) if (given(c[k]) && typeof c[k] !== 'boolean') errors.push(`custom ${k} must be boolean`);
   if (given(c.terms) && (typeof c.terms !== 'string' || cleanBlock(c.terms).length > CUSTOM_LIMITS.terms)) errors.push('custom terms too long');
   if (given(c.discount) && !(Number.isInteger(c.discount) && c.discount >= 0 && c.discount % 100 === 0)) errors.push('custom discount out of range');
-  // The discount can never be more than the price it is taken from.
-  if (selectionOk && errors.length === 0 && given(c.discount) && c.discount > listPrice(sel)) errors.push('custom discount is more than the monthly price');
+  if (given(c.packageName)) {
+    const name = typeof c.packageName === 'string' ? cleanLine(c.packageName) : '';
+    if (typeof c.packageName !== 'string' || name.length > CUSTOM_LIMITS.packageName) errors.push('custom package name too long');
+    else if (NAME_BAD.test(c.packageName)) errors.push('custom package name has characters that are not allowed');
+  }
+  // The discount can never be more than the price it is taken from (a regular discount too, once
+  // the price was lowered by hand).
+  if (selectionOk && errors.length === 0 && (given(c.discount) ? c.discount : sel.discount || 0) > listPrice(sel)) errors.push('custom discount is more than the monthly price');
   return errors;
 }
 
@@ -229,6 +242,9 @@ export function normalizeSelection(sel) {
   if (lines.length) c.lines = lines;
   const terms = cleanBlock(raw.terms);
   if (terms) c.terms = terms;
+  // The package's name for this document: dropped when empty or the catalog's own.
+  const shown = typeof raw.packageName === 'string' ? cleanLine(raw.packageName) : '';
+  if (shown && shown !== TIERS.find((t) => t.id === rest.tier)?.name) c.packageName = shown;
   // A discount the seller may give anyway is a regular discount.
   if (Number.isInteger(raw.discount)) {
     if (raw.discount > maxDiscountFor(rest.tier)) { c.discount = raw.discount; rest.discount = 0; } else rest.discount = raw.discount;
@@ -264,6 +280,7 @@ export function exceptionOf(selection) {
   if (c.terms) out.push({ kind: 'terms', text: 'תנאים מיוחדים' });
   if (c.noInfluencer) out.push({ kind: 'noInfluencer', text: 'בלי משפיענים' });
   if (c.addonsIncluded) out.push({ kind: 'addonsIncluded', text: 'התוספות כלולות במחיר החודשי' });
+  if (c.packageName) out.push({ kind: 'packageName', to: c.packageName, text: `שם החבילה בהצעה: ${c.packageName}` });
   return out;
 }
 export const isExceptional = (selection) => exceptionOf(selection).length > 0;
@@ -348,21 +365,29 @@ export function termsText(sel) {
 }
 
 // What the agreement needs to know about the selected package.
-function agreementContext(sel, { tier, paid, free, totals }) {
+function agreementContext(sel, { tier, paid, free, totals, includes }) {
   const specs = effectiveQuantities(sel);
   const custom = sel.custom
     ? { monthlyContents: specs.monthly, extraLines: sel.custom.lines || [], specialTerms: sel.custom.terms || '' }
     : {};
+  const base = SPECS[packageId(sel.tier, sel.influencer)] || {};
   return {
     ...custom,
     termMonths: termOf(sel),
     validHours: DOC_TYPES.agreement.validHours,
     totals,
-    packageName: tier.name,
+    // The name the managers gave the package for this document, or the catalog's.
+    packageName: sel.custom?.packageName || tier.name,
     // "משפיען לבחירה": said as the one to be chosen, never as a name.
     influencer: noInfluencer(sel) ? '' : infText(sel.influencer),
     noInfluencer: noInfluencer(sel),
     tier: sel.tier,
+    influencerId: noInfluencer(sel) ? null : sel.influencer,
+    // The old wording's numbers (app/legal.js agreementWording, LEGAL_VERSION 3).
+    videos: specs.videos,
+    graphics: specs.graphics,
+    photographers: noInfluencer(sel) ? 1 : base.photographers || 1,
+    includes,
     shootDays: specs.shootDays + (sel.paid.includes('simeon-day') ? 1 : 0),
     hasCh14: specs.ch14 > 0 || sel.free.extraCh14 === true,
     influencerPosts: specs.collabs > 0 || specs.stories > 0 || sel.free.simeonStories > 0
@@ -402,6 +427,7 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
   // Bidi control characters could make the displayed name differ from the stored one.
   const clean = (v) => String(v || '').replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').trim();
   const price = packagePrice(sel);
+  const includes = custom ? effectiveIncludes(sel) : pkg.includes;
   // A contract changed by hand: what was added to it, for the document.
   const extra = custom ? {
     custom: true,
@@ -430,10 +456,13 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     package: {
       id: pid,
       tierName: tier.name,
+      // The name this document shows (custom.packageName, the managers', 9.11.2026). tierName stays
+      // the catalog's: the office's lists and the client's card keep the real package.
+      ...(custom?.packageName ? { shownName: custom.packageName } : {}),
       influencer: noInfluencer(sel) ? NO_INFLUENCER : INFLUENCERS[sel.influencer].name,
       monthly: price,
       term: price * term,
-      includes: custom ? effectiveIncludes(sel) : pkg.includes,
+      includes,
     },
     paid,
     free,
@@ -441,7 +470,12 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     termMonths: term,
     totals,
     terms: termsText(sel),
-    legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals })) : null,
+    legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals, includes })) : null,
+    // The words around the clauses (LEGAL_VERSION 3, the old system's): stored, so a sent or
+    // signed document keeps them; app/quote-doc.js draws a model without them as before. Since
+    // 9.11.2026 a price offer has them too (the owner: the quote in the old document's order),
+    // with the cover's title ("הצעת מחיר נירו לוי").
+    wording: agreementWording({ ...agreementContext(sel, { tier, paid, free, totals, includes }), coverName: coverNameOf(sel, client), ...(docType.signable ? { coverTitle: docType.name } : {}) }),
     // The wording's version (app/legal.js): the stored text is what this document shows for good.
     legalVersion: docType.signable ? LEGAL_VERSION : null,
     selection: sel,
@@ -450,6 +484,15 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
 }
 
 export const NO_INFLUENCER = 'בלי משפיענים';
+
+// The name after "הצעת מחיר" on the cover. The old documents were named by their influencer
+// ("הצעת מחיר נירו לוי - ALL IN ONE"). With no influencer, or one still to be chosen, the client's
+// business (or name) when given; else nothing ("הצעת מחיר").
+function coverNameOf(sel, client) {
+  const clean = (v) => String(v || '').replace(BIDI, '').replace(/\s+/g, ' ').trim();
+  if (!noInfluencer(sel) && !isChoice(sel.influencer)) return INFLUENCERS[sel.influencer].name;
+  return clean(client.company) || clean(client.name);
+}
 const ils = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 export function formatILS(agorot) {
   return `${ils.format(agorot / 100)} ₪`;

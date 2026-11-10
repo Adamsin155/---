@@ -91,10 +91,16 @@ test('the example as an agreement: the same contract, signable, and the agreemen
   assert.equal(m.docTitle, 'הסכם התקשרות');
   assert.equal(m.signable, true);
   const text = m.legal.map((s) => `${s.title}: ${s.items.join(' ')}`).join('\n');
-  assert.match(text, /חבילת Social all in one, ללא משפיענים, בתוספת: צלם חודשי/);
-  assert.match(text, /\(Social all in one · ללא משפיענים\) והתוספות שנבחרו היא 4,900 ₪ לחודש/);
-  assert.match(text, /"יום צילום": יום צילום של וידאו וסטילס עם צלם בבית העסק של הלקוח\./);
-  assert.ok(!m.legal.some((s) => s.title === 'משפיעני רשת'), 'no chapter about influencers');
+  // The old wording (LEGAL_VERSION 3): the six clauses and the price; the package says no influencer.
+  assert.match(text, /התמורה עבור החבילה הינה 4,900 ₪ לחודש \+ מע״מ כחוק, למשך 12 חודשים\./);
+  // The six and the platforms (10.11.2026); no influencer in the agreement either.
+  assert.equal(m.legal.length, 7);
+  assert.ok(!/משפיען/.test(text), 'no influencer in the clauses');
+  assert.equal(m.package.influencer, 'בלי משפיענים');
+  assert.ok(!/משפיען רשת|נטלי|סמיון/.test(JSON.stringify(m.wording)), 'no influencer in the words');
+  assert.ok(m.wording.package.groups[0].items.includes('2 דפי נחיתה'));
+  assert.equal(m.wording.package.groups[1].items[1], 'צלם וידאו מקצועי עם ציוד הפקה וצילום מהמתקדמים שיש.');
+  assert.deepEqual(m.paid.map((p) => p.name), ['צלם חודשי']);
   // Without a text that says the document, the one chosen on the builder stays.
   const kept = run(answer([draft({ influencer: 'none', monthlyPrice: 300000 })]), { ...emptySelection(), docType: 'quote' }).applied[0];
   assert.equal(kept.selection.docType, 'quote');
