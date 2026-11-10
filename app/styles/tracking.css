@@ -39,3 +39,36 @@
   .ct tbody tr.ct-none td { display: block; }
   .ct tbody tr.ct-none td::before { content: none; }
 }
+
+/* ── The three tabs (10.11.2026): the app's segmented row (protocol.css .tabs) ── */
+#ct-page:not([hidden]) { display: grid; gap: 16px; min-width: 0; }
+#ct-page > .page-head { margin-block-end: 0; }
+.sh-tab:not([hidden]) { display: grid; gap: 16px; min-width: 0; }
+.sh-soon { margin: 0; color: var(--text-2); }
+
+/* ── "ימי צילום": the tiles (owner.css .ow-stats), the filters, the table ── */
+.sh-stats .ow-stat .v { font-size: 40px; }
+.sh-stats .is-waiting .v { color: var(--ds-amber, #855400); }
+.sh-tools { grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)); }
+.sh .sh-deal { white-space: nowrap; }
+.sh .sh-deal .num { font-variant-numeric: tabular-nums; }
+.sh .sh-kinds { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.sh .sh-kind { display: inline-block; padding: 1px 8px; border-radius: var(--ds-r-pill, 999px); background: var(--ds-soft); color: var(--ds-ink-2, var(--text)); font-size: 13px; line-height: 1.5; }
+.sh .sh-monthly { background: var(--k-teal-soft, #DDF3F1); color: var(--k-teal, #0B6E66); font-weight: 600; }
+.sh .sh-benefit { background: var(--k-purple-soft, #EFE8FB); color: var(--k-purple, #5B3BA8); font-weight: 600; }
+.sh .sh-type { min-inline-size: 150px; white-space: normal; }
+.sh .sh-status, .sh .sh-act { white-space: nowrap; }
+.sh .sh-act .btn { min-height: 40px; }
+.sh-foot { margin: 0; font-weight: 600; color: var(--text); }
+
+@media (max-width: 760px) {
+  .sh-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .sh-stats .ow-stat { padding: 12px; }
+  .sh-stats .ow-stat .v { font-size: 32px; }
+  .sh-tools { grid-template-columns: 1fr 1fr; }
+  .sh-tools .mt-search { grid-column: 1 / -1; }
+  .sh .sh-kinds { justify-content: flex-end; }
+  .sh tbody td.sh-act { display: block; padding-block-start: 8px; }
+  .sh tbody td.sh-act::before { content: none; }
+  .sh tbody td.sh-act .btn { inline-size: 100%; min-height: 44px; justify-content: center; }
+}

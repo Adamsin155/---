@@ -9,6 +9,9 @@
 //   אלאור בוטיק   a monthly client: "3 / 8 החודש"; 2 graphics "עלה" in the Gantt (2/20)
 //   a long name   wraps, never pushes the page sideways
 //   an ended one  not in the list
+// The tab "ימי צילום" (10.11.2026) on the same clients: Pizza Roma (no date, deal 15.6), אלאור בוטיק
+// (every month, nothing in October) and the long name (3 days, 1 held) wait; מוסך אבי is set for
+// 5.11; קפה דנה has held its only day. The tabs: #shoots and #tasks in the address, kept on reload.
 //   1  Irit on an iPhone 13 (WebKit): the cards, the numbers, ✓, the dates; the search typed key by
 //      key and deleted with Backspace; no sideways scroll; the menu has "מעקב לקוחות";
 //   2  the same on Chromium at 390;
@@ -51,9 +54,9 @@ function office() {
       name: 'אבי לוי', business: 'מוסך אבי', editor: 'nadia', editor2: 'yariv', editor_split: { nadia: 11, yariv: 10 }, shoot_at: '2026-10-01T10:00:00+03:00',
       rounds: [{ n: 2, shoot_at: '2026-11-05T10:00:00+02:00', start_at: '2026-10-15T09:00:00+03:00' }], deliverables: { videos: 42, graphics: 42, shoot_days: 2 },
     }),
-    client(ROMA, { name: 'רומן', business: 'Pizza Roma', shoot_at: null, deliverables: { videos: 25, graphics: 20, shoot_days: 1 } }),
-    client(ELIOR, { name: 'ניב בן שימול', business: 'אלאור בוטיק', editor: 'anna', shoot_at: '2026-09-15T11:00:00+03:00', deliverables: { videos_month: 8, graphics: 20, shoot_days: 1 } }),
-    client(LONG, { name: 'ד״ר אלכסנדרה ברקוביץ׳-שטרנברג', business: LONG_NAME, editor: 'yariv', shoot_at: '2026-10-12T10:00:00+03:00', deliverables: { videos: 36, graphics: 36, shoot_days: 1 } }),
+    client(ROMA, { name: 'רומן', business: 'Pizza Roma', shoot_at: null, deal_at: '2026-06-15T09:00:00+03:00', deliverables: { videos: 25, graphics: 20, shoot_days: 1 } }),
+    client(ELIOR, { name: 'ניב בן שימול', business: 'אלאור בוטיק', editor: 'anna', shoot_at: '2026-09-15T11:00:00+03:00', deliverables: { videos_month: 8, graphics: 20, shoot_days: 1, shoot_monthly: true } }),
+    client(LONG, { name: 'ד״ר אלכסנדרה ברקוביץ׳-שטרנברג', business: LONG_NAME, editor: 'yariv', shoot_at: '2026-10-12T10:00:00+03:00', deliverables: { videos: 36, graphics: 36, shoot_days: 3 } }),
     client(ENDED, { name: 'סגור', business: 'עסק שהסתיים', status: 'ended', deliverables: { videos: 10 } }),
   ];
   const mark = (id, key, note = null) => db.protocol_checks.push({ client_id: id, item_key: key, state: 'done', note, by_email: emailOf('ilai'), at: '2026-10-01T09:00:00+03:00' });
@@ -177,6 +180,8 @@ async function phone(engine, { device = null, width = 390, name }) {
   await shot(page, `tracking-${name}`, { fullPage: true });
   await search(page, name);
   await noOverflow(page);
+  await shootsTab(page, name, { phone: true });
+  await noOverflow(page);
   // Irit's menu has it ("עוד" on a phone): the entry is there.
   assert.ok(await page.locator('a[href="tracking.html"]').count() >= 1, 'in her menu');
   await ctx.close();
@@ -193,9 +198,113 @@ async function desktop(engine, { person = 'irit', width = 1366, name }) {
   await noOverflow(page);
   await shot(page, `tracking-${name}`, { fullPage: true });
   await search(page, name);
-  await page.locator(`#ct-${DANA} td:first-child a`).click();
+  await shootsTab(page, name, { phone: false });
+  await page.locator(`#sh-${ROMA} .sh-act a`).click();
   await page.waitForURL(/client\.html\?id=/);
   await ctx.close();
+}
+
+// The tabs, and "ימי צילום".
+const shIds = (page) => page.locator('#sh-body tr[data-id]').evaluateAll((trs) => trs.map((tr) => tr.dataset.id));
+const shCell = (page, id, n) => page.locator(`#sh-${id} td`).nth(n);
+async function shootsTab(page, name, { phone }) {
+  // Three tabs; the first is open.
+  assert.deepEqual((await page.locator('#ct-tabs [role=tab]').allInnerTexts()).map((t) => t.trim()), ['סרטונים וגרפיקות', 'ימי צילום', 'משימות לעורכים ולגרפיקאי']);
+  assert.equal(await page.locator('#tab-videos').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#view-shoots').isVisible(), false);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot(page, `tracking-tabs-${name}`);
+  await page.locator('#tab-shoots').click();
+  assert.ok(page.url().endsWith('#shoots'));
+  assert.equal(await page.locator('#ct-view').isVisible(), false);
+  assert.equal(await page.locator('#tab-shoots').getAttribute('aria-selected'), 'true');
+  // The order: waiting first, the oldest deal first; then the set; then the done.
+  assert.deepEqual(await shIds(page), [ROMA, ELIOR, LONG, AVI, DANA]);
+  assert.deepEqual((await page.locator('#sh-stats .v').allInnerTexts()).map((t) => t.trim()), ['3', '1', '1', '1']);
+  assert.equal(await text(page.locator('#sh-foot')), 'סה״כ: 3 לקוחות שטרם נקבע להם יום צילום');
+  assert.equal(await text(page.locator('#sh-count')), '5 לקוחות');
+  // The cells.
+  assert.match(await text(shCell(page, ROMA, 1)), /15\.6\.2026/);
+  assert.match(await text(shCell(page, ROMA, 5)), /ממתין לקביעה/);
+  assert.equal(await page.locator(`#sh-${ROMA} .sh-act a`).getAttribute('href'), `client.html?id=${ROMA}#p11`);
+  assert.equal(await text(page.locator(`#sh-${ROMA} .sh-act a`)), 'קביעת יום צילום');
+  assert.match(await text(shCell(page, AVI, 2)), /2/);
+  assert.match(await text(shCell(page, AVI, 3)), /1/);
+  assert.match(await text(shCell(page, AVI, 5)), /נקבע · 5\.11/);
+  assert.equal(await text(page.locator(`#sh-${AVI} .sh-act a`)), 'צפה בפרטים');
+  assert.match(await text(shCell(page, ELIOR, 2)), /1/);
+  assert.match(await text(shCell(page, ELIOR, 4)), /יום צילום כל חודש/);
+  assert.equal(await page.locator(`#sh-${ELIOR} .sh-act a`).getAttribute('href'), `client.html?id=${ELIOR}#add-round`);
+  assert.match(await text(shCell(page, LONG, 2)), /3/);
+  assert.match(await text(shCell(page, LONG, 3)), /2/);
+  assert.match(await text(shCell(page, LONG, 4)), /נטלי/);
+  assert.match(await text(shCell(page, DANA, 5)), /בוצעו כולם/);
+  if (phone) {
+    assert.equal(await page.locator('#sh thead').evaluate((el) => el.getBoundingClientRect().height <= 1), true);
+    assert.ok((await page.locator(`#sh-${ROMA} .sh-act a`).boundingBox()).height >= 44, 'a 44px button');
+  } else {
+    const tops = await page.locator(`#sh-${AVI} td`).evaluateAll((tds) => tds.map((td) => Math.round(td.getBoundingClientRect().top)));
+    assert.equal(new Set(tops).size, 1, 'one line');
+  }
+  await noOverflow(page);
+  await shot(page, `tracking-shoots-${name}`, { fullPage: true });
+  // The filters.
+  await page.selectOption('#sh-status', 'set');
+  assert.deepEqual(await shIds(page), [AVI]);
+  assert.equal(await text(page.locator('#sh-count')), 'לקוח אחד מתוך 5');
+  assert.equal(await text(page.locator('#sh-foot')), 'אין כאן לקוחות שממתינים לקביעת יום צילום');
+  await page.selectOption('#sh-status', '');
+  await page.selectOption('#sh-type', 'monthly');
+  assert.deepEqual(await shIds(page), [ELIOR]);
+  await page.selectOption('#sh-type', '');
+  await page.selectOption('#sh-month', '2026-06');
+  assert.deepEqual(await shIds(page), [ROMA]);
+  assert.equal(await text(page.locator('#sh-foot')), 'סה״כ: לקוח אחד שטרם נקבע לו יום צילום');
+  await page.selectOption('#sh-month', '');
+  // The search, typed key by key and deleted.
+  const box = page.locator('#sh-q');
+  await box.click();
+  await box.pressSequentially('pizza', { delay: 40 });
+  assert.equal(await box.inputValue(), 'pizza');
+  assert.deepEqual(await shIds(page), [ROMA]);
+  for (let i = 0; i < 5; i += 1) await box.press('Backspace');
+  assert.equal(await box.inputValue(), '');
+  assert.equal((await shIds(page)).length, 5);
+  await box.pressSequentially('מוסך', { delay: 40 });
+  assert.deepEqual(await shIds(page), [AVI]);
+  await box.press('Backspace');
+  assert.equal(await box.inputValue(), 'מוס');
+  assert.deepEqual(await shIds(page), [AVI]);
+  await box.pressSequentially('ז', { delay: 40 });
+  assert.equal(await page.locator('#sh-body tr[data-id]').count(), 0);
+  assert.equal(await text(page.locator('#sh-body')), 'אין לקוח שמתאים לסינון.');
+  for (let i = 0; i < 4; i += 1) await box.press('Backspace');
+  assert.equal(await box.inputValue(), '');
+  assert.equal((await shIds(page)).length, 5);
+  // Kept on reload (the address).
+  await page.reload();
+  await page.waitForSelector('#sh-body tr[data-id]');
+  assert.equal(await page.locator('#tab-shoots').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#view-shoots').isVisible(), true);
+  // The third tab: its own module.
+  await page.locator('#tab-tasks').click();
+  assert.ok(page.url().endsWith('#tasks'));
+  await page.waitForFunction(() => document.getElementById('view-tasks').textContent.trim().length > 0);
+  assert.equal(await page.locator('#view-shoots').isVisible(), false);
+  await noOverflow(page);
+  await shot(page, `tracking-tasks-${name}`, { fullPage: true });
+  // A plain visit (no hash): the tab last open on this device.
+  await page.goto(page.url().replace(/#.*$/, ''));
+  await page.waitForSelector('#ct-page:not([hidden])');
+  assert.equal(await page.locator('#tab-tasks').getAttribute('aria-selected'), 'true');
+  // Back to the first tab with the keyboard (Home); then "ימי צילום" again.
+  await page.locator('#tab-tasks').focus();
+  await page.keyboard.press('Home');
+  assert.equal(await page.locator('#tab-videos').getAttribute('aria-selected'), 'true');
+  assert.equal(await page.locator('#ct-view').isVisible(), true);
+  assert.ok(!page.url().includes('#'));
+  await page.locator('#tab-shoots').click();
+  await page.waitForSelector('#sh-body tr[data-id]');
 }
 
 // An editor who opens the address is refused, and (signed in on this page) taken to her own tasks.
@@ -212,7 +321,7 @@ const engines = { chromium: await chromium.launch(), webkit: await webkit.launch
 try {
   await step('Irit on an iPhone 13 (WebKit): the cards, the numbers, the dates, the search key by key', () => phone(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));
   await step('Irit on Chromium 390: the same', () => phone(engines.chromium, { width: 390, name: 'chromium390' }));
-  await step('Irit at 1366: the table, five columns, a client opens its card', () => desktop(engines.chromium, { name: 'irit-1366' }));
+  await step('Irit at 1366: the table, five columns; the tab "ימי צילום"; its button opens the card', () => desktop(engines.chromium, { name: 'irit-1366' }));
   await step('Lior at 1366: he sees it too', () => desktop(engines.chromium, { person: 'lior', name: 'lior-1366' }));
   await step('Nadia (an editor): refused, back to her tasks, not in her menu', () => noAccess(engines.chromium));
   await step('no page errors and no CSP violations', () => { assert.deepEqual(errors, []); noCspViolations(); });
