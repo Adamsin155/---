@@ -1,5 +1,8 @@
 // "מעקב לקוחות" (tracking.html; the owner's request of 9.11.2026, for Irit): one table, a row per
 // client in work, with the editor and the videos, graphics and shoot days against the package.
+// Three tabs since 10.11.2026 (Irit): "סרטונים וגרפיקות" (this table), "ימי צילום"
+// (app/tracking-shoots.js) and "משימות לעורכים ולגרפיקאי" (app/tracking-tasks.js); the open one is
+// in the address (#shoots, #tasks) and kept on this device for the next visit.
 // The owners and the managers (Irit, Lior, Ofir: isManager). Read-only: nothing is marked or saved
 // here, and nothing of money is read (the work columns only, as the editors' pages read them).
 // The counting: app/tracking-logic.js; docs/ops.md, section 122.
@@ -10,6 +13,8 @@ import { monthKey } from './edit-count.js';
 import { isManager } from './manager-rules.js';
 import { $, fill, h, errorText, mountSession, directory, viewerOf } from './protocol-ui.js';
 import { trackingRows, searchTracking, complete, ratioText, shootDates, clientsWord } from './tracking-logic.js';
+import { showShoots } from './tracking-shoots.js';
+import { renderTasksTab } from './tracking-tasks.js';
 
 let rows = [];
 let q = '';
@@ -32,6 +37,7 @@ async function doLoad() {
       loadEditorProgress().catch(() => null), loadEditorMonths(null, monthKey(now)).catch(() => null), loadPostedGraphics(),
     ]);
     rows = trackingRows(clients, { checks, progress, months, posted }, now);
+    showShoots(clients, checks, now);
   } catch (err) {
     $('state').textContent = errorText(err);
     return;
@@ -70,6 +76,45 @@ function render() {
   $('ct-count').textContent = shown.length === rows.length ? clientsWord(rows.length) : `${clientsWord(shown.length)} מתוך ${rows.length}`;
 }
 
+// ── Tabs ────────────────────────────────────
+const TABS = ['videos', 'shoots', 'tasks'];
+const PANEL = { videos: 'ct-view', shoots: 'view-shoots', tasks: 'view-tasks' };
+const SUB = {
+  videos: 'כל לקוח בעבודה: מי עורך, וכמה כבר נעשה מתוך החבילה.',
+  shoots: 'כל לקוח שמגיעים לו ימי צילום: כמה נשארו, ומי עוד מחכה לתאריך.',
+  tasks: 'המשימות הפתוחות של העורכים והגרפיקאי.',
+};
+const SAVED = 'tracking-tab';
+let view = 'videos';
+let tasksShown = false;
+const saved = () => { try { return localStorage.getItem(SAVED); } catch { return null; } };
+function setView(v, focus = false) {
+  view = TABS.includes(v) ? v : 'videos';
+  for (const t of TABS) {
+    const tab = $(`tab-${t}`);
+    tab.setAttribute('aria-selected', String(t === view));
+    tab.tabIndex = t === view ? 0 : -1;
+    $(PANEL[t]).hidden = t !== view;
+  }
+  $('ct-sub').textContent = SUB[view];
+  if (focus) $(`tab-${view}`).focus();
+  history.replaceState(null, '', location.pathname + location.search + (view === 'videos' ? '' : `#${view}`));
+  try { localStorage.setItem(SAVED, view); } catch { /* a private window: the address keeps it */ }
+  if (view === 'tasks' && !tasksShown && !$('ct-page').hidden) {
+    tasksShown = true;
+    Promise.resolve(renderTasksTab($('view-tasks'))).catch((err) => { tasksShown = false; $('view-tasks').textContent = errorText(err); });
+  }
+}
+for (const t of TABS) $(`tab-${t}`).addEventListener('click', () => setView(t));
+$('ct-tabs').addEventListener('keydown', (e) => {
+  const i = TABS.indexOf(view);
+  const next = { ArrowLeft: TABS[(i + 1) % TABS.length], ArrowRight: TABS[(i + TABS.length - 1) % TABS.length], Home: TABS[0], End: TABS.at(-1) }[e.key];
+  if (!next) return;
+  e.preventDefault();
+  setView(next, true);
+});
+setView(location.hash.slice(1) || saved());
+
 // ── Boot ────────────────────────────────────
 $('ct-q').addEventListener('input', (e) => { q = e.currentTarget.value; render(); });
 $('btn-refresh').addEventListener('click', () => load());
@@ -80,5 +125,6 @@ mountSession(async (staff) => {
   Object.assign(directory, dir);
   if (v?.error || !isManager(v)) { $('no-access').hidden = false; return; }
   $('ct-page').hidden = false;
+  setView(view);
   await load();
 });
