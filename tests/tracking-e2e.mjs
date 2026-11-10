@@ -416,6 +416,40 @@ async function countFixes(page, db, name, { phone }) {
   await settle(page);
   assert.match(await text(cell(page, AVI, 3)), /9 \/ 42/);
   assert.equal(avi(db).deliverables.tracking, undefined, 'nothing fixed: the key itself is gone');
+  // "The latest update wins" (the owner, 10.11.2026): 20 by hand; then Nadia types one more (8 → 9):
+  // the count again (13 / 42), no "עודכן ביד"; Irit fixes again: hers again.
+  await page.locator(`#ct-${AVI} [data-fix="videos"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-a'), '20');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 2)), /20 \/ 42.*עודכן ביד/);
+  assert.deepEqual(avi(db).deliverables.tracking.videos.auto, { done: 12, of: 42 }, 'the count kept with the fix');
+  db.editor_progress.find((r) => r.client_id === AVI && r.editor === 'nadia').edited = 9;
+  await page.locator('#btn-refresh').click();
+  await page.waitForFunction((id) => /13 \/ 42/.test(document.querySelector(`#ct-${id} [data-kind="videos"]`)?.textContent || ''), AVI);
+  assert.equal(await cell(page, AVI, 2).locator('.ct-by').count(), 0, 'the count moved: no "עודכן ביד"');
+  await page.locator(`#ct-${AVI} [data-fix="videos"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  assert.equal(await fld(page, 'fx-a').inputValue(), '13');
+  await retype(fld(page, 'fx-a'), '21');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 2)), /21 \/ 42.*עודכן ביד · עירית/);
+  // The graphics: 10 by hand, then 23ב is marked: all 42, the count's.
+  await page.locator(`#ct-${AVI} [data-fix="graphics"]`).click();
+  await dlg(page).waitFor({ state: 'visible' });
+  await retype(fld(page, 'fx-a'), '10');
+  await save(page);
+  assert.match(await text(cell(page, AVI, 3)), /10 \/ 42.*עודכן ביד/);
+  db.protocol_checks.push({ client_id: AVI, item_key: 'p23b.posted', state: 'done', note: null, by_email: emailOf('ilai'), at: '2026-10-20T10:05:00+03:00' });
+  await page.locator('#btn-refresh').click();
+  await page.waitForFunction((id) => /42 \/ 42/.test(document.querySelector(`#ct-${id} [data-kind="graphics"]`)?.textContent || ''), AVI);
+  assert.equal(await cell(page, AVI, 3).locator('.ct-by').count(), 0);
+  // Back as it was for the next steps.
+  db.protocol_checks.pop();
+  db.editor_progress.find((r) => r.client_id === AVI && r.editor === 'nadia').edited = 8;
+  delete avi(db).deliverables.tracking;
+  await page.locator('#btn-refresh').click();
+  await page.waitForFunction((id) => /12 \/ 42/.test(document.querySelector(`#ct-${id} [data-kind="videos"]`)?.textContent || ''), AVI);
 }
 
 // Tab 2: מוסך אבי from 2 days (1 left, set for 5.11) to 3 days, 2 left, "ממתין לקביעה", every month.
@@ -438,7 +472,7 @@ async function shootFixes(page, db, name, { phone }) {
   assert.match(await text(shCell(page, AVI, 5)), /ממתין לקביעה/);
   assert.match(await text(shCell(page, AVI, 4)), /יום צילום כל חודש/);
   assert.match(await text(shCell(page, AVI, 0)), /עודכן ביד · עירית · 20\.10/);
-  assert.deepEqual({ ...avi(db).deliverables.tracking.shoots, at: 'x' }, { agreed: 3, status: 'waiting', by: 'irit', at: 'x' }, 'held = 3 − 2 = the count: not kept');
+  assert.deepEqual({ ...avi(db).deliverables.tracking.shoots, at: 'x' }, { agreed: 3, status: 'waiting', by: 'irit', at: 'x', auto: { held: 1, agreed: 2, dates: '2026-10-01|2026-11-05' } }, 'held = 3 − 2 = the count: not kept');
   assert.equal(avi(db).deliverables.shoot_monthly, true);
   assert.deepEqual((await page.locator('#sh-stats .v').allInnerTexts()).map((t) => t.trim()), ['4', '0', '2', '2', '2'], 'now 3 days, waiting, every month');
   await noOverflow(page);

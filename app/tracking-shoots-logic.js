@@ -24,7 +24,7 @@ import { isShootMonthly, monthName } from './monthly-shoot.js';
 import { FLAGS } from './contract-summary.js';
 import { inWork, dayMonth } from './tracking-logic.js';
 import { partsIL, dayKeyIL } from './tz.js';
-import { fixOf } from './tracking-fix-logic.js';
+import { fixOf, countMoved, shootDatesKey } from './tracking-fix-logic.js';
 import { ch14Of } from './tracking-ch14-logic.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -72,7 +72,9 @@ export function shootRow(client, checks = {}, now = new Date()) {
   const h = shootHistory(client, checks, now);
   const monthly = isShootMonthly(client);
   // A number fixed by hand stands in place of the count (app/tracking-fix-logic.js).
-  const fix = fixOf(client, 'shoots');
+  // It stands only until the count moves (a shoot day held or set, the package changed): countMoved.
+  const kept = fixOf(client, 'shoots');
+  const fix = kept && !countMoved(kept, { held: h.held, agreed: h.agreed || null, dates: shootDatesKey(h.last, h.next) }) ? kept : null;
   const autoTotal = h.agreed || null;
   const total = fix?.agreed ?? autoTotal;
   const held = fix?.held ?? h.held;
@@ -99,7 +101,7 @@ export function shootRow(client, checks = {}, now = new Date()) {
     dealAt: deal,
     dealMonth: deal ? monthOf(deal) : '',
     total, held, remaining, monthly,
-    auto: { held: h.held, agreed: autoTotal, status: autoStatus },
+    auto: { held: h.held, agreed: autoTotal, status: autoStatus, dates: shootDatesKey(h.last, h.next) },
     fix: fix ? { by: fix.by, at: fix.at, held: fix.held ?? null, agreed: fix.agreed ?? null, status: fix.status || null } : null,
     ch14: ch14Of(client, now),
     types: typeNames(client),

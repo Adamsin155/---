@@ -17,7 +17,7 @@
 import { isOwnerView } from './team-rules.js';
 import { isManager } from './manager-rules.js';
 import { PEOPLE } from './protocol.js';
-import { partsIL } from './tz.js';
+import { partsIL, dayKeyIL } from './tz.js';
 
 export const KEY = 'tracking';
 export const KINDS = ['videos', 'graphics', 'shoots'];
@@ -57,12 +57,36 @@ export function fixOf(client, kind) {
   if (!Object.keys(out).some((k) => k !== 'month')) return null;
   out.by = typeof f.by === 'string' ? f.by : '';
   out.at = typeof f.at === 'string' ? f.at : '';
+  if (f.auto && typeof f.auto === 'object') out.auto = cleanAuto(f.auto);
   return out;
+}
+
+// "The latest update wins" (the owner, 10.11.2026): a fix stands only until the count itself moves.
+// With each fix the count as it was then is kept (`auto`); once the count is something else (an
+// editor typed, a mark of 7ב/23ב or a Gantt "עלה", a shoot day held or set, the package changed),
+// the count is shown again and the "עודכן ביד" line goes. A new fix wins again until the next change.
+// (The tables' own timestamps were not used: the count is what the page shows, and comparing it is
+// the one signal that every source, the Gantt and the shoot dates included, gives the same way.)
+const AUTO_KEYS = ['done', 'of', 'held', 'agreed', 'dates'];
+function cleanAuto(a) {
+  const out = {};
+  for (const k of AUTO_KEYS) {
+    if (!(k in a)) continue;
+    out[k] = k === 'dates' ? (typeof a[k] === 'string' ? a[k] : null) : count(a[k]);
+  }
+  return out;
+}
+// Whether the count moved since the fix was saved (a fix kept without its count: never).
+export function countMoved(f, now) {
+  if (!f?.auto) return false;
+  return Object.keys(f.auto).some((k) => k in now && (f.auto[k] ?? null) !== (now[k] ?? null));
 }
 
 // The deliverables with one kind's fix set (`values`: { done, of } / { held, agreed, status },
 // each null for "the count's"), or taken away (values null, or nothing in it). The rest is kept.
-export function withFix(deliverables, kind, values, { by = '', at = new Date().toISOString(), month = null } = {}) {
+//   auto: the count as the page shows it now ({ done, of } / { held, agreed, status? }): kept with
+//   the fix, which stands only while the count stays so (countMoved).
+export function withFix(deliverables, kind, values, { by = '', at = new Date().toISOString(), month = null, auto = null } = {}) {
   const d = { ...(deliverables || {}) };
   const t = { ...(d[KEY] && typeof d[KEY] === 'object' ? d[KEY] : {}) };
   const f = {};
@@ -70,7 +94,7 @@ export function withFix(deliverables, kind, values, { by = '', at = new Date().t
   if (kind === 'shoots' && SHOOT_STATUS.includes(values?.status)) f.status = values.status;
   if (Object.keys(f).length) {
     if (kind === 'videos' && month) f.month = month;
-    t[kind] = { ...f, by, at };
+    t[kind] = { ...f, by, at, ...(auto ? { auto: cleanAuto(auto) } : {}) };
   } else delete t[kind];
   if (Object.keys(t).length) d[KEY] = t; else delete d[KEY];
   return d;
@@ -91,11 +115,16 @@ export function applyCount(x, f, { month = null } = {}) {
   if (!f) return x;
   if (f.month && month && f.month !== month) return x;
   if (!f.month && month) return x;
+  if (countMoved(f, { done: x.done, of: x.of })) return x;
   return { ...x, done: f.done ?? x.done, of: f.of ?? x.of, auto: { done: x.done, of: x.of }, fix: { by: f.by, at: f.at } };
 }
-// The shoot days of the first tab ({ done: held, of: agreed }).
+// The shoot days' dates as one word ('2026-10-01|2026-11-05': the last held, the next set): a shoot
+// day set, moved or held changes it, and the fix of the shoot days stops (both tabs alike).
+export const shootDatesKey = (last, next) => `${last ? dayKeyIL(last) : ''}|${next ? dayKeyIL(next) : ''}`;
+// The shoot days of the first tab ({ done: held, of: agreed, last, next }).
 export function applyShootCount(x, f) {
   if (!f || (f.held === undefined && f.agreed === undefined)) return x;
+  if (countMoved(f, { held: x.done, agreed: x.of, dates: shootDatesKey(x.last, x.next) })) return x;
   return { ...x, done: f.held ?? x.done, of: f.agreed ?? x.of, auto: { done: x.done, of: x.of }, fix: { by: f.by, at: f.at } };
 }
 

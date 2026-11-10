@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   parseCount, fixOf, withFix, changedOnly, applyCount, applyShootCount, fixLine, problemOf,
-  canFix, canFixKind, canOpenTracking, onlyFirstTab, byKey,
+  canFix, canFixKind, canOpenTracking, onlyFirstTab, byKey, countMoved, shootDatesKey,
 } from '../app/tracking-fix-logic.js';
 import { trackingRows } from '../app/tracking-logic.js';
 import { shootRow } from '../app/tracking-shoots-logic.js';
@@ -142,7 +142,7 @@ test('the tab "ימי צילום": total, remaining and status fixed; the count 
   assert.equal(r.status, 'set');
   assert.equal(r.statusText, 'נקבע', 'set by hand, no date');
   assert.equal(r.action.text, 'צפה בפרטים');
-  assert.deepEqual(r.auto, { held: 1, agreed: 2, status: 'waiting' });
+  assert.deepEqual(r.auto, { held: 1, agreed: 2, status: 'waiting', dates: '2026-09-10|' });
   assert.equal(r.fix.by, 'irit');
   const w = shootRow(base({ shoot_at: '2026-11-20T10:00:00+02:00', deliverables: { shoot_days: 2, tracking: { shoots: { status: 'waiting', by: 'irit', at: AT } } } }), {}, NOW);
   assert.equal(w.status, 'waiting');
@@ -154,4 +154,51 @@ test('the tab "ימי צילום": total, remaining and status fixed; the count 
   const none = shootRow(base({ deliverables: { shoot_days: 2 } }), {}, NOW);
   assert.equal(none.fix, null);
   assert.equal(none.total, 2);
+});
+
+// "The latest update wins" (the owner, 10.11.2026): a fix stands until the count moves.
+test('the count kept with the fix; once it moves, the count again', () => {
+  const d = withFix({}, 'videos', { done: 15, of: 40 }, { by: 'irit', at: AT, auto: { done: 12, of: 36 } });
+  assert.deepEqual(d.tracking.videos.auto, { done: 12, of: 36 });
+  const f = fixOf({ deliverables: d }, 'videos');
+  assert.equal(countMoved(f, { done: 12, of: 36 }), false);
+  assert.equal(applyCount({ done: 12, of: 36 }, f).done, 15, 'the count as it was: the fix stands');
+  const moved = applyCount({ done: 13, of: 36 }, f);
+  assert.equal(moved.done, 13, 'an editor typed one more: the count wins');
+  assert.equal(moved.of, 36);
+  assert.equal(moved.fix, undefined, 'no "עודכן ביד" line');
+  assert.equal(applyCount({ done: 12, of: 42 }, f).fix, undefined, 'the package changed: the count wins');
+  // Fixed again later: wins again, until the next change.
+  const again = fixOf({ deliverables: withFix(d, 'videos', { done: 20 }, { by: 'irit', at: AT, auto: { done: 13, of: 36 } }) }, 'videos');
+  assert.equal(applyCount({ done: 13, of: 36 }, again).done, 20);
+  // A fix kept before this rule (no count with it) stands as before.
+  assert.equal(applyCount({ done: 13, of: 36 }, { done: 15, by: 'irit', at: AT }).done, 15);
+});
+
+test('graphics: a mark of 23ב or a Gantt "עלה" moves the count; the fix goes', () => {
+  const f = fixOf({ deliverables: withFix({}, 'graphics', { done: 10 }, { by: 'ilai', at: AT, auto: { done: 9, of: 42 } }) }, 'graphics');
+  assert.equal(applyCount({ done: 9, of: 42 }, f).done, 10);
+  assert.equal(applyCount({ done: 42, of: 42 }, f).done, 42);
+});
+
+test('shoot days: a day held or set moves the count, on both tabs alike', () => {
+  const last = new Date('2026-10-01T10:00:00+03:00');
+  const next = new Date('2026-11-20T10:00:00+02:00');
+  assert.equal(shootDatesKey(last, null), '2026-10-01|');
+  const auto = { held: 1, agreed: 2, dates: shootDatesKey(last, null) };
+  const c = base({ shoot_at: '2026-10-01T10:00:00+03:00', deliverables: { shoot_days: 2, tracking: { shoots: { agreed: 3, status: 'set', by: 'irit', at: AT, auto } } } });
+  const r = shootRow(c, {}, NOW);
+  assert.equal(r.total, 3, 'nothing moved: the fix stands');
+  assert.equal(r.fix.by, 'irit');
+  const [t] = trackingRows([c], {}, NOW);
+  assert.equal(t.shoots.of, 3);
+  // The next day is set in the card: the count moved.
+  const set = { ...c, rounds: [{ n: 2, shoot_at: next.toISOString() }] };
+  const r2 = shootRow(set, {}, NOW);
+  assert.equal(r2.total, 2);
+  assert.equal(r2.fix, null);
+  assert.equal(r2.statusText, 'נקבע · 20.11');
+  const [t2] = trackingRows([set], {}, NOW);
+  assert.equal(t2.shoots.of, 2);
+  assert.equal(t2.shoots.fix, undefined);
 });

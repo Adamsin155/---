@@ -12,7 +12,7 @@ import { h, fill, toast, errorText } from './protocol-ui.js';
 import { clientLabel } from './protocol-logic.js';
 import { withShootMonthly, isShootMonthly } from './monthly-shoot.js';
 import {
-  FIELDS, parseCount, withFix, changedOnly, problemOf, fixLine, byKey, MAX,
+  FIELDS, parseCount, withFix, changedOnly, problemOf, fixLine, byKey, MAX, shootDatesKey,
 } from './tracking-fix-logic.js';
 import { ch14Count, ch14Dates, withCh14Date, parseDayTime, dayTimeText } from './tracking-ch14-logic.js';
 import { partsIL } from './tz.js';
@@ -107,7 +107,9 @@ export function openCountFix({ client, kind, x, viewer, month = null, saved }) {
       const bad = problemOf(kind, typed, autoKeyed);
       if (bad) { sayErr(bad); return false; }
       const values = changedOnly(kind, typed, autoKeyed);
-      await saveDeliverables(client.id, (d) => withFix(d, kind, values, { by: byKey(viewer), month }));
+      // The count as it is now, kept with the fix: once it moves, the count wins again ("the latest update wins").
+      const countNow = kind === 'shoots' ? { held: auto.done, agreed: auto.of, dates: shootDatesKey(x.last, x.next) } : { done: auto.done, of: auto.of };
+      await saveDeliverables(client.id, (d) => withFix(d, kind, values, { by: byKey(viewer), month, auto: countNow }));
       toast(values[a] === null && values[b] === null ? 'חזר לספירה האוטומטית.' : 'נשמר. המספר עודכן ביד.');
       await saved();
       return true;
@@ -153,7 +155,7 @@ export function openShootFix({ client, row, viewer, saved }) {
         return false;
       }
       const values = changedOnly('shoots', { held, agreed, status: status.value || null }, { held: auto.held, agreed: auto.agreed, status: auto.status });
-      await saveDeliverables(client.id, (d) => withShootMonthly(withFix(d, 'shoots', values, { by: byKey(viewer) }), every.checked));
+      await saveDeliverables(client.id, (d) => withShootMonthly(withFix(d, 'shoots', values, { by: byKey(viewer), auto: { held: auto.held, agreed: auto.agreed, dates: auto.dates } }), every.checked));
       const back = values.held === null && values.agreed === null && !values.status;
       toast(back ? 'נשמר. המספרים לפי הספירה האוטומטית.' : 'נשמר. עודכן ביד.');
       await saved();
