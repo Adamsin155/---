@@ -7,7 +7,7 @@
 import { PHASES, PROCESSES, WORK_HOURS, NO_BULK, APPROVALS, FAST_LADDER, PHOTOGRAPHERS, isEditorOf, crewOf, starProcess, isRetired } from './protocol.js';
 import { SPECS, TERM_MONTHS, PACKAGES, PAID_ADDONS } from './catalog.js';
 import { holidayOn as closedOn, erevOn } from './holidays.js';
-import { adjustForVersion, laterDue } from './protocol-versions.js';
+import { adjustForVersion, laterDue, itemSince, versionOf } from './protocol-versions.js';
 import {
   dateIL, dayKeyIL, weekdayIL, atTimeIL, endOfDayIL, addDaysIL, daysBetweenIL, partsIL,
 } from './tz.js';
@@ -363,7 +363,16 @@ function completedAt(proc, checks, now) {
 // shoot_at and contract_end stay the real dates, and the package year, the Gantt and
 // the renewal read them as before.
 export const inLanding = (client) => client?.landing === true;
-export const workFloor = (client) => (client && !inLanding(client) && client.landed_at ? parseDate(client.landed_at) : null);
+// The mark that hands a shoot's videos to Ilai (27): the editor's final versions in the Drive
+// (p27.final), or, since 10.11.2026, the client's approval of the videos (p27.approved: the
+// job left the editor, p27.final is not asked then). The check row, or null.
+export function finalsMark(checks, pre = '') {
+  const f = checks?.[`${pre}p27.final`];
+  if (f?.state === 'done') return f;
+  const a = checks?.[`${pre}p27.approved`];
+  return a?.state === 'done' ? a : null;
+}
+export const workFloor =(client) => (client && !inLanding(client) && client.landed_at ? parseDate(client.landed_at) : null);
 // The least time anything that was already late on the day of the activation gets:
 // until the end of the next business day (a "5 minutes" of months ago is not due
 // five minutes after the owner pressed "מפעילים").
@@ -424,9 +433,10 @@ function realAnchor(from, client, procs, checks, now) {
     case 'contractEnd': return parseDate(client.contract_end);
     default: {
       // `item:p05.access`: when that one item was done (process 6 starts when access arrives).
+      // v14: `item:p05.access|p05.got`, the first of them that was done.
       if (from.startsWith('item:')) {
-        const c = checks[from.slice(5)];
-        return c && c.state === 'done' ? new Date(c.at) : null;
+        const at = from.slice(5).split('|').map((k) => checks[k]).filter((c) => c && c.state === 'done').map((c) => new Date(c.at));
+        return at.length ? new Date(Math.min(...at)) : null;
       }
       const p = procs.find((x) => x.id === from);
       return p ? completedAt(p, checks, now) : null;
@@ -765,15 +775,25 @@ function withoutFreshAfterImport(procs, checks) {
 // no mark of its own, the client passed it before it existed: it is history ("אם
 // רלוונטי" in the card), in nobody's list, and it holds nothing open. Whatever the
 // client's version, and with or without the migration's own mark.
-function withoutPassed(procs, checks) {
-  // (v13: `passedIf` may name several marks, any one of them: Eli's merged drive check.)
-  const passed = (i, round) => !!i.passedIf && !checks[i.key] && [].concat(i.passedIf).some((k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state));
+function withoutPassed(procs, checks, client = null) {
+  // (v13: `passedIf` may name several marks, any one of them: Eli's merged drive check.
+  // v14: `{ all: [...] }`, every one of them: the characterizer's one mark of 5, 6 and 8, passed by
+  // the old items it replaced once all of them are resolved. An old item added in a version after the
+  // client's own (p05.allnets of v8, p08b.posted of v7) was never asked of it whole: it is not waited for.)
+  const v = client ? versionOf(client) : Infinity;
+  const resolvedIn = (round, k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state);
+  const oldDone = (round, k) => resolvedIn(round, k) || itemSince(k) > v;
+  const passedBy = (i, round) => {
+    if (i.passedIf?.all) return i.passedIf.all.every((k) => oldDone(round, k)) && i.passedIf.all.some((k) => resolvedIn(round, k)) ? [...i.passedIf.all].reverse().find((k) => resolvedIn(round, k)) : null;
+    return [].concat(i.passedIf).find((k) => resolvedIn(round, k)) || null;
+  };
+  const passed = (i, round) => !!i.passedIf && !checks[i.key] && !!passedBy(i, round);
   // What waited for a passed item waits for the mark that passed it (v13: Irit's sending of the Gantt
   // waits for GANTT_READY, or for the full Gantt Ilai marked before it existed).
   const instead = new Map();
   for (const p of procs) {
     const round = /^(r\d+\.)/.exec(p.keyBase || '')?.[1] || '';
-    for (const i of p.items) if (passed(i, round)) instead.set(i.key, `${round}${[].concat(i.passedIf).find((k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state))}`);
+    for (const i of p.items) if (passed(i, round)) instead.set(i.key, `${round}${passedBy(i, round)}`);
   }
   if (!instead.size) return procs;
   const req = (i) => (i.requires?.some((k) => instead.has(k)) ? { ...i, requires: i.requires.map((k) => instead.get(k) || k) } : i);
@@ -797,7 +817,7 @@ function withNeeded(procs, checks) {
 }
 
 export function clientState(client, checks = {}, now = new Date()) {
-  const procs = withNeeded(withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks), checks);
+  const procs = withNeeded(withoutPassed(withoutFreshAfterImport(applicableProcesses(client), checks), checks, client), checks);
   const phaseList = phasesFor(client);
   const phaseIndex = (key) => phaseList.findIndex((p) => p.key === key);
   // In landing nothing has a deadline; after it, deadlines are counted from landed_at.

@@ -815,13 +815,18 @@ export function shootsAhead(clients, now = new Date(), days = 7) {
 // Process 27 closes only on Ilai's "קיבלתי" (p27.toilai), after the editor's last
 // step, the final versions in the Drive (p27.final): the editor's time ends there,
 // so Ilai's delay is never the editor's lateness (EDITOR_END).
-export const EDITOR_END = { p27: 'p27.final' };
+// Since 10.11.2026 the client's approval of the videos (p27.approved) ends it too when the final
+// versions were never marked: the job left the editor then (p27.final is `passedIf` it).
+export const EDITOR_END = { p27: ['p27.final', 'p27.approved'] };
 export function editorEndOf(x, checks = {}) {
-  const key = EDITOR_END[baseId(x.proc.id)];
-  if (!key) return null;
-  const item = x.proc.items.find((i) => i.key.replace(/^r\d+\./, '') === key);
-  const c = item && checks[item.key];
-  return isReal(c) && c.at ? new Date(c.at) : null;
+  const keys = EDITOR_END[baseId(x.proc.id)];
+  if (!keys) return null;
+  for (const key of keys) {
+    const item = x.proc.items.find((i) => i.key.replace(/^r\d+\./, '') === key);
+    const c = item && checks[item.key];
+    if (isReal(c) && c.at) return new Date(c.at);
+  }
+  return null;
 }
 export function closedProcesses(clients, { stateOf, checksByClient = {}, since, now = new Date(), log = null } = {}) {
   const out = [];

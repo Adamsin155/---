@@ -18,7 +18,7 @@ import {
   $, fill, h, toast, errorText, personChip, formatWhen, formatStamp, leafOf, mountSession, directory, viewerOf, officeMinutes, landingTag,
 } from './protocol-ui.js';
 import {
-  qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, reasonNeeded, jointFromSelection,
+  qaQueue, qaFixing, charsToday, awaitingEditor, editorLoad, loadText, dayText, reasonNeeded, jointFromSelection, waitingText, WAITS_FOR_TEXT,
 } from './qa-logic.js';
 import { autoReasonOf } from './auto-assign.js';
 import { ladderWords, setOfirMeetings } from './fast-ladder.js';
@@ -119,7 +119,7 @@ async function doLoad() {
   // Natali's shoots waiting for an editor, and the ones in editing (an editor can be changed): was it a joint day.
   const natali = [
     ...awaitingEditor({ clients, stateOf, checks }).filter((a) => a.ctx.shoot_type === 'natali').map((a) => a.client.quote_id),
-    ...Object.values(editorLoad({ clients, stateOf, checks, tasks })).flatMap((l) => l.jobs).filter((j) => j.client.shoot_type === 'natali').map((j) => j.client.quote_id),
+    ...Object.values(editorLoad({ clients, stateOf, checks, tasks })).flatMap((l) => [...l.jobs, ...l.waiting]).filter((j) => j.client.shoot_type === 'natali').map((j) => j.client.quote_id),
   ];
   let rows;
   let monthRows;
@@ -343,28 +343,40 @@ const openFolds = new Set();
 const keepFold = (key, open) => { if (open) openFolds.add(key); else openFolds.delete(key); };
 // "עומס עורכים" is one line per editor (20.10.2026): the name, the load and what is late;
 // the clients (and "החלפת עורך") open under it. The assign window keeps its recommendation.
+// The editor's own work (editing, fixes) counts and is late; what the editor finished and
+// waits for Ofir or the client is one small line under it (the owner, 10.11.2026), its clients
+// in their own fold.
 function loadCard(l, now) {
   const late = l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt < now).length;
   const head = [personChip(l.editor),
-    h('span', { class: 'of-line' }, loadText(l)), late ? h('span', { class: 'late of-load-late' }, ` · ${late === 1 ? 'אחת באיחור' : `${late} באיחור`}`) : null];
-  if (!l.jobs.length) return h('li', { class: 'of-card of-editor' }, h('div', { class: 'of-head' }, ...head));
+    h('span', { class: 'of-line' }, loadText({ ...l, waiting: [] })), late ? h('span', { class: 'late of-load-late' }, ` · ${late === 1 ? 'אחת באיחור' : `${late} באיחור`}`) : null,
+    l.waiting.length ? h('span', { class: 'of-load-wait' }, waitingText(l.waiting.length)) : null];
+  if (!l.jobs.length && !l.waiting.length) return h('li', { class: 'of-card of-editor' }, h('div', { class: 'of-head' }, ...head));
   return h('li', { class: 'of-card of-editor' }, h('details', { class: 'of-load-fold', open: openFolds.has(l.editor) ? true : null, ontoggle: (e) => keepFold(l.editor, e.currentTarget.open) },
     h('summary', { class: 'of-head' }, ...head),
-    h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => h('li', {},
+    l.jobs.length ? h('ul', { class: 'of-jobs' }, ...l.jobs.map((j) => jobRow(l, j, now))) : null,
+    l.waiting.length ? h('details', { class: 'of-wait-fold', open: openFolds.has(`${l.editor}:wait`) ? true : null, ontoggle: (e) => keepFold(`${l.editor}:wait`, e.currentTarget.open) },
+      h('summary', { class: 'of-line muted' }, `ממתינים לאישור הלקוח: ${l.waiting.length}`),
+      h('ul', { class: 'of-jobs of-jobs-wait' }, ...l.waiting.map((j) => jobRow(l, j, now)))) : null));
+}
+function jobRow(l, j, now) {
+  const waits = j.stage === 'waiting';
+  return h('li', {},
       h('a', { href: clientUrl(j.client.id, `${j.pre ? j.pre.replace('.', '-') : ''}p22`) }, clientLabel(j.client), j.n ? ` · סבב ${j.n}` : ''),
-      j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
-      j.stage === 'closing' ? ' · תיקונים וסגירה' : '',
+      waits ? ` · ${WAITS_FOR_TEXT[j.waitsFor] || 'סיים/ה עריכה'}` : j.landing ? [' ', landingTag(j.client)] : ` · ${j.day === null ? 'טרם שויך' : dayText(j.day, j.of)}`,
+      waits && j.landing ? [' ', landingTag(j.client)] : null,
+      j.stage === 'fixes' ? [' ', h('span', { class: 'tag tag-warn' }, j.fixesBy === 'ofir' ? 'תיקונים מאופיר' : 'תיקוני הלקוח')] : null,
       editedOf(j, l.editor) ? h('span', { class: 'of-edited num', id: `${swapId(j)}-edited` }, ` · ${editedOf(j, l.editor)}`) : '',
       scriptsLine(j.client.id, j.n) ? ` · ${scriptsLine(j.client.id, j.n)}` : '',
       j.paused ? [' ', h('span', { class: 'tag tag-warn' }, 'עצורה')] : null,
       // Two editors on the shoot: with whom.
       j.partner && PEOPLE[j.partner] ? [' ', h('span', { class: 'tag as-partner' }, `יחד עם ${PEOPLE[j.partner].name}`)] : null,
       autoReasonOf(checksOf(j.client), j.pre) ? [' ', h('span', { class: 'tag' }, 'שויך אוטומטית')] : null,
-      j.dueAt && !j.landing ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null,
+      j.dueAt && !j.landing && !waits ? h('span', { class: `muted${j.dueAt < now ? ' late' : ''}` }, ` · יעד ${formatWhen(j.dueAt, now)}`) : null,
       h('button', {
         type: 'button', class: 'btn-text sw-btn', id: swapId(j),
         'aria-label': `החלפת עורך: ${clientLabel(j.client)}${j.n ? `, סבב ${j.n}` : ''} (עכשיו ${PEOPLE[l.editor].name})`, onclick: () => openSwap(l.editor, j),
-      }, 'החלפת עורך'))))));
+      }, 'החלפת עורך'));
 }
 
 // ── Dialogs ─────────────────────────────────

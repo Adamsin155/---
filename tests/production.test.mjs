@@ -72,13 +72,14 @@ const stOf = (c, checks, now = IL(2026, 10, 19, 10)) => {
   return job ? P.editorState(job, checks) : null;
 };
 
-test('editor states: waiting → editing → QA → fixes → QA → client → client fixes → final → Ilai → done', () => {
+test('editor states: editing (from the assignment) → QA → fixes → QA → client → client fixes → final → Ilai → done', () => {
   const { c, checks } = postWorld();
   assert.equal(stOf(c, checks), null); // not assigned yet: nothing on the page
   checks['p22a.assigned'] = done(IL(2026, 10, 18, 10));
-  assert.equal(stOf(c, checks).key, 'waiting');
+  // Protocol v14: no "ממתין לכונן"; the editing starts at the assignment ("התקבל הכונן" left).
+  assert.equal(stOf(c, checks).key, 'editing');
   assert.equal(P.editingCases(c, checks, 'yariv', clientState(c, checks)).length, 0); // another editor sees nothing
-  checks['p22.received'] = done(IL(2026, 10, 18, 11));
+  checks['p22.received'] = done(IL(2026, 10, 18, 11)); // an old mark changes nothing
   assert.equal(stOf(c, checks).key, 'editing');
   // Blocked: reported and the process waits.
   checks['p22.missing'] = done(IL(2026, 10, 18, 12), P.missingNote(['logo', 'phone'], 'אין לוגו'));
@@ -139,7 +140,7 @@ test('editor states: waiting → editing → QA → fixes → QA → client → 
   assert.equal(stOf(c, checks).key, 'done');
 });
 
-test('editor states: the client approved without notes opens button 4; a text-only return; a round of its own', () => {
+test("editor states: the client's fixes done open button 4, the client's approval closes the job (10.11.2026); a text-only return; a round of its own", () => {
   const { c, checks } = postWorld();
   checks['p22a.assigned'] = done(IL(2026, 10, 18, 10));
   checks['p22.received'] = done(IL(2026, 10, 18, 11));
@@ -151,26 +152,36 @@ test('editor states: the client approved without notes opens button 4; a text-on
   assert.deepEqual(P.firstReturnOf(checks, ''), { videos: [] }, 'no video named: the whole batch');
   checks['p24.notify'] = done(IL(2026, 10, 20, 15));
   checks['p25.approved'] = done(IL(2026, 10, 20, 16));
-  checks['p27.approved'] = done(IL(2026, 10, 21, 10));
+  // The client's fixes done: button 4 (the final versions).
+  checks['p27.notes'] = done(IL(2026, 10, 20, 17), 'לקצר את הפתיח');
+  assert.equal(stOf(c, checks).key, 'clientFixes');
+  checks['p27.fixes'] = done(IL(2026, 10, 21, 9));
   assert.equal(stOf(c, checks).key, 'final');
+  // The client approved (10.11.2026): the job left the editor, nothing more is asked.
+  checks['p27.approved'] = done(IL(2026, 10, 21, 10));
+  assert.equal(stOf(c, checks).key, 'done');
   // A shoot round edited by someone else, and one by Nadia.
   const r = baseClient({ editor: 'yariv', rounds: [{ n: 2, shoot_type: 'dms', shoot_at: IL(2026, 11, 5, 11).toISOString(), editor: 'nadia', start_at: IL(2026, 10, 25).toISOString() }] });
   const rc = { 'r2.p22a.assigned': done(IL(2026, 11, 6, 10)) };
   const jobs = P.editingCases(r, rc, 'nadia', clientState(r, rc, IL(2026, 11, 6, 12)));
   assert.deepEqual(jobs.map((j) => [j.round, j.pre]), [[2, 'r2.']]);
-  assert.equal(P.editorState(jobs[0], rc).key, 'waiting');
+  assert.equal(P.editorState(jobs[0], rc).key, 'editing'); // v14: from the assignment
   assert.equal(hhmm(jobs[0].p24.dueAt), '9.11 18:00'); // assigned on a Friday: Sunday is day 1, Monday day 2
 });
 
 test('the self-check and the start checks are existing items; "מוכן לבדיקה" marks the notice to Ofir last', () => {
   const keys = new Set(PROCESSES.flatMap((p) => p.items.map((i) => i.key)));
   for (const [k] of [...P.START_CHECKS, ...P.selfCheck(true)]) assert.ok(keys.has(k), k);
-  // (Protocol v10: the five critical mistakes of editing come last, under their own line.)
-  const FIVE = ['sound', 'exposure', 'stable', 'angles', 'export'].map((k) => `p22.self.${k}`);
-  assert.deepEqual(P.selfCheck(false).map(([k]) => k), ['p22.self.spelling', 'p22.self.closing', 'p22.self.broll', 'p22.self.complete', 'p24.drive', ...FIVE]);
-  assert.deepEqual(P.selfCheck(false).filter(([, , g]) => g === 'critical').map(([k]) => k), FIVE);
-  assert.equal(P.selfCheck(true)[5][0], 'p24.dropbox');
-  assert.deepEqual(P.readyKeys(false).slice(-6), [...FIVE, 'p24.notify']);
+  // (Protocol v10: the critical mistakes of editing come last, under their own line. v14: the editor
+  // keeps sound and exposure; the rest of what the editors marked "מיותר" is not asked, Dropbox neither.)
+  const TWO = ['sound', 'exposure'].map((k) => `p22.self.${k}`);
+  assert.deepEqual(P.START_CHECKS.map(([k]) => k), ['p22.check.footage', 'p22.check.scripts']);
+  assert.deepEqual(P.selfCheck(false).map(([k]) => k), ['p22.self.spelling', 'p24.drive', ...TWO]);
+  assert.deepEqual(P.selfCheck(true).map(([k]) => k), P.selfCheck(false).map(([k]) => k));
+  assert.deepEqual(P.selfCheck(false).filter(([, , g]) => g === 'critical').map(([k]) => k), TWO);
+  assert.deepEqual(P.readyKeys(false), ['p22.self.spelling', 'p24.drive', ...TWO, 'p24.notify']);
+  const retired = PROCESSES.flatMap((p) => p.items).filter((i) => i.retired === 14).map((i) => i.key);
+  for (const k of [...P.START_CHECKS.map(([x]) => x), ...P.readyKeys(true), ...Object.values(P.CHECK_OF)]) assert.ok(!retired.includes(k), `${k} is retired: never written`);
   assert.equal(P.readyKeys(false).at(-1), 'p24.notify');
   assert.equal(P.needsDropbox({ links: { dropbox: 'https://www.dropbox.com/x' } }), true);
   assert.equal(P.needsDropbox({ links: {} }), false);
@@ -362,7 +373,8 @@ test('a report made while the editing goes on: "חסר" lines with their words, 
   assert.deepEqual([P.reportOf(checks).what, P.reportOf(checks).have], [['footage'], 0]);
   assert.equal(P.missingOf(checks), null);
   // Each check and what it reports; "מה חסר?" offers the scripts too now.
-  assert.deepEqual(P.START_CHECKS.map(([k]) => P.missingKeyOf(k)), ['footage', 'scripts', 'logo', 'phone']);
+  assert.deepEqual(P.START_CHECKS.map(([k]) => P.missingKeyOf(k)), ['footage', 'scripts']); // v14: the logo and phone checks left
+  assert.deepEqual(P.MISSING_WHAT.map(([k]) => k), ['logo', 'phone', 'footage', 'scripts', 'upload']); // still reported
   assert.equal(P.missingText(['scripts', 'logo']), 'לוגו, תסריטים וסדר הסרטונים');
 });
 
@@ -459,23 +471,28 @@ test('report to: only Irit, Lior or Ofir; anything else reads as Irit; Irit is n
 });
 
 test('"לא התקבל" on a start-check row: which rows; the report grows; "סיימתי" on the row closes its part', () => {
-  assert.deepEqual(P.checkRowOf('p22.check.logo'), { pre: '', k: 'logo' });
+  assert.deepEqual(P.checkRowOf('p22.check.scripts'), { pre: '', k: 'scripts' });
   assert.deepEqual(P.checkRowOf('r2.p22.check.footage'), { pre: 'r2.', k: 'footage' });
-  for (const k of ['p22.edited', 'p22.received', 'p22.self.closing', 'p22.check.other', 'p23.q.logo', 'xp22.check.logo']) assert.equal(P.checkRowOf(k), null, k);
+  // v14: the logo and phone rows left the card (retired); a report of them is made on the editor's page.
+  for (const k of ['p22.check.logo', 'p22.check.phone', 'p22.edited', 'p22.received', 'p22.self.closing', 'p22.check.other', 'p23.q.logo', 'xp22.check.logo']) assert.equal(P.checkRowOf(k), null, k);
   const cs = {};
-  cs['r2.p22.missing'] = done(IL(2026, 10, 18, 10), P.rowReportNote(cs, 'r2.', 'logo', { note: ' מטושטש ', to: 'lior' }));
+  cs['r2.p22.missing'] = done(IL(2026, 10, 18, 10), P.rowReportNote(cs, 'r2.', 'scripts', { note: ' לא ברור ', to: 'lior' }));
   let r = P.reportOf(cs, 'r2.');
-  assert.deepEqual([r.what, r.notes, r.to, r.going], [['logo'], { logo: 'מטושטש' }, 'lior', true]);
+  assert.deepEqual([r.what, r.notes, r.to, r.going], [['scripts'], { scripts: 'לא ברור' }, 'lior', true]);
   // A second row, to Ofir: both are in the report, the words of the first stay.
-  cs['r2.p22.missing'] = done(IL(2026, 10, 18, 11), P.rowReportNote(cs, 'r2.', 'phone', { to: 'ofir' }));
+  cs['r2.p22.missing'] = done(IL(2026, 10, 18, 11), P.rowReportNote(cs, 'r2.', 'footage', { to: 'ofir' }));
   r = P.reportOf(cs, 'r2.');
-  assert.deepEqual([r.what, r.notes, r.to], [['logo', 'phone'], { logo: 'מטושטש' }, 'ofir']);
+  assert.deepEqual([r.what, r.notes, r.to], [['footage', 'scripts'], { scripts: 'לא ברור' }, 'ofir']);
   assert.equal(P.reportOf(cs, ''), null); // another round
-  cs['r2.p22.check.logo'] = done(IL(2026, 10, 18, 12));
+  cs['r2.p22.check.scripts'] = done(IL(2026, 10, 18, 12));
   r = P.reportOf(cs, 'r2.');
-  assert.deepEqual([r.what, r.notes], [['phone'], {}]);
-  cs['r2.p22.check.phone'] = done(IL(2026, 10, 18, 12));
+  assert.deepEqual([r.what, r.notes], [['footage'], {}]);
+  cs['r2.p22.check.footage'] = done(IL(2026, 10, 18, 12));
   assert.equal(P.reportOf(cs, 'r2.'), null);
+  // A logo or phone reported (no check of theirs any more) stays until "הגיע הכול" or "מוכן לבדיקה".
+  cs['p22.missing'] = done(IL(2026, 10, 18, 13), P.missingNote(['logo'], '', { going: true }));
+  cs['p22.check.logo'] = done(IL(2026, 10, 18, 14)); // an old mark of the retired check
+  assert.deepEqual(P.reportOf(cs, '').what, ['logo']);
 });
 
 // The four editors (the owner, 29.10.2026: ניראל, יריב, אנה ונדיה), Nirel on a Natali day.

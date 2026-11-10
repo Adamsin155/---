@@ -1,4 +1,4 @@
--- Noam left the company (the owner, 10.11.2026). Ofir took over all her work (docs/ops.md, section 124).
+-- Noam left the company (the owner, 10.11.2026). Ofir took over all her work (docs/ops.md, section 127).
 -- Already done in the database before this file: her four active clients were moved to Ofir
 -- (clients.characterizer) and her row in public.staff was removed, so she cannot sign in.
 -- This file takes 'noam' out of the rights and the defaults of the database functions, as
@@ -9,6 +9,7 @@
 -- ofir_meetings: an old client still set to 'noam' (or to nobody) is Ofir's meeting now.
 -- private.protocol_writers is regenerated (scripts/protocol-writers.mjs): Noam is no writer,
 -- and the pages and Highlights (6, 8, 8ב) are Ofir's alone, the office's (no row needed).
+-- Runs after 20261210100000_protocol_v14.sql: its writers table is the merged one (v14 and no Noam).
 -- Not run: waits for the owner's "מאשר להריץ את ה-SQL".
 
 -- access_form_submit(text,jsonb)
@@ -329,13 +330,7 @@ insert into private.protocol_writers (key, proc, round, persons) values
   ('p04.special', 'p04', false, array['lior', 'ofir', 'shiel']::text[]),
   ('p04.saved', 'p04', false, array['lior', 'ofir', 'shiel']::text[]),
   ('p04.@part', 'p04', false, array['lior', 'ofir', 'shiel']::text[]),
-  ('p05.access', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
-  ('p05.allnets', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
-  ('p05.logo', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
-  ('p05.colors', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
-  ('p05.photos', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
-  ('p05.videos', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
-  ('p05.menu', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
+  ('p05.got', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
   ('p05.newlogo', 'p05', false, array['ilai']::text[]),
   ('p05.@wait', 'p05', false, array['ilai', 'irit', 'lior', 'ofir', 'shiel']::text[]),
   ('p05.@part', 'p05', false, array['ilai', 'irit', 'lior', 'ofir', 'shiel']::text[]),
@@ -358,21 +353,11 @@ insert into private.protocol_writers (key, proc, round, persons) values
   ('p19b.checked', 'p19b', true, array['eli']::text[]),
   ('p19b.handed', 'p19b', true, array['eli']::text[]),
   ('p19b.@part', 'p19b', true, array['eli']::text[]),
-  ('p22.received', 'p22', true, array['@editor']::text[]),
   ('p22.check.footage', 'p22', true, array['@editor']::text[]),
   ('p22.check.scripts', 'p22', true, array['@editor']::text[]),
-  ('p22.check.logo', 'p22', true, array['@editor']::text[]),
-  ('p22.check.phone', 'p22', true, array['@editor']::text[]),
-  ('p22.edited', 'p22', true, array['@editor']::text[]),
   ('p22.self.spelling', 'p22', true, array['@editor']::text[]),
-  ('p22.self.broll', 'p22', true, array['@editor']::text[]),
-  ('p22.self.closing', 'p22', true, array['@editor']::text[]),
-  ('p22.self.complete', 'p22', true, array['@editor']::text[]),
   ('p22.self.sound', 'p22', true, array['@editor']::text[]),
   ('p22.self.exposure', 'p22', true, array['@editor']::text[]),
-  ('p22.self.stable', 'p22', true, array['@editor']::text[]),
-  ('p22.self.angles', 'p22', true, array['@editor']::text[]),
-  ('p22.self.export', 'p22', true, array['@editor']::text[]),
   ('p22.@wait', 'p22', true, array['@editor']::text[]),
   ('p22.@pause', 'p22', true, array['@editor', '@editor-free']::text[]),
   ('p22.@part', 'p22', true, array['@editor']::text[]),
@@ -383,7 +368,6 @@ insert into private.protocol_writers (key, proc, round, persons) values
   ('p23b.@part', 'p23b', false, array['ilai']::text[]),
   ('p24.folder', 'p24', true, array['@editor']::text[]),
   ('p24.drive', 'p24', true, array['@editor']::text[]),
-  ('p24.d' || 'ropbox', 'p24', true, array['@editor']::text[]),
   ('p24.notify', 'p24', true, array['@editor']::text[]),
   ('p24.@wait', 'p24', true, array['@editor']::text[]),
   ('p24.@part', 'p24', true, array['@editor']::text[]),
@@ -408,9 +392,15 @@ insert into private.protocol_writers (key, proc, round, persons) values
   ('p16.read', 'p16', true, array['eli']::text[]),
   ('p18b.files', 'p18b', true, array['eli']::text[]),
   ('p19b.notes', 'p19b', true, array['eli']::text[]),
+  ('p05.access', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
+  ('p05.logo', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
+  ('p05.colors', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
+  ('p05.photos', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
+  ('p05.videos', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
+  ('p05.menu', 'p05', false, array['irit', 'lior', 'ofir', 'shiel']::text[]),
   ('p25.@qafixed', 'p25', true, array['@editor']::text[]),
   ('p23.@qafixed', 'p23', false, array['ilai']::text[]),
   ('p07.@qafixed', 'p07', false, array['ilai']::text[])
 on conflict (key) do update set proc = excluded.proc, round = excluded.round, persons = excluded.persons;
-update private.protocol_writers set persons = '{}'::text[] where key <> all (array['@office', '@editors', 'p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p04.@part', 'p05.access', 'p05.allnets', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos', 'p05.menu', 'p05.newlogo', 'p05.@wait', 'p05.@part', 'p07.made', 'p07.@wait', 'p07.@part', 'p07b.posted', 'p07b.@part', 'p09.file', 'p09.@part', 'p17b.drive', 'p17b.gear', 'p17b.broll', 'p17b.@part', 'p18b.order', 'p18b.quality', 'p18b.numbered', 'p18b.@part', 'p19b.folders', 'p19b.checked', 'p19b.handed', 'p19b.@part', 'p22.received', 'p22.check.footage', 'p22.check.scripts', 'p22.check.logo', 'p22.check.phone', 'p22.edited', 'p22.self.spelling', 'p22.self.broll', 'p22.self.closing', 'p22.self.complete', 'p22.self.sound', 'p22.self.exposure', 'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p22.@wait', 'p22.@pause', 'p22.@part', 'p23.made', 'p23.@wait', 'p23.@part', 'p23b.posted', 'p23b.@part', 'p24.folder', 'p24.drive', 'p24.d' || 'ropbox', 'p24.notify', 'p24.@wait', 'p24.@part', 'p27.fixes', 'p27.final', 'p27.toilai', 'p27.@wait', 'p27.@pause', 'p27.@part', 'p28.auto', 'p28.@part', 'p29b.c.vsched', 'p29b.c.gsched', 'p29b.c.ganttok', 'p29b.c.updated', 'p29b.done', 'p29b.@part', 'p17b.brollq', 'p22.missing', 'p27.fixed', 'p16.photographer', 'p16.read', 'p18b.files', 'p19b.notes', 'p25.@qafixed', 'p23.@qafixed', 'p07.@qafixed']::text[]);
+update private.protocol_writers set persons = '{}'::text[] where key <> all (array['@office', '@editors', 'p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p04.@part', 'p05.got', 'p05.newlogo', 'p05.@wait', 'p05.@part', 'p07.made', 'p07.@wait', 'p07.@part', 'p07b.posted', 'p07b.@part', 'p09.file', 'p09.@part', 'p17b.drive', 'p17b.gear', 'p17b.broll', 'p17b.@part', 'p18b.order', 'p18b.quality', 'p18b.numbered', 'p18b.@part', 'p19b.folders', 'p19b.checked', 'p19b.handed', 'p19b.@part', 'p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure', 'p22.@wait', 'p22.@pause', 'p22.@part', 'p23.made', 'p23.@wait', 'p23.@part', 'p23b.posted', 'p23b.@part', 'p24.folder', 'p24.drive', 'p24.notify', 'p24.@wait', 'p24.@part', 'p27.fixes', 'p27.final', 'p27.toilai', 'p27.@wait', 'p27.@pause', 'p27.@part', 'p28.auto', 'p28.@part', 'p29b.c.vsched', 'p29b.c.gsched', 'p29b.c.ganttok', 'p29b.c.updated', 'p29b.done', 'p29b.@part', 'p17b.brollq', 'p22.missing', 'p27.fixed', 'p16.photographer', 'p16.read', 'p18b.files', 'p19b.notes', 'p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos', 'p05.menu', 'p25.@qafixed', 'p23.@qafixed', 'p07.@qafixed']::text[]);
 -- protocol-writers:end

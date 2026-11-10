@@ -37,8 +37,11 @@ export const canUnassign = (v) => isOwnerView(v) || (!!v && !v.error && v.scope 
 // The marks of the assignment that are taken back (the client's own shoot; a round's carry its prefix).
 export const UNASSIGN_KEYS = (pre = '') => ['p22a.assigned', 'p22a.load', 'p22a.irit', 'p22a.reason', 'p22a.handoff.editor'].map((k) => pre + k);
 export const unassignable = (client, checks = {}) => !!client?.editor && inWork(client);
-// Whether the editor already started (then the card says so before it asks).
-export const editorStarted = (checks = {}, pre = '') => checks[`${pre}p22.received`]?.state === 'done';
+// Whether the editor already started (then the card says so before it asks): any mark of the
+// editing (22) or the Drive (24) of this shoot. Protocol v14: "התקבל הכונן" (p22.received) is no
+// longer marked; an old one still counts, as a mark of 22.
+export const editorStarted = (checks = {}, pre = '') => Object.keys(checks || {})
+  .some((k) => k.startsWith(pre) && /^p2[24]\.[a-z]/.test(k.slice(pre.length)) && checks[k]?.state === 'done');
 
 // The reason mark of an editor recorded on a 22א that was already marked: the time of the
 // mark is kept, and the words say so in the client's history.

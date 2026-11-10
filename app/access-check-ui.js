@@ -6,15 +6,15 @@
 //   בדיקת הגישות  the client's logins with their statuses (never a password), "לכספת", and
 //                 the check itself, new networks and Metricool;
 //   סידור העמוד   the six quick checks, two a row on a wide screen.
-// The statuses in the vault check the access by themselves (AUTO_ACCESS_NOTE), as the
-// client card's vault does: once every login has a status set after the access came in.
+// (Until protocol v14 the statuses in the vault checked the access by themselves. Since v14, 6 is
+// one mark, p06.ok, for the check, the pages and Metricool: the statuses only say how far it is.)
 // Each line is the list's own row (its tick, its guard, its undo): the caller hands it in.
-import { h, toast } from './protocol-ui.js';
-import { setCheck, canUseVault } from './protocol-data.js';
+import { h } from './protocol-ui.js';
+import { canUseVault } from './protocol-data.js';
 import { loadAccessStatusForWork } from './office-data.js';
 import { ACCESS_STATUS_LABEL, NEW_STATUS } from './access-logic.js';
 import { NETWORKS } from './protocol.js';
-import { PAGE_KEYS, PAGE_LABELS, ACCESS_KEYS, AUTO_ACCESS_NOTE, accessChecked } from './access-check.js';
+import { PAGE_KEYS, PAGE_LABELS, ACCESS_KEYS, accessChecked } from './access-check.js';
 
 const baseKey = (key) => String(key || '').replace(/^r\d+\./, '');
 const isDone = (cs, k) => ['done', 'na'].includes(cs?.[k]?.state);
@@ -36,7 +36,6 @@ let loadedFor = '';
 let loading = null;
 const wanted = new Set();
 let queued = false;
-const autoTried = new Set();
 
 function want(id, refresh) {
   wanted.add(id);
@@ -59,22 +58,13 @@ function want(id, refresh) {
   });
 }
 
-// Reads the statuses of this card's client, and marks the check when the vault says it is
-// done. `mayMark`: whoever may write process 6 (the office; Ilai and the editors never get
-// here). `onMarked(row)`: the list keeps the new mark and draws again.
-export function watchAccess(g, { checks, mayMark, onMarked, refresh }) {
+// Reads the statuses of this card's client. (Until protocol v14 it also marked "the logins were
+// checked", p06.verified, once every login in the vault had a status. Since v14, 6 is one mark,
+// p06.ok, which is also the page setup and Metricool: the statuses no longer close it, they are
+// shown as "כל הרשתות בכספת קיבלו סטטוס".)
+export function watchAccess(g, { refresh } = {}) {
   if (!isAccessCard(g)) return;
-  const c = g.client;
-  want(c.id, refresh);
-  const cs = checks || {};
-  const got = cs['p05.access'];
-  if (!mayMark || isDone(cs, 'p06.verified') || got?.state !== 'done' || autoTried.has(c.id)) return;
-  if (!loadedFor.split(',').includes(c.id) || !accessChecked(access.get(c.id) || [], got.at)) return;
-  autoTried.add(c.id);
-  setCheck(c.id, 'p06.verified', 'done', AUTO_ACCESS_NOTE).then((row) => {
-    toast(`הגישות של ${c.name} סומנו כנבדקו, לפי הסטטוסים בכספת.`);
-    onMarked?.(row);
-  }).catch(() => { /* the check stays to be marked by hand */ });
+  want(g.client.id, refresh);
 }
 
 // The panel of the card: the two parts, then whatever else of 6 is on it (Lior's
@@ -91,9 +81,11 @@ export function accessPanel(g, { checks, row }) {
   const rest = entries.filter((e) => !checksPart.includes(e) && !pagePart.includes(e));
   const rows = access.get(c.id) || [];
   const known = loadedFor.split(',').includes(c.id);
-  const waiting = cs['p05.access']?.state !== 'done';
+  const waiting = !['p05.access', 'p05.got'].some((k) => cs[k]?.state === 'done');
   const pageDone = PAGE_KEYS.filter((k) => isDone(cs, k)).length;
-  const verified = isDone(cs, 'p06.verified');
+  const verified = isDone(cs, 'p06.ok') || isDone(cs, 'p06.verified');
+  const firstAccess = ['p05.access', 'p05.got'].map((k) => cs[k]).filter((x) => x?.state === 'done').map((x) => x.at).sort()[0];
+  const allSet = !verified && known && accessChecked(rows, firstAccess);
   return h('div', { class: 'ac-panel' },
     checksPart.length || verified ? h('div', { class: 'il-part ac-part ac-access' },
       h('h4', {}, 'בדיקת הגישות',
@@ -106,7 +98,8 @@ export function accessPanel(g, { checks, row }) {
         rows.some((a) => a.status === NEW_STATUS)
           ? h('p', { class: 'hint ac-fromclient' }, 'יש גישות שהלקוח מילא בעצמו ועוד לא נבדקו: מנסים להיכנס, ומעדכנים בכספת ״תקינה״ או ״לא עובדת״.')
           : null,
-        verified ? null : h('p', { class: 'hint' }, 'הסטטוס של כל רשת בכספת מסמן את הבדיקה לבד. אין עמוד? פותחים אותו באותו חלון זמן.'),
+        verified ? null : h('p', { class: 'hint' }, allSet ? 'כל הרשתות בכספת קיבלו סטטוס. נשאר לסדר את העמודים ולחבר ל־Metricool, ולסמן.'
+          : 'בודקים כל רשת מהכספת ומעדכנים לה סטטוס, מסדרים את העמודים (שם, Bio, פרטים, טלפון, כתובת, מראה) ומחברים ל־Metricool. אין עמוד? פותחים אותו באותו חלון זמן.'),
         vault === false
           ? h('p', { class: 'hint ac-novault' }, 'אין לך גישה לסיסמאות בכספת. בעל המשרד מפעיל אותה בעמוד הצוות.')
           : h('div', { class: 'of-acts' }, h('a', { class: 'btn btn-sm ac-vault', href: clientUrl(c.id, 'access') }, 'לכספת', h('span', { class: 'sr-only' }, ` של ${c.name}`))),

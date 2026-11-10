@@ -64,149 +64,33 @@ test('8ב in the protocol: right after 8, Ofir\'s, in "אפיון", one new key,
   assert.equal(onOfficeTime(p.due), true, '30 office minutes');
   const char = STATIONS.find((s) => s.key === 'char').procs;
   assert.equal(char[char.indexOf('p08') + 1], 'p08b');
-  assert.equal(PROTOCOL_VERSION, 13); // 13 since 9.11.2026 (docs/ops.md section 119); 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
+  assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, docs/ops.md section 126); 13 since 9.11.2026 (docs/ops.md section 119); 12 since 3.11.2026 (Lior's four things, tests/protocol-versions.test.mjs); 11 since 21.10.2026 (Ofir connects to Metricool); this feature itself did not move it
   assert.equal(itemSince('p08b.posted'), 7);
   assert.deepEqual(PROTOCOL_HISTORY.find((v) => v.version === 7).items, ['p08b.posted']);
 });
 
-test('the clock: it starts when process 8 is complete (both items) and is due 30 office minutes later', () => {
+// Protocol v14 (the owner, 10.11.2026; Ofir: "לאחד"): 8 and 8ב are one mark in 8, "ה־Highlights הוכנו
+// והועלו לרשתות" (p08.ok). 8ב left (`retired: 14`): no clock of its own, no note, no ring, no lateness.
+// The tests of its 30-minute clock (the clock, office time, the reminders, imported history, clients
+// from before v7) were removed with it; the definition above stays, as the history of its marks.
+test('v14: 8ב left; one mark in 8 (p08.ok), passed by the old three; nothing of 8ב rings', () => {
+  const p8b = PROCESSES.find((p) => p.id === 'p08b');
+  assert.equal(p8b.retired, 14);
+  const p8 = PROCESSES.find((p) => p.id === 'p08');
+  assert.deepEqual(p8.items.filter((i) => !i.retired).map((i) => [i.key, i.label]), [['p08.ok', 'ה־Highlights הוכנו והועלו לרשתות']]);
   const w = world();
   const c = inChar(w);
-  // Nothing yet: not Ofir's work, no clock.
-  let now = IL(2026, 10, 5, 12, 55);
-  assert.equal(state(w, c, now).startAt, null);
-  assert.ok(!openItemsFor('ofir', c, w.checks[c.id], clientState(c, w.checks[c.id], now), now).some((e) => e.item.key === 'p08b.posted'));
-  // Prepared, not saved yet: still nothing.
-  mark(w, c, 'p08.done', IL(2026, 10, 5, 12, 50));
-  assert.equal(state(w, c, now).startAt, null);
-  // Saved at 13:00: process 8 is complete, 8ב starts and is due at 13:30.
-  mark(w, c, 'p08.saved', IL(2026, 10, 5, 13));
-  now = IL(2026, 10, 5, 13, 5);
-  const s = state(w, c, now);
-  assert.equal(+s.startAt, +IL(2026, 10, 5, 13));
-  assert.equal(+s.dueAt, +IL(2026, 10, 5, 13, 30));
-  assert.equal(s.ready, true);
-  // In "המשימות שלי" of Ofir, and of nobody else.
-  const cs = clientState(c, w.checks[c.id], now);
-  assert.deepEqual(openItemsFor('ofir', c, w.checks[c.id], cs, now).filter((e) => e.proc.id === 'p08b').map((e) => e.item.key), ['p08b.posted']);
-  for (const who of ['ilai', 'irit', 'lior']) assert.ok(!openItemsFor(who, c, w.checks[c.id], cs, now).some((e) => e.proc.id === 'p08b'), who);
-  // In his "עכשיו" bar: a running office clock, 25 minutes left; red once it ran out.
-  const clocks = clocksFor('ofir', [c], w.checks, { now }).filter((k) => k.proc.id === 'p08b');
-  assert.equal(clocks.length, 1);
-  assert.deepEqual([clocks[0].kind, clocks[0].office, clocks[0].state, clocks[0].remaining, clocks[0].what], ['soon', true, 'running', 25 * 6e4, 'העלאת ה־Highlights לרשתות']);
-  assert.equal(+clocks[0].deadline, +IL(2026, 10, 5, 13, 30));
-  assert.deepEqual(clocks[0].people, ['ofir']);
-  assert.equal(clocksFor('ilai', [c], w.checks, { now }).filter((k) => k.proc.id === 'p08b').length, 0);
-  assert.equal(clocksFor('ofir', [c], w.checks, { now: IL(2026, 10, 5, 13, 40) }).find((k) => k.proc.id === 'p08b').state, 'expired');
-  assert.equal(state(w, c, IL(2026, 10, 5, 13, 31)).status, 'overdue');
-  // Marked: done, no clock.
-  mark(w, c, 'p08b.posted', IL(2026, 10, 5, 13, 20));
-  assert.equal(state(w, c, IL(2026, 10, 5, 13, 40)).status, 'done');
-  assert.equal(clocksFor('ofir', [c], w.checks, { now: IL(2026, 10, 5, 13, 25) }).filter((k) => k.proc.id === 'p08b').length, 0);
-});
-
-test('office time: Highlights ready 10 minutes before closing are due 20 minutes into the next working morning', () => {
-  const w = world();
-  const c = inChar(w);
-  marks(w, c, itemsOf('p08'), IL(2026, 10, 5, WORK_HOURS.end - 1, 50));
-  assert.equal(+state(w, c, IL(2026, 10, 5, 17, 55)).dueAt, +IL(2026, 10, 6, WORK_HOURS.start, 20));
-  // The clock stops at night: before the office opens, 20 office minutes are left; then it runs.
-  const k = clocksFor('ofir', [c], w.checks, { now: IL(2026, 10, 6, 8, 40) }).find((x) => x.proc.id === 'p08b');
-  assert.deepEqual([k.paused, k.remaining, +k.resumeAt], [true, 20 * 6e4, +IL(2026, 10, 6, 9)]);
-  const m = clocksFor('ofir', [c], w.checks, { now: IL(2026, 10, 6, 9, 5) }).find((x) => x.proc.id === 'p08b');
-  assert.deepEqual([m.paused, m.remaining], [false, 15 * 6e4]);
-  // The ring waits for the office clock too: not at 18:20 real time, at 09:20.
-  const w2 = { ...w };
-  assert.equal(due(w2, IL(2026, 10, 5, 18, 30)).filter((r) => r.rule === 'highlightsUpload' && r.step === 'due').length, 0);
-  assert.equal(due(w2, IL(2026, 10, 6, 9, 20)).filter((r) => r.rule === 'highlightsUpload' && r.step === 'due').length, 1);
-});
-
-test('the reminders: a quiet note to Ofir when it starts, a ring when 30 office minutes pass, Lior told of the lateness', () => {
-  const w = world();
-  const c = inChar(w, { name: 'רון כהן', business: 'פיצה רון' });
-  assert.equal(due(w, IL(2026, 10, 5, 12, 59)).filter((r) => r.rule === 'highlightsUpload').length, 0);
-  marks(w, c, itemsOf('p08'), IL(2026, 10, 5, 13));
-  // 13:00: the quiet note, and nothing else about 8ב.
-  const start = due(w, IL(2026, 10, 5, 13));
-  const note = of(start, 'highlightsUpload');
-  assert.deepEqual(note.map((r) => [r.step, r.person, r.level]), [['now', 'ofir', 'quiet']]);
-  assert.equal(note[0].title, `ה־Highlights מוכנים: להעלות לרשתות תוך 30 דקות · ${clientLabel(c)}`);
-  assert.match(note[0].title, /פיצה רון/, 'the business first (clientLabel)');
-  assert.match(note[0].body, /יעד היום 13:30/);
-  assert.equal(note[0].ref, 'p08b');
-  // Since 7.10.2026 ("אין הודעות שקטות") the update goes to his phone too; it is still not counted as a ring.
-  assert.equal(planDelivery({ reminders: note, now: IL(2026, 10, 5, 13) })[0].channel, 'push');
-  // 13:29: not yet. 13:30: the ring, a protocol clock (the daily cap it was exempt from is gone: it rings whatever went out before).
-  assert.equal(of(due(w, IL(2026, 10, 5, 13, 29)), 'highlightsUpload').filter((r) => r.step === 'due').length, 0);
-  const ring = of(due(w, IL(2026, 10, 5, 13, 30)), 'highlightsUpload').filter((r) => r.step === 'due');
-  assert.deepEqual(ring.map((r) => [r.person, r.level, r.exempt]), [['ofir', 'ring', 'clock']]);
-  assert.equal(ring[0].title, `ה־Highlights של ${clientLabel(c)} עוד לא הועלו לרשתות`);
-  const full = Array.from({ length: 12 }, (_, n) => ({ key: `x${n}`, person: 'ofir', level: 'ring', channel: 'push', status: 'sent', exempt: null, sent_at: IL(2026, 10, 5, 10).toISOString() }));
-  assert.deepEqual(planDelivery({ reminders: ring, now: IL(2026, 10, 5, 13, 30), log: full }).map((r) => [r.channel, r.status]), [['push', 'sent']]);
-  assert.equal(templateFor({ rule: 'highlightsUpload', key: ring[0].key, person: 'ofir' }), 'late');
-  // The general lateness rule, after its 15-minute grace: on Lior's screen only, sent to nobody (since 5.11.2026).
-  assert.equal(onScreen(w, IL(2026, 10, 5, 13, 44)).filter((r) => r.rule === 'late' && P8B(r)).length, 0);
-  assert.equal(due(w, IL(2026, 10, 5, 13, 46)).filter((r) => r.rule === 'late').length, 0);
-  const late = onScreen(w, IL(2026, 10, 5, 13, 46)).filter((r) => r.rule === 'late' && P8B(r));
-  assert.deepEqual(late.map((r) => [r.person, r.level]), [['lior', 'quiet']]);
-  assert.match(late[0].title, /^באיחור: .*פיצה רון.* · 8ב · העלאת ה־Highlights לרשתות · אופיר$/);
-  assert.deepEqual(Object.keys(LATE_RUNG), ['p08b']);
-  assert.equal(lateRungOf('p08b', c), 'ofir', 'this client is Ofir\'s to characterize');
-  assert.equal(lateRungOf('p08b', { ...c, characterizer: 'noam' }), 'ofir'); // Noam left on 10.11.2026
-  assert.ok(LATE_WATCHERS.includes('ofir'));
-  // Whenever the engine runs (even catching up, with an empty log): Ofir never gets two
-  // messages about this upload for the same minute.
-  for (const now of [IL(2026, 10, 5, 13, 30), IL(2026, 10, 5, 13, 46), IL(2026, 10, 5, 16)]) {
-    const mine = due(w, now).filter((r) => r.person === 'ofir' && (r.rule === 'highlightsUpload' || P8B(r)));
-    const minutes = mine.map((r) => Math.floor(r.at / 6e4));
-    assert.equal(new Set(minutes).size, minutes.length, JSON.stringify(mine.map((r) => r.key)));
-    assert.deepEqual(mine.map((r) => r.step).sort(), ['due', 'now']);
-  }
-  // Every other late process is on Lior's screen (process 8 itself, when late); since 5.11.2026 nobody is sent a note.
-  const w2 = world();
-  const c2 = inChar(w2);
-  mark(w2, c2, 'p04.ended', IL(2026, 10, 5, 11), '{}');
-  const late8 = onScreen(w2, IL(2026, 10, 5, 13, 20)).filter((r) => r.rule === 'late' && r.key.includes(':p08@'));
-  assert.ok(!due(w2, IL(2026, 10, 5, 13, 20)).some((r) => r.rule === 'late'));
-  assert.deepEqual(late8.map((r) => r.person).sort(), ['lior']);
-  // Marked in time: nothing more.
-  mark(w, c, 'p08b.posted', IL(2026, 10, 5, 13, 20));
-  const after = due(w, IL(2026, 10, 5, 13, 46), start);
-  assert.equal(after.filter((r) => r.rule === 'highlightsUpload' || P8B(r)).length, 0);
-});
-
-test('imported history is not an event: no note, no ring, no clock for Highlights that were ready long ago', () => {
-  const w = world();
-  const c = client(w);
-  marks(w, c, importKeys('content'), IL(2026, 9, 1, 9), IMPORT_NOTE); // the client was imported past "אפיון"
-  assert.equal(w.checks[c.id]['p08b.posted'].note, IMPORT_NOTE, 'importing a client past the station closes 8ב too');
-  const now = IL(2026, 10, 5, 13);
-  assert.equal(state(w, c, now).status, 'done');
-  assert.equal(due(w, now).filter((r) => r.rule === 'highlightsUpload' || P8B(r)).length, 0);
-  assert.equal(clocksFor('ofir', [c], w.checks, { now }).filter((k) => k.proc.id === 'p08b').length, 0);
-  // As the migration leaves an existing client: process 8 done by hand long ago, 8ב imported.
-  const w2 = world();
-  const old = inChar(w2, { protocol_version: 6 });
-  marks(w2, old, itemsOf('p08'), IL(2026, 9, 20, 12));
-  mark(w2, old, 'p08b.posted', IL(2026, 10, 9, 10), IMPORT_NOTE);
-  assert.equal(state(w2, old, now).status, 'done');
-  assert.equal(due(w2, now).filter((r) => r.rule === 'highlightsUpload' || P8B(r)).length, 0);
-});
-
-test('a client that started before version 7: the upload is work with a clock, never late, never a lateness ring', () => {
-  const w = world();
-  const c = inChar(w, { protocol_version: 6 });
-  marks(w, c, itemsOf('p08'), IL(2026, 10, 5, 13));
-  const now = IL(2026, 10, 5, 16);
-  const s = state(w, c, now);
-  assert.equal(s.proc.items[0].fresh, 7);
-  assert.equal(+s.dueAt, +IL(2026, 10, 5, 13, 30));
-  assert.equal(s.late, false);
-  assert.notEqual(s.status, 'overdue');
-  // Still his work, with the clock in the bar and the quiet note.
-  assert.ok(openItemsFor('ofir', c, w.checks[c.id], clientState(c, w.checks[c.id], now), now).some((e) => e.item.key === 'p08b.posted'));
-  assert.equal(clocksFor('ofir', [c], w.checks, { now: IL(2026, 10, 5, 13, 10) }).filter((k) => k.proc.id === 'p08b').length, 1);
-  const all = due(w, now);
-  assert.deepEqual(of(all, 'highlightsUpload').map((r) => [r.step, r.person, r.level]), [['now', 'ofir', 'quiet']]);
-  assert.equal(all.filter((r) => r.rule === 'late' && P8B(r)).length, 0);
+  const now = IL(2026, 10, 5, 12);
+  assert.equal(state(w, c, now), undefined, '8ב applies to nobody');
+  assert.deepEqual(openItemsFor('ofir', c, w.checks[c.id], clientState(c, w.checks[c.id], now), now).filter((o) => /^p08/.test(o.item.key)).map((o) => o.item.key), ['p08.ok']);
+  // The old two of 8 done: 8 stays open until the upload too (p08b.posted, or the one mark).
+  marks(w, c, ['p08.done', 'p08.saved'], IL(2026, 10, 5, 12));
+  const s8 = (at) => clientState(c, w.checks[c.id], at).states.find((s) => s.proc.id === 'p08');
+  assert.equal(s8(IL(2026, 10, 5, 12, 5)).complete, false);
+  for (const at of [IL(2026, 10, 5, 12, 5), IL(2026, 10, 5, 13, 30), IL(2026, 10, 6, 9, 30)]) assert.equal(of(due(w, at), 'highlightsUpload').length, 0);
+  mark(w, c, 'p08b.posted', IL(2026, 10, 5, 12, 20));
+  assert.equal(s8(IL(2026, 10, 5, 12, 25)).complete, true, 'all three old marks: done');
+  delete w.checks[c.id]['p08b.posted'];
+  mark(w, c, 'p08.ok', IL(2026, 10, 5, 12, 30));
+  assert.equal(s8(IL(2026, 10, 5, 12, 35)).complete, true, 'the one mark: done');
 });

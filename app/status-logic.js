@@ -97,7 +97,7 @@ export const WHATSAPP_CONSENT = {
 
 // ── What the page reads ─────────────────────
 // The marks the database returns (private.status_mark_ok).
-export const MARKS = /^(r[0-9]+\.)?(p02\.opened|p04\.(ended|saved)|p05\.(access|logo|colors|photos|videos)|p07\.(sent|approved)|p11\.(ok\.client|calendar)|p12\.(scripts|numbered|docs)|p13\.approved|p19\.(all|took)|p23\.(sent|approved)|p26\.sent|p27\.(notes|fixes|final|approved)|p28\.scheduled|p29\.sent|p30\.live|p34\.talk)$/;
+export const MARKS = /^(r[0-9]+\.)?(p02\.opened|p04\.(ended|saved)|p05\.(access|logo|colors|photos|videos|got)|p07\.(sent|approved)|p11\.(ok\.client|calendar)|p12\.(scripts|numbered|docs)|p13\.approved|p19\.(all|took)|p23\.(sent|approved)|p26\.sent|p27\.(notes|fixes|final|approved)|p28\.scheduled|p29\.sent|p30\.live|p34\.talk)$/;
 
 // The 8 stations (section 4) in the client's words.
 export const STATIONS_CLIENT = [
@@ -200,7 +200,8 @@ export function needsFromYou(data, now = new Date()) {
   const c = data?.client || {};
   const x = view(data);
   const out = [];
-  if (x.done('p04.ended') || x.done('p04.saved')) {
+  // v14: the characterizer's one mark of 5 ("התקבלו הגישות והחומרים", p05.got) says everything came.
+  if ((x.done('p04.ended') || x.done('p04.saved')) && !x.done('p05.got')) {
     const missing = MATERIALS.filter(([k]) => !x.done(k)).map(([, l]) => l);
     if (missing.length) out.push({ key: 'materials', text: `לשלוח לנו בוואטסאפ: ${missing.join(', ')}` });
     if (!x.done('p05.access')) out.push({ key: 'access', text: 'גישות לרשתות: נתאם איתכם שיחה קצרה. לא שולחים סיסמאות בהודעה' });

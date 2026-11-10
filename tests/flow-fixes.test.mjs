@@ -153,7 +153,9 @@ test('process 5 does not close on one network: it asks, names what was saved, an
   for (const k of ['p05.logo', 'p05.colors', 'p05.photos', 'p05.videos']) mark(w, c, k, IL(2026, 10, 5, 12));
   const p5 = proc(w, c, 'p05', noon);
   assert.equal(p5.complete, false);
-  assert.ok(mine(w, c, 'ofir', noon).includes('p05.allnets'), 'whoever took the access is asked');
+  // v14 (Ofir: "לאחד"): no separate "אין עוד": he has the one mark of 5 (p05.got); the old marks, all of them, pass it.
+  assert.ok(mine(w, c, 'ofir', noon).includes('p05.got'), 'whoever took the access has the one mark');
+  assert.ok(!mine(w, c, 'ofir', noon).includes('p05.allnets'));
   assert.equal(accessGapQuestion(w.checks[c.id]['p05.access']), 'נשמרה גישה ל־Instagram בלבד. יש עוד רשתות?');
   assert.equal(accessGapQuestion({ note: 'מהלקוח, בטופס פרטי הכניסה: Instagram, Facebook' }), 'נשמרה גישה ל־Instagram, Facebook. יש עוד רשתות?');
   assert.equal(accessGapQuestion({ note: null }), 'יש ללקוח עוד רשתות שחסרה להן גישה?');
@@ -223,7 +225,7 @@ test('history brought in by an import is not opened again by a new step, in land
   const p14 = proc(w2, old, 'p14', IL(2026, 10, 6, 10));
   assert.equal(p14.status, 'done');
   // A client imported under version 8 gets the new steps with its history.
-  for (const k of ['p05b.sent', 'p05.allnets']) assert.ok(importKeys('content').includes(k), k);
+  for (const k of ['p05b.sent', 'p05.got']) assert.ok(importKeys('content').includes(k), k); // v14: 5 is one mark
   assert.ok(!importKeys('content').includes('p07a.sent'), 'v13: 7א left the protocol');
   assert.ok(!importKeys('ongoing').includes('p14.day'), 'the daily follow-up is never a mark of history');
 });

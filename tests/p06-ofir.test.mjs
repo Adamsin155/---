@@ -37,8 +37,8 @@ test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; not
   assert.equal(by['p06.recovered'], undefined); // Lior's broken logins left the protocol in v12 (to nobody)
   assert.ok(!Object.values(by).flat().includes('ilai'));
   // Who owns an item is not a protocol version (app/protocol-versions.js): still 11, no new entry.
-  assert.equal(PROTOCOL_VERSION, 13); // 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026; this change did not move it
-  assert.equal(PROTOCOL_HISTORY.at(-1).version, 13); // (v13: what the team marked "מיותר" left, 9.11.2026)
+  assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, docs/ops.md section 126); 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026; this change did not move it
+  assert.equal(PROTOCOL_HISTORY.at(-1).version, 14); // (v13: what the team marked "מיותר" left, 9.11.2026; v14: the editors', 10.11.2026)
   // A new network to open is Ofir's to say: 5's own note says so.
   assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה לאופיר לפתוח/);
 });
@@ -50,7 +50,7 @@ test('the lists: after the accesses, 6 is on Ofir\'s list and not on Ilai\'s', (
   const now = IL(2026, 10, 20, 9, 10);
   const st = clientState(client, checks, now);
   const open = (who) => openItemsFor(who, client, checks, st, now).filter((e) => e.proc.id === 'p06').map((e) => e.item.key);
-  assert.deepEqual(open('ofir').sort(), ['p06.address', 'p06.bio', 'p06.details', 'p06.look', 'p06.metricool', 'p06.name', 'p06.phone', 'p06.verified'].sort());
+  assert.deepEqual(open('ofir'), ['p06.ok']); // v14 (Ofir: "לאחד"): one mark for the nine
   assert.deepEqual(open('ilai'), []);
   // Ilai's characterization day: his graphics and the Gantt skeleton only.
   const [card] = charDay({ clients: [client], stateOf: (c) => clientState(c, checks, now), checks: { c1: checks }, now });
@@ -68,11 +68,12 @@ test('who writes 6: the office (Ofir among them); Ilai no more, and still his ow
 
 test('the hand-off of 5: to Ofir, never to himself; an old record to Ilai keeps its words', () => {
   const point = HANDOFFS.find((p) => p.id === 'access');
-  assert.deepEqual(point.to.map((t) => [t.id, t.person(client), t.proc, t.until]), [['ofir', 'ofir', 'p06', 'p06.verified']]);
-  const checks = { 'p05.access': done(IL(2026, 10, 20, 11)) };
+  const UNTIL = ['p06.ok', 'p06.verified']; // v14: the one mark, or the old check
+  assert.deepEqual(point.to.map((t) => [t.id, t.person(client), t.proc, t.until]), [['ofir', 'ofir', 'p06', UNTIL]]);
+  const checks = { 'p05.got': done(IL(2026, 10, 20, 11)) };
   const at = { now: IL(2026, 10, 20, 11, 1) };
-  assert.deepEqual(handoffsFor(client, checks, 'p05.access', { ...at, from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]);
-  assert.deepEqual(handoffsFor(client, checks, 'p05.access', { ...at, from: 'ofir' }), []);
+  assert.deepEqual(handoffsFor(client, checks, 'p05.got', { ...at, from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]);
+  assert.deepEqual(handoffsFor(client, checks, 'p05.got', { ...at, from: 'ofir' }), []);
   assert.equal(describeMark('p05.handoff.ofir'), 'גישות התקבלו ← אופיר');
   assert.equal(describeMark('p05.handoff.ilai'), 'גישות התקבלו ← עילאי');
 });
@@ -87,7 +88,7 @@ test('the reminders of the accesses go to Ofir; none of them to Ilai', () => {
   assert.equal(RULES.find((r) => r.id === 'access').steps.find((s) => s.id === 'lior').body(i), 'עברו 30 דקות מקבלת הגישות ואופיר עוד לא סימן שבדק.');
 });
 
-test('the vault\'s statuses check the access by themselves (Ofir\'s list and the client card share the rule)', () => {
+test('the vault\'s statuses say how far the check is; since v14 they close nothing (6 is one mark with the pages and Metricool)', () => {
   const at = IL(2026, 10, 20, 12);
   assert.equal(accessChecked([{ status: 'ok', updated_at: IL(2026, 10, 20, 12, 5).toISOString() }, { status: 'missing', updated_at: IL(2026, 10, 20, 12, 6).toISOString() }], at), true);
   assert.equal(accessChecked([{ status: 'new', updated_at: IL(2026, 10, 20, 12, 5).toISOString() }], at), false);
@@ -98,8 +99,9 @@ test('the vault\'s statuses check the access by themselves (Ofir\'s list and the
   // Ofir's list lays 6 out in its two parts and marks the check from the statuses; the client
   // card's vault marks it for the office only.
   assert.match(src('clients.js'), /accessPanel\(g, \{ checks: checks\[g\.client\.id\] \|\| \{\}, row: rowOf \}\)/);
-  assert.match(src('clients.js'), /mayMark: scope === 'office' && !viewerError/);
-  assert.match(src('client-card.js'), /async function autoAccessCheck\(\) \{\r?\n  if \(scope !== 'office' \|\| viewerError\) return;/);
+  // v14: nothing is written from the statuses any more, on the list or in the card.
+  assert.match(src('client-card.js'), /async function autoAccessCheck\(\) \{\}/);
+  assert.doesNotMatch(src('access-check-ui.js').replace(/\/\/[^\n]*/g, ''), /setCheck|AUTO_ACCESS_NOTE/);
   // A network to open, from the vault's dialog, is a task for whoever sets the pages up (Ofir, or Noam since 1.11.2026).
   assert.match(src('client-card.js'), /const owner = st === 'broken' \? 'lior' : pagesOwnerOf\(client\);/);
 });

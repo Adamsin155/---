@@ -48,7 +48,7 @@ test('every handoff point uses real protocol keys, and its record fits the datab
   }
   // The points of the plan's reminder matrix, in protocol order.
   // (19, the closing of the shoot day, left with protocol v12: 22א opens on the evening of the shoot day.)
-  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05.access', 'p07.made', 'p07.ofir', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p28.auto']);
+  assert.deepEqual(HANDOFFS.map((p) => p.on), ['p05', /* v14: 5 complete (its one mark p05.got) */ 'p07.made', 'p07.ofir', 'p22a.assigned', 'p23.made', 'p23.ofir', 'p24.notify', 'p25.approved', 'p27.final', 'p28.auto']);
 });
 
 test('who is next at each point', () => {
@@ -57,7 +57,7 @@ test('who is next at each point', () => {
   const when = '2026-10-29T10:00:00+02:00';
   const next = (key, extra = {}) => people(offer(c, { [key]: done(when), ...extra }, key, now));
   // The accesses go to Ofir (process 6 is his since 28.10.2026, the owner; it was Ilai's).
-  assert.deepEqual(next('p05.access'), ['ofir']);
+  assert.deepEqual(next('p05.got'), ['ofir']);
   // Protocol v9: the first 9 graphics go to Ofir's check, and to Irit once he approved.
   assert.deepEqual(next('p07.made'), ['ofir']);
   assert.deepEqual(next('p07.ofir'), ['irit']);
@@ -96,7 +96,7 @@ test('the assigned editor: Natali\'s (Nirel), the DMS team\'s, and a second shoo
 
 test('the message: client, what is needed, the due time in Israel time, and the card link', () => {
   const c = client();
-  const [o] = offer(c, { 'p05.access': done('2026-10-20T11:00:00+03:00') }, 'p05.access', '2026-10-20T11:01:00+03:00');
+  const [o] = offer(c, { 'p05.got': done('2026-10-20T11:00:00+03:00') }, 'p05.got', '2026-10-20T11:01:00+03:00');
   assert.equal(msg(o, '2026-10-20T11:01:00+03:00'), [
     'היי אופיר,',
     'גישות התקבלו למספרת רון. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
@@ -105,7 +105,7 @@ test('the message: client, what is needed, the due time in Israel time, and the 
   ].join('\n'));
   // Winter time (after 25.10), ten minutes before the office closes: the 30 minutes
   // run on the next working morning.
-  const [w] = offer(c, { 'p05.access': done('2026-10-26T17:50:00+02:00') }, 'p05.access', '2026-10-26T17:51:00+02:00');
+  const [w] = offer(c, { 'p05.got': done('2026-10-26T17:50:00+02:00') }, 'p05.got', '2026-10-26T17:51:00+02:00');
   assert.match(msg(w, '2026-10-26T17:51:00+02:00'), /\nיעד: יום ג׳ 27\.10 09:20\n/);
 });
 
@@ -165,25 +165,25 @@ test('nothing to offer: another item, an unchecked one, a mark, or a message to 
   const c = client();
   const when = '2026-10-29T10:00:00+02:00';
   assert.deepEqual(offer(c, { 'p05.logo': done(when) }, 'p05.logo', when), []);
-  assert.deepEqual(offer(c, {}, 'p05.access', when), []);
-  assert.deepEqual(offer(c, { 'p05.access': { state: 'na', at: when } }, 'p05.access', when), []);
+  assert.deepEqual(offer(c, {}, 'p05.got', when), []);
+  assert.deepEqual(offer(c, { 'p05.got': { state: 'na', at: when } }, 'p05.got', when), []);
   assert.deepEqual(offer(c, { ...all('p19', when), 'p19.claim': done(when, 'lior') }, 'p19.claim', when), []);
   assert.deepEqual(offer(c, { 'p05.handoff.ofir': done(when) }, 'p05.handoff.ofir', when), []);
   // Ofir took the accesses himself (he runs the characterization): no message to himself.
-  assert.deepEqual(offer(c, { 'p05.access': done(when) }, 'p05.access', when, { from: 'ofir' }), []);
-  assert.deepEqual(people(offer(c, { 'p05.access': done(when) }, 'p05.access', when, { from: 'irit' })), ['ofir']);
+  assert.deepEqual(offer(c, { 'p05.got': done(when) }, 'p05.got', when, { from: 'ofir' }), []);
+  assert.deepEqual(people(offer(c, { 'p05.got': done(when) }, 'p05.got', when, { from: 'irit' })), ['ofir']);
   assert.deepEqual(offer(c, { 'p28.auto': done(when) }, 'p28.auto', when, { from: 'irit' }), []);
   assert.deepEqual(people(offer(c, { 'p25.approved': done(when) }, 'p25.approved', when, { from: 'lior' })), ['irit']);
-  assert.deepEqual(offer(c, { 'p05.access': done(when) }, 'nonsense', when), []);
+  assert.deepEqual(offer(c, { 'p05.got': done(when) }, 'nonsense', when), []);
 });
 
 test('the card\'s "העברות" line: what went to whom, and whether WhatsApp was opened', () => {
   const c = client();
   const now = at('2026-10-20T12:00:00+03:00');
-  const checks = { 'p05.access': done('2026-10-20T11:00:00+03:00') };
+  const checks = { 'p05.got': done('2026-10-20T11:00:00+03:00') };
   const line = (ch, id) => { const s = clientState(c, ch, now); return handoffsOf(c, ch, s, s.states.find((x) => x.proc.id === id), now); };
   const [o] = line(checks, 'p05');
-  assert.deepEqual([o.person, o.done, o.sent, o.triggerKey], ['ofir', true, null, 'p05.access']);
+  assert.deepEqual([o.person, o.done, o.sent, o.triggerKey], ['ofir', true, null, 'p05.got']);
   assert.deepEqual(line(checks, 'p06'), []);
   const sent = { ...checks, 'p05.handoff.ofir': done('2026-10-20T11:02:00+03:00') };
   assert.equal(line(sent, 'p05')[0].sent.at, '2026-10-20T11:02:00+03:00');
@@ -194,7 +194,7 @@ test('the card\'s "העברות" line: what went to whom, and whether WhatsApp w
   assert.equal(describeMark('p05.handoff.ilai'), 'גישות התקבלו ← עילאי');
   assert.equal(describeMark('r2.p22a.handoff.editor'), 'עורך שויך ← העורך המשויך');
   assert.equal(describeMark('p25.handoff.lior'), 'אופיר אישר את הסרטונים ← ליאור');
-  assert.equal(describeMark('p05.access'), null);
+  assert.equal(describeMark('p05.got'), null);
 });
 
 test('the record names whom WhatsApp was opened for: the editor by name; an old record of Lior\'s 22א keeps his name', () => {
@@ -228,7 +228,7 @@ test('closed clients and finished work: nothing to hand over', () => {
   // A cancelled or ended client: no prompt and no line (with nothing sent).
   for (const status of ['cancelled', 'ended']) {
     const c = client({ status });
-    assert.deepEqual(offer(c, { 'p05.access': done(when) }, 'p05.access', when), [], status);
+    assert.deepEqual(offer(c, { 'p05.got': done(when) }, 'p05.got', when), [], status);
     assert.deepEqual(line(c, finished, 'p05'), [], status);
     assert.deepEqual(line(c, finished, 'p07'), [], status);
     // What was opened in WhatsApp stays as a record, without a button.
@@ -236,13 +236,13 @@ test('closed clients and finished work: nothing to hand over', () => {
     assert.deepEqual(line(c, sent, 'p05').map((o) => [o.markKey, o.live]), [['p05.handoff.ofir', false]], status);
   }
   const c = client({ status: 'ending' });
-  assert.deepEqual(people(offer(c, { 'p05.access': done(when) }, 'p05.access', when)), ['ofir'], 'a client in its last month is still in work');
+  assert.deepEqual(people(offer(c, { 'p05.got': done(when) }, 'p05.got', when)), ['ofir'], 'a client in its last month is still in work');
   // The next person already did their part: Ofir checked the access (6), Irit sent
   // the graphics (7), the editor was assigned (22א), the gantt went out (29).
   const active = client();
   assert.deepEqual(line(active, finished, 'p05'), []);
-  assert.deepEqual(line(active, { 'p05.access': done(when), 'p06.verified': done(when) }, 'p05'), []);
-  assert.deepEqual(offer(active, { 'p05.access': done(when), 'p06.verified': done(when) }, 'p05.access', when), []);
+  assert.deepEqual(line(active, { 'p05.got': done(when), 'p06.ok': done(when) }, 'p05'), []);
+  assert.deepEqual(offer(active, { 'p05.got': done(when), 'p06.ok': done(when) }, 'p05.got', when), []);
   assert.deepEqual(line(active, { 'p07.made': done(when), 'p07.sent': done(when) }, 'p07'), []);
   const shoot = all('p19', when);
   assert.deepEqual(offer(active, { ...shoot, 'p22a.assigned': done(when) }, 'p19.took', when), []);
@@ -253,7 +253,7 @@ test('closed clients and finished work: nothing to hand over', () => {
   assert.deepEqual(line(r, { 'r2.p28.auto': done(when), 'r2.p29.sent': done(when) }, 'r2-p28'), [], 'a round\'s own items');
   assert.deepEqual(line(r, { 'r2.p28.auto': done(when), 'p29.sent': done(when) }, 'r2-p28').length, 1, 'not the first round\'s');
   // Still open: the line offers it, with a button.
-  assert.deepEqual(line(active, { 'p05.access': done(when) }, 'p05').map((o) => [o.person, o.live]), [['ofir', true]]);
+  assert.deepEqual(line(active, { 'p05.got': done(when) }, 'p05').map((o) => [o.person, o.live]), [['ofir', true]]);
   // Undone after WhatsApp was opened: the record stays, the button goes.
   assert.deepEqual(line(active, { 'p05.handoff.ofir': done(when, 'ofir') }, 'p05').map((o) => [o.done, o.live]), [[false, false]]);
 });
@@ -261,8 +261,8 @@ test('closed clients and finished work: nothing to hand over', () => {
 test('an offer stands while its check does', () => {
   const when = '2026-10-29T10:00:00+02:00';
   const c = client();
-  const checks = { 'p05.access': done(when) };
-  const [o] = offer(c, checks, 'p05.access', when);
+  const checks = { 'p05.got': done(when) };
+  const [o] = offer(c, checks, 'p05.got', when);
   assert.equal(stillStands(o, c, checks), true);
   assert.equal(stillStands(o, c, {}), false);
   assert.equal(stillStands(o, { ...c, status: 'cancelled' }, checks), false);

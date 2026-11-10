@@ -146,7 +146,7 @@ test('the new keys pass the table\'s own check; the writers table is the app\'s;
   const rows = (await db.query('select key, proc, round, persons from private.protocol_writers')).rows.sort(byKey);
   // Shiel (9.11.2026) joined the table later, in 20261205100000_shiel.sql: the app's table without him.
   // Version 13 (20261208120000_protocol_v13.sql) changed the table again: the rows it did not touch are the app's.
-  // And Noam's leaving (20261209100000_remove_noam.sql, 10.11.2026) changed 6, 8 and 8ב again.
+  // And Noam's leaving (20261210110000_remove_noam.sql, 10.11.2026) changed 6, 8 and 8ב again.
   const V13P = new Set(['p04', 'p05', 'p06', 'p08', 'p08b', 'p09', 'p17b', 'p19b', 'p28', 'p29', 'p29b']); // the processes v13 (and Noam's leaving) changed
   const v13 = (r) => V13P.has(r.proc) || V13P.has(String(r.key).split('.')[0]);
   const app = writerRows().filter((r) => !v13(r)).map((r) => ({ ...r, persons: r.persons.filter((p) => p !== 'shiel') })).sort(byKey);

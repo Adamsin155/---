@@ -117,7 +117,7 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   if (fix) holders = holders.filter((p) => p !== fix.owner);
   // The processes whose clock starts here (a shoot round's anchors carry the round: 'r2-p19', 'item:r2.p22a.assigned').
   const next = states.filter((x) => !x.complete && x !== s && [x.proc.start?.from, x.proc.due?.from]
-    .some((from) => from === s.proc.id || (String(from || '').startsWith('item:') && openKeys.has(String(from).slice(5)))));
+    .some((from) => from === s.proc.id || (String(from || '').startsWith('item:') && String(from).slice(5).split('|').some((k) => openKeys.has(k)))));
   const waiters = real([
     ...items.filter((i) => !free.includes(i) || isAfter(i)).flatMap(owned),
     ...handoffTargets(s, client, checks, openKeys, { inside: false }).map((t) => t.person),
@@ -168,7 +168,7 @@ export function lateItems({ clients = [], checksOf = () => ({}), stateOf, tasks 
         dueAt, lateAt: addWorkingMinutes(dueAt, grace), ...chain,
         // Only process 3's missing meeting date has a daily ring of its own (section 47). 11
         // without a shoot date (protocol v8) is a late item like any other: it is on the ladder.
-        ownLadder: fast || (b === 'p04' && done('p04.ended')) || (b === 'p27' && done('p27.final')), fast, gap: !!s.gap && b === 'p03',
+        ownLadder: fast || (b === 'p04' && done('p04.ended')) || (b === 'p27' && (done('p27.final') || done('p27.approved'))), fast, gap: !!s.gap && b === 'p03',
         ref: s.proc.keyBase || s.proc.id, procId: s.proc.id, task: null,
       });
     }

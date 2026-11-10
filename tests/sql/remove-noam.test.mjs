@@ -1,4 +1,4 @@
-// Noam left the company (10.11.2026; docs/ops.md, section 124): supabase/migrations/20261209100000_remove_noam.sql
+// Noam left the company (10.11.2026; docs/ops.md, section 127): supabase/migrations/20261210110000_remove_noam.sql
 // in a real Postgres (PGlite) with every migration:
 //   - the file only replaces functions and rewrites the writers' table, refuses nothing the deploy tool
 //     refuses, its writers block is the one the app generates, and it runs twice;
@@ -14,7 +14,7 @@ import { freshDatabase, as, migrationSql, migrationFiles } from './pg.mjs';
 import { buildPayload, emptyForm } from '../../app/access-logic.js';
 import { sqlBlock, latestBlock } from '../../scripts/protocol-writers.mjs';
 
-const FILE = '20261209100000_remove_noam.sql';
+const FILE = '20261210110000_remove_noam.sql';
 const PEOPLE = { owner: null, irit: 'irit', ofir: 'ofir', ilai: 'ilai', noam: 'noam' };
 let db;
 const users = {};

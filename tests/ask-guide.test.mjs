@@ -77,7 +77,7 @@ test('no leaks: a screen or a how-to is in a guide only when the person has its 
   // Eli: his shoot days; Ilai: his Gantt and the Drive links; the field sales: their deals only.
   assert.deepEqual(ids(guideOf(v('eli')).mine), ['mine', 'clients', 'shoot', 'calendar', 'ask']);
   const ilai = guideOf(v('ilai'));
-  assert.deepEqual(ids(ilai.mine), ['mine', 'clients', 'gantt', 'ask']);
+  assert.deepEqual(ids(ilai.mine), ['mine', 'clients', 'gantt', 'tracking', 'ask']);
   assert.ok(qs(ilai).includes('איך מושכים קישורים מהדרייב לגאנט?'));
   assert.ok(!qs(ilai).includes('איך מוסיפים לקוח חדש?'));
   for (const s of ['stav', 'amos']) {

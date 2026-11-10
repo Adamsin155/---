@@ -51,7 +51,6 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { fastCaseOf, setOfirMeetings } from './fast-ladder.js';
-import { accessChecked, AUTO_ACCESS_NOTE } from './access-check.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
 // Lior's four things (protocol v12): the forms of 30, 36 ("11ג") and 12.
@@ -650,7 +649,7 @@ async function openCardAssign() {
   } else if (mode === 'change') {
     // The editing is on: qa.html's swap, with its clocks. Otherwise only the editor is rewritten.
     const job = Object.values(editorLoad({ clients: [client], stateOf, checks: assignWorld.checks, tasks: assignWorld.tasks }))
-      .flatMap((l) => l.jobs).find((j) => !j.n && !j.second);
+      .flatMap((l) => [...l.jobs, ...l.waiting]).find((j) => !j.n && !j.second);
     if (job && kept) assignUi.openSwap(client.editor, job);
     else assignUi.open({ ...base, record: { from: client.editor, kept } });
   } else {
@@ -812,12 +811,9 @@ async function refreshAccess() {
 // in, the check is done by itself (system-plan section 3; app/access-check.js). The process
 // is Ofir's since 28.10.2026: only the office writes it (Ilai still reads the vault, and a
 // status he saves no longer closes a check that is not his).
-async function autoAccessCheck() {
-  if (scope !== 'office' || viewerError) return;
-  const got = checks['p05.access'];
-  if (checks['p06.verified'] || got?.state !== 'done' || !accessChecked(access, got.at)) return;
-  if (await mark('p06.verified', 'done', null, AUTO_ACCESS_NOTE)) toast('כל הרשתות בכספת קיבלו סטטוס: בדיקת הגישות (6) סומנה.');
-}
+// Protocol v14 (Ofir: "לאחד"): 6 is one mark, p06.ok, for the check, the pages and Metricool, so the
+// statuses no longer close it by themselves; nothing is written here any more.
+async function autoAccessCheck() {}
 // Only the log: re-rendering the list would wipe a password being shown.
 async function refreshAccessLog() {
   try {
@@ -3056,6 +3052,12 @@ mountSession(async (staff) => {
     history.replaceState(null, '', location.pathname + location.search);
     const n = roundHash[2] ? Number(roundHash[2]) : null;
     if (!n || roundsOf(client).some((r) => r.n === n)) openRound(n);
+  }
+  // "שינוי" / "שיוך" beside the editor in "מעקב לקוחות" (tracking.html, 10.11.2026): #assign opens this
+  // card's own editor dialog (the same one as the button beside "עורך"), for whoever may open it here.
+  if (client && location.hash === '#assign' && !own()) {
+    history.replaceState(null, '', location.pathname + location.search);
+    if (assignMode(clientState(client, checks, new Date()))) openCardAssign();
   }
   const readHash = /^#read-([0-9a-f-]{36})$/.exec(location.hash);
   if (client && readHash && !own()) {

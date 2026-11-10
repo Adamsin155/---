@@ -201,14 +201,14 @@ test('the migration file: nothing in it removes an object or a row, and there is
     '20261112100000_new_influencers.sql': ['private.my_clients', 'public.can_see_client'],
     '20261123100000_noam.sql': ['private.task_gives_access', 'public.access_form_submit'],
     '20261205100000_shiel.sql': ['private.task_gives_access', 'public.access_form_submit'],
-    // And Noam leaving (20261209100000_remove_noam.sql, 10.11.2026): the same two again, without her.
-    '20261209100000_remove_noam.sql': ['public.access_form_submit', 'private.task_gives_access'] };
+    // And Noam leaving (20261210110000_remove_noam.sql, 10.11.2026): the same two again, without her.
+    '20261210110000_remove_noam.sql': ['public.access_form_submit', 'private.task_gives_access'] };
   const KEEP = { '20261031100000_access_and_editors.sql': ['private.task_gives_access(t.created_by_email)', "staff cannot send the form for the client", "'notes too long'", "char_length(coalesce(p ->> 'notes', '')) > 300", 'v_beside', 'client_note_private', 'vault.update_secret(a.secret_id, v_pass)'],
     '20261102100000_gantt_irit.sql': ["if current_user = 'authenticated' then", 'new.metricool_blog_id := old.metricool_blog_id;', 'new.metricool_brand := old.metricool_brand;', 'new.quote_id := old.quote_id;', 'new.metricool_blog_id := null;'],
     '20261111100000_p06_ofir.sql': FORM_KEEP,
     '20261123100000_noam.sql': [...FORM_KEEP, "s.person is not null and s.person not in ('irit', 'lior', 'ofir', 'ilai', 'noam')", "revoke execute on function private.task_gives_access(text) from public, anon, authenticated;"],
     '20261205100000_shiel.sql': [...FORM_KEEP, "s.person is not null and s.person not in ('irit', 'lior', 'ofir', 'ilai', 'noam', 'shiel')", "revoke execute on function private.task_gives_access(text) from public, anon, authenticated;"],
-    '20261209100000_remove_noam.sql': [...FORM_KEEP, "s.person is not null and s.person not in ('irit', 'lior', 'ofir', 'ilai', 'shiel')", "revoke execute on function private.task_gives_access(text) from public, anon, authenticated;"],
+    '20261210110000_remove_noam.sql': [...FORM_KEEP, "s.person is not null and s.person not in ('irit', 'lior', 'ofir', 'ilai', 'shiel')", "revoke execute on function private.task_gives_access(text) from public, anon, authenticated;"],
     '20261112100000_new_influencers.sql': ['select a.id from private.my_assigned_clients() as a(id)', "me.p = 'eli' and private.shoot_in_window(c.shoot_at, c.rounds)",
       'select not private.is_archived(p_client) and (public.is_office() or (me.p is not null and (', 'private.is_assigned(p_client)'] };
   for (const f of migrationFiles().filter((x) => x > MIGRATION)) {

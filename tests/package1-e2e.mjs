@@ -375,7 +375,7 @@ await step('with the Drive link "מוכן לבדיקה" goes to Ofir, and the li
   await shots(nadia, 'editor-unlocked');
   await nadia.click('#ready-submit');
   await toastHas(nadia, 'נשלח לאופיר');
-  assert.ok(checkOf(D, 'p24.notify') && checkOf(D, 'p22.edited'));
+  assert.ok(checkOf(D, 'p24.notify') && checkOf(D, 'p22.self.spelling') && !checkOf(D, 'p22.edited')); // v14: p22.edited left
   assert.equal(checkOf(D, 'p24.drive').note, DRIVE);
   await nadia.click('#handoff-close').catch(() => {});
   await nadia.waitForSelector(`${card}-drive`, { state: 'attached' }); // the card folds once it went to Ofir

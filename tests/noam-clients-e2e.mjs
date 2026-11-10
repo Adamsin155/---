@@ -1,4 +1,4 @@
-// Noam left the company on 10.11.2026 (docs/ops.md, section 124): her steps here (1.11.2026: all the current clients
+// Noam left the company on 10.11.2026 (docs/ops.md, section 127): her steps here (1.11.2026: all the current clients
 // in her list) left with her. What stays: a client still set to her is Ofir's work, keeps her name on its card, and
 // the pickers "מי מבצע את האפיון" ("קביעת מועד" and the card's edit form) offer only who works here.
 // Shiel (9.11.2026; docs/ops.md, section 113): the same list, and the meeting's form of his client.

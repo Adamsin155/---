@@ -39,7 +39,7 @@ test('everything each role may open, in one order', () => {
   // Irit: the same without "הודעות ללקוחות" (off for her since 9.11.2026).
   assert.deepEqual(ids(v('irit')), MANAGER_MENU.filter((id) => id !== 'messages'), 'irit');
   // The builder left the menus of Ilai, Nirel, the editors and Eli (8.10.2026): not theirs to do.
-  assert.deepEqual(ids(v('ilai')), ['mine', 'clients', 'gantt', 'year', 'calendar', 'ask']);
+  assert.deepEqual(ids(v('ilai')), ['mine', 'clients', 'gantt', 'tracking', 'year', 'calendar', 'ask']);
   for (const editor of ['nirel', 'nadia', 'yariv', 'anna']) assert.deepEqual(ids(v(editor)), ['mine', 'clients', 'editor', 'calendar', 'ask'], editor);
   assert.deepEqual(ids(v('eli')), ['mine', 'clients', 'shoot', 'calendar', 'ask']);
   // The field agents: their own page, and the bot (29.10.2026).
@@ -93,7 +93,7 @@ test('nobody has a switch inside the menu (Irit\'s two entries went on 7.10.2026
   // Without profiles the menu of either profile is the whole menu, unchanged; Ilai's leaves out
   // the package year and the calendar (the owner, 20.10.2026: they repeat his task list).
   for (const viewer of ['nadia', 'eli', 'stav'].map(v)) for (const p of ['mine', 'manager', null]) assert.deepEqual(profileMenu(viewer, p), menuOf(viewer), viewer.me);
-  for (const p of ['mine', 'manager', null]) assert.deepEqual(profileMenu(v('ilai'), p).map((it) => it.id), ['mine', 'clients', 'gantt', 'ask']);
+  for (const p of ['mine', 'manager', null]) assert.deepEqual(profileMenu(v('ilai'), p).map((it) => it.id), ['mine', 'clients', 'gantt', 'tracking', 'ask']);
 });
 
 // The owner's wording of 7.10.2026: the builder is "הצעה חדשה והכנת חוזה" for everyone who
@@ -235,9 +235,10 @@ test('the phone\'s bar: the role\'s three screens and "עוד"; four or fewer al
   // From 8.10.2026 (no builder in his menu) his four screens all fit; since the calendar
   // (15.10.2026) he has five again: the package year and the calendar are behind "עוד".
   // "שאלו את המערכת" (29.10.2026) is behind "עוד" too.
-  assert.deepEqual(bar(v('ilai')), [['mine', 'clients', 'gantt'], 3]);
+  assert.deepEqual(bar(v('ilai')), [['mine', 'clients', 'gantt'], 4]);
   // His own menu (no package year and no calendar): four with the bot, all in the bar.
-  assert.deepEqual(barOf(profileMenu(v('ilai'), 'mine'), v('ilai')).bar.map((it) => it.id), ['mine', 'clients', 'gantt', 'ask']);
+  // "מעקב לקוחות" (10.11.2026: he fixes the graphics count there) is his fourth; the bot went behind "עוד".
+  assert.deepEqual(barOf(profileMenu(v('ilai'), 'mine'), v('ilai')).bar.map((it) => it.id), ['mine', 'clients', 'gantt', 'tracking']);
   // The editors and Eli: their three screens and the calendar stay in the bar; the bot alone under "עוד".
   assert.deepEqual(bar(v('nadia')), [['mine', 'clients', 'editor', 'calendar'], 1]);
   assert.deepEqual(bar(v('eli')), [['mine', 'clients', 'shoot', 'calendar'], 1]);
@@ -369,7 +370,7 @@ test('"אפיון חדש" / "עדכון אפיון": the owners, Irit, Lior and 
 test('"מעקב לקוחות": the owners, Irit, Lior and Ofir; Irit\'s own profile', () => {
   const has = (viewer) => menuOf(viewer).some((it) => it.id === 'tracking' && it.href === 'tracking.html' && it.label === 'מעקב לקוחות');
   assert.equal(has(OWNER), true);
-  for (const who of ROLES) assert.equal(has(v(who)), ['irit', 'lior', 'ofir'].includes(who), who);
+  for (const who of ROLES) assert.equal(has(v(who)), ['irit', 'lior', 'ofir', 'ilai'].includes(who), who);
   assert.equal(has({ me: null, scope: 'own', error: new Error('x') }), false);
   assert.equal(PERSONAL.irit.includes('tracking'), true);
   for (const [viewer, p] of [[OWNER, 'manager'], [v('lior'), 'manager'], [v('ofir'), 'manager'], [v('irit'), 'mine']]) {

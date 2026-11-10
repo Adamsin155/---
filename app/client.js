@@ -1,5 +1,6 @@
 // Client-facing quote page: loads a quote by token and lets the client sign it.
 import { renderQuoteDoc, formatDate } from './quote-doc.js';
+import { downloadPdf, pdfFileName } from './pdf-export.js';
 import { formatILS } from './pricing.js';
 import { pageToken } from './link-token.js';
 import { headIcon } from './kit.js';
@@ -49,7 +50,7 @@ function render(q) {
   $('doc').replaceChildren(renderQuoteDoc(q.model, docMeta(q)));
   $('doc').hidden = false;
   $('state').hidden = true;
-  $('btn-print').hidden = false;
+  $('btn-pdf').hidden = false;
   const tot = q.model.totals;
   $('strip-month').textContent = formatILS(tot.monthlyGross);
   $('strip-sub').textContent = `${q.model.termMonths} חודשים · סה״כ ${formatILS(tot.termGross)} כולל מע״מ`;
@@ -294,7 +295,22 @@ $('sign-form').addEventListener('submit', async (e) => {
   }
 });
 
-$('btn-print').addEventListener('click', () => window.print());
+// "הורדת PDF": the document as a file to keep, as on the screen; a signed agreement with its
+// signature (docs/ops.md, section 124). Unsigned, the file has a line to sign by hand.
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg;
+  $('toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4000);
+}
+$('btn-pdf').addEventListener('click', async (e) => {
+  if (!quote) return;
+  const model = { ...quote.model, docType: quote.model.docType || (quote.model.signable === false ? 'quote' : 'agreement') };
+  await downloadPdf(e.currentTarget, renderQuoteDoc(quote.model, { ...docMeta(quote), signOnline: false }), pdfFileName(model), {
+    onError: () => toast('לא הצלחנו להכין את קובץ ה־PDF. נסו שוב.'),
+  });
+});
 
 // "מה זה?" under the WhatsApp checkbox: one line, opened on demand.
 $('wa-what').addEventListener('click', () => {

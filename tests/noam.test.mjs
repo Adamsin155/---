@@ -1,4 +1,4 @@
-// Noam left the company (the owner, 10.11.2026; docs/ops.md, section 124). Ofir took over all of
+// Noam left the company (the owner, 10.11.2026; docs/ops.md, section 127). Ofir took over all of
 // her work. (From 1.11.2026 she ran characterization meetings and set pages and Highlights up.)
 //   - no list offers her: the characterizer pickers (the card, "קביעת מועד", "פגישה חדשה", the
 //     owner's Claude tools), tasks, notes, reminders, ask, the team screen, the work lists, the
@@ -110,7 +110,7 @@ test('the work of an old client still set to her is Ofir\'s', () => {
 });
 
 test('the database: the migration takes her out of the functions, and keeps the history\'s checks', () => {
-  const sql = src('supabase/migrations/20261209100000_remove_noam.sql');
+  const sql = src('supabase/migrations/20261210110000_remove_noam.sql');
   for (const fn of ['is_office', 'can_connect_metricool', 'can_edit_gantt', 'can_manage_access_links', 'ofir_meetings', 'access_form_submit', 'staff_task_create_brief']) {
     assert.match(sql, new RegExp(`create or replace function public\\.${fn}\\(`), fn);
   }

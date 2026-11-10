@@ -22,10 +22,12 @@
 //   - the shoot has an editor (one, or two with `editor2`): the marks of 22 and 24 are one set for
 //     the shoot, shared by both editors (each one's share, `editor_split`, is only a count), so
 //     "everything marked" is both shares done: one editor's half is never marked "all done";
-//   - 22 is complete (every live item: the start checks, the edit, the self-check and the five
-//     critical mistakes; done or "לא רלוונטי");
-//   - every live item of 24 but p24.notify is resolved: the folder and the Drive, and Dropbox only
-//     when the card has the client's Dropbox link (app/production.js needsDropbox, as "מוכן לבדיקה");
+//   - 22 is complete (every live item; done or "לא רלוונטי"). Since protocol v14 (the editors'
+//     "סדר בסימונים", docs/ops.md section 126) that is: all the footage there, the scripts clear,
+//     no spelling mistakes, sound and exposure. A retired item (`retired: 14`: "התקבל הכונן", the
+//     edit, the B-Roll, closing, "כל הכמות", stable, angles, export) is not asked, for any client;
+//   - every live item of 24 but p24.notify is resolved: the folder and the Drive ("כל הסרטונים
+//     הועלו לדרייב", which says the editing is done). Dropbox left in v14 (p24.dropbox);
 //   - p24.notify has no mark at all (done or "לא רלוונטי": never written over);
 //   - nothing after it happened yet (no mark of 25, 26 or 27 in this shoot: a client long past it
 //     is not sent back to Ofir), and 24 is not waiting on the client;
@@ -33,13 +35,10 @@
 //     import from the old system: a history row is not a fresh hand-off).
 import { editorsOf } from './protocol.js';
 import { IMPORT_NOTE, isResolved } from './protocol-logic.js';
-import { needsDropbox } from './production.js';
 
 export const NOTIFY = 'p24.notify';
 export const AUTO_NOTE = 'הועבר לאופיר אוטומטית: כל העריכה והדרייב סומנו';
 const LATER = /^p(25|26|27)\./;
-
-const baseOf = (key) => key.replace(/^r\d+\./, '');
 
 // The keys to write for one client now ([] when none): `${pre}p24.notify` for the client's own
 // shoot and for each round whose editing is all marked. `state`: clientState(client, checks).
@@ -55,7 +54,7 @@ export function editorReadyKeys(client, checks = {}, state = null) {
     if (!editorsOf(s24.proc.ctx || client).length) continue;
     const s22 = state.states.find((x) => x.proc.id === `${pid}p22`);
     if (!s22?.complete) continue;
-    const need = s24.proc.items.filter((i) => i.key !== key && (!i.optional || (baseOf(i.key) === 'p24.dropbox' && needsDropbox(client))));
+    const need = s24.proc.items.filter((i) => i.key !== key && !i.optional);
     if (!need.every((i) => isResolved(i, checks[i.key]))) continue;
     const later = Object.keys(checks).some((k) => k.startsWith(pre) && LATER.test(k.slice(pre.length)) && (pre || !/^r\d+\./.test(k)) && checks[k]);
     if (later) continue;

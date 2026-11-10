@@ -195,12 +195,18 @@ await step('switch Natali → Simeon removes Natali items + join, explains', asy
   assert.equal(await page.locator('#free-simeonStories').inputValue(), '3', 'stories stay valid for simeon');
 });
 
-await step('preview/print/link require client name', async () => {
+await step('preview/PDF/link of an agreement require client name', async () => {
   await page.locator('#btn-preview').click();
   assert.ok(await page.locator('#c-name-err').isVisible());
   assert.equal(await page.evaluate(() => document.activeElement.id), 'c-name');
   await page.locator('#c-name').fill('   ');
-  await page.locator('#btn-print').click();
+  let downloads = 0;
+  const count = () => { downloads += 1; };
+  page.on('download', count);
+  await page.locator('#btn-pdf').click();
+  await page.waitForTimeout(800);
+  page.off('download', count);
+  assert.equal(downloads, 0);
   assert.equal(await page.evaluate(() => window.__printed || 0), 0);
   assert.ok(await page.locator('#c-name-err').isVisible());
 });
@@ -252,9 +258,10 @@ await step('preview renders text safely and matches summary', async () => {
   assert.equal(await page.evaluate(() => document.activeElement.id), 'btn-preview', 'focus returns');
 });
 
-await step('print renders only the quote', async () => {
-  await page.locator('#btn-print').click();
-  await page.waitForFunction(() => window.__printed === 1);
+await step('print (Ctrl+P) renders only the quote', async () => {
+  assert.equal(await page.locator('#btn-print').count(), 0, 'no print button (10.11.2026: הורדת PDF)');
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  await page.locator('#print-root img.qd-logo').evaluate((img) => img.decode().catch(() => {}));
   assert.ok(await page.locator('#print-root img.qd-logo').evaluate((img) => img.complete && img.naturalWidth > 0), 'logo loaded before print');
   await page.emulateMedia({ media: 'print' });
   assert.ok(await page.locator('#print-root .qd').isVisible());

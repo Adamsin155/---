@@ -5,11 +5,11 @@
 // client card's vault (app/client-card.js) and the tests.
 import { NEW_STATUS, byClient } from './access-logic.js';
 
-// The six quick checks of the page setup, in the protocol's order (app/protocol.js p06).
-export const PAGE_KEYS = ['p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look'];
-export const PAGE_LABELS = { 'p06.name': 'שם העמוד', 'p06.bio': 'Bio', 'p06.details': 'פרטי עסק', 'p06.phone': 'טלפון', 'p06.address': 'כתובת', 'p06.look': 'מראה העמוד' };
-// The items of the check itself (the rest of 6 is the page setup above).
-export const ACCESS_KEYS = ['p06.verified', 'p06.newpages', 'p06.metricool'];
+// Protocol v14 (Ofir: "לאחד"): 6 is one mark, p06.ok. The six quick checks of the page setup and the
+// three of the check (verified, new pages, Metricool) are retired; their old marks pass p06.ok.
+export const PAGE_KEYS = [];
+export const PAGE_LABELS = {};
+export const ACCESS_KEYS = ['p06.ok'];
 export const AUTO_ACCESS_NOTE = 'נסגר לבד: כל הרשתות בכספת קיבלו סטטוס';
 
 // Whether every login in the vault has a status set after the access came in

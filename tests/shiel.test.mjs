@@ -82,7 +82,7 @@ test('the owners: the meeting (4) and the logins (5) are his; the pages and the 
   assert.equal(pagesOwnerOf(shiels), 'ofir');
   assert.deepEqual(ownersOf(shiels, 'p04').filter((p) => p !== 'irit'), ['shiel']);
   assert.ok(ownersOf(shiels, 'p05').includes('shiel'));
-  for (const id of ['p06', 'p08', 'p08b']) assert.deepEqual(ownersOf(shiels, id), ['ofir'], id);
+  for (const id of ['p06', 'p08']) assert.deepEqual(ownersOf(shiels, id), ['ofir'], id); // (v14: 8ב left, one mark in 8)
   assert.equal(lateRungOf('p08b', shiels), 'ofir');
   // Everyone else's client: Ofir's.
   assert.equal(pagesOwnerOf(noams), 'ofir');
@@ -101,8 +101,9 @@ test('the owners: the meeting (4) and the logins (5) are his; the pages and the 
 });
 
 test('the hand-off of 5: to Ofir, also when Shiel marked it', () => {
-  const checks = { 'p05.access': done('p05.access', IL(2026, 11, 2, 11), 'shiel@x') };
-  const offers = (from) => handoffsFor(shiels, checks, 'p05.access', { now: IL(2026, 11, 2, 11, 1), from }).map((o) => [o.person, o.markKey]);
+  // v14: offered when 5 is complete, by its one mark (p05.got).
+  const checks = { 'p05.got': done('p05.got', IL(2026, 11, 2, 11), 'shiel@x') };
+  const offers = (from) => handoffsFor(shiels, checks, 'p05.got', { now: IL(2026, 11, 2, 11, 1), from }).map((o) => [o.person, o.markKey]);
   assert.deepEqual(offers('shiel'), [['ofir', 'p05.handoff.ofir']]);
   assert.deepEqual(offers('irit'), [['ofir', 'p05.handoff.ofir']]);
 });
@@ -180,9 +181,9 @@ test('the screens: the meeting\'s form and every client; not the Gantt, Metricoo
 });
 
 test('who writes: Shiel the items of 4 and 5; not 6, 8 or the office\'s', () => {
-  for (const key of ['p04.address', 'p04.saved', 'p05.access', 'p05.logo']) assert.equal(mayWrite({ person: 'shiel', client: shiels, key }), true, key);
-  for (const key of ['p06.verified', 'p08.done', 'p08b.posted', 'p04.followup', 'p05.vault', 'p07.made', 'p22a.assigned']) assert.equal(mayWrite({ person: 'shiel', client: shiels, key }), false, key);
+  for (const key of ['p04.address', 'p04.saved', 'p05.got', 'p05.access', 'p05.logo']) assert.equal(mayWrite({ person: 'shiel', client: shiels, key }), true, key);
+  for (const key of ['p06.ok', 'p08.ok', 'p06.verified', 'p08.done', 'p08b.posted', 'p04.followup', 'p05.vault', 'p07.made', 'p22a.assigned']) assert.equal(mayWrite({ person: 'shiel', client: shiels, key }), false, key);
   assert.equal(mayWrite({ person: 'shiel', client: shiels, key: 'p04.saved', note: 'ייבוא' }), false, 'no imported history');
-  assert.equal(mayWrite({ person: 'ofir', client: shiels, key: 'p06.verified' }), true);
-  assert.equal(mayWrite({ person: 'noam', client: shiels, key: 'p06.verified' }), false, 'Noam left on 10.11.2026');
+  assert.equal(mayWrite({ person: 'ofir', client: shiels, key: 'p06.ok' }), true); // v14: one mark
+  assert.equal(mayWrite({ person: 'noam', client: shiels, key: 'p06.ok' }), false, 'Noam left on 10.11.2026');
 });

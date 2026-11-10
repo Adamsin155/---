@@ -28,7 +28,7 @@ const OWNER = v(null);
 const THREE = ['irit', 'ofir', 'lior'];
 const REST = ['ilai', 'shiel', 'nadia', 'nirel', 'eli', 'stav'];
 const MIGRATION = readFileSync(new URL('../supabase/migrations/20261128100000_managers_all.sql', import.meta.url), 'utf8');
-// The newest migration that defines a function wins (Noam left on 10.11.2026: 20261209100000_remove_noam.sql).
+// The newest migration that defines a function wins (Noam left on 10.11.2026: 20261210110000_remove_noam.sql).
 const MIGRATIONS = new URL('../supabase/migrations/', import.meta.url);
 const NEWEST_FIRST = readdirSync(MIGRATIONS).filter((f) => /^\d{14}_.+\.sql$/.test(f) && f >= '20261128100000').sort().reverse()
   .map((f) => readFileSync(new URL(f, MIGRATIONS), 'utf8'));

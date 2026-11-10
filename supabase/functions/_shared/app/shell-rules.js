@@ -95,7 +95,8 @@ export function menuOf(viewer) {
   // "מעקב לקוחות" (the owner, 9.11.2026, for Irit): one table of the clients in work, the editor
   // and the videos, graphics and shoot days against the package (tracking.html). The owners and
   // the managers (Irit, Lior, Ofir); in Irit's own profile, in the others' manager profile.
-  if (isManager(viewer)) list.push({ id: 'tracking', href: 'tracking.html', label: 'מעקב לקוחות' });
+  // Ilai too since 10.11.2026: its first tab, where he fixes the graphics count (app/tracking-fix-logic.js).
+  if (isManager(viewer) || me === 'ilai') list.push({ id: 'tracking', href: 'tracking.html', label: 'מעקב לקוחות' });
   list.push(...officeScreens(viewer));
   if (office) list.push({ id: 'prep', href: 'prep.html', label: 'לפני יום צילום', short: 'לפני צילום' });
   if (sendsMessages(viewer) && viewer.me !== 'irit') list.push({ id: 'messages', href: 'messages.html', label: 'הודעות ללקוחות' });

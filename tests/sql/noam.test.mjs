@@ -53,8 +53,8 @@ async function keep(d, u, sql, params = []) {
 const run = (who, sql, params = []) => as(db, users[who], async (tx) => (await tx.query(sql, params)).rows);
 
 before(async () => {
-  // Noam left on 10.11.2026 (20261209100000_remove_noam.sql, tests/sql/remove-noam.test.mjs): this file is the history, up to then.
-  db = await freshDatabase({ upTo: '20261209100000_remove_noam.sql' });
+  // Noam left on 10.11.2026 (20261210110000_remove_noam.sql, tests/sql/remove-noam.test.mjs): this file is the history, up to then.
+  db = await freshDatabase({ upTo: '20261210110000_remove_noam.sql' });
   await db.exec(readFileSync(PENDING, 'utf8'));
   Object.assign(users, await addPeople(db));
   ids.noam = await addClient(db, 'קפה נעמה', 'noam');
@@ -114,7 +114,8 @@ test('Noam sees every client and writes the characterization, as Ilai; Ofir as b
 
 test('who writes: Noam the items of 4, 5, 6, 8 and 8ב; Ofir all of them too; the database agrees with the app', async () => {
   const insert = (who, key) => as(db, users[who], async (tx) => (await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, $2, 'done') returning item_key", [ids.noam, key])).rows.length).catch(() => 0);
-  const keys = ['p04.address', 'p04.saved', 'p04.followup', 'p05.access', 'p05.vault', 'p06.verified', 'p06.metricool', 'p06.recovered', 'p08.done', 'p08b.posted', 'p05.handoff.noam', 'p07.made', 'p07.ofir', 'p22a.assigned'];
+  // (v14, 10.11.2026: 6 and 8 are one mark each, p06.ok and p08.ok, items this database does not know yet; their old keys left the app's list.)
+  const keys = ['p04.address', 'p04.saved', 'p04.followup', 'p05.access', 'p05.vault', 'p06.recovered', 'p05.handoff.noam', 'p07.made', 'p07.ofir', 'p22a.assigned'];
   for (const key of keys) {
     for (const who of ['noam', 'ofir', 'ilai']) {
       // Her rights as they were (the app has none for her since she left): the items of 4, 5, 6, 8 and 8ב.

@@ -101,40 +101,7 @@
     <p class="state" id="state" role="status"></p>
   </main>
 
-  <!-- (1) The drive arrived: "יש" or "חסר" for each of the four; what is "חסר" goes to
-       Irit and the editing goes on (app/editor.js). -->
-  <dialog id="dlg-start" class="ed-dlg" aria-labelledby="start-h">
-    <form id="start-form" novalidate>
-      <div class="dlg-head">
-        <h2 id="start-h">קיבלתי את הכונן</h2>
-        <button type="button" class="close" data-close aria-label="סגירה">×</button>
-      </div>
-      <div class="dlg-body">
-        <p class="muted" id="start-ctx"></p>
-        <!-- One tick for the four (the owner, 3.11.2026): what to check is read as lines; "משהו חסר?"
-             opens the old "יש" / "חסר" per line, for a report that lets the editing go on. -->
-        <fieldset class="prod-checks ed-qs" id="start-simple">
-          <legend>לפני שמתחילים: לבדוק בכונן</legend>
-          <ul class="ed-lines" id="start-lines"></ul>
-          <label class="prod-check ed-all" for="start-all"><input type="checkbox" id="start-all" class="cbx"><span>עברתי על הכול, הכול תקין</span></label>
-          <button type="button" class="btn-text ed-some" id="start-some" aria-controls="start-detail" aria-expanded="false">משהו חסר?</button>
-        </fieldset>
-        <fieldset class="prod-checks ed-qs" id="start-detail" hidden>
-          <legend>לפני שמתחילים: יש או חסר?</legend>
-          <div id="start-list"></div>
-        </fieldset>
-        <fieldset class="ed-to" id="start-to" hidden>
-          <legend>למי לשלוח את הדיווח?</legend>
-          <div class="ed-to-chips" id="start-to-chips"></div>
-        </fieldset>
-        <div class="err" id="start-err" role="alert" hidden></div>
-      </div>
-      <div class="dlg-foot ed-start-foot">
-        <button type="submit" class="btn btn-primary" id="start-submit" aria-describedby="start-hint">קיבלתי את הכונן והתחלתי</button>
-        <p class="hint" id="start-hint"></p>
-      </div>
-    </form>
-  </dialog>
+  <!-- (1) "קיבלתי את הכונן" left with protocol v14: the editing starts at the assignment. -->
 
   <!-- What is missing, at once to Irit, Lior or Ofir (the editor chooses): going on, or (when it cannot go on) stopping. -->
   <dialog id="dlg-missing" class="ed-dlg" aria-labelledby="miss-h">

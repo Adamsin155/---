@@ -3,7 +3,7 @@
 // of 3, both dates in words, the links, the number of videos, the logo and the
 // business phone with the ready closing line, Eli's notes and the 12א highlights;
 // and one button for the next step (app/production.js editorState):
-//   ממתין לכונן → (1) קיבלתי את הכונן והתחלתי → (2) מוכן לבדיקה → (3) תיקונים מאופיר
+//   בעריכה מהשיוך (protocol v14: no "ממתין לכונן" / "קיבלתי את הכונן" step) → (2) מוכן לבדיקה → (3) תיקונים מאופיר
 //   (the office's returns, app/office-ui.js fixList) → (4) תיקונים הושלמו, הגרסאות
 //   הסופיות בדרייב → אצל עילאי until he marks "קיבלתי" (p27.toilai).
 // The finished videos stay in the client's Google Drive (the owner's decision of
@@ -13,7 +13,7 @@
 // highlights from the focus call (app/intake-data.js, app/briefs.js).
 // Nirel also gets her "בריפים" inbox here. Each editor sees their own on-time and
 // first-pass numbers, never anyone else's.
-import { PEOPLE, CRITICAL_TITLE, editorsOf, editorNames, shareOf } from './protocol.js';
+import { PEOPLE, CRITICAL_TITLE, CRITICAL_MISTAKES, editorsOf, editorNames, shareOf } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import { clientState, WAIT, WAITED, waitNote, endWaitNote } from './protocol-logic.js';
 import { dayFromKeyIL, endOfDayIL } from './tz.js';
@@ -162,10 +162,7 @@ async function tidyBlocks() {
 // ── Rendering ───────────────────────────────
 function render() {
   const jobs = openJobs();
-  const waiting = jobs.filter((j) => j.st.key === 'waiting').length;
-  $('ed-summary').textContent = jobs.length
-    ? `${jobs.length === 1 ? 'לקוח אחד בעריכה' : `${jobs.length} לקוחות בעריכה`}${waiting ? ` · ${waiting} ממתינים לכונן` : ''}`
-    : '';
+  $('ed-summary').textContent = jobs.length ? (jobs.length === 1 ? 'לקוח אחד בעריכה' : `${jobs.length} לקוחות בעריכה`) : '';
   if (jobs.length) noteIcon($('ed-summary'), 'info', 'scissors');
   const { mine, waiting: theirs } = splitJobs(jobs);
   const sort = $('ed-sort');
@@ -251,7 +248,7 @@ function datesLine(job, st) {
   const ofir = job.p24?.dueAt;
   const close = job.p27?.dueAt;
   const parts = [];
-  if (['waiting', 'editing', 'fixes'].includes(st.key) && ofir) parts.push(`אצל אופיר עד ${P.dueWords(ofir, now)}`);
+  if (['editing', 'fixes'].includes(st.key) && ofir) parts.push(`אצל אופיר עד ${P.dueWords(ofir, now)}`);
   if (close && st.key !== 'ilai') parts.push(`סגירה עד ${P.dayWords(close, now)}`);
   // Each date is a small fact with a clock (docs/ops.md, section 62); read as text it is the same sentence.
   return parts.length ? h('div', { class: 'ed-dates' }, facts(parts.map((p) => ['clock', p]))) : null;
@@ -332,7 +329,6 @@ function videosGate(job) {
 // Where the videos are (the Drive link, once known), and under it, closed, the
 // optional upload into the system.
 function videosBlock(job, st) {
-  if (st.key === 'waiting') return null;
   const id = cardId(job);
   const link = linkOf(job);
   const gate = videosGate(job);
@@ -360,10 +356,6 @@ function stateBlock(job, st) {
   const missingBtn = h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: `${id}-missing`, onclick: () => openMissing(job) }, 'חסר לוגו / טלפון / חומר');
   const gate = st.key === 'final' ? videosGate(job) : null;
   switch (st.key) {
-    case 'waiting':
-      return h('div', { class: 'ed-act' },
-        h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: () => openStart(job) }, 'קיבלתי את הכונן והתחלתי'),
-        missingBtn);
     case 'editing':
       return h('div', { class: 'ed-act' },
         h('button', { type: 'button', class: 'btn btn-primary', id: `${id}-go`, onclick: () => openReady(job) }, 'מוכן לבדיקה'),
@@ -603,18 +595,13 @@ const showErr = (id, msg) => { $(id).textContent = msg; $(id).hidden = !msg; };
 const checkRow = (id, label, checked = false) => h('label', { class: 'prod-check', for: id },
   h('input', { type: 'checkbox', id, class: 'cbx', checked }), h('span', {}, label));
 
-// Each of the four is answered "יש" or "חסר" (the owner, 22.10.2026: an unticked box said
-// nothing). "קיבלתי את הכונן והתחלתי" opens once every line has an answer, in any mix: what
-// is "חסר" is reported to Irit with the words written under it, and the editing goes on, its
+// What is missing is reported with the words written under it, and the editing goes on, its
 // clock running (P.reportOf); for part of the footage, "יש חומר ל־N מתוך M", Lior gets a
-// task (P.materialTask). "אי אפשר להתחיל בכלל" is the real can't-start case: "מה חסר?",
-// then "לעצור את העריכה".
+// task (P.materialTask).
 const NOTE_HINT = {
   logo: 'למשל: הלוגו מטושטש', phone: 'למשל: המספר לא עונה', footage: 'למשל: אין צילומי מוצר',
   scripts: 'למשל: לא ברור מה הסדר של סרטונים 5–8', upload: 'למשל: נעצר באמצע ולא ממשיך',
 };
-const ynOpt = (id, name, value, text, checked) => h('label', { class: `ed-yn-o is-${value}`, for: id },
-  h('input', { type: 'radio', id, name, value, checked }), h('span', {}, text));
 // Under a "חסר": for the footage, "יש חומר ל־[ N ] מתוך M סרטונים"; then, in a few words, what
 // exactly is missing (it goes with the report to Irit and into Lior's task).
 function moreBlock(prefix, k, { of, open, have = '', note = '' }) {
@@ -646,121 +633,14 @@ function haveProblem(have, raw, of) {
   return null;
 }
 
-const startDlg = dialog('dlg-start');
+// The job a dialog is open for. (The start dialog, "קיבלתי את הכונן והתחלתי", left with protocol v14:
+// the editing starts at the assignment; its two checks of the material are asked in "מוכן לבדיקה".)
 let target = null;
-// The lines in START_CHECKS order: { key (the check), k (what it reports), i, answer }.
-// One tick (3.11.2026): "עברתי על הכול, הכול תקין" answers all four "יש"; "משהו חסר?" opens
-// the "יש" / "חסר" of each line (startDetail), as before.
-let startDetail = false;
-const startLines = () => P.START_CHECKS.map(([key], i) => ({
-  key, k: P.missingKeyOf(key), i,
-  answer: startDetail ? document.querySelector(`input[name="start-a-${i}"]:checked`)?.value || null : $('start-all').checked ? 'yes' : null,
-}));
-function showStartDetail(on) {
-  startDetail = on;
-  $('start-simple').hidden = on;
-  $('start-detail').hidden = !on;
-  $('start-some').setAttribute('aria-expanded', String(on));
-}
-function openStart(job) {
-  target = job;
-  $('start-ctx').textContent = jobName(job);
-  const c = cs(job.client);
-  const of = partOf(job);
-  // What is known already: a check done is "יש"; what a report or a block names is "חסר".
-  const open = job.st?.blocked || job.st?.report || null;
-  $('start-nologo-s')?.remove();
-  const answers = P.START_CHECKS.map(([key]) => (c[job.pre + key]?.state === 'done' ? 'yes' : open?.what.includes(P.missingKeyOf(key)) ? 'no' : null));
-  fill($('start-lines'), ...P.START_CHECKS.map(([, label]) => h('li', {}, label)));
-  $('start-all').checked = answers.every((a) => a === 'yes');
-  fill($('start-list'), ...P.START_CHECKS.map(([key, label], i) => {
-    const k = P.missingKeyOf(key);
-    const answer = answers[i];
-    const id = `start-${i}`;
-    return h('div', { class: `ed-q${answer === 'no' ? ' is-no' : ''}`, id, role: 'radiogroup', 'aria-labelledby': `${id}-l` },
-      h('span', { class: 'ed-q-l', id: `${id}-l` }, label),
-      h('span', { class: 'ed-yn' }, ynOpt(`${id}-yes`, `start-a-${i}`, 'yes', 'יש', answer === 'yes'), ynOpt(`${id}-no`, `start-a-${i}`, 'no', 'חסר', answer === 'no')),
-      moreBlock(`start-${k}`, k, { of, open: answer === 'no', have: k === 'footage' && open?.have != null ? String(open.have) : '', note: open?.notes?.[k] || '' }));
-  }));
-  // The logo line stands on what the card shows: say so when there is none to look at.
-  fillTo('start', open?.to);
-  if (!P.sheetOf(job.client, chars[job.client.id], logos[job.client.id]).hasLogo) {
-    $('start-list').append(h('p', { class: 'hint', id: 'start-nologo' }, 'אין לוגו בתיק הלקוח. אם הוא לא אצלך: ״חסר״ בשורת הלוגו.'));
-    $('start-lines').after(h('p', { class: 'hint', id: 'start-nologo-s' }, 'אין לוגו בתיק הלקוח. אם הוא לא אצלך: ״משהו חסר?״.'));
-  }
-  // Something already named missing (a report, a block) opens on the lines, with it marked.
-  showStartDetail(answers.includes('no'));
-  showErr('start-err', '');
-  startAnswered();
-  startDlg.showModal();
-  (startDetail ? $('start-0-yes') : $('start-all')).focus();
-}
-$('start-all').addEventListener('change', () => { showErr('start-err', ''); startAnswered(); });
-$('start-some').addEventListener('click', () => {
-  // What the one tick said stays: each line "יש" until one is turned to "חסר".
-  if ($('start-all').checked) for (let i = 0; i < P.START_CHECKS.length; i += 1) $(`start-${i}-yes`).checked = true;
-  showStartDetail(true);
-  startAnswered();
-  $('start-0-no').focus();
-});
-// The button opens once every line is answered; the line under it says what happens.
-function startAnswered() {
-  const lines = startLines();
-  const all = lines.every((l) => l.answer);
-  // Whom to tell, once something is "חסר".
-  $('start-to').hidden = !lines.some((l) => l.answer === 'no');
-  $('start-submit').disabled = !all;
-  $('start-hint').textContent = !startDetail ? (all ? '' : 'מסמנים ״עברתי על הכול, הכול תקין״, או ״משהו חסר?״.')
-    : all ? 'מה שמסומן ״חסר״ יירשם כחסר, והעריכה ממשיכה.' : 'עונים ״יש״ או ״חסר״ בכל שורה.';
-  return lines;
-}
-$('start-to').addEventListener('change', () => startAnswered());
-$('start-list').addEventListener('change', (e) => {
-  const line = e.target.closest('.ed-q');
-  if (!line || e.target.type !== 'radio') return;
-  const no = e.target.value === 'no';
-  line.classList.toggle('is-no', no);
-  line.querySelector('.ed-q-more').hidden = !no;
-  showErr('start-err', '');
-  startAnswered();
-});
 // A number being corrected: the error about it goes.
-for (const [list, err] of [['start-list', 'start-err'], ['miss-list', 'miss-err']]) {
-  $(list).addEventListener('input', (e) => {
-    if (!e.target.classList.contains('ed-have-n') || e.target.getAttribute('aria-invalid') !== 'true') return;
-    e.target.removeAttribute('aria-invalid');
-    showErr(err, '');
-  });
-}
-$('start-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const job = target;
-  const lines = startAnswered();
-  if (!lines.every((l) => l.answer)) return;
-  const missing = lines.filter((l) => l.answer === 'no').map((l) => l.k);
-  const of = partOf(job);
-  let have = null;
-  if (missing.includes('footage')) {
-    const raw = $('start-footage-have').value;
-    have = editedValue(raw);
-    const problem = haveProblem(have, raw, of);
-    $('start-footage-have').setAttribute('aria-invalid', String(!!problem));
-    if (problem) { showErr('start-err', problem); $('start-footage-have').focus(); return; }
-  }
-  $('start-submit').disabled = true;
-  try {
-    await markMany(job, ['p22.received', ...lines.filter((l) => l.answer === 'yes').map((l) => l.key)]);
-    const to = toOf('start');
-    const lior = missing.length ? await reportGoing(job, missing, { notes: wordsOf('start', missing), have, of, to }) : null;
-    startDlg.close();
-    toast(!missing.length ? `התחלת: ${jobName(job)}. בהצלחה!`
-      : `התחלת: ${jobName(job)}. ${P.reportGot(to)} הודעה על מה שחסר${lior === 'failed' ? ', אבל המשימה לליאור על החומר לא נפתחה. עדכנו אותו ישירות.' : lior === 'opened' ? ', וליאור משימה להשלים את החומר.' : '.'}`);
-    renderKeepingFocus(`${cardId(job)}-go`);
-  } catch (err) {
-    showErr('start-err', `הסימון לא נשמר. ${errorText(err)}`);
-  } finally {
-    startAnswered();
-  }
+$('miss-list').addEventListener('input', (e) => {
+  if (!e.target.classList.contains('ed-have-n') || e.target.getAttribute('aria-invalid') !== 'true') return;
+  e.target.removeAttribute('aria-invalid');
+  showErr('miss-err', '');
 });
 // Marks keys of a job (only those not done yet: a done check keeps its time).
 async function markMany(job, keys, note = null) {
@@ -790,17 +670,16 @@ async function unmark(job, key) {
 // editing): "לדווח, והעריכה ממשיכה"; the report reaches whoever was chosen and the clock runs.
 const missDlg = dialog('dlg-missing');
 let missCtx = null;
-function openMissing(job, { what = null, notes = null, have = null, yes = null, received = null, to = null } = {}) {
+function openMissing(job, { what = null, notes = null, have = null, yes = null, to = null } = {}) {
   const c = cs(job.client);
-  const starting = !!received || job.st?.key === 'waiting';
   const open = job.st?.report || null;
   const marked = what ?? open?.what ?? [];
   const words = notes ?? open?.notes ?? {};
   const known = have ?? (what ? null : open?.have ?? null);
   const confirmed = (k) => !!P.CHECK_OF[k] && (yes ? yes.includes(k) : c[job.pre + P.CHECK_OF[k]]?.state === 'done');
   // A video upload is something to report only once there are videos.
-  const list = P.MISSING_WHAT.filter(([k]) => !confirmed(k) && (k !== 'upload' || !starting)).map(([k]) => k);
-  missCtx = { job, received, list };
+  const list = P.MISSING_WHAT.filter(([k]) => !confirmed(k)).map(([k]) => k);
+  missCtx = { job, list };
   $('miss-ctx').textContent = jobName(job);
   const of = partOf(job);
   fill($('miss-list'), ...(list.length ? P.MISSING_WHAT.filter(([k]) => list.includes(k)).map(([k, l]) => h('div', { class: `ed-mq${marked.includes(k) ? ' is-no' : ''}` },
@@ -825,7 +704,7 @@ $('miss-list').addEventListener('change', (e) => {
 $('miss-form').addEventListener('submit', (e) => e.preventDefault());
 $('miss-go').addEventListener('click', () => sendMissing());
 async function sendMissing() {
-  const { job, received, list } = missCtx;
+  const { job, list } = missCtx;
   const what = list.filter((k) => $(`miss-${k}`).checked);
   if (!what.length) { showErr('miss-err', 'סמנו מה חסר.'); $(`miss-${list[0]}`)?.focus(); return; }
   const of = partOf(job);
@@ -842,8 +721,6 @@ async function sendMissing() {
   const to = toOf('miss');
   $('miss-go').disabled = true;
   try {
-    // From the start dialog: the drive arrived, with whatever was there.
-    if (received) await markMany(job, ['p22.received', ...received]);
     const lior = await reportGoing(job, what, { notes, have, of, to });
     missDlg.close();
     const extra = lior === 'failed' ? ' המשימה לליאור על החומר לא נפתחה: עדכנו אותו ישירות.' : lior === 'opened' ? ' ליאור קיבל משימה להשלים את החומר.' : '';
@@ -864,7 +741,7 @@ async function reportGoing(job, what, { notes = {}, have = null, of = null, to =
   const before = P.reportOf(c, job.pre);
   await markOne(job, 'p22.missing', P.missingNote(what, '', { notes, have, of, going: true, to }));
   const came = (before?.what || []).filter((k) => !what.includes(k)).map((k) => P.CHECK_OF[k]).filter(Boolean);
-  if (came.length && c[`${job.pre}p22.received`]?.state === 'done') await markMany(job, came);
+  if (came.length) await markMany(job, came);
   return syncMaterial(job, { what, notes, have, of });
 }
 // Part of the footage (a report with "יש חומר ל־N"): Lior's task to plan the rest, one open
@@ -930,10 +807,8 @@ async function endBlock(job, { btn = null, quiet = false, tasks: closeTasks = tr
       states.delete(job.client.id);
     }
     await unmark(job, 'p22.missing');
-    if (c[`${job.pre}p22.received`]?.state === 'done') {
-      const keys = (report.what || []).map((k) => P.CHECK_OF[k]).filter(Boolean);
-      if (keys.length) await markMany(job, keys);
-    }
+    const keys = (report.what || []).map((k) => P.CHECK_OF[k]).filter(Boolean);
+    if (keys.length) await markMany(job, keys);
     if (closeTasks && (report.what || []).includes('footage')) await syncMaterial(job, null);
   } catch (err) {
     if (btn) btn.disabled = false;
@@ -951,7 +826,8 @@ const readyDlg = dialog('dlg-ready');
 let readyList = [];
 function openReady(job) {
   target = job;
-  readyList = P.selfCheck(P.needsDropbox(job.client));
+  // v14: the two checks of the material first (there is no start step any more), then the self-check.
+  readyList = [...P.START_CHECKS, ...P.selfCheck(P.needsDropbox(job.client))];
   const gate = videosGate(job);
   $('ready-ctx').textContent = `${jobName(job)}${P.videosPerDay(job.ctx) ? ` · ${P.videosPerDay(job.ctx)} סרטונים` : ''}`;
   // The Drive folder of the videos: what is known already, to confirm or replace.
@@ -959,13 +835,13 @@ function openReady(job) {
   $('ready-link').removeAttribute('aria-invalid');
   $('ready-link-hint').textContent = gate.count ? `${gate.count === 1 ? 'סרטון אחד הועלה למערכת' : `${gate.count} סרטונים הועלו למערכת`}: אפשר גם בלי קישור.` : 'התיקייה של הלקוח בדרייב, עם כל הסרטונים הסופיים.';
   showErr('ready-link-err', '');
-  // The five critical mistakes come under their own line (protocol v10).
+  // The critical mistakes come under their own line (protocol v10; the editor's two since v14).
   // What to check, as lines (3.11.2026), and one tick under them for all of them.
   const plain = readyList.filter(([, , group]) => group !== 'critical');
   const critical = readyList.filter(([, , group]) => group === 'critical');
   fill($('ready-list'),
     h('ul', { class: 'ed-lines', id: 'ready-lines' }, ...plain.map(([, l]) => h('li', {}, l))),
-    critical.length ? h('p', { class: 'prod-sub', id: 'ready-critical' }, CRITICAL_TITLE) : null,
+    critical.length ? h('p', { class: 'prod-sub', id: 'ready-critical' }, critical.length === CRITICAL_MISTAKES.length ? CRITICAL_TITLE : 'טעויות קריטיות של העריכה') : null,
     critical.length ? h('ul', { class: 'ed-lines', id: 'ready-crit-lines' }, ...critical.map(([, l]) => h('li', {}, l))) : null);
   $('ready-all').checked = false;
   showErr('ready-err', '');
@@ -989,7 +865,7 @@ $('ready-form').addEventListener('submit', async (e) => {
   if (problem) { $('ready-link').focus(); return; }
   $('ready-submit').disabled = true;
   try {
-    // The four checks of the start are true by now; the notice to Ofir goes last.
+    // The checks of the material are confirmed here (v14); the notice to Ofir goes last.
     // The folder (24) is the editor's since 3.11.2026: the link pasted here is that folder.
     await markMany(job, [...P.START_CHECKS.map(([k]) => k), 'p24.folder', ...P.readyKeys(P.needsDropbox(job.client)).filter((k) => !['p24.notify', 'p24.drive', 'p24.folder'].includes(k))]);
     // "הכול בדרייב" carries the folder's link (written again when it changed).
@@ -1200,7 +1076,7 @@ dress($('app'), [['.ed-card .ed-head h2', 'scissors', 'purple', 'md'], ['#briefs
   ['.prod-task.is-urgent .prod-task-h', 'bolt', 'pink'], ['.prod-task .prod-task-h', 'check-circle', 'blue'], ['#na-h', 'lock', 'navy']]);
 
 // The dialogs of this page open with the same icon square in their head.
-for (const [sel, name, tone] of [['#start-h', 'drive', 'purple', 'md'], ['#miss-h', 'alert', 'orange', 'md'], ['#ready-h', 'check-circle', 'green', 'md'],
+for (const [sel, name, tone] of [['#miss-h', 'alert', 'orange', 'md'], ['#ready-h', 'check-circle', 'green', 'md'],
   ['#pause-h', 'pause', 'navy'], ['#urg-h', 'bolt', 'pink'], ['#done-h', 'check', 'green']]) headIcon(document.querySelector(sel), name, tone, { size: 'md' });
 
 mountSession(async (staff) => {

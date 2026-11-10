@@ -153,7 +153,9 @@ test('a process late on items the client started with stays late, whatever was a
   const done = { ...checks, ...Object.fromEntries(['p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos'].map((k) => [k, { state: 'done', at: now.toISOString() }])) };
   const s2 = stateOf(c1, done, now);
   assert.equal(proc(s2, 'p05').status === 'overdue', false, 'only p05.vault (version 2) and p05.allnets (version 8) are open');
-  assert.equal(proc(s2, 'p05').complete, false);
+  // v14: 5 is one mark (p05.got), passed by the old items the client started with (p05.vault left in
+  // v13; p05.allnets came in version 8, after this client's): the process is complete.
+  assert.equal(proc(s2, 'p05').complete, true);
 });
 
 test('v12 (Lior\'s four things): what left applies to no client of any version; the new items are every client\'s, not "new in the protocol"', () => {

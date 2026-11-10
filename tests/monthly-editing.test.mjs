@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   monthlyRoundPlan, monthlyRoundPlans, monthlyMarks, NA_KEYS, BEFORE_EDITING, hasMonthWork, roundMonth,
-  MONTHLY_NOTE, MONTHLY_NA_NOTE, MONTHLY_DRIVE_NOTE,
+  MONTHLY_NOTE, MONTHLY_NA_NOTE,
 } from '../app/monthly-rounds.js';
 import { PROCESSES, isRetired } from '../app/protocol.js';
 import { clientState, roundContext, roundsOf, addBusinessDays, shootHeld, phasesFor, IMPORT_NOTE } from '../app/protocol-logic.js';
@@ -57,10 +57,10 @@ test('the not-relevant list is every round process before the editing, from app/
     'p11.calendar', 'p11.ok.client', 'p14.day', 'p17b.arrived', 'p19b.complete']) assert.ok(!NA_KEYS.includes(k), k);
   for (const k of NA_KEYS) assert.match(`r12.${k}`, /^(r[0-9]+\.)?p[0-9]+[ab]?\.[a-z0-9.]+$/, 'the database\'s item key rule');
   const marks = monthlyMarks(3);
-  assert.equal(marks.length, NA_KEYS.length + 2);
+  // Protocol v14: "התקבל הכונן" (p22.received) left; the editing starts at the assignment.
+  assert.equal(marks.length, NA_KEYS.length + 1);
   assert.deepEqual(marks.filter((m) => m.state === 'done'), [
     { item_key: 'r3.p22a.assigned', state: 'done', note: MONTHLY_NOTE },
-    { item_key: 'r3.p22.received', state: 'done', note: MONTHLY_DRIVE_NOTE },
   ]);
   assert.ok(marks.filter((m) => m.state === 'na').every((m) => m.note === MONTHLY_NA_NOTE && m.item_key.startsWith('r3.')));
 });
@@ -260,7 +260,7 @@ test('the tick opens the month once; again the same minute or the next day: noth
   assert.equal(s1.monthlyFailed, 0);
   assert.deepEqual(db.clients[0].rounds, [{ n: 2, month: '2026-11', monthly: true, editor: 'anna', start_at: NOV4.toISOString() }]);
   assert.deepEqual(db.clients[1].rounds, []);
-  assert.equal(db.rows.filter((r) => r.item_key.startsWith('r2.')).length, NA_KEYS.length + 2);
+  assert.equal(db.rows.filter((r) => r.item_key.startsWith('r2.')).length, NA_KEYS.length + 1); // v14: no "התקבל הכונן"
   assert.equal(db.rows.find((r) => r.item_key === 'r2.p22a.assigned').note, MONTHLY_NOTE);
   // This tick already saw the round: the editor's own "new client in editing" went out, nobody else's.
   const told = db.log.filter((r) => /:r2-/.test(r.key));
