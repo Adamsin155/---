@@ -2367,7 +2367,7 @@ $('acc-form').addEventListener('submit', async (e) => {
     await saveAccess(id, a);
     $('acc-password').value = '';
     if (!accessWorks(st) && accEditing?.status !== st && $('acc-task').checked) {
-      // A network to open: whoever sets the pages up (the characterizer, Noam or Ofir; 1.11.2026).
+      // A network to open: whoever sets the pages up (Ofir: pagesOwnerOf).
       const owner = st === 'broken' ? 'lior' : pagesOwnerOf(client);
       const title = st === 'broken' ? `לשחזר עם הלקוח את הגישה ל־${networkName(a.network)} ולהכניס לכספת` : `לפתוח ללקוח ${networkName(a.network)} ולהכניס את הגישה לכספת`;
       const t = await addTask({ client_id: id, title, owner, urgent: true });

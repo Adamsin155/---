@@ -309,7 +309,7 @@ export const LATE_GRACE_MINUTES = 15;
 // A late process whose own ladder already rings one of the watchers at the deadline
 // (8ב: whoever uploads the client's Highlights, `highlightsUpload`): `late` does not tell that
 // watcher again; the other still hears. A value may depend on the client: since 1.11.2026 8ב
-// is the characterizer's, Noam or Ofir (pagesOwnerOf), and Noam is no watcher, so when it is
+// is the characterizer's, Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026), and Noam is no watcher, so when it is
 // his both Ofir and Lior hear.
 export const LATE_RUNG = { p08b: (c) => pagesOwnerOf(c) };
 export const lateRungOf = (procId, client) => {
@@ -391,7 +391,7 @@ export const RULES = [
     instances(env) {
       const out = [];
       for (const c of env.clients) {
-        // 8 (the Highlights) is the client's characterizer's since 1.11.2026: Noam or Ofir (pagesOwnerOf).
+        // 8 (the Highlights) is the client's characterizer's since 1.11.2026: Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026).
         const TEAM = [['ilai', ['p07', 'p09'], 'p07'], [pagesOwnerOf(c), ['p08'], 'p08'], ['lior', ['p10'], 'p10']];
         const p4 = env.stateOf(c).states.find((s) => s.proc.id === 'p04');
         if (!p4) continue;
@@ -418,7 +418,7 @@ export const RULES = [
 
   // 5→6: access received. Whoever checks them at once (30 minutes to check); Lior after 30
   // office minutes. Process 6 was Ofir's from 28.10.2026 (it was Ilai's); since 1.11.2026 it is
-  // the client's characterizer's, Noam or Ofir (pagesOwnerOf). When the checker took the
+  // the client's characterizer's, Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026). When the checker took the
   // accesses himself (he runs the characterization) he is not told what he just marked
   // (`self`); his deadline ring and Lior's stay. (The step ids keep their old names.)
   {
@@ -1357,7 +1357,7 @@ export const RULES = [
 
   // 6: Lior closed a broken login (fixed, or partly: "עדיין חסר"). Irit and the checker are told
   // (quiet): Ofir checked the accesses from 28.10.2026 (Ilai was told until then); since 1.11.2026
-  // the client's characterizer, Noam or Ofir (pagesOwnerOf). The step id stays 'ofir'.
+  // the client's characterizer, Ofir (pagesOwnerOf; Noam too from 1.11 to 10.11.2026). The step id stays 'ofir'.
   {
     id: 'accessClosed', event: 'גישה שבורה נסגרה (6)', procs: ['p06'],
     instances(env) {
@@ -1523,7 +1523,7 @@ export const RULES = [
 
   // 8ב (v7, the owner's decision of 6.10.2026): the Highlights are ready (process 8
   // complete, not by importing history). Whoever just finished them (Ofir; since 1.11.2026
-  // the client's characterizer, Noam or Ofir: pagesOwnerOf) is told quietly
+  // the client's characterizer, Ofir: pagesOwnerOf) is told quietly
   // and has 30 office minutes to upload them and mark it; when they pass without the
   // mark he rings (a client that started before v7: the item is new for it, so no
   // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).

@@ -20,7 +20,7 @@
 //   - Ofir's Thursday summary (13:00, decision 20) and Lior's campaigns check on
 //     Tuesday (decision 21), on business days.
 // The address goes only to those who go there: Eli, Lior and Irit on a shoot day,
-// and the characterizer at the meeting (Noam or Ofir, or Lior). No phone number of a client
+// and the characterizer at the meeting (Ofir or Shiel, or Lior). No phone number of a client
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
 import { PEOPLE, SOLO, PASS_OWNER, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName, isStarDay, characterizerOf } from './protocol.js';
