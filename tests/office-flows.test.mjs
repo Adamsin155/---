@@ -228,10 +228,12 @@ test('editor load: "יום X מתוך 3", 4 once the videos are with Ofir; an ol
   w.tasks.push({ id: 't1', client_id: a.id, owner: 'anna', title: 'x', done_at: null });
   const load = editorLoad({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, tasks: w.tasks, now });
   assert.deepEqual(load.nadia.jobs.map((j) => [j.client.name, j.day, j.of]), [['א', 3, 3]]);
-  assert.deepEqual(load.yariv.jobs.map((j) => [j.client.name, j.of, !!j.paused]).sort(), [['ב', 4, false], ['ג', 3, false]]);
+  // ב is with Ofir (10.11.2026): finished, waiting, not in the load.
+  assert.deepEqual(load.yariv.jobs.map((j) => [j.client.name, j.of, !!j.paused]).sort(), [['ג', 3, false]]);
+  assert.deepEqual(load.yariv.waiting.map((j) => [j.client.name, j.of, j.stage, j.waitsFor]), [['ב', 4, 'waiting', 'ofir']]);
   assert.equal(load.yariv.paused, 0);
   assert.equal(load.anna.tasks, 1);
-  assert.equal(loadText(load.yariv), '2 לקוחות בעריכה');
+  assert.equal(loadText(load.yariv), 'לקוח אחד בעריכה · אחד ממתין ללקוח');
   assert.equal(proposeEditor(load, 'dms', ['yariv']), 'anna');
   assert.equal(proposeEditor(load, 'natali', ['yariv']), 'nirel');
   assert.equal(dayText(0, 3), 'שויך היום');

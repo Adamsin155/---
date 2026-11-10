@@ -368,6 +368,15 @@ details.ps-sum { min-width: 0; }
 .of-load-fold[open] > summary::after, .of-landing-fold details[open] > summary::after { transform: rotate(180deg); }
 .of-load-fold[open] > summary { margin-bottom: 8px; }
 .of-load-late { font-weight: 600; font-size: 14px; }
+/* The owner, 10.11.2026: what the editor finished and waits for Ofir or the client is a small
+   line of its own under the load (after the fold's arrow, which stays on the first line). */
+.of-editor .of-head > .of-load-wait { order: 3; flex-basis: 100%; font-size: 13.5px; font-weight: 400; color: var(--muted); }
+.of-wait-fold { margin-top: 8px; }
+.of-wait-fold > summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; align-items: center; gap: 4px; padding: 6px 14px; border-radius: var(--ds-r-item); background: var(--ds-surface); font-size: 14px; }
+.of-wait-fold > summary::-webkit-details-marker { display: none; }
+.of-wait-fold > summary::after { content: '▾'; margin-inline-start: auto; color: var(--muted); transition: transform .2s; }
+.of-wait-fold[open] > summary::after { transform: rotate(180deg); }
+.of-wait-fold[open] > summary { margin-bottom: 8px; }
 .of-landing-fold { list-style: none; }
 .of-landing-fold summary { cursor: pointer; list-style: none; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 14px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
 .of-landing-fold details[open] > summary { margin-bottom: 10px; }

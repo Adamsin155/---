@@ -363,7 +363,16 @@ function completedAt(proc, checks, now) {
 // shoot_at and contract_end stay the real dates, and the package year, the Gantt and
 // the renewal read them as before.
 export const inLanding = (client) => client?.landing === true;
-export const workFloor = (client) => (client && !inLanding(client) && client.landed_at ? parseDate(client.landed_at) : null);
+// The mark that hands a shoot's videos to Ilai (27): the editor's final versions in the Drive
+// (p27.final), or, since 10.11.2026, the client's approval of the videos (p27.approved: the
+// job left the editor, p27.final is not asked then). The check row, or null.
+export function finalsMark(checks, pre = '') {
+  const f = checks?.[`${pre}p27.final`];
+  if (f?.state === 'done') return f;
+  const a = checks?.[`${pre}p27.approved`];
+  return a?.state === 'done' ? a : null;
+}
+export const workFloor =(client) => (client && !inLanding(client) && client.landed_at ? parseDate(client.landed_at) : null);
 // The least time anything that was already late on the day of the activation gets:
 // until the end of the next business day (a "5 minutes" of months ago is not due
 // five minutes after the owner pressed "מפעילים").

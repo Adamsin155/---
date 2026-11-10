@@ -1387,14 +1387,17 @@ export const RULES = [
     // Ilai still hears the finals are in the Drive, but Lior's list never calls it late.
     fresh: (i) => i.fresh('p27.toilai'),
     instances(env) {
-      return casesOf(env, 'p27', (i) => !!i.doneAt('p27.final') && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
-        const at = i.doneAt('p27.final');
+      // The final versions in the Drive, or the client's approval of the videos (10.11.2026: then
+      // nothing more is asked of the editor, p27.final is `passedIf` p27.approved).
+      const handed = (i) => i.doneAt('p27.final') || i.doneAt('p27.approved');
+      return casesOf(env, 'p27', (i) => !!handed(i) && !i.resolved('p27.toilai') && !i.s.wait).map((i) => {
+        const at = handed(i);
         const start = nextWorkMoment(at);
         return { ...i, id: `${i.proc.id}@${at.toISOString()}`, anchors: { event: at, close: atTimeIL(start, erevOn(start) ? WORK_HOURS.erevEnd : WORK_HOURS.end) } };
       });
     },
     steps: [
-      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `גרסאות סופיות בדרייב: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
+      { id: 'ilai', to: 'ilai', level: 'quiet', title: (i) => `${i.doneAt('p27.final') ? 'גרסאות סופיות בדרייב' : 'הלקוח אישר את הסרטונים'}: ${i.name}`, body: () => 'לבדוק ולסמן ״קיבלתי״. זה סוגר את העריכה.' },
       { id: 'lior', from: 'close', to: 'lior', level: 'digest', list: true, overdue: true, title: (i) => `עילאי לא סימן ״קיבלתי״ על הגרסאות הסופיות: ${i.name}`, body: () => 'באותו יום עסקים.' },
     ],
   },
@@ -1421,7 +1424,8 @@ export const RULES = [
           if (baseId(s.proc.id) === 'p04' && i.resolved(CHAR_ENDED)) continue;
           // The final versions are in the Drive: only Ilai's "קיבלתי" (p27.toilai) keeps
           // 27 open, and finalReady follows it; not a second line, nor the editor's lateness.
-          if (baseId(s.proc.id) === 'p27' && i.resolved('p27.final')) continue;
+          // (Since 10.11.2026 the client's approval too: then p27.final is not asked of the editor.)
+          if (baseId(s.proc.id) === 'p27' && (i.resolved('p27.final') || i.resolved('p27.approved'))) continue;
           // Sent to the client and waiting for the client's answer (8.10.2026; docs/ops.md, section
           // 48): nobody in the office is late, so nobody is named as late.
           // Nor while the fix the client asked for is being made: that task has its own due day and carries the lateness.
@@ -2191,7 +2195,8 @@ const PEOPLE_RULES = [
       // The videos: the editor waits for notes, and hears there are none (Ilai's ladder starts when 27 closes).
       {
         id: 'editor', to: (i) => i.editor, level: 'quiet', when: (i) => i.b === 'p27' && i.editor.length > 0 && !i.resolved('p27.final'), url: (i) => EDITOR_URL(i.cid),
-        title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'מה שנשאר פתוח אצלך בתהליך 27 מופיע בעמוד העריכה.',
+        // Since 10.11.2026 the approval closes the job for the editor (p27.fixes / p27.final are `passedIf` it).
+        title: (i) => `הלקוח אישר את הסרטונים: ${i.name}`, body: () => 'העבודה שלך על הסרטונים הסתיימה. אין צורך בסימון נוסף.',
       },
     ],
   },

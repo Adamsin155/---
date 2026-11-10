@@ -650,7 +650,7 @@ async function openCardAssign() {
   } else if (mode === 'change') {
     // The editing is on: qa.html's swap, with its clocks. Otherwise only the editor is rewritten.
     const job = Object.values(editorLoad({ clients: [client], stateOf, checks: assignWorld.checks, tasks: assignWorld.tasks }))
-      .flatMap((l) => l.jobs).find((j) => !j.n && !j.second);
+      .flatMap((l) => [...l.jobs, ...l.waiting]).find((j) => !j.n && !j.second);
     if (job && kept) assignUi.openSwap(client.editor, job);
     else assignUi.open({ ...base, record: { from: client.editor, kept } });
   } else {
