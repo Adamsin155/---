@@ -147,7 +147,7 @@ test('old marks: all of them done → the process is done; one missing → the o
     const less = { ...all };
     delete less[required[required.length - 1]];
     assert.equal(proc(cz, less, now, pid).complete, false, `${k}: one old mark missing`);
-    assert.ok(openItemsFor('noam', cz, less, stOf(cz, less, now), now).some((o) => o.item.key === k), `${k} asked of the characterizer`);
+    assert.ok(openItemsFor('ofir', cz, less, stOf(cz, less, now), now).some((o) => o.item.key === k), `${k} asked of the characterizer`);
     assert.equal(proc(cz, { ...base0, [k]: done(at, null, 'noam@x') }, now, pid).complete, true, `${k}: the one mark`);
   }
   // A client of version 7 imported without "אין עוד" (p05.allnets came in version 8): not reopened.
@@ -161,11 +161,11 @@ test('old marks: all of them done → the process is done; one missing → the o
 test('the hand-off of 5 and the reminders of 6 follow the one marks; nothing of 8ב rings', () => {
   const at = IL(2026, 11, 2, 12);
   const cs = { 'p04.ended': done(IL(2026, 11, 2, 11)), 'p05.got': done(at, null, 'irit@x') };
-  assert.deepEqual(handoffsFor(cz, cs, 'p05.got', { now: IL(2026, 11, 2, 12, 1), from: 'irit' }).map((o) => [o.person, o.markKey]), [['noam', 'p05.handoff.noam']]);
+  assert.deepEqual(handoffsFor(cz, cs, 'p05.got', { now: IL(2026, 11, 2, 12, 1), from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]); // Noam left on 10.11.2026: her old client is Ofir's
   const staff = [{ email: 'irit@x', person: 'irit' }, { email: 'ofir@x', person: 'ofir' }, { email: 'lior@x', person: 'lior' }, { email: 'noam@x', person: 'noam' }];
   const w = (checks) => ({ clients: [cz], checks: { c1: checks }, tasks: [], access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [], staff });
   const rings = (checks, now) => computeReminders({ ...w(checks), now, log: [] }).filter((r) => r.rule === 'access').map((r) => `${r.step}@${r.person}`);
-  assert.deepEqual(rings(cs, at), ['now@noam']);
+  assert.deepEqual(rings(cs, at), ['now@ofir']);
   assert.deepEqual(rings({ ...cs, 'p06.ok': done(IL(2026, 11, 2, 12, 10), null, 'noam@x') }, IL(2026, 11, 2, 12, 30)), [], '6 done: nothing more');
   const all = computeReminders({ ...w({ ...cs, 'p08.done': done(at), 'p08.saved': done(at) }), now: IL(2026, 11, 2, 13), log: [] });
   assert.deepEqual(all.filter((r) => r.rule === 'highlightsUpload'), []);

@@ -75,7 +75,7 @@ test('no screen or right is hers any more', () => {
   assert.equal(seesGantt(noam), false);
   assert.equal(canManageAccessLinks(noam), false);
   assert.equal(seesAccessLinks(noam), false);
-  for (const key of ['p04.address', 'p05.access', 'p06.verified', 'p08.done', 'p08b.posted']) {
+  for (const key of ['p04.address', 'p05.got', 'p06.ok', 'p08.ok']) { // v14: one mark per process
     assert.equal(mayWrite({ person: 'noam', client: noams, key }), false, key);
     assert.equal(mayWrite({ person: 'ofir', client: noams, key }), true, key);
   }
@@ -97,12 +97,14 @@ test('the history keeps her name: an old client, an old hand-off, a note to her'
 test('the work of an old client still set to her is Ofir\'s', () => {
   assert.equal(characterizerOf(noams), 'ofir');
   assert.equal(pagesOwnerOf(noams), 'ofir');
-  for (const id of ['p04', 'p06', 'p08', 'p08b']) assert.deepEqual(ownersOf(noams, id).filter((p) => p !== 'irit'), ['ofir'], id);
+  // (v14: 8ב left, one mark in 8.)
+  for (const id of ['p04', 'p06', 'p08']) assert.deepEqual(ownersOf(noams, id).filter((p) => p !== 'irit'), ['ofir'], id);
   assert.ok(ownersOf(noams, 'p05').includes('ofir'));
   assert.ok(!ownersOf(noams, 'p05').includes('noam'));
   assert.equal(lateRungOf('p08b', noams), 'ofir');
-  const checks = { 'p05.access': { state: 'done', at: '2026-11-02T09:00:00.000Z', by_email: 'irit@x', note: null } };
-  assert.deepEqual(handoffsFor(noams, checks, 'p05.access', { now: new Date('2026-11-02T09:01:00.000Z'), from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]);
+  // v14: offered when 5 is complete, by its one mark (p05.got).
+  const checks = { 'p05.got': { state: 'done', at: '2026-11-02T09:00:00.000Z', by_email: 'irit@x', note: null } };
+  assert.deepEqual(handoffsFor(noams, checks, 'p05.got', { now: new Date('2026-11-02T09:01:00.000Z'), from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]);
   // Ofir's fast ladder waits for her old clients' meetings, and for a client with nobody set.
   const meet = (characterizer) => ({ ...base, characterizer, char_at: '2026-11-10T08:00:00.000Z' });
   assert.equal(ofirMeetings([meet('noam'), meet(null), meet('ofir')], () => ({})).length, 3);

@@ -45,7 +45,7 @@ test('the file: none of the refused words, every UPDATE with a WHERE, no table o
   assert.deepEqual(sql.match(/drop|delete|truncate/gi), null);
   for (const m of sql.replace(/--[^\n]*/g, '').matchAll(/\bupdate\s+[a-z_.]+\s+set[^;]*;/gi)) assert.match(m[0], /\bwhere\b/i, m[0].slice(0, 80));
   assert.deepEqual(sql.replace(/--[^\n]*/g, '').match(/create\s+(table|policy|index|type|trigger)/gi), null);
-  assert.equal(latestBlock().file, FILE);
+  assert.ok(latestBlock().file >= FILE); // 20261210110000_remove_noam.sql rewrote it again (10.11.2026)
 });
 
 test('version 14: the function, the column default, a new client', async () => {
