@@ -1,4 +1,6 @@
-// Noam's list of clients (the owner, 1.11.2026): all the current clients, each opens with its vault; her tasks stay her own.
+// Noam left the company on 10.11.2026 (docs/ops.md, section 124): her steps here (1.11.2026: all the current clients
+// in her list) left with her. What stays: a client still set to her is Ofir's work, keeps her name on its card, and
+// the pickers "מי מבצע את האפיון" ("קביעת מועד" and the card's edit form) offer only who works here.
 // Shiel (9.11.2026; docs/ops.md, section 113): the same list, and the meeting's form of his client.
 // Run: npx http-server -p 8094 -s -c-1 . &  then  BASE_URL=http://localhost:8094/ node tests/noam-clients-e2e.mjs [outDir]
 import { chromium, webkit, devices } from 'playwright';
@@ -18,13 +20,14 @@ const minutesAgo = (n) => new Date(NOW - n * 6e4).toISOString();
 
 const users = new Map();
 const addUser = (email) => { const u = { id: randomUUID(), email, aud: 'authenticated', role: 'authenticated', email_confirmed_at: minutesAgo(9000) }; users.set(email, u); return u; };
-for (const e of ['noam@astrateg.test', 'nadia@astrateg.test', 'shiel@astrateg.test']) addUser(e);
+for (const e of ['nadia@astrateg.test', 'shiel@astrateg.test', 'irit@astrateg.test', 'ofir@astrateg.test']) addUser(e);
 const staff = [
-  { email: 'noam@astrateg.test', person: 'noam', vault: true },
   { email: 'nadia@astrateg.test', person: 'nadia', vault: false },
   { email: 'shiel@astrateg.test', person: 'shiel', vault: true },
+  { email: 'irit@astrateg.test', person: 'irit', vault: true },
+  { email: 'ofir@astrateg.test', person: 'ofir', vault: true },
 ];
-const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai', 'noam', 'shiel', null]);
+const OFFICE = new Set(['irit', 'lior', 'ofir', 'ilai', 'shiel', null]);
 const deals = [
   // Another seller's deal: Stav never sees it.
   { id: randomUUID(), created_at: minutesAgo(300), created_by_email: 'old@astrateg.test', seller: null, business_name: 'של אחר', contact_name: 'א', phone: '0501111111', tier: 'podcast', influencer: 'natali', paid: [], free: {}, discount_agorot: 0, notes: null, status: 'pending', quote_id: null, sent_at: null, signed_at: null, status_by_email: null },
@@ -75,6 +78,7 @@ function dealsRoute(req, url, me, json) {
 }
 
 const client = (n, name, status, characterizer) => ({ id: randomUUID(), name, business: name, status, characterizer, shoot_type: 'natali', package_name: 'Social', deal_at: minutesAgo(5000 + n), created_at: minutesAgo(5000 + n), rounds: [], links: {}, landing: false, archived_at: null, deliverables: { videos: 36, graphics: 36 } });
+// A client still set to Noam (she left on 10.11.2026), with no meeting date yet: Irit's "קביעת מועד".
 const MINE = client(1, 'קפה של נעם', 'active', 'noam');
 const OFIRS = client(2, 'מסעדה של אופיר', 'active', 'ofir');
 const ENDING = client(3, 'מוסך מסיים', 'ending', 'ofir');
@@ -111,8 +115,8 @@ async function fakeSupabase(route) {
     if (!d.taken_by && d.status === 'pending') Object.assign(d, { taken_by: personOf(me), taken_at: serverNow() });
     return json(200, { ok: d.taken_by === personOf(me), taken_by: d.taken_by, status: d.status });
   }
-  if (p === '/rest/v1/rpc/can_use_vault') return json(200, ['noam', 'shiel'].includes(personOf(me)));
-  if (p === '/rest/v1/rpc/can_use_client_vault') return json(200, ['noam', 'shiel'].includes(personOf(me)));
+  if (p === '/rest/v1/rpc/can_use_vault') return json(200, ['shiel'].includes(personOf(me)));
+  if (p === '/rest/v1/rpc/can_use_client_vault') return json(200, ['shiel'].includes(personOf(me)));
   if (p === '/rest/v1/rpc/is_office') return json(200, isOffice(me));
   if (p === '/rest/v1/rpc/my_person') return json(200, personOf(me) ?? null);
   if (p.startsWith('/rest/v1/rpc/')) return json(200, []);
@@ -135,8 +139,12 @@ async function fakeSupabase(route) {
 
 let browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
-async function newPage(viewport = { width: 1280, height: 900 }) {
-  const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
+let iphoneBrowser = null;
+// iphone: WebKit as an iPhone 13 (the viewport is the device's).
+async function newPage(viewport = { width: 1280, height: 900 }, { iphone = false } = {}) {
+  if (iphone && !iphoneBrowser) iphoneBrowser = await webkit.launch();
+  const opts = iphone ? { ...devices['iPhone 13'] } : { viewport };
+  const ctx = await (iphone ? iphoneBrowser : browser).newContext({ ...opts, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
   await ctx.clock.install({ time: new Date(serverNow()) });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, { clients: () => tables.clients, staff: () => staff }));
   const page = await ctx.newPage();
@@ -166,44 +174,6 @@ const noSideScroll = (page) => page.evaluate(() => document.documentElement.scro
 
 
 const list = async (page) => (await page.locator('#client-list').innerText());
-await step('Noam at 360px: the tab says "לקוחות", all the current clients, not the ended; search works by real typing', async () => {
-  const n = await newPage({ width: 360, height: 780 });
-  await signIn(n, 'clients.html#clients', 'noam@astrateg.test');
-  await n.waitForSelector('#tab-clients');
-  await n.waitForFunction(() => !document.getElementById('tab-clients').hidden && document.getElementById('tab-clients').textContent === 'לקוחות', null, { timeout: 15000 });
-  await n.click('#tab-clients');
-  await n.waitForSelector('#client-list a, #client-list li');
-  const t1 = await list(n);
-  for (const name of ['קפה של נעם', 'מסעדה של אופיר', 'מוסך מסיים']) assert.ok(t1.includes(name), name);
-  assert.ok(!t1.includes('לקוח שהסתיים'));
-  assert.match(await n.locator('#client-filters').innerText(), /כל הלקוחות הפעילים/);
-  assert.ok(await noSideScroll(n));
-  await shot(n, 'noam-01-list-phone');
-  await n.locator('#client-search').pressSequentially('מסעדה', { delay: 20 });
-  await n.waitForFunction(() => !document.getElementById('client-list').innerText.includes('קפה של נעם'));
-  assert.ok((await list(n)).includes('מסעדה של אופיר'));
-  for (let i = 0; i < 6; i += 1) await n.keyboard.press('Backspace');
-  assert.equal(await n.inputValue('#client-search'), '');
-  await n.waitForFunction(() => document.getElementById('client-list').innerText.includes('קפה של נעם'));
-});
-await step('a client of Ofir\'s opens for Noam, with "גישות לרשתות"; her tasks do not include it', async () => {
-  const n = await newPage();
-  await signIn(n, 'clients.html#mine', 'noam@astrateg.test');
-  await n.waitForFunction(() => !document.getElementById('tab-clients').hidden);
-  await shot(n, 'noam-02-mine-web');
-  assert.ok(!(await n.locator('#mine-list').innerText()).includes('מסעדה של אופיר'), 'not in her tasks');
-  await n.click('#tab-clients');
-  await n.locator('#client-list').getByText('מסעדה של אופיר').first().click();
-  await n.waitForURL(/client\.html/);
-  await n.waitForSelector('#fold-access:not([hidden])', { timeout: 15000 });
-  assert.match(await n.locator('#fold-access > summary').innerText(), /גישות לרשתות/);
-  assert.equal(await n.locator('#access').getAttribute('hidden'), null, 'the vault block is not hidden');
-  await n.locator('#fold-access > summary').click();
-  await n.waitForFunction(() => document.getElementById('fold-access').open);
-  assert.match(await n.locator('#access').innerText(), /instagram|אינסטגרם/i);
-  assert.equal(await n.locator('a[href="clients.html#clients"]').first().innerText(), 'לקוחות', 'the menu says it too');
-  await shot(n, 'noam-03-card-web');
-});
 await step('someone else stays with their own list: Nadia, "הלקוחות שלי"', async () => {
   const n = await newPage();
   await signIn(n, 'clients.html#mine', 'nadia@astrateg.test');
@@ -249,7 +219,53 @@ for (const [w, h, tag] of [[390, 844, 'phone'], [1280, 900, 'web']]) {
     await settled(p); await vshot(p, `shiel-04-new-char-${tag}`);
   });
 }
+// "מי מבצע את האפיון": Noam is offered nowhere; her old client is Ofir's meeting; its card keeps her name.
+for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, { width: 1366, height: 768 }]]) {
+  await step(`the picker "מי מבצע את האפיון?" (${tag}): Ofir, Shiel and Lior; her old client defaults to Ofir`, async () => {
+    const n = await newPage(viewport || undefined, { iphone });
+    await signIn(n, 'clients.html#mine', 'irit@astrateg.test');
+    // Her old client's meeting has waited for days: it is on the "באיחור" tab.
+    await n.waitForSelector('#tab-late:not([hidden])', { timeout: 15000 });
+    await n.click('#tab-late');
+    const btn = n.locator('#view-mine button', { hasText: /קביעת מועד|בחירת מבצע/ }).first();
+    await btn.waitFor({ timeout: 15000 });
+    await btn.click();
+    await n.waitForSelector('#dlg-meet[open]');
+    assert.deepEqual(await n.locator('#meet-who option').evaluateAll((os) => os.map((o) => o.value)), ['ofir', 'shiel', 'lior']);
+    assert.doesNotMatch(await n.locator('#meet-who').innerText(), /נעם/);
+    assert.equal(await n.locator('#meet-who').inputValue(), 'ofir');
+    assert.ok(await noSideScroll(n));
+    await settled(n);
+    if (OUT) await n.screenshot({ path: `${OUT}/noam-left-meet-who-${tag}.png`, animations: 'disabled' });
+    await n.context().close();
+  });
+  await step(`the card's edit form (${tag}): a client of Ofir's is offered no Noam; her old client still says נעם`, async () => {
+    const n = await newPage(viewport || undefined, { iphone });
+    await signIn(n, `client.html?id=${OFIRS.id}`, 'ofir@astrateg.test');
+    await n.waitForSelector('#btn-edit:not([hidden])', { timeout: 15000 });
+    await settled(n);
+    await n.click('#btn-edit');
+    await n.waitForSelector('#ed-characterizer');
+    assert.deepEqual(await n.locator('#ed-characterizer option').evaluateAll((os) => os.map((o) => o.value)), ['', 'ofir', 'shiel', 'lior']);
+    assert.equal(await n.locator('#ed-characterizer').inputValue(), 'ofir');
+    await n.locator('#ed-characterizer').scrollIntoViewIfNeeded();
+    if (OUT) await n.screenshot({ path: `${OUT}/noam-left-card-picker-${tag}.png`, animations: 'disabled' });
+    const m = await newPage(viewport || undefined, { iphone });
+    await signIn(m, `client.html?id=${MINE.id}`, 'ofir@astrateg.test');
+    await m.waitForSelector('#btn-edit:not([hidden])', { timeout: 15000 });
+    await settled(m);
+    await m.click('#btn-edit');
+    await m.waitForSelector('#ed-characterizer');
+    assert.equal(await m.locator('#ed-characterizer').inputValue(), 'noam');
+    assert.equal(await m.locator('#ed-characterizer option:checked').innerText(), 'נעם (כבר לא במשרד)');
+    await m.locator('#ed-characterizer').scrollIntoViewIfNeeded();
+    if (OUT) await m.screenshot({ path: `${OUT}/noam-left-card-old-client-${tag}.png`, animations: 'disabled' });
+    await n.context().close();
+    await m.context().close();
+  });
+}
 assert.deepEqual(errors, []);
 await browser.close();
+if (iphoneBrowser) await iphoneBrowser.close();
 noCspViolations();
 console.log(`\n${passed} passed`);
