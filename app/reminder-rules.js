@@ -424,8 +424,11 @@ export const RULES = [
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
-      return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
-        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check('p05.access')?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt('p05.access') } }));
+      // v14: the access came (the vault, the client's form) or the characterizer's one mark of 5 (p05.got),
+      // whichever first; it stops once 6 is done (its one mark p06.ok, or the old p06.verified).
+      const gotKey = (i) => ['p05.access', 'p05.got'].filter((k) => i.doneAt(k)).sort((a, b) => i.doneAt(a) - i.doneAt(b))[0];
+      return casesOf(env, 'p06', (i) => !i.pre && !i.s.complete && !i.resolved('p06.verified') && !i.s.wait && !!gotKey(i))
+        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check(gotKey(i))?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt(gotKey(i)) } }));
     },
     steps: [
       { id: 'now', to: (i) => i.checker, level: 'ring', exempt: 'clock', when: (i) => !i.self, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
@@ -482,7 +485,7 @@ export const RULES = [
         const checks = env.checksOf(c);
         const got = checks['p05.access'];
         const gotAt = got?.state === 'done' ? new Date(got.at) : null;
-        const verified = ['done', 'na'].includes(checks['p06.verified']?.state);
+        const verified = ['p06.verified', 'p06.ok'].some((k) => ['done', 'na'].includes(checks[k]?.state));
         // `access` rings Ofir for this very event when the form itself marked 5.
         const covered = !!gotAt && Math.abs(gotAt - at) < MIN && !verified;
         const have = (l.summary || []).filter((s) => s.choice === 'have').map((s) => platformName(s.network, s.label));
@@ -726,8 +729,8 @@ export const RULES = [
   // (the rule `fast` at the end of this file); the rule `assign` (Ofir at once, the next
   // morning's digest, Lior's hard stop at 12:00 the next business day) is gone with it.
 
-  // 22–24: the editor. A ring on assignment, "not started" two office hours after
-  // the drive was handed over (Lior's list after four), days 2 and 3 in the digest,
+  // 22–24: the editor. A ring on assignment (protocol v14: the editing starts there; "עוד לא
+  // התחלת" and Lior's and Ofir's "עריכה לא התחילה" left with "התקבל הכונן"), days 2 and 3 in the digest,
   // and day 3 at 15:00. Paused editing stops it.
   {
     id: 'editing', event: 'עורך שויך והתקדמות עריכה (22, 24)', procs: ['p22', 'p24'],
@@ -752,9 +755,6 @@ export const RULES = [
         handover: { title: (i) => `העריכה של ${i.name} עברה ל${personName(i.who)}`, body: () => 'הלקוח כבר לא בעריכה אצלך.', url: () => 'editor.html' },
         title: (i) => `לקוח חדש בעריכה אצלך: ${i.name}`, body: (i, env) => [i.todo && todoText(i.todo), i.p24due && `בדרייב ואצל אופיר עד ${whenText(i.p24due, env.now)}`, i.p27due && `סגירה עד ${whenText(i.p27due, env.now)}`].filter(Boolean).join(' · '),
       },
-      { id: 'nostart', officeMinutes: 120, to: (i) => i.who, level: 'ring', when: (i) => !i.resolved('p22.received'), title: (i) => `עוד לא התחלת: ${i.name}`, body: () => 'עברו שעתיים עבודה מאז שהכונן נמסר. ללחוץ "קיבלתי את הכונן והתחלתי".' },
-      { id: 'nostartLior', officeMinutes: 240, to: 'lior', level: 'digest', list: true, overdue: true, when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עברו 4 שעות עבודה מהשיוך.' },
-      { id: 'ofir', officeMinutes: 240, to: 'ofir', level: 'quiet', when: (i) => !i.resolved('p22.received'), title: (i) => `עריכה לא התחילה: ${i.name} · ${personName(i.who)}`, body: () => 'עותק לידיעה: עברו 4 שעות עבודה מהשיוך.' },
       // The last editing day: day 2 since protocol v11 (the owner, 21.10.2026), day 3 for a client from before.
       { id: 'day2', from: 'days', businessDays: 2, at: '08:30', to: (i) => i.who, level: 'digest', title: (i) => `עריכה, יום 2 מתוך ${i.days}: ${i.name}`, body: (i) => (i.days === 2 ? 'עד סוף היום: הכול בדרייב ואצל אופיר.' : '') },
       { id: 'day2pm', from: 'days', businessDays: 2, at: '15:00', when: (i) => i.days === 2, to: (i) => i.who, level: 'ring', title: (i) => `היום יום 2: ${i.name}`, body: () => 'עד סוף היום כל הסרטונים בדרייב, ולחיצה על "מוכן לבדיקה".' },
@@ -1532,6 +1532,7 @@ export const RULES = [
   // mark he rings (a client that started before v7: the item is new for it, so no
   // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).
   {
+    // v14: 8ב left (one mark in 8, p08.ok): its process applies to nobody, so this rule rings nobody.
     id: 'highlightsUpload', event: 'Highlights מוכנים: להעלות לרשתות (8ב)', procs: ['p08b'],
     instances(env) {
       return casesOf(env, 'p08b', (i) => !!i.finishedAt('p08') && !!i.s.startAt && !!i.s.dueAt && !halted(i))

@@ -135,7 +135,7 @@ function itemsOf(client, checks, now) {
 const procTitle = (p) => `${p.ctx?.round ? `סבב ${p.ctx.round} · ` : ''}${p.num ? `${p.num}. ` : ''}${p.title}`;
 function itemFrom(list, words) {
   const w = String(words ?? '').trim();
-  if (!w) refuse('צריך את הפריט: המפתח שלו (למשל p05.access) או המילים שלו.', 'bad_input');
+  if (!w) refuse('צריך את הפריט: המפתח שלו (למשל p05.got) או המילים שלו.', 'bad_input');
   const byKey = list.find((x) => x.item.key === w);
   if (byKey) return byKey;
   const p = plain(w);
@@ -608,7 +608,7 @@ export const WRITE_TOOLS = [
   {
     name: 'mark_protocol_item',
     title: 'סימון פריט בפרוטוקול של לקוח',
-    description: `WRITES: marks one protocol item of one client as done ("בוצע"), not relevant ("לא רלוונטי", needs a short reason in note unless the item is optional), or clear (open again; the mark is removed, the history is kept). Exactly as the client card: items that wait for others, items closed through a form, calls and daily follow-ups, and the guards (an empty Gantt, no script, no logo file) are refused with the reason. Find the item by its key (e.g. "p05.access", "r2.p22.received") or its words; when several match the answer lists their keys. ${SAFETY}`,
+    description: `WRITES: marks one protocol item of one client as done ("בוצע"), not relevant ("לא רלוונטי", needs a short reason in note unless the item is optional), or clear (open again; the mark is removed, the history is kept). Exactly as the client card: items that wait for others, items closed through a form, calls and daily follow-ups, and the guards (an empty Gantt, no script, no logo file) are refused with the reason. Find the item by its key (e.g. "p05.got", "r2.p22.check.footage") or its words; when several match the answer lists their keys. ${SAFETY}`,
     input_schema: {
       type: 'object',
       properties: { client: str('The client\'s name (or part of it).'), item: str('The item\'s key, or its words.'), state: { type: 'string', enum: ['done', 'na', 'clear'] }, note: str('The reason for "na", or a short note.'), dry_run: DRY },

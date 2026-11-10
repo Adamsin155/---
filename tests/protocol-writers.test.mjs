@@ -27,7 +27,8 @@ test('the lists copied from browser modules are the same as there', () => {
   assert.deepEqual(PAUSE_PROCS, ['p22', 'p27']);
   for (const k of Object.keys(EXTRA_MARKS)) {
     // The photographer's marks (the key of the raw material per script is a constant of production.js, which shoot.js writes); the editor's.
-    const file = k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : 'editor.js';
+    // (v14: the old marks of 5 the characterization form still writes.)
+    const file = k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : /^p05\./.test(k) ? 'characterization.js' : 'editor.js';
     assert.ok(src(file).includes(`'${k}'`), `${k} is written in ${file}`);
   }
 });
@@ -58,17 +59,19 @@ const cases = [
   [null, 'p25.approved', dana, null, true],
   ['irit', 'p27.toilai', dana, null, true],
   ['lior', 'p13.zoomat', dana, 'ייבוא', true],
-  ['nadia', 'p22.received', dana, null, true],
+  ['nadia', 'p22.check.footage', dana, null, true],
+  ['nadia', 'p22.received', dana, null, false], // v14: retired, no longer hers ("התקבל הכונן")
+  ['nadia', 'p24.notify', dana, null, true], ['nadia', 'p22.self.complete', dana, null, false],
   ['nadia', 'p25.approved', dana, null, false],
   ['nadia', 'p27.toilai', dana, null, false],
   ['nadia', 'p25.return.1', dana, null, false],
   ['nadia', 'p25.fixed.1', dana, null, true],
   ['nadia', 'p25.fixed.1.3', dana, null, true],
-  ['nadia', 'p22.received', dana, 'ייבוא', false],
-  ['nadia', 'r2.p22.received', dana, null, false],
-  ['yariv', 'r2.p22.received', dana, null, true],
+  ['nadia', 'p22.check.footage', dana, 'ייבוא', false],
+  ['nadia', 'r2.p22.check.footage', dana, null, false],
+  ['yariv', 'r2.p22.check.footage', dana, null, true],
   ['yariv', 'r3.p22.pause', dana, null, true], // round 3 has no editor: any editor may pause
-  ['yariv', 'r3.p22.received', dana, null, false],
+  ['yariv', 'r3.p22.check.footage', dana, null, false],
   ['eli', 'r2.p19b.checked', dana, null, true], ['eli', 'r2.p17b.arrived', dana, null, false],
   ['eli', 'p17b.brollq', dana, null, true],
   ['eli', 'p18.quiet', dana, null, false],
@@ -79,7 +82,7 @@ const cases = [
   ['ilai', 'p07.sent', dana, null, false],
   ['anna', 'p05.snooze', dana, null, true],
   ['anna', 'p05.access', dana, null, false],
-  [undefined, 'p22.received', dana, null, false],
+  [undefined, 'p22.check.footage', dana, null, false],
 ];
 test('mayWrite: the office everything; the rest their own items and marks', () => {
   for (const [person, key, client, note, want] of cases) assert.equal(mayWrite({ person, client, key, note }), want, `${person} ${key} ${note}`);

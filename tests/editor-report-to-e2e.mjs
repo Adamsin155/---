@@ -1,8 +1,8 @@
 // End-to-end check of "למי לשלוח את הדיווח?" (the owner, 29.10.2026): an editor reporting
 // something missing chooses Irit (as before), Lior or Ofir, and only that one is rung, with
-// the client's link. Three places: the start dialog ("קיבלתי את הכונן" with a "חסר"), the
-// "חסר לוגו / טלפון / חומר" dialog while editing, and "לא התקבל" on the start-check rows
-// of the client card (the owner's clarification: a third answer beside "סיימתי" and "לא
+// the client's link. Two places since protocol v14 (the start dialog, "קיבלתי את הכונן", left):
+// the "חסר לוגו / טלפון / חומר" dialog while editing, and "לא התקבל" on the start-check rows
+// of the client card (the footage and the scripts; the logo and phone rows left in v14) (the owner's clarification: a third answer beside "סיימתי" and "לא
 // רלוונטי"). Nadia (Chromium, 390 and 1280), Nirel on a Natali client, and Yariv on WebKit
 // as an iPhone 13; the notes are typed key by key with deletes. The fake of Supabase and
 // the scene helpers are those of tests/production-e2e.mjs; the rings are computed from the
@@ -357,30 +357,28 @@ const chipsOk = async (page, prefix) => {
 
 const nadia = await scene('2026-10-19T10:00:00', { width: 390, height: 844 });
 const card = `#${A_ID}`;
-await step('Nadia starts with the logo "חסר": "למי לשלוח את הדיווח?" appears with עירית chosen; she picks אופיר, types the words key by key; Ofir is rung, nobody else', async () => {
+await step('Nadia reports the logo "חסר" (v14: from "חסר לוגו / טלפון / חומר", no start dialog): עירית chosen; she picks אופיר, types the words key by key; Ofir is rung, nobody else', async () => {
   const { page } = nadia;
   await signIn(page, 'editor.html', 'nadia');
-  await page.waitForSelector(`${card}-go`);
+  await page.waitForSelector(`${card}-missing`);
   await loginGone(page);
-  await page.click(`${card}-go`);
-  await page.waitForSelector('#dlg-start[open]');
-  assert.equal(await page.locator('#start-to').isHidden(), true, 'nothing missing yet: no question');
-  await page.click('#start-some'); // one tick by default (3.11.2026): "משהו חסר?" opens the lines
-  for (const i of [0, 1, 3]) await page.click(`label[for="start-${i}-yes"]`);
-  await page.click('label[for="start-2-no"]'); // the logo
-  await page.waitForSelector('#start-to:not([hidden])');
-  assert.equal(await text(page, '#start-to legend'), 'למי לשלוח את הדיווח?');
-  await chipsOk(page, 'start');
-  assert.equal(await page.isChecked('#start-to-irit'), true, 'Irit, as before');
-  await page.click('label[for="start-to-ofir"]');
-  await typeKeys(page, '#start-logo-note', 'הלוגו מטושטשxx', '!');
-  assert.equal(await page.inputValue('#start-logo-note'), 'הלוגו מטושטש!');
+  assert.equal(await page.locator('#dlg-start').count(), 0, 'v14: no start dialog');
+  await page.click(`${card}-missing`);
+  await page.waitForSelector('#dlg-missing[open]');
+  assert.equal(await text(page, '#miss-to legend'), 'למי לשלוח את הדיווח?');
+  await chipsOk(page, 'miss');
+  assert.equal(await page.isChecked('#miss-to-irit'), true, 'Irit, as before');
+  await page.click('label[for="miss-logo"]');
+  await page.click('label[for="miss-to-ofir"]');
+  await typeKeys(page, '#miss-logo-note', 'הלוגו מטושטשxx', '!');
+  assert.equal(await page.inputValue('#miss-logo-note'), 'הלוגו מטושטש!');
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), []);
-  await shots(page, 'start-to-ofir', '#start-to');
-  await page.click('#start-submit');
-  await toastHas(page, 'אופיר קיבל הודעה על מה שחסר');
+  await shots(page, 'missing-logo-to-ofir', '#miss-to');
+  await page.click('#miss-go');
+  await toastHas(page, 'אופיר קיבל הודעה: חסר לוגו');
   assert.deepEqual(noteOf(A), { what: ['logo'], note: '', notes: { logo: 'הלוגו מטושטש!' }, going: true, to: 'ofir' });
+  for (const k of ['p22.received', 'p22.check.logo']) assert.equal(checkOf(A, k), null, `${k}: retired, never written`);
   const rings = ringsNow();
   assert.deepEqual(rings.map((r) => [r.person, r.clientId, r.level]), [['ofir', A.id, 'ring']]);
   assert.match(rings[0].url, new RegExp(`client\\.html\\?id=${A.id}`));
@@ -420,44 +418,44 @@ await step('mid-editing, "חסר לוגו / טלפון / חומר": the chip com
 // get a third answer, "לא התקבל": to whom, and in a few words what; the row stays open.
 const N_ID = N.id;
 const nirel = await scene('2026-10-19T11:00:00', { width: 390, height: 844 });
-await step('Nirel (a Natali client), on the client card: "לא התקבל" on the logo row → ליאור, words key by key; the row shows it, Lior is rung; again → אופיר; "סיימתי" closes the report', async () => {
+await step('Nirel (a Natali client), on the client card: "לא התקבל" on the scripts row → ליאור, words key by key; the row shows it, Lior is rung; again → אופיר; "סיימתי" closes the report', async () => {
   const { page } = nirel;
   await signIn(page, `client.html?id=${N_ID}#p22`, 'nirel');
-  const row = 'i-p22-check-logo';
+  const row = 'i-p22-check-scripts'; // v14: the logo and phone rows left
   // Her items of 22 are one "בוצע" (3.11.2026); their rows, with "לא התקבל", fold under it.
   await page.waitForSelector('#p22 .done-btn');
   assert.equal(await page.locator(`#${row}-notgot`).isVisible(), false, 'folded under "בוצע"');
   await page.click('#p22 details.chk-fold > summary');
   await page.waitForSelector(`#${row}-notgot`);
   await loginGone(page);
-  // Only the four start checks have it.
+  // Only the start checks have it (v14: the footage and the scripts).
   // (Drawn twice: in the process, and in "הצעד הבא שלך" with the prefix mn-.)
   assert.deepEqual((await page.locator('.notgot-btn').evaluateAll((l) => l.map((e) => e.id))).map((x) => x.replace(/^mn-/, '')).filter((x, i, a) => a.indexOf(x) === i).sort(),
-    ['i-p22-check-footage-notgot', 'i-p22-check-logo-notgot', 'i-p22-check-phone-notgot', 'i-p22-check-scripts-notgot']);
+    ['i-p22-check-footage-notgot', 'i-p22-check-scripts-notgot']);
   assert.equal(await text(page, `#${row}-notgot`), 'לא התקבל');
   assert.ok(await height(page, `#${row}-notgot`) >= 44);
   await shots(page, 'row-notgot', `#${row}-notgot`);
   await page.click(`#${row}-notgot`);
   await page.waitForSelector('#dlg-notgot[open]');
-  assert.equal(await text(page, '#notgot-item'), 'יש לוגו תקין של העסק');
+  assert.equal(await text(page, '#notgot-item'), 'התסריטים וסדר הסרטונים ברורים');
   await chipsOk(page, 'notgot');
   assert.equal(await page.isChecked('#notgot-to-irit'), true);
   await page.click('label[for="notgot-to-lior"]');
-  await typeKeys(page, '#notgot-note', 'אין לוגו בדרייבב', 'ב');
-  assert.equal(await page.inputValue('#notgot-note'), 'אין לוגו בדרייב');
+  await typeKeys(page, '#notgot-note', 'אין סדר לסרטוניםם', 'ם');
+  assert.equal(await page.inputValue('#notgot-note'), 'אין סדר לסרטונים');
   assert.ok(await noHScroll(page));
   assert.deepEqual(await unlabeled(page), []);
   await shots(page, 'row-notgot-dialog');
   await page.click('#notgot-submit');
   await toastHas(page, 'נשלח לליאור');
-  assert.deepEqual(noteOf(N), { what: ['logo'], note: '', notes: { logo: 'אין לוגו בדרייב' }, going: true, to: 'lior' });
-  assert.equal(checkOf(N, 'p22.check.logo'), null, 'not done');
+  assert.deepEqual(noteOf(N), { what: ['scripts'], note: '', notes: { scripts: 'אין סדר לסרטונים' }, going: true, to: 'lior' });
+  assert.equal(checkOf(N, 'p22.check.scripts'), null, 'not done');
   assert.equal(checkOf(N, 'p22.missing').by_email, 'nirel@astrateg.test');
   const rings = ringsNow();
   assert.deepEqual(rings.map((r) => [r.person, r.clientId]), [['lior', N.id]]);
-  assert.match(rings[0].body, /^ניראל: חסר לוגו \(אין לוגו בדרייב\)\. העריכה ממשיכה\.$/);
+  assert.match(rings[0].body, /^ניראל: חסר תסריטים וסדר הסרטונים \(אין סדר לסרטונים\)\. העריכה ממשיכה\.$/);
   await page.waitForSelector(`#${row}-r`);
-  assert.match(await text(page, `#${row}-r`), /^לא התקבל · דווח לליאור · .* · ״אין לוגו בדרייב״$/);
+  assert.match(await text(page, `#${row}-r`), /^לא התקבל · דווח לליאור · .* · ״אין סדר לסרטונים״$/);
   assert.equal(await text(page, `#${row}-notgot`), 'לשלוח שוב');
   assert.ok(await noHScroll(page));
   await shots(page, 'row-reported-lior', `#${row}-notgot`);
@@ -465,7 +463,7 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
   await page.click(`#${row}-notgot`);
   await page.waitForSelector('#dlg-notgot[open]');
   assert.equal(await page.isChecked('#notgot-to-lior'), true);
-  assert.equal(await page.inputValue('#notgot-note'), 'אין לוגו בדרייב');
+  assert.equal(await page.inputValue('#notgot-note'), 'אין סדר לסרטונים');
   await page.click('label[for="notgot-to-ofir"]');
   await page.click('#notgot-submit');
   await toastHas(page, 'נשלח לאופיר');
@@ -484,7 +482,7 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
   // It arrived: "סיימתי" on the row, and the report closes by itself.
   await page.locator(`#${row}`).check();
   for (let i = 0; i < 50 && checkOf(N, 'p22.missing'); i += 1) await page.waitForTimeout(100);
-  assert.ok(checkOf(N, 'p22.check.logo'));
+  assert.ok(checkOf(N, 'p22.check.scripts'));
   assert.equal(checkOf(N, 'p22.missing'), null);
   assert.deepEqual(ringsNow(), []);
   await page.waitForFunction((id) => !document.getElementById(`${id}-r`), row);
@@ -493,7 +491,7 @@ await step('Nirel (a Natali client), on the client card: "לא התקבל" on th
 });
 
 // WebKit as an iPhone 13: Yariv, the start dialog and the row, typed key by key.
-await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "לשלוח שוב" on the logo row of the client card → אופיר, typed key by key', async () => {
+await step('WebKit (iPhone 13), Yariv: "חסר לוגו / טלפון / חומר" (the scripts) → ליאור, and "לשלוח שוב" on the scripts row of the client card → אופיר, typed key by key', async () => {
   const wk = await webkit.launch();
   clockNow = T('2026-10-19T12:00:00');
   clockSetAt = Date.now();
@@ -504,22 +502,19 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   page.on('pageerror', (e) => errors.push(`webkit: ${e}`));
   const B_ID = `c-${B.id}`;
   await signIn(page, 'editor.html', 'yariv');
-  await page.waitForSelector(`#${B_ID}-go`);
-  await page.locator(`#${B_ID}-go`).tap();
-  await page.waitForSelector('#dlg-start[open]');
-  await page.locator('#start-some').tap();
-  for (const i of [0, 1, 3]) await page.locator(`label[for="start-${i}-yes"]`).tap();
-  await page.locator('label[for="start-2-no"]').tap();
-  await page.waitForSelector('#start-to:not([hidden])');
-  await page.locator('label[for="start-to-lior"]').tap();
-  await page.locator('#start-logo-note').tap();
+  await page.waitForSelector(`#${B_ID}-missing`);
+  await page.locator(`#${B_ID}-missing`).tap();
+  await page.waitForSelector('#dlg-missing[open]');
+  await page.locator('label[for="miss-scripts"]').tap();
+  await page.locator('label[for="miss-to-lior"]').tap();
+  await page.locator('#miss-scripts-note').tap();
   await page.keyboard.type('קובץ פגוםם', { delay: 40 });
   await page.keyboard.press('Backspace');
-  assert.equal(await page.inputValue('#start-logo-note'), 'קובץ פגום');
-  if (OUT) await page.screenshot({ path: `${OUT}/webkit-start-to-lior.png` });
-  await page.locator('#start-submit').tap();
+  assert.equal(await page.inputValue('#miss-scripts-note'), 'קובץ פגום');
+  if (OUT) await page.screenshot({ path: `${OUT}/webkit-missing-to-lior.png` });
+  await page.locator('#miss-go').tap();
   await page.waitForFunction(() => /ליאור קיבל הודעה/.test(document.querySelector('#toast')?.textContent || ''));
-  assert.deepEqual(noteOf(B), { what: ['logo'], note: '', notes: { logo: 'קובץ פגום' }, going: true, to: 'lior' });
+  assert.deepEqual(noteOf(B), { what: ['scripts'], note: '', notes: { scripts: 'קובץ פגום' }, going: true, to: 'lior' });
   assert.deepEqual(ringsNow().map((r) => [r.person, r.clientId]), [['lior', B.id]]);
   // The client card's row: reported already ("לשלוח שוב"), now to Ofir, the words written again.
   // (In its own context: a second page load in the same WebKit context loses this fake's session.)
@@ -534,10 +529,10 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   await page.waitForSelector('#p22 .done-btn');
   assert.ok((await page.locator('#p22 .done-btn').boundingBox()).height >= 44);
   await page.locator('#p22 details.chk-fold > summary').tap();
-  await page.waitForSelector('#i-p22-check-logo-notgot');
+  await page.waitForSelector('#i-p22-check-scripts-notgot');
   await loginGone(page);
-  assert.equal(await page.locator('#i-p22-check-logo-notgot').innerText(), 'לשלוח שוב');
-  await page.locator('#i-p22-check-logo-notgot').tap();
+  assert.equal(await page.locator('#i-p22-check-scripts-notgot').innerText(), 'לשלוח שוב');
+  await page.locator('#i-p22-check-scripts-notgot').tap();
   await page.waitForSelector('#dlg-notgot[open]');
   assert.equal(await page.isChecked('#notgot-to-lior'), true);
   assert.equal(await page.inputValue('#notgot-note'), 'קובץ פגום');
@@ -550,10 +545,10 @@ await step('WebKit (iPhone 13), Yariv: the start dialog → ליאור, and "ל�
   if (OUT) await page.screenshot({ path: `${OUT}/webkit-row-dialog-ofir.png` });
   await page.locator('#notgot-submit').tap();
   await page.waitForFunction(() => /נשלח לאופיר/.test(document.querySelector('#toast')?.textContent || ''));
-  assert.deepEqual(noteOf(B), { what: ['logo'], note: '', notes: { logo: 'קובץ פגום, אין PNG' }, going: true, to: 'ofir' });
+  assert.deepEqual(noteOf(B), { what: ['scripts'], note: '', notes: { scripts: 'קובץ פגום, אין PNG' }, going: true, to: 'ofir' });
   assert.deepEqual(ringsNow().map((r) => [r.person, r.clientId]), [['ofir', B.id]]);
-  await page.waitForSelector('#i-p22-check-logo-r');
-  await page.evaluate(() => { document.querySelector('#toast')?.classList.remove('on'); document.querySelector('#i-p22-check-logo-r')?.scrollIntoView({ block: 'center' }); });
+  await page.waitForSelector('#i-p22-check-scripts-r');
+  await page.evaluate(() => { document.querySelector('#toast')?.classList.remove('on'); document.querySelector('#i-p22-check-scripts-r')?.scrollIntoView({ block: 'center' }); });
   if (OUT) await page.screenshot({ path: `${OUT}/webkit-row-reported.png` });
   await ctx2.close();
   await wk.close();

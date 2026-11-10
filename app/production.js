@@ -26,16 +26,17 @@
 // (app/office-marks.js: p25.return.N, p25.fixed.N.I, p25.fixed.N; marking the
 // videos ready again, p24.notify, after a return counts as fixed too), and Ilai's
 // "קיבלתי" on the final versions is the item p27.toilai (protocol v5).
-// The existing items they sit with: p22.received + p22.check.* (the drive arrived,
-// 4 checks), p22.edited + p22.self.* + p24.drive + p24.dropbox + p24.notify ("מוכן
-// לבדיקה"), p27.notes (Irit: the client's notes, JSON { videos: [{ n, text }] } or
+// The existing items they sit with: p22.check.footage / scripts, p22.self.* (spelling, sound,
+// exposure) + p24.folder + p24.drive + p24.notify ("מוכן לבדיקה"; protocol v14: "התקבל הכונן",
+// the logo and phone checks, p22.edited, three self-checks, three of the critical mistakes and
+// p24.dropbox left, `retired: 14`, and are never written), p27.notes (Irit: the client's notes, JSON { videos: [{ n, text }] } or
 // plain text), p27.fixes, p27.final (button 4) and Ilai's p27.toilai, p16.photographer (Eli's
 // "קיבלתי" on the briefing), p17b.arrived / p17b.drive (arrival), p17b.gear (the
 // gear list), p19b.folders / complete / opens / cards / handed (the finish),
 // p19b.notes (Eli's notes for the editor, in its note), p19.testimonial / p19.took
 // (Lior's side of the handoff) and p22.pause (note JSON { stage, left, why, for,
 // task }: `for` is whoever asked for the urgent task, "עצירה לבקשת <שם>").
-import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, PHOTOGRAPHERS, SOLO, isEditorOf, editorNames, isSolo, eliFilms, photographerOf, crewWords, isStarDay, starShort } from './protocol.js';
+import { PEOPLE, WORK_HOURS, CRITICAL_MISTAKES, PHOTOGRAPHERS, SOLO, isEditorOf, editorNames, isSolo, eliFilms, photographerOf, crewWords, isStarDay, starShort, PROCESSES, isRetired } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   roundsOf, roundContext, businessDaysBetween, parseDate, erevOn, IMPORT_NOTE, addBusinessDays, isBusinessDay, nextWorkMoment,
@@ -169,8 +170,10 @@ export const clientFixedNote = (videos) => JSON.stringify({ videos: nums(videos)
 // videos are handed over in the client's Drive; a failed upload can still be reported).
 export const MISSING_WHAT = [['logo', 'לוגו'], ['phone', 'טלפון העסק'], ['footage', 'חומר צילום'], ['scripts', 'תסריטים וסדר הסרטונים'], ['upload', 'העלאה למערכת (לא עובדת)']];
 export const missingText = (what) => MISSING_WHAT.filter(([k]) => (what || []).includes(k)).map(([, l]) => l).join(', ');
-// The start check each missing thing stands for (the four of START_CHECKS).
-export const CHECK_OF = { logo: 'p22.check.logo', phone: 'p22.check.phone', footage: 'p22.check.footage', scripts: 'p22.check.scripts' };
+// The start check each missing thing stands for (START_CHECKS). v14: the logo and phone checks left
+// (`retired: 14`): a missing logo or phone can still be reported, and closes with "הגיע הכול" or
+// "מוכן לבדיקה", never by writing the retired check.
+export const CHECK_OF = { footage: 'p22.check.footage', scripts: 'p22.check.scripts' };
 export const missingKeyOf = (check) => Object.keys(CHECK_OF).find((k) => CHECK_OF[k] === check) || null;
 export const NOTE_MAX = 200; // what is missing, per line
 // Who gets the report (the owner, 29.10.2026: "שיהיה להם אופציה ... לשלוח דיווח לאופיר או
@@ -304,8 +307,8 @@ export function editingCases(client, checks, person, state) {
 export const ilaiGot = (checks, pre = '') => ['p27.toilai', 'p28.scheduled', 'p29.filled', 'p28.auto'].some((k) => done(checks, pre + k)); // p28.auto: GANTT_READY (v13)
 
 // The state of one editing job: the four buttons of §3 in order.
-//   waiting      "ממתין לכונן" → (1) "קיבלתי את הכונן והתחלתי"
-//   editing      → (2) "מוכן לבדיקה"
+//   editing      from the assignment (protocol v14: no "ממתין לכונן" / "קיבלתי את הכונן"
+//                step; "התקבל הכונן", p22.received, left) → (2) "מוכן לבדיקה"
 //   qa           with Ofir (first check, or again after a round of fixes)
 //   fixes        Ofir returned it (p25.return.N): per-issue "תוקן" / "סמן הכול תוקן"
 //                (app/office-ui.js fixList) → back to Ofir
@@ -325,7 +328,6 @@ export function editorState(job, checks) {
   // editor, nothing of 27 is asked of them any more (`passedIf` on p27.fixes and p27.final).
   if (ilaiGot(checks, job.pre) || is('p27.approved')) return { ...base, key: 'done', blocked: null, report: null, paused: null };
   if (is('p27.final')) return { ...base, key: 'ilai' };
-  if (!is('p22.received')) return { ...base, key: 'waiting' };
   if (is('p25.approved')) {
     const notes = clientNotesOf(checks, job.pre);
     if (resolved(checks, k('p27.fixes'))) return { ...base, key: 'final', notes };
@@ -345,11 +347,15 @@ export const STATE_TEXT = {
 // approved, the job is closed for the editor: 'done').
 export const canFinish = (st) => st?.key === 'final';
 
-// (1) the four checks when the drive arrives.
+// The items no protocol version retired (an editor never writes a retired key: the database refuses it).
+const LIVE = new Set(PROCESSES.filter((p) => !isRetired(p)).flatMap((p) => p.items.filter((i) => !isRetired(i)).map((i) => i.key)));
+export const isLiveItem = (key) => LIVE.has(String(key).replace(/^r\d+\./, ''));
+// The checks of the material (protocol v14: two; the logo and phone checks left). They are asked in
+// "מוכן לבדיקה", as there is no start step any more.
 export const START_CHECKS = [
   ['p22.check.footage', 'כל חומרי הצילום בכונן'], ['p22.check.scripts', 'התסריטים וסדר הסרטונים ברורים'],
   ['p22.check.logo', 'יש לוגו תקין של העסק'], ['p22.check.phone', 'יש טלפון תקין של העסק'],
-];
+].filter(([k]) => isLiveItem(k));
 // (2) the short self-check before "מוכן לבדיקה", each an existing item.
 export function selfCheck(needsDropbox) {
   return [
@@ -361,11 +367,11 @@ export function selfCheck(needsDropbox) {
     ...(needsDropbox ? [['p24.dropbox', 'הסרטונים הועלו גם ל־Dropbox']] : []),
     // Protocol v10: the five critical mistakes (the head of the editors' written protocol), each one tap.
     ...CRITICAL_MISTAKES.map(([k, , l]) => [`p22.self.${k}`, l, 'critical']),
-  ];
+  ].filter(([k]) => isLiveItem(k)); // v14: what the editors marked "מיותר" is not asked
 }
-// What "מוכן לבדיקה" marks: the edit, the self-check, and the notice to Ofir (last:
-// its time starts his one-hour clock, app/reminder-rules.js `qa`).
-export const readyKeys = (needsDropbox) => ['p22.edited', ...selfCheck(needsDropbox).map(([k]) => k), 'p24.notify'];
+// What "מוכן לבדיקה" marks: the self-check, and the notice to Ofir (last: its time starts his
+// one-hour clock, app/reminder-rules.js `qa`). v14: p22.edited left; the Drive (p24.drive) says it.
+export const readyKeys = (needsDropbox) => [...selfCheck(needsDropbox).map(([k]) => k), 'p24.notify'];
 // Dropbox is needed when the office put the client's Dropbox link in the card.
 export const needsDropbox = (client) => !!String(client?.links?.dropbox || '').trim();
 

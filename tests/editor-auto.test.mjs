@@ -45,19 +45,33 @@ test('complete → p24.notify once; written → never again', () => {
   assert.deepEqual(plans.map((p) => p.marks), [[{ item_key: NOTIFY, state: 'done', note: AUTO_NOTE }]]);
 });
 
-test('partial → nothing: one item of 22 open, the folder or the Drive open, or Dropbox when the card has its link', () => {
+test('partial → nothing: one item of 22 open, the folder or the Drive open; Dropbox is never asked (v14)', () => {
   const cs = editedAll(base);
-  for (const k of ['p22.self.spelling', 'p22.self.sound', 'p22.received', 'p24.folder', 'p24.drive']) {
+  // Protocol v14: 22 is the footage, the scripts, spelling, sound and exposure.
+  assert.deepEqual(procOf(base, cs, 'p22').items.map((i) => i.key), ['p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure']);
+  for (const k of ['p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure', 'p24.folder', 'p24.drive']) {
     const less = { ...cs };
     delete less[k];
     assert.deepEqual(keys(base, less), [], k);
   }
   // "לא רלוונטי" counts as resolved.
-  assert.deepEqual(keys(base, { ...cs, 'p22.check.logo': { state: 'na', at: at.toISOString(), note: 'אין' } }), [NOTIFY]);
+  assert.deepEqual(keys(base, { ...cs, 'p22.self.sound': { state: 'na', at: at.toISOString(), note: 'אין סאונד' } }), [NOTIFY]);
+  // The Dropbox upload left (v14): a card with a Dropbox link is handed off without it.
   const withDropbox = { ...base, links: { dropbox: 'https://www.dropbox.com/x' } };
-  assert.deepEqual(keys(withDropbox, cs), [], 'Dropbox needed');
-  assert.deepEqual(keys(withDropbox, { ...cs, 'p24.dropbox': done() }), [NOTIFY]);
-  assert.deepEqual(keys(base, cs), [NOTIFY], 'no Dropbox link: not needed');
+  assert.deepEqual(keys(withDropbox, cs), [NOTIFY], 'Dropbox no longer needed');
+  assert.deepEqual(keys(base, cs), [NOTIFY]);
+});
+
+test('v14: the editors\' "מיותר" marks are not needed, for a client of any version; nothing retired is asked', () => {
+  // Only what is left of 22 and 24: no "התקבל הכונן", no p22.edited, no "כל הכמות", no stable/angles/export.
+  const only = {
+    'p22a.assigned': done(IL(2026, 11, 4, 10)),
+    ...Object.fromEntries(['p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure', 'p24.folder', 'p24.drive'].map((k) => [k, done()])),
+  };
+  for (const v of [13, 12, 11, 10]) assert.deepEqual(keys({ ...base, protocol_version: v }, only), [NOTIFY], `a client of v${v}`);
+  // An old mark of a retired item changes nothing, and is not what makes it "by a person".
+  const imported = Object.fromEntries(Object.entries(only).map(([k, v]) => [k, { ...v, note: IMPORT_NOTE }]));
+  assert.deepEqual(keys(base, { ...imported, 'p22.received': done() }), [], 'only a retired mark by a person: not a fresh hand-off');
 });
 
 test('not for a client past it, an ended one, one without an editor, or one whose marks are all from the import', () => {
@@ -77,8 +91,7 @@ test('two editors: the marks are one set for the shoot, so one editor\'s half is
   const two = { ...base, editor2: 'yariv', editor_split: { nadia: 6, yariv: 6 } };
   const cs = editedAll(two);
   const half = { ...cs };
-  delete half['p22.self.complete']; // "כל כמות הסרטונים הושלמה": not yet, Yariv's share is open
-  delete half['p24.drive'];
+  delete half['p24.drive']; // "כל הסרטונים הועלו לדרייב": not yet, Yariv's share is open (v14: "כל הכמות" left)
   assert.deepEqual(keys(two, half), []);
   assert.deepEqual(keys(two, cs), [NOTIFY]);
   // Each of them sees the job "אצל אופיר" once it is written.

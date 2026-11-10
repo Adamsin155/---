@@ -51,7 +51,6 @@ import { shootDayHint, confirmShootDay } from './availability-ui.js';
 import { qaLine, startControl } from './office-ui.js';
 import { describeOfficeMark, qaState, QA_KINDS } from './office-marks.js';
 import { fastCaseOf, setOfirMeetings } from './fast-ladder.js';
-import { accessChecked, AUTO_ACCESS_NOTE } from './access-check.js';
 import { dayBeforeText, readFollowup, followupText } from './shoot-prep.js';
 import { checkMark } from './mark-guards.js';
 // Lior's four things (protocol v12): the forms of 30, 36 ("11ג") and 12.
@@ -812,12 +811,9 @@ async function refreshAccess() {
 // in, the check is done by itself (system-plan section 3; app/access-check.js). The process
 // is Ofir's since 28.10.2026: only the office writes it (Ilai still reads the vault, and a
 // status he saves no longer closes a check that is not his).
-async function autoAccessCheck() {
-  if (scope !== 'office' || viewerError) return;
-  const got = checks['p05.access'];
-  if (checks['p06.verified'] || got?.state !== 'done' || !accessChecked(access, got.at)) return;
-  if (await mark('p06.verified', 'done', null, AUTO_ACCESS_NOTE)) toast('כל הרשתות בכספת קיבלו סטטוס: בדיקת הגישות (6) סומנה.');
-}
+// Protocol v14 (Ofir: "לאחד"): 6 is one mark, p06.ok, for the check, the pages and Metricool, so the
+// statuses no longer close it by themselves; nothing is written here any more.
+async function autoAccessCheck() {}
 // Only the log: re-rendering the list would wipe a password being shown.
 async function refreshAccessLog() {
   try {

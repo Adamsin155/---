@@ -116,7 +116,7 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   if (fix) holders = holders.filter((p) => p !== fix.owner);
   // The processes whose clock starts here (a shoot round's anchors carry the round: 'r2-p19', 'item:r2.p22a.assigned').
   const next = states.filter((x) => !x.complete && x !== s && [x.proc.start?.from, x.proc.due?.from]
-    .some((from) => from === s.proc.id || (String(from || '').startsWith('item:') && openKeys.has(String(from).slice(5)))));
+    .some((from) => from === s.proc.id || (String(from || '').startsWith('item:') && String(from).slice(5).split('|').some((k) => openKeys.has(k)))));
   const waiters = real([
     ...items.filter((i) => !free.includes(i) || isAfter(i)).flatMap(owned),
     ...handoffTargets(s, client, checks, openKeys, { inside: false }).map((t) => t.person),

@@ -106,7 +106,7 @@ test('1. who: the employee who marked the wait; the owner\'s mark goes to the pr
 });
 
 test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, right after he took the accesses; Ilai no longer has it", () => {
-  assert.equal(PROTOCOL_VERSION, 13); // 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026
+  assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, docs/ops.md section 126); 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026
   const v11 = PROTOCOL_HISTORY.find((v) => v.version === 11);
   assert.equal(v11.version, 11);
   assert.equal(v11.items, undefined, 'nothing added: the same key, another owner');
@@ -126,13 +126,13 @@ test("2. version 11: 'כל הרשתות חוברו ל־Metricool' is Ofir's, rig
   const now = IL(2026, 10, 5, 12, 40);
   const st = clientState(c, w.checks[c.id], now);
   const open = (who) => openItemsFor(who, c, w.checks[c.id], st, now).map((e) => e.item.key);
-  assert.ok(open('ofir').includes('p06.metricool'));
-  assert.ok(!open('ilai').includes('p06.metricool'));
-  assert.ok(!open('ilai').includes('p06.verified'));
+  // v14 (Ofir: "לאחד"): Metricool is part of 6's one mark, p06.ok.
+  assert.ok(open('ofir').includes('p06.ok'));
+  assert.ok(!open('ilai').includes('p06.ok'));
   // Its deadline is 6's: 30 minutes from the accesses.
   assert.equal(hhmm(st.states.find((s) => s.proc.id === 'p06').dueAt), '5.10 13:00');
   // Who may write it: the office (Ofir among them); Ilai no more.
-  assert.equal(mayWrite({ person: 'ofir', client: c, key: 'p06.metricool' }), true);
+  assert.equal(mayWrite({ person: 'ofir', client: c, key: 'p06.ok' }), true);
   assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.metricool' }), false);
   assert.equal(mayWrite({ person: 'ilai', client: c, key: 'p06.name' }), false);
 });

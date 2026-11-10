@@ -134,9 +134,11 @@ test('characterizer decides who takes the network access; no logo adds a logo ta
   assert.equal(p6.items.find((i) => i.key === 'p06.recovered'), undefined); // v12: the broken logins left Lior, to nobody
   // The whole of 6 is Ofir's since 28.10.2026 (the owner), new networks too.
   // Since 1.11.2026 the client's characterizer's (Noam when none was set; Ofir when Lior ran it).
-  assert.deepEqual(p6.items.find((i) => i.key === 'p06.newpages').owners, ['noam']);
-  assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p06').items.find((i) => i.key === 'p06.newpages').owners, ['ofir']);
-  assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p06').items.find((i) => i.key === 'p06.newpages').owners, ['ofir']);
+  // v14 (Ofir: "לאחד"): 6 is one mark, p06.ok, the client's characterizer's.
+  assert.deepEqual(p6.items.map((i) => i.key), ['p06.ok']);
+  assert.deepEqual(p6.items[0].owners, ['noam']);
+  assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p06').items[0].owners, ['ofir']);
+  assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p06').items[0].owners, ['ofir']);
   assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p04').owners, ['lior']);
   assert.deepEqual(applicableProcesses({}).find((p) => p.id === 'p04').owners, ['noam']); // Noam characterizes by default (1.11.2026)
   assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p04').owners, ['ofir']);
@@ -235,10 +237,10 @@ test('open items per person follow owners and readiness', () => {
   const s = clientState(c, {}, now);
   const irit = openItemsFor('irit', c, {}, s, now);
   assert.ok(irit.some((x) => x.item.key === 'p01.signed'));
-  assert.ok(!irit.some((x) => x.item.key === 'p05.access')); // Lior characterizes, so he takes the access
+  assert.ok(!irit.some((x) => x.item.key === 'p05.got')); // Lior characterizes, so he takes the access (v14: 5 is one mark)
   const lior = openItemsFor('lior', c, {}, s, now);
   assert.ok(lior.some((x) => x.item.key === 'p04.address'));
-  assert.ok(lior.some((x) => x.item.key === 'p05.access'));
+  assert.ok(lior.some((x) => x.item.key === 'p05.got'));
   assert.ok(!lior.some((x) => x.item.key === 'p17.place')); // shoot not scheduled yet
   assert.ok(!openItemsFor('ofir', c, {}, s, now).some((x) => x.item.key === 'p04.address'));
 });

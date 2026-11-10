@@ -49,6 +49,10 @@ export const EXTRA_MARKS = {
   'p16.read': { proc: 'p16', persons: ['eli'] }, // Eli: "קראתי את התסריטים" (app/shoot.js)
   'p18b.files': 'p18b', // Eli (and Lior, who is the office): the raw material and the chosen take per script (app/shoot.js)
   'p19b.notes': 'p19b', // Eli: his notes for the editor (app/shoot.js). An item until v13, the field stays.
+  // Protocol v14 (Ofir: "לאחד"): 5 is one item, p05.got. The characterizer's pages still write these old
+  // marks (the end of the characterization, the form's logo, colors and materials: app/characterization.js,
+  // app/intake.js); when all of them are resolved they pass p05.got.
+  'p05.access': 'p05', 'p05.logo': 'p05', 'p05.colors': 'p05', 'p05.photos': 'p05', 'p05.videos': 'p05', 'p05.menu': 'p05',
 };
 
 export const EDITOR = '@editor'; // the editor of that shoot
