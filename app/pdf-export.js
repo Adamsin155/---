@@ -5,8 +5,7 @@
 //  1. the document goes into a hidden frame 794 px wide (A4 at 96 dpi), with the site's fonts and
 //     quote.css only, so a phone draws it as a computer does (no phone layout in the file);
 //  2. the pages are cut between blocks and lines (splitPages): never through a line of text, a row,
-//     a box or a heading with what follows it, and a new page before "מי אנחנו" and the clauses,
-//     as on paper;
+//     a box or a heading with what follows it;
 //  3. each page is drawn by html2canvas (app/vendor, MIT) at twice the size and kept as a JPEG;
 //  4. the pages become a PDF (jpegPdf, below: A4, one picture per page), and the browser saves it.
 // Nothing leaves the device: the file is made in the browser.
@@ -156,6 +155,13 @@ const sheet = (doc, href) => new Promise((resolve) => {
   doc.head.append(l);
 });
 
+// Every weight of Rubik the document uses, Hebrew and Latin (app/fonts/fonts.css, linked by the page).
+async function loadRubik(doc) {
+  if (!doc.fonts) return;
+  await Promise.all(['400', '500', '600', '700', '800'].map((w) => doc.fonts.load(`${w} 16px Rubik`, 'אבג abc 123 ₪').catch(() => {})));
+  await doc.fonts.ready;
+}
+
 // The document in a frame of its own, the width of an A4 page.
 async function frameFor(docEl) {
   const frame = document.createElement('iframe');
@@ -170,15 +176,15 @@ async function frameFor(docEl) {
   await Promise.all([sheet(d, './fonts/fonts.css'), sheet(d, './styles/quote.css')]);
   const style = d.createElement('style');
   style.textContent = `html,body{margin:0;padding:0;background:#fff;width:${PAGE_W}px}`
-    + '.qd{max-width:none;width:100%;margin:0}';
+    // Letter spacing makes html2canvas draw letter by letter, and the letters drift: none in the file.
+    + '.qd{max-width:none;width:100%;margin:0}.qd,.qd *{letter-spacing:0!important}'
+    // The clauses in one column: two columns side by side have no place to cut a page between lines.
+    + '.qd-clauses{columns:1!important}';
   d.head.append(style);
   const article = d.importNode(docEl, true);
   d.body.append(article);
   void article.offsetHeight;
-  if (d.fonts) {
-    await Promise.all(['400', '500', '600', '700', '800'].map((w) => d.fonts.load(`${w} 16px Rubik`, 'אבג abc 123').catch(() => {})));
-    await d.fonts.ready;
-  }
+  await loadRubik(d);
   await Promise.all([...article.querySelectorAll('img')].map((img) => (img.complete ? null : img.decode().catch(() => {}))));
   frame.style.height = `${Math.ceil(article.getBoundingClientRect().height) + 4}px`;
   return { frame, article };
@@ -209,9 +215,30 @@ export function measure(article) {
     range.selectNodeContents(t);
     for (const r of range.getClientRects()) if (r.height > 0) lines.push(span(r));
   }
-  const forced = [...article.querySelectorAll('.qd-legal, .qd--words .qd-intro')]
-    .map((el) => el.getBoundingClientRect().top - top0);
-  return { total: article.getBoundingClientRect().height, avoid, lines, forced };
+  // No forced new page: the file runs on as the preview does (the print's new page before "מי
+  // אנחנו" left most of the first page empty).
+  return { total: article.getBoundingClientRect().height, avoid, lines, forced: [] };
+}
+
+// html2canvas draws each word where the page put it. Its words come from Intl.Segmenter, which
+// cuts "(קמפיין", "18%" or "info@astrateg.com" into pieces; drawn one by one, right to left, the
+// pieces come out turned or spaced. While a page is drawn, a word is everything between two
+// spaces, and the canvas lays out each such word the way the page does.
+async function wholeWords(fn) {
+  const Native = typeof Intl !== 'undefined' ? Intl.Segmenter : undefined;
+  if (!Native) return fn();
+  class BySpaces {
+    constructor(locale, options = {}) {
+      this.words = options.granularity === 'word';
+      this.native = new Native(locale, options);
+    }
+    segment(text) {
+      if (!this.words) return this.native.segment(text);
+      return String(text).split(/(\s+)/).filter(Boolean).map((segment) => ({ segment }));
+    }
+  }
+  Intl.Segmenter = BySpaces;
+  try { return await fn(); } finally { Intl.Segmenter = Native; }
 }
 
 const toJpeg = (canvas) => new Promise((resolve, reject) => {
@@ -220,18 +247,21 @@ const toJpeg = (canvas) => new Promise((resolve, reject) => {
 
 // docEl: the document as renderQuoteDoc made it. Returns a Blob (application/pdf).
 export async function makePdf(docEl, { title = '' } = {}) {
-  const [html2canvas] = await Promise.all([html2canvasLib(), document.fonts?.ready]);
+  // html2canvas writes the letters on a canvas of this page, so the document's font (Rubik, every
+  // weight it uses) must be loaded here too, not only in the frame (else the words are drawn in
+  // another font and run into each other).
+  const [html2canvas] = await Promise.all([html2canvasLib(), loadRubik(document)]);
   const { frame, article } = await frameFor(docEl);
   try {
     const m = measure(article);
     const pages = splitPages(m.total, { first: PAGE_H - MARGIN, rest: PAGE_H - 2 * MARGIN }, m);
     const images = [];
     for (const [i, p] of pages.entries()) {
-      const part = await html2canvas(article, {
+      const part = await wholeWords(() => html2canvas(article, {
         x: 0, y: p.start, width: PAGE_W, height: p.end - p.start, scale: SCALE,
         backgroundColor: '#ffffff', logging: false, useCORS: true,
         windowWidth: PAGE_W, windowHeight: frame.offsetHeight, scrollX: 0, scrollY: 0,
-      });
+      }));
       const page = document.createElement('canvas');
       page.width = PAGE_W * SCALE;
       page.height = PAGE_H * SCALE;
