@@ -109,7 +109,7 @@ function items() {
   }
   return out;
 }
-const MARKS = /^(r[0-9]+\.)?(p02\.opened|p04\.(ended|saved)|p05\.(access|logo|colors|photos|videos)|p07\.(sent|approved)|p11\.(ok\.client|calendar)|p12\.(scripts|numbered|docs)|p13\.approved|p19\.(all|took)|p23\.(sent|approved)|p26\.sent|p27\.(notes|fixes|final|approved)|p28\.scheduled|p29\.sent|p30\.live|p34\.talk)$/;
+const MARKS = /^(r[0-9]+\.)?(p02\.opened|p04\.(ended|saved)|p05\.(access|logo|colors|photos|videos|got)|p07\.(sent|approved)|p11\.(ok\.client|calendar)|p12\.(scripts|numbered|docs)|p13\.approved|p19\.(all|took)|p23\.(sent|approved)|p26\.sent|p27\.(notes|fixes|final|approved)|p28\.scheduled|p29\.sent|p30\.live|p34\.talk)$/;
 function surveysDue() {
   const due = [];
   const today = dayKeyIL(serverNow());
