@@ -4863,4 +4863,30 @@ Claude יראה פסקה של "מה ישתנה". עונים "כן" ורק אז �
 
 **הדלקה (בסדר הזה):** קודם לפרסם את האתר (הוא כבר לא כותב את הפריטים שירדו), אחר כך להריץ את ה־SQL, ואז לפרוס את `reminders` (בלי "עוד לא התחלת", וההעברה לאופיר בלי Dropbox) ואת `mcp` (הפרוטוקול החדש בכלים של הבעלים). אם מריצים את ה־SQL לפני הפרסום, העורכים באתר הישן יקבלו שגיאה ב"קיבלתי את הכונן".
 
-**בדיקות:** `tests/protocol-v14.test.mjs`, `tests/sql/protocol-v14.test.mjs`, ועדכון: `production`, `editor-auto`, `monthly-editing`, `reminder-engine`, `handoffs`, `protocol-writers`, `integration`, `package1`, `protocol-v13` (ו־`sql/protocol-v13`), ובדיקות הגרסה. e2e: `editor-page-e2e`, `editor-auto-e2e`, `production-e2e`, `roles-phone-e2e`.
+**בדיקות:** `tests/protocol-v14.test.mjs`, `tests/sql/protocol-v14.test.mjs`, ועדכון: `production`, `editor-auto`, `monthly-editing`, `reminder-engine`, `handoffs`, `protocol-writers`, `integration`, `package1`, `protocol-v13` (ו־`sql/protocol-v13`), ובדיקות הגרסה. e2e: `editor-page-e2e`, `editor-auto-e2e`, `production-e2e`, `editor-report-to-e2e`, `package1-e2e`, `card-assign-e2e`, `monthly-editing-e2e`.
+
+### 123ב. באותה גרסה: מבצע האפיון מסמן סימון אחד לכל תהליך (אופיר סימן "לאחד", אישור הבעלים 10.11.2026)
+
+נעם, שיאל ואופיר (מבצע האפיון) סימנו עד עכשיו הרבה סעיפים קטנים. מעכשיו יש סימון אחד לכל תהליך. **תהליך 4 (טופס האפיון) לא השתנה**: 11 השדות ו"האפיון נשמר" נשארו, ונסגרים לבד מהטופס כמו קודם.
+
+**המיפוי (ישן ← חדש):**
+- 5 "לקיחת גישות לרשתות": `p05.access`, `p05.allnets`, `p05.logo`, `p05.colors`, `p05.photos`, `p05.videos`, `p05.menu` ← `p05.got` "התקבלו הגישות והחומרים". `p05.newlogo` של עילאי לא השתנה (`p05.vault` של עירית ירד כבר בגרסה 13).
+- 6 "בדיקת הגישות וסידור הרשתות": `p06.verified`, `p06.newpages`, `p06.name`, `p06.bio`, `p06.details`, `p06.phone`, `p06.address`, `p06.look`, `p06.metricool` ← `p06.ok` "הגישות נבדקו, הרשתות סודרו וחוברו ל־Metricool".
+- 8 ו־8ב "Highlights": `p08.done`, `p08.saved`, וכל תהליך 8ב (`p08b.posted`) ← `p08.ok` "ה־Highlights הוכנו והועלו לרשתות", בתוך 8. **8ב ירד כולו**: הסימון היחיד הוא "הוכנו והועלו", אז אין מה להעביר מ־8 ל־8ב. היעד של 8 נשאר שעתיים מסוף האפיון, וההעלאה בתוכו (קודם היו עוד 30 דקות). התזכורות של 8ב (`highlightsUpload`) כבר לא מצלצלות.
+
+**סימונים ישנים עדיין נחשבים:** פריט חדש נסגר לבד כשכל הסימונים הישנים שהוא מחליף סומנו (`passedIf: { all }` ב־`app/protocol-logic.js`). פריט ישן שנוסף בגרסה מאוחרת מזו שהלקוח התחיל בה (`p05.allnets` מגרסה 8, `p08b.posted` מגרסה 7) לא נדרש ממנו, כדי שלקוח ותיק שיובא לא ייפתח מחדש.
+
+**מה ממשיך לכתוב את המפתחות הישנים (ולכן גם סוגר את הפריט החדש לבד):** הכספת והטופס של הלקוח (`p05.access`, דרך פונקציות SQL), סיום האפיון וטופס האפיון (לוגו, צבעים, תמונות, סרטונים, תפריט: `app/characterization.js`, `app/intake.js`). כדי שמבצע האפיון ימשיך לכתוב אותם, הם ב־`EXTRA_MARKS` ב־`scripts/protocol-writers.mjs`.
+
+**שינויים בדרך:**
+- 6 מתחיל ממה שבא קודם: "התקבלה גישה" (`p05.access`, מהכספת או מהטופס) או הסימון האחד של 5 (`item:p05.access|p05.got`). כך גם התזכורת "קיבלת גישות" (הכלל `access`), שנעצרת כש־6 הושלם.
+- הסטטוסים בכספת כבר לא מסמנים את 6 לבד (קודם סימנו את `p06.verified`), כי 6 הוא עכשיו גם סידור העמודים ו־Metricool. ב"המשימות שלי" מופיעה השורה "כל הרשתות בכספת קיבלו סטטוס. נשאר לסדר את העמודים ולחבר ל־Metricool, ולסמן."
+- ההעברה בוואטסאפ "גישות התקבלו" מוצעת כש־5 הושלם (`on: 'p05'`), עד ש־6 סומן.
+- דף הסטטוס של הלקוח: `p05.got` אומר שהכול התקבל, ולא מבקשים ממנו חומרים או גישות (`private.status_mark_ok` מכיר את `p05.got`, ב־SQL של הגרסה). גם "התקבלו X מתוך Y" (`materialsOf`) רואה בו הכול.
+- כלי ה־MCP: הדוגמה היא `p05.got`.
+
+**לאיזה לקוחות:** לכולם, כמו אצל העורכים. בלי העברת נתונים.
+
+**SQL:** אותו קובץ, `20261210100000_protocol_v14.sql`: גם טבלת הכותבים (הפריטים החדשים, והמפתחות הישנים של 5 שעדיין נכתבים), וגם `private.status_mark_ok` עם `p05.got`.
+
+**בדיקות:** `tests/protocol-v14.test.mjs` (המיפוי, ישנים סגורים → גמור, חסר אחד → הסימון האחד נשאל, ההעברה, התזכורות), ועדכון `handoffs`, `highlights-upload` (בדיקות השעון של 8ב ירדו איתו), `noam`, `shiel`, `p06-ofir`, `protocol`, `protocol-2110`, `office-flows`, `flow-fixes`, `client-open`, `mcp-write`, `audit-gaps-v10`, `lior-four`, `integration`, `protocol-versions`, `sql/noam`, `sql/shiel`. e2e: `status-e2e`, `access-form-e2e`, `noam-clients-e2e`, `all-in-mine-e2e`, `protocol-v13-e2e`, `late-tab-e2e`.
