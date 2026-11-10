@@ -350,7 +350,7 @@ function loadCard(l, now) {
   const late = l.jobs.filter((j) => j.dueAt && !j.landing && j.dueAt < now).length;
   const head = [personChip(l.editor),
     h('span', { class: 'of-line' }, loadText({ ...l, waiting: [] })), late ? h('span', { class: 'late of-load-late' }, ` · ${late === 1 ? 'אחת באיחור' : `${late} באיחור`}`) : null,
-    l.waiting.length ? h('span', { class: 'of-line muted of-load-wait' }, ` · ${waitingText(l.waiting.length)}`) : null];
+    l.waiting.length ? h('span', { class: 'of-load-wait' }, waitingText(l.waiting.length)) : null];
   if (!l.jobs.length && !l.waiting.length) return h('li', { class: 'of-card of-editor' }, h('div', { class: 'of-head' }, ...head));
   return h('li', { class: 'of-card of-editor' }, h('details', { class: 'of-load-fold', open: openFolds.has(l.editor) ? true : null, ontoggle: (e) => keepFold(l.editor, e.currentTarget.open) },
     h('summary', { class: 'of-head' }, ...head),
