@@ -11,7 +11,7 @@
 //   an ended one  not in the list
 // The tab "ימי צילום" (10.11.2026) on the same clients: Pizza Roma (no date, deal 15.6), אלאור בוטיק
 // (every month, nothing in October) and the long name (3 days, 1 held) wait; מוסך אבי is set for
-// 5.11; קפה דנה has held its only day. The tabs: #shoots and #tasks in the address, kept on reload.
+// 5.11; קפה דנה has held its only day. The tabs: #shoots and #tasks in the address; the last one kept on the device.
 //   1  Irit on an iPhone 13 (WebKit): the cards, the numbers, ✓, the dates; the search typed key by
 //      key and deleted with Backspace; no sideways scroll; the menu has "מעקב לקוחות";
 //   2  the same on Chromium at 390;
@@ -247,6 +247,11 @@ async function shootsTab(page, name, { phone }) {
     assert.equal(new Set(tops).size, 1, 'one line');
   }
   await noOverflow(page);
+  if (!phone) {
+    // All seven columns in sight at 1366: the table does not scroll sideways.
+    assert.ok(await page.locator('#sh-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the table fits');
+  }
+  await page.waitForTimeout(300); // the tab's colour has settled
   await shot(page, `tracking-shoots-${name}`, { fullPage: true });
   // The filters.
   await page.selectOption('#sh-status', 'set');
@@ -281,22 +286,14 @@ async function shootsTab(page, name, { phone }) {
   for (let i = 0; i < 4; i += 1) await box.press('Backspace');
   assert.equal(await box.inputValue(), '');
   assert.equal((await shIds(page)).length, 5);
-  // Kept on reload (the address).
-  await page.reload();
-  await page.waitForSelector('#sh-body tr[data-id]');
-  assert.equal(await page.locator('#tab-shoots').getAttribute('aria-selected'), 'true');
-  assert.equal(await page.locator('#view-shoots').isVisible(), true);
   // The third tab: its own module.
   await page.locator('#tab-tasks').click();
   assert.ok(page.url().endsWith('#tasks'));
   await page.waitForFunction(() => document.getElementById('view-tasks').textContent.trim().length > 0);
   assert.equal(await page.locator('#view-shoots').isVisible(), false);
   await noOverflow(page);
+  await page.waitForTimeout(300);
   await shot(page, `tracking-tasks-${name}`, { fullPage: true });
-  // A plain visit (no hash): the tab last open on this device.
-  await page.goto(page.url().replace(/#.*$/, ''));
-  await page.waitForSelector('#ct-page:not([hidden])');
-  assert.equal(await page.locator('#tab-tasks').getAttribute('aria-selected'), 'true');
   // Back to the first tab with the keyboard (Home); then "ימי צילום" again.
   await page.locator('#tab-tasks').focus();
   await page.keyboard.press('Home');
@@ -305,6 +302,28 @@ async function shootsTab(page, name, { phone }) {
   assert.ok(!page.url().includes('#'));
   await page.locator('#tab-shoots').click();
   await page.waitForSelector('#sh-body tr[data-id]');
+}
+
+// The open tab is kept: in the address (#shoots), and on this device for a plain visit.
+async function remembered(engine) {
+  const a = await signedIn(office(), { person: 'irit', width: 1366, engine, path: 'tracking.html#shoots', wait: '#sh-body tr[data-id]' });
+  assert.equal(await a.page.locator('#tab-shoots').getAttribute('aria-selected'), 'true');
+  assert.equal(await a.page.locator('#ct-view').isVisible(), false);
+  await a.ctx.close();
+  const fake = makeFlowFake(office());
+  const ctx = await engine.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width: 1366, height: 900 } });
+  await ctx.clock.install({ time: NOW });
+  await ctx.route(`${SUPA}/**`, fake.route);
+  await ctx.addInitScript(() => { try { localStorage.setItem('tracking-tab', 'tasks'); } catch { /* none */ } });
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}tracking.html`);
+  await page.fill('#lg-email', emailOf('irit'));
+  await page.fill('#lg-pass', 'correct-horse');
+  await page.click('#lg-submit');
+  await page.waitForFunction(() => document.getElementById('view-tasks').textContent.trim().length > 0);
+  assert.equal(await page.locator('#tab-tasks').getAttribute('aria-selected'), 'true');
+  assert.ok(page.url().endsWith('#tasks'));
+  await ctx.close();
 }
 
 // An editor who opens the address is refused, and (signed in on this page) taken to her own tasks.
@@ -323,6 +342,7 @@ try {
   await step('Irit on Chromium 390: the same', () => phone(engines.chromium, { width: 390, name: 'chromium390' }));
   await step('Irit at 1366: the table, five columns; the tab "ימי צילום"; its button opens the card', () => desktop(engines.chromium, { name: 'irit-1366' }));
   await step('Lior at 1366: he sees it too', () => desktop(engines.chromium, { person: 'lior', name: 'lior-1366' }));
+  await step('the open tab is kept: #shoots in the address, the last tab on this device', () => remembered(engines.chromium));
   await step('Nadia (an editor): refused, back to her tasks, not in her menu', () => noAccess(engines.chromium));
   await step('no page errors and no CSP violations', () => { assert.deepEqual(errors, []); noCspViolations(); });
 } finally {
