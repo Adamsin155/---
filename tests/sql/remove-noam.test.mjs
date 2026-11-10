@@ -23,11 +23,13 @@ const ids = {};
 const q = (who, sql, params = []) => as(db, users[who], async (tx) => (await tx.query(sql, params)).rows);
 const addClient = async (name, characterizer) => (await db.query(
   "insert into public.clients (name, business, editor, status, characterizer) values ($1, $1, 'nadia', 'active', $2) returning id", [name, characterizer])).rows[0].id;
-async function anon(sql, params = []) {
+// As someone, committed (as() in pg.mjs rolls back): a link made here must be there for the client's form.
+async function keep(u, sql, params = []) {
+  const claims = u ? { sub: u.id, email: u.email, role: 'authenticated' } : { role: 'anon' };
   let out;
   await db.transaction(async (tx) => {
-    await tx.query('set local role anon');
-    await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: 'anon' })]);
+    await tx.query(`set local role ${u ? 'authenticated' : 'anon'}`);
+    await tx.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
     out = (await tx.query(sql, params)).rows;
   });
   return out;
@@ -86,11 +88,12 @@ test('nobody can give her a task', async () => {
 
 test('the client\'s form: a network to open is Ofir\'s, whoever characterized', async () => {
   const submit = async (cid) => {
-    const link = (await q('irit', 'select public.access_link_create($1) as l', [cid]))[0].l;
+    const link = (await keep(users.irit, 'select public.access_link_create($1) as l', [cid]))[0].l;
     const f = emptyForm();
     f.main.instagram = { choice: 'have', username: 'page_user', password: 'Insta-9!' };
-    f.main.tiktok = { choice: 'none', username: '', password: '' };
-    assert.deepEqual((await anon('select public.access_form_submit($1, $2::jsonb) as r', [link.token, JSON.stringify(buildPayload(f))]))[0].r, { state: 'done' });
+    f.main.facebook = { choice: 'none', username: '', password: '' };
+    f.main.tiktok = { choice: 'reset', username: 'page.tt', password: '' };
+    assert.deepEqual((await keep(null, 'select public.access_form_submit($1, $2::jsonb) as r', [link.token, JSON.stringify(buildPayload(f))]))[0].r, { state: 'done' });
     return (await db.query('select owner from public.client_tasks where client_id = $1 and title like $2', [cid, 'לפתוח ללקוח %'])).rows.map((r) => r.owner);
   };
   for (const c of ['noam', 'ofir', 'shiel', 'lior']) assert.deepEqual(await submit(ids[c]), ['ofir'], c);
@@ -105,8 +108,7 @@ test('Ofir\'s meetings: his clients, her old ones and a client with nobody set; 
   assert.equal(meetings.length, 3);
 });
 
-test('the history stays: rows that name her can still be kept', async () => {
-  await db.query("insert into public.client_tasks (client_id, title, owner) values ($1, 'ישנה', 'noam')", [ids.noam]);
-  await db.query("insert into public.reminder_log (key, rule, person, level, channel, status, title) values ('k-old-noam', 'r', 'noam', 'ring', 'push', 'sent', 't')");
+test('the history stays: a client set to her keeps her name (the checks still allow it)', async () => {
+  await db.query("update public.clients set characterizer = 'noam' where id = $1", [ids.noam]);
   assert.equal((await db.query('select characterizer from public.clients where id = $1', [ids.noam])).rows[0].characterizer, 'noam');
 });

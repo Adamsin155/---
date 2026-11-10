@@ -102,8 +102,9 @@ test('to whom: everyone on the team with a login, and the owner; the text is req
   // (supabase/pending/noam_checks.sql, which widens it; tests/sql/noam.test.mjs runs it).
   const pending = readFileSync(new URL('../../supabase/pending/noam_checks.sql', import.meta.url), 'utf8');
   const widened = /check \(assignee in \(([^)]+)\)\)/.exec(pending)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
-  assert.deepEqual([...widened].sort(), [...offered].sort());
-  assert.deepEqual([...listed, 'noam'].sort(), [...offered].sort());
+  // Noam left on 10.11.2026: the form offers her no more; the widened check keeps her for old rows.
+  assert.deepEqual([...widened].filter((p) => p !== 'noam').sort(), [...offered].sort());
+  assert.deepEqual([...listed].sort(), [...offered].sort());
   for (const p of ['yariv', 'anna']) assert.match((await give('irit', p)).error, /the assignee has no login/, p);
   for (const p of ['editor', 'nobody', '', null]) assert.match((await give('irit', p)).error, /unknown assignee/, String(p));
   for (const body of ['', '   ', null, 'א'.repeat(BODY_MAX + 1)]) assert.match((await give('irit', 'nadia', body)).error, /task text is required/);

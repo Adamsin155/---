@@ -19,6 +19,7 @@ import { buildPayload, emptyForm } from '../../app/access-logic.js';
 import { sqlBlock, latestBlock, mayWrite } from '../../scripts/protocol-writers.mjs';
 
 const FILE = '20261123100000_noam.sql';
+const NOAM_THEN = ['p04.address', 'p04.saved', 'p05.access', 'p06.verified', 'p06.metricool', 'p08.done', 'p08b.posted', 'p05.handoff.noam'];
 const PENDING = new URL('../../supabase/pending/noam_checks.sql', import.meta.url);
 const PEOPLE = { owner: null, irit: 'irit', lior: 'lior', ofir: 'ofir', ilai: 'ilai', nadia: 'nadia', noam: 'noam' };
 let db;
@@ -52,7 +53,8 @@ async function keep(d, u, sql, params = []) {
 const run = (who, sql, params = []) => as(db, users[who], async (tx) => (await tx.query(sql, params)).rows);
 
 before(async () => {
-  db = await freshDatabase();
+  // Noam left on 10.11.2026 (20261209100000_remove_noam.sql, tests/sql/remove-noam.test.mjs): this file is the history, up to then.
+  db = await freshDatabase({ upTo: '20261209100000_remove_noam.sql' });
   await db.exec(readFileSync(PENDING, 'utf8'));
   Object.assign(users, await addPeople(db));
   ids.noam = await addClient(db, 'קפה נעמה', 'noam');
@@ -115,14 +117,13 @@ test('who writes: Noam the items of 4, 5, 6, 8 and 8ב; Ofir all of them too; th
   const keys = ['p04.address', 'p04.saved', 'p04.followup', 'p05.access', 'p05.vault', 'p06.verified', 'p06.metricool', 'p06.recovered', 'p08.done', 'p08b.posted', 'p05.handoff.noam', 'p07.made', 'p07.ofir', 'p22a.assigned'];
   for (const key of keys) {
     for (const who of ['noam', 'ofir', 'ilai']) {
-      const app = mayWrite({ person: PEOPLE[who], client: { editor: 'nadia' }, key });
+      // Her rights as they were (the app has none for her since she left): the items of 4, 5, 6, 8 and 8ב.
+      const app = who === 'noam' ? NOAM_THEN.includes(key) : mayWrite({ person: PEOPLE[who], client: { editor: 'nadia' }, key });
       assert.equal((await insert(who, key)) === 1, app, `${who} ${key}`);
       await db.query('delete from public.protocol_checks where client_id = $1 and item_key = $2', [ids.noam, key]);
     }
     assert.equal(mayWrite({ person: 'ofir', client: {}, key }), true, `ofir ${key}`);
   }
-  for (const key of ['p04.saved', 'p06.verified', 'p08.done', 'p08b.posted']) assert.equal(mayWrite({ person: 'noam', client: {}, key }), true, key);
-  for (const key of ['p04.followup', 'p05.vault', 'p06.recovered', 'p07.ofir', 'p22a.assigned']) assert.equal(mayWrite({ person: 'noam', client: {}, key }), false, key);
 });
 
 test('Metricool: Noam connects a client\'s pages, as Ofir; Irit and the editors do not', async () => {
