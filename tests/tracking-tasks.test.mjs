@@ -55,7 +55,7 @@ test('the brief line: the first answer, short', () => {
   assert.ok(fromStaffTask({ id: 1, assignee: 'nirel', body: 'ב'.repeat(400), status: 'open' }).title.length <= 160);
 });
 
-test('the order: open by due day (oldest first, none last, then by when put in); done the latest first; done only 30 days', () => {
+test('the order: by when put in, the newest first (the owner, 10.11.2026); done only 30 days', () => {
   const ct = [
     { id: 1, owner: 'nadia', title: 'יעד מאוחר', due_on: '2026-11-20', created_at: daysAgo(1) },
     { id: 2, owner: 'ilai', title: 'יעד מוקדם', due_on: '2026-11-05', created_at: daysAgo(2) },
@@ -70,8 +70,8 @@ test('the order: open by due day (oldest first, none last, then by when put in);
     { id: 4, assignee: 'nadia', body: 'בוטלה', status: 'cancelled', created_at: daysAgo(2) },
   ];
   const rows = taskRows({ clientTasks: ct, staffTasks: st, clients }, NOW);
-  assert.deepEqual(rows.map((r) => r.title), ['יעד מוקדם', 'יעד מאוחר', 'בלי יעד, ישנה', 'בלי יעד, חדשה', 'הושלמה אתמול', 'הושלמה לפני שבוע']);
-  assert.deepEqual(rows.map((r) => r.state), ['open', 'open', 'open', 'open', 'done', 'done']);
+  assert.deepEqual(rows.map((r) => r.title), ['יעד מאוחר', 'בלי יעד, חדשה', 'יעד מוקדם', 'הושלמה אתמול', 'הושלמה לפני שבוע', 'בלי יעד, ישנה']);
+  assert.deepEqual(rows.map((r) => r.state), ['open', 'open', 'open', 'done', 'done', 'open']);
   assert.deepEqual(taskRows({}, NOW), []);
   assert.deepEqual(taskRows({ clientTasks: null, staffTasks: null }, NOW), []);
 });

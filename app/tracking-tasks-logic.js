@@ -68,20 +68,14 @@ export function fromStaffTask(t, clients = {}) {
   };
 }
 
-// The rows: the open ones by their due day, the oldest first (a task without a day after the
-// dated ones, by when it was put in); then the ones done in the last DONE_DAYS days, the latest first.
+// The rows (open, and done in the last DONE_DAYS days) by when they were put in, the newest
+// first (the owner, 10.11.2026: "תאריך הכנסה למעלה הכי מעודכן וחדש ולמטה הכי ישן").
 export function taskRows({ clientTasks = [], staffTasks = [], clients = {} } = {}, now = new Date()) {
   const since = now.getTime() - DONE_DAYS * DAY;
   const rows = [...(clientTasks || []).map((t) => fromClientTask(t, clients)), ...(staffTasks || []).map((t) => fromStaffTask(t, clients))]
     .filter((r) => r && (r.state === 'open' || new Date(r.doneAt).getTime() >= since));
   const t = (v) => (v ? new Date(v).getTime() : 0);
-  const open = rows.filter((r) => r.state === 'open').sort((a, b) => {
-    if (a.dueOn && b.dueOn && a.dueOn !== b.dueOn) return a.dueOn < b.dueOn ? -1 : 1;
-    if (!!a.dueOn !== !!b.dueOn) return a.dueOn ? -1 : 1;
-    return t(a.createdAt) - t(b.createdAt);
-  });
-  const done = rows.filter((r) => r.state === 'done').sort((a, b) => t(b.doneAt) - t(a.doneAt));
-  return [...open, ...done];
+  return rows.sort((a, b) => t(b.createdAt) - t(a.createdAt));
 }
 
 // The two filters. kind: 'all' | 'edit' | 'graphic'; state: 'all' | 'open' | 'done'.

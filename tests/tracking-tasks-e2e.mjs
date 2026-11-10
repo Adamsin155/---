@@ -9,7 +9,7 @@
 //                                Nadia, Pizza Roma, open, put in 19.10
 //                                Ilai, done 1.9 (more than 30 days ago): not here
 //                                Nirel, cancelled: not here
-//   1  Irit on an iPhone 13 (WebKit): cards in the order (open by due day, then by when put in,
+//   1  Irit on an iPhone 13 (WebKit): cards in the order (by when put in, the newest first,
 //      then the done one), the chips (גרפיקאי, הושלמו, back to הכל), no sideways scroll; "משימה חדשה"
 //      with גרפיקאי: the form of "משימות לעובדים" for Ilai alone, the task typed key by key and
 //      deleted with Backspace, the client searched key by key; sent: the database is asked, the row
@@ -67,8 +67,9 @@ function office() {
   ];
   return db;
 }
-// The order of the list at 20.10.2026: open by due day, then those without one by when they were put in, then the done.
-const ORDER = ['c-' + uid(1), 'c-' + uid(2), 's-' + uid(101), 's-' + uid(102), 'c-' + uid(3)];
+// The tasks by name, and the order of the list: by when they were put in, the newest first (the owner, 10.11.2026).
+const IDS = ['c-' + uid(1), 'c-' + uid(2), 's-' + uid(101), 's-' + uid(102), 'c-' + uid(3)];
+const ORDER = [IDS[3], IDS[4], IDS[1], IDS[2], IDS[0]];
 
 async function signedIn(db, { person, width = 390, device = null, engine }) {
   const fake = makeFlowFake(db);
@@ -130,7 +131,7 @@ async function step(name, fn) {
 async function list(page) {
   assert.deepEqual(await rowIds(page), ORDER);
   assert.equal(await text(page.locator('#tt-count')), '5 משימות');
-  const ilai = row(page, ORDER[0]);
+  const ilai = row(page, IDS[0]);
   assert.match(await text(ilai), /קפה דנה/);
   assert.match(await text(ilai), /גרפיקה/);
   assert.match(await text(ilai), /באנר לחג/);
@@ -141,13 +142,13 @@ async function list(page) {
   assert.match(await text(ilai), /בתהליך/);
   assert.doesNotMatch(await text(ilai), /באיחור|דחוף/, 'two states only');
   assert.equal(await ilai.locator('a.mt-name').getAttribute('href'), `client.html?id=${DANA}`);
-  const yariv = row(page, ORDER[2]);
+  const yariv = row(page, IDS[2]);
   assert.match(await text(yariv), /סטודיו נוגה/, 'the client as named when given');
   assert.equal(await yariv.locator('a').count(), 0, 'no card to open');
   assert.match(await text(yariv), /עריכה/);
   assert.match(await text(yariv), /יריב/);
-  assert.match(await text(row(page, ORDER[4])), /הושלם/);
-  assert.match(await text(row(page, ORDER[4])), /נדיה/);
+  assert.match(await text(row(page, IDS[4])), /הושלם/);
+  assert.match(await text(row(page, IDS[4])), /נדיה/);
   assert.equal(await page.locator('#tt-body').getByText('בדיקת קמפיין').count(), 0, 'Lior is not an editor');
   assert.equal(await page.locator('#tt-body').getByText('בוטלה').count(), 0);
   assert.equal(await page.locator('#tt-body').getByText('ישנה').count(), 0);
@@ -156,17 +157,17 @@ async function list(page) {
 async function chips(page) {
   await chip(page, 'kind', 'graphic').click();
   assert.equal(await chip(page, 'kind', 'graphic').getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(await rowIds(page), [ORDER[0]]);
+  assert.deepEqual(await rowIds(page), [IDS[0]]);
   assert.equal(await text(page.locator('#tt-count')), 'משימה אחת מתוך 5');
   await chip(page, 'kind', 'edit').click();
-  assert.deepEqual(await rowIds(page), ORDER.slice(1));
+  assert.deepEqual(await rowIds(page), ORDER.slice(0, 4));
   await chip(page, 'status', 'done').click();
-  assert.deepEqual(await rowIds(page), [ORDER[4]]);
+  assert.deepEqual(await rowIds(page), [IDS[4]]);
   await chip(page, 'kind', 'graphic').click();
   assert.equal(await page.locator('#tt-body tr[data-id]').count(), 0);
   assert.equal(await text(page.locator('#tt-body')), 'אין משימות בסינון הזה.');
   await chip(page, 'status', 'open').click();
-  assert.deepEqual(await rowIds(page), [ORDER[0]]);
+  assert.deepEqual(await rowIds(page), [IDS[0]]);
   await chip(page, 'status', 'all').click();
   await chip(page, 'kind', 'all').click();
   assert.deepEqual(await rowIds(page), ORDER);
@@ -211,7 +212,8 @@ async function newTask(page, sent, name) {
   await page.locator('#tt-body').getByText('פוסט לסטורי').waitFor();
   const ids = await rowIds(page);
   assert.equal(ids.length, 2, 'Ilai: the two open ones');
-  assert.match(await text(row(page, ids[1])), /פוסט לסטורי.*עילאי.*בתהליך/);
+  // The new one is the newest: first (the owner, 10.11.2026).
+  assert.match(await text(row(page, ids[0])), /פוסט לסטורי.*עילאי.*בתהליך/);
   await chip(page, 'kind', 'all').click();
 }
 
@@ -220,29 +222,29 @@ const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector
 const ct = (db, n) => db.client_tasks.find((t) => t.id === uid(n));
 async function fixes(page, db, name) {
   // A card's task: בתהליך → הושלם → בתהליך.
-  const banner = row(page, ORDER[0]);
+  const banner = row(page, IDS[0]);
   assert.match(await text(banner.locator('.tt-toggle')), /בתהליך/);
   await banner.locator('.tt-toggle').click();
   await toastHas(page, 'סומן ״הושלם״');
-  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'done', ORDER[0]);
+  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'done', IDS[0]);
   assert.ok(ct(db, 1).done_at, 'done in the database');
-  assert.match(await text(row(page, ORDER[0]).locator('.tt-s')), /הושלם/);
-  await row(page, ORDER[0]).locator('.tt-toggle').click();
+  assert.match(await text(row(page, IDS[0]).locator('.tt-s')), /הושלם/);
+  await row(page, IDS[0]).locator('.tt-toggle').click();
   await toastHas(page, 'הוחזר ל״בתהליך״');
-  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'open', ORDER[0]);
+  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'open', IDS[0]);
   assert.equal(ct(db, 1).done_at, null);
   // A task of "משימות לעובדים": done after a confirm; back is not there until its migration.
   page.once('dialog', (d) => d.accept());
-  await row(page, ORDER[2]).locator('.tt-toggle').click();
+  await row(page, IDS[2]).locator('.tt-toggle').click();
   await toastHas(page, 'סומן ״הושלם״');
-  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'done', ORDER[2]);
+  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'done', IDS[2]);
   assert.equal(db.staff_tasks.find((t) => t.id === uid(101)).status, 'done');
-  await row(page, ORDER[2]).locator('.tt-toggle').click();
+  await row(page, IDS[2]).locator('.tt-toggle').click();
   await toastHas(page, 'staff_task_reopen');
-  assert.equal(await row(page, ORDER[2]).getAttribute('data-state'), 'done', 'stays done');
+  assert.equal(await row(page, IDS[2]).getAttribute('data-state'), 'done', 'stays done');
   // The due day of a card's task: 25.10 → 27.10, typed key by key; a staff task has none to change.
-  assert.equal(await row(page, ORDER[2]).locator('.tt-due-fix').count(), 0);
-  const due = row(page, ORDER[1]).locator('.tt-due-fix');
+  assert.equal(await row(page, IDS[2]).locator('.tt-due-fix').count(), 0);
+  const due = row(page, IDS[1]).locator('.tt-due-fix');
   assert.match(await text(due), /25\.10/);
   await due.click();
   const dlg = page.locator('#fx-dlg');
@@ -262,7 +264,7 @@ async function fixes(page, db, name) {
   await dlg.waitFor({ state: 'hidden' });
   await toastHas(page, 'תאריך היעד עודכן');
   assert.equal(ct(db, 2).due_on, '2026-10-27');
-  await page.waitForFunction((id) => /27\.10/.test(document.querySelector(`#tt-body tr[data-id="${id}"] .tt-due`)?.textContent || ''), ORDER[1]);
+  await page.waitForFunction((id) => /27\.10/.test(document.querySelector(`#tt-body tr[data-id="${id}"] .tt-due`)?.textContent || ''), IDS[1]);
   await noOverflow(page);
   await page.locator('#view-tasks').scrollIntoViewIfNeeded();
   await shot(page, `tracking-tasks-fixed-${name}`, { fullPage: true });
@@ -317,7 +319,7 @@ async function desktop(engine, { person = 'irit', width = 1366, name }) {
   } else {
     await fixes(page, db, name);
   }
-  await row(page, ORDER[0]).locator('a.mt-name').click();
+  await row(page, IDS[0]).locator('a.mt-name').click();
   await page.waitForURL(/client\.html\?id=/);
   await ctx.close();
 }
