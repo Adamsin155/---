@@ -430,6 +430,7 @@ async function shootFixes(page, db, name, { phone }) {
   await fld(page, 'fx-status').selectOption('waiting');
   await fld(page, 'fx-monthly').check();
   await dialogFits(page);
+  await page.waitForTimeout(250);
   await shot(page, `tracking-shoots-fix-dialog-${name}`);
   await save(page);
   assert.match(await text(shCell(page, AVI, 2)), /^3/);

@@ -89,6 +89,18 @@ async function signedIn(db, { person, width = 390, device = null, engine }) {
         client_id: c?.id || null, client_name: c ? c.business : null, status: 'open', done_at: null, done_by_email: null, cancelled_at: null, brief: null, claimed_at: null });
       return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(id), headers: CORS });
     }
+    // public.staff_task_done (whoever gave it); public.staff_task_reopen is not in the database yet
+    // (its migration waits for the owner): PostgREST answers PGRST202.
+    const path = new URL(req.url()).pathname;
+    if (req.method() === 'POST' && path === '/rest/v1/rpc/staff_task_done') {
+      const t = db.staff_tasks.find((x) => x.id === JSON.parse(req.postData() || '{}').p_id);
+      Object.assign(t, { status: 'done', done_at: new Date(NOW.getTime() + 120e3).toISOString(), done_by_email: emailOf(person) });
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(t), headers: CORS });
+    }
+    if (req.method() === 'POST' && path === '/rest/v1/rpc/staff_task_reopen') {
+      return r.fulfill({ status: 404, contentType: 'application/json', headers: CORS,
+        body: JSON.stringify({ code: 'PGRST202', message: 'Could not find the function public.staff_task_reopen(p_id) in the schema cache' }) });
+    }
     return fake.route(r);
   });
   const page = await ctx.newPage();
@@ -203,8 +215,62 @@ async function newTask(page, sent, name) {
   await chip(page, 'kind', 'all').click();
 }
 
+// Fixed by hand (10.11.2026): the status toggled both ways, the due day typed key by key.
+const toastHas = (page, s) => page.waitForFunction((x) => document.querySelector('#toast.on')?.textContent.includes(x), s);
+const ct = (db, n) => db.client_tasks.find((t) => t.id === uid(n));
+async function fixes(page, db, name) {
+  // A card's task: בתהליך → הושלם → בתהליך.
+  const banner = row(page, ORDER[0]);
+  assert.match(await text(banner.locator('.tt-toggle')), /בתהליך/);
+  await banner.locator('.tt-toggle').click();
+  await toastHas(page, 'סומן ״הושלם״');
+  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'done', ORDER[0]);
+  assert.ok(ct(db, 1).done_at, 'done in the database');
+  assert.match(await text(row(page, ORDER[0]).locator('.tt-s')), /הושלם/);
+  await row(page, ORDER[0]).locator('.tt-toggle').click();
+  await toastHas(page, 'הוחזר ל״בתהליך״');
+  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'open', ORDER[0]);
+  assert.equal(ct(db, 1).done_at, null);
+  // A task of "משימות לעובדים": done after a confirm; back is not there until its migration.
+  page.once('dialog', (d) => d.accept());
+  await row(page, ORDER[2]).locator('.tt-toggle').click();
+  await toastHas(page, 'סומן ״הושלם״');
+  await page.waitForFunction((id) => document.querySelector(`#tt-body tr[data-id="${id}"]`)?.dataset.state === 'done', ORDER[2]);
+  assert.equal(db.staff_tasks.find((t) => t.id === uid(101)).status, 'done');
+  await row(page, ORDER[2]).locator('.tt-toggle').click();
+  await toastHas(page, 'staff_task_reopen');
+  assert.equal(await row(page, ORDER[2]).getAttribute('data-state'), 'done', 'stays done');
+  // The due day of a card's task: 25.10 → 27.10, typed key by key; a staff task has none to change.
+  assert.equal(await row(page, ORDER[2]).locator('.tt-due-fix').count(), 0);
+  const due = row(page, ORDER[1]).locator('.tt-due-fix');
+  assert.match(await text(due), /25\.10/);
+  await due.click();
+  const dlg = page.locator('#fx-dlg');
+  await dlg.waitFor({ state: 'visible' });
+  const box = dlg.locator('#fx-due');
+  assert.equal(await box.inputValue(), '25.10.2026');
+  await box.click();
+  await box.press('End');
+  for (let i = 0; i < 10; i += 1) await box.press('Backspace');
+  assert.equal(await box.inputValue(), '');
+  await box.pressSequentially('27.100', { delay: 40 });
+  await box.press('Backspace');
+  assert.equal(await box.inputValue(), '27.10');
+  await noOverflow(page);
+  await shot(page, `tracking-tasks-due-dialog-${name}`);
+  await dlg.locator('#fx-save').click();
+  await dlg.waitFor({ state: 'hidden' });
+  await toastHas(page, 'תאריך היעד עודכן');
+  assert.equal(ct(db, 2).due_on, '2026-10-27');
+  await page.waitForFunction((id) => /27\.10/.test(document.querySelector(`#tt-body tr[data-id="${id}"] .tt-due`)?.textContent || ''), ORDER[1]);
+  await noOverflow(page);
+  await page.locator('#view-tasks').scrollIntoViewIfNeeded();
+  await shot(page, `tracking-tasks-fixed-${name}`, { fullPage: true });
+}
+
 async function phone(engine, { device = null, width = 390, name }) {
-  const { page, ctx, sent } = await signedIn(office(), { person: 'irit', device, width, engine });
+  const db = office();
+  const { page, ctx, sent } = await signedIn(db, { person: 'irit', device, width, engine });
   await list(page);
   // Cards: the header row out of sight, every card within the screen.
   assert.equal(await page.locator('.tt thead').evaluate((el) => el.getBoundingClientRect().height <= 1), true);
@@ -217,12 +283,14 @@ async function phone(engine, { device = null, width = 390, name }) {
   await shot(page, `tracking-tasks-${name}`, { fullPage: true });
   await chips(page);
   await newTask(page, sent, name);
+  await fixes(page, db, name);
   await noOverflow(page);
   await ctx.close();
 }
 
 async function desktop(engine, { person = 'irit', width = 1366, name }) {
-  const { page, ctx, sent } = await signedIn(office(), { person, width, engine });
+  const db = office();
+  const { page, ctx, sent } = await signedIn(db, { person, width, engine });
   await list(page);
   assert.deepEqual((await page.locator('.tt thead th').allInnerTexts()).map((t) => t.trim()), ['לקוח', 'סוג', 'תיאור המשימה', 'תאריך הכנסה', 'תאריך יעד', 'אחראי/ת', 'סטטוס']);
   for (const id of ORDER) {
@@ -244,6 +312,11 @@ async function desktop(engine, { person = 'irit', width = 1366, name }) {
   await dlg.waitFor({ state: 'hidden' });
   assert.deepEqual(sent, []);
   await chip(page, 'kind', 'all').click();
+  if (person === 'lior') {
+    assert.equal(await page.locator('.tt-toggle, .tt-due-fix').count(), 0, 'Lior reads: nothing to tap');
+  } else {
+    await fixes(page, db, name);
+  }
   await row(page, ORDER[0]).locator('a.mt-name').click();
   await page.waitForURL(/client\.html\?id=/);
   await ctx.close();

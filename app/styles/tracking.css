@@ -165,7 +165,7 @@
 .ct-fix:disabled { opacity: .6; cursor: progress; }
 .ct-pen { font-size: 13px; color: var(--muted); line-height: 1; }
 .ct-by { display: block; margin-block-start: 2px; font-size: 12px; font-weight: 600; color: var(--k-purple, #5B3BA8); white-space: nowrap; }
-.ct .is-fixed .num, .sh .is-fixed .sh-total .num, .sh .is-fixed .sh-left .num { color: var(--k-purple, #5B3BA8); }
+.ct td.is-fixed .num, .sh tr.is-fixed .sh-total .num, .sh tr.is-fixed .sh-left .num { color: var(--k-purple, #5B3BA8); }
 .ct .ct-ed-in { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .ct .ct-ed-change { font-size: 13px; font-weight: 600; color: var(--ds-navy-2, #33468A); }
 .sh .sh-fix-status { margin-inline: -6px; }
@@ -199,7 +199,9 @@
 
 @media (max-width: 760px) {
   .ct-fix { min-block-size: 44px; }
-  .ct tbody td .ct-by, .sh tbody td .ct-by { flex: 0 0 100%; text-align: end; }
+  .ct tbody td .ct-by { flex: 0 0 100%; text-align: end; margin: 0; }
+  .ct tbody td.is-fixed { row-gap: 0; }
+  .sh tbody td:first-child .ct-by { text-align: start; margin-block-start: -6px; }
   .sh tbody td:first-child { flex-wrap: wrap; }
   .sh .sh-14-items { align-items: flex-end; }
   .sh tbody td.sh-14 { flex-wrap: wrap; }

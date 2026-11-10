@@ -175,11 +175,11 @@ export function openCh14({ client, viewer, saved, now = new Date() }) {
       h('div', { class: 'fx-pair' },
         field(`fx-d${i}`, 'תאריך', h('input', {
           class: 'input num fx-day', id: `fx-d${i}`, type: 'text', inputmode: 'decimal', dir: 'ltr', autocomplete: 'off', maxlength: '10',
-          placeholder: '20.11', value: d, 'aria-label': `תאריך${n}`,
+          placeholder: 'למשל 20.11', value: d, 'aria-label': `תאריך${n}`,
         })),
         field(`fx-t${i}`, 'שעה', h('input', {
           class: 'input num fx-time', id: `fx-t${i}`, type: 'text', inputmode: 'decimal', dir: 'ltr', autocomplete: 'off', maxlength: '5',
-          placeholder: '10:00', value: at ? t : '', 'aria-label': `שעה${n}`,
+          placeholder: 'למשל 10:30', value: at ? t : '', 'aria-label': `שעה${n}`,
         }))));
   });
   show(`ערוץ 14 · ${name}`, [
