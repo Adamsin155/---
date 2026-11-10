@@ -82,4 +82,68 @@
   .sh tbody td.sh-act { display: block; padding-block-start: 8px; }
   .sh tbody td.sh-act::before { content: none; }
   .sh tbody td.sh-act .btn { inline-size: 100%; min-height: 44px; justify-content: center; }
+/* Tab 3, "משימות לעורכים ולגרפיקאי" (app/tracking-tasks.js): the same table look, two rows of
+   chips (quotes.css .chip) and "משימה חדשה" beside them. A phone: each task is a card. */
+.tt-h { margin: 0; font-size: 18px; }
+.tt-tab { display: grid; gap: 10px; min-inline-size: 0; }
+.tt-tools { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.tt-filters { display: grid; gap: 6px; min-inline-size: 0; }
+.tt-chips.filters { padding: 0; }
+.tt-chips { align-items: center; }
+.tt-chips-l { min-inline-size: 38px; font-size: 12.5px; color: var(--muted); }
+.tt-new { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+.tt .tt-kind {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 9px; border-radius: 999px;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+}
+.tt .tt-kind.is-edit { background: var(--k-purple-soft, #EFE9FB); color: var(--k-purple, #6B3FD4); }
+.tt .tt-kind.is-graphic { background: var(--k-orange-soft, #FDEEDF); color: var(--k-orange, #B4570B); }
+.tt .tt-what { white-space: normal; min-inline-size: 240px; max-inline-size: 420px; }
+.tt .tt-title { display: block; color: var(--text); overflow-wrap: anywhere; }
+.tt .tt-brief { display: block; margin-block-start: 2px; font-size: 12.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.tt .tt-d .num { font-variant-numeric: tabular-nums; }
+.tt .tt-who { font-weight: 600; }
+.tt td:first-child .mt-name { display: inline-block; max-inline-size: 220px; white-space: normal; }
+.tt .tt-none { color: var(--muted); font-weight: 400; }
+.tt .k-pill { white-space: nowrap; }
+.tt-more { justify-self: center; min-height: 44px; }
+.tt-dlg { inline-size: min(560px, calc(100vw - 24px)); }
+/* The form of "משימות לעובדים" in the dialog: the dialog's own title stands for its heading. */
+.tt-dlg .st-form { padding: 0; background: none; }
+.tt-dlg .st-form > h3 { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .tt-tools { display: grid; }
+  .tt-new { justify-content: center; inline-size: 100%; }
+  .tt-wrap { overflow: visible; max-block-size: none; min-block-size: 0; background: none; }
+  .tt, .tt tbody { display: block; inline-size: 100%; min-inline-size: 0; }
+  .tt thead { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .tt tbody { display: grid; gap: 8px; }
+  .tt tbody tr { display: grid; gap: 2px; padding: 4px 14px 10px; background: var(--ds-surface); border-radius: var(--ds-r-item); }
+  .tt tbody tr:hover td { background: none; }
+  .tt tbody td, .tt tbody td:first-child {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    position: static; padding: 2px 0; border: 0; box-shadow: none; background: none;
+    white-space: normal; min-inline-size: 0; max-inline-size: none; overflow-wrap: anywhere; font-size: 14px;
+  }
+  .tt tbody td::before { content: attr(data-label); font-size: 13px; color: var(--muted); }
+  .tt tbody td:first-child::before { content: none; }
+  .tt tbody td:first-child .mt-name { display: inline-flex; align-items: center; min-height: 44px; max-inline-size: none; font-size: 15px; }
+  /* A short card: the client and the state; the task; then the kind, who and the two days on one line. */
+  .tt tbody tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 2px 14px 12px; }
+  .tt tbody td.tt-client { order: 1; flex: 1 1 0; }
+  .tt tbody td.tt-s { order: 2; flex: none; }
+  .tt tbody td.tt-what { order: 3; flex: 1 1 100%; display: grid; gap: 2px; padding-block-end: 6px; min-inline-size: 0; }
+  .mt.tt tbody td.tt-k { order: 4; flex: none; min-inline-size: 0; } /* not manager.css's second column */
+  .tt tbody td.tt-who { order: 5; flex: none; }
+  .tt tbody td.tt-in { order: 6; flex: none; }
+  .tt tbody td.tt-due { order: 7; flex: none; }
+  .tt tbody td.tt-due.is-empty { display: none; }
+  .tt tbody td:is(.tt-s, .tt-what, .tt-k, .tt-who)::before { content: none; }
+  .tt tbody td.tt-d { gap: 4px; justify-content: flex-start; flex-wrap: nowrap; }
+  .tt tbody td.tt-d::before { font-size: 13px; }
+  .tt .tt-title { font-size: 15px; font-weight: 500; }
+  .tt tbody tr.tt-none-row { padding: 0; background: none; }
+  .tt tbody tr.tt-none-row td { display: block; }
+  .tt tbody tr.tt-none-row td::before { content: none; }
 }
