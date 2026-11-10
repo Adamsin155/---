@@ -38,7 +38,7 @@ test('regular selections are untouched: the same bytes as before custom contract
     return rest;
   };
   assert.deepEqual(regularFingerprint(noWording), { count: 612, sha256: '8dae6344e7dd9b2e1d906a1025c955e7e9673433ab1285ec2531d062aecd457a' });
-  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '1b09747f6077e5cd0654d91928943c4052a64e3d3edcf08fd2b9510dd4c8812f' });
+  assert.deepEqual(regularFingerprint(), { count: 612, sha256: '926b415e9cae703bee57cfaa102746fa88c27924d927fc6305959eb57e2a67c4' });
   for (const s of regularSelections()) {
     assert.deepEqual(exceptionOf(s), []);
     assert.equal(normalizeSelection(s), s);

@@ -39,13 +39,13 @@ test('a new agreement: the old document\'s order and words, with our numbers', (
     'התחייבות ל-12 חודשים (קמפיין שנתי)', 'אין אפשרות לסיים את ההתקשרות לפני תום 12 החודשים',
     'יחד, נהפוך את החברה להצלחה!',
   ]) assert.ok(text.includes(words), words);
-  // The old six clauses, numbered as the old document numbered them, then the platforms chapter
-  // and "הוראות נוספות" (the protections the owner put back on 9.11.2026).
+  // The old six clauses, numbered as the old document numbered them, then the platforms chapter,
+  // and nothing else (the owner, 10.11.2026).
   const clauses = all(doc, (n) => n.className === 'qd-clauses')[0];
-  assert.equal(clauses.kids.length, 8);
+  assert.equal(clauses.kids.length, 7);
   assert.ok(text.includes('2.2התשלום יתבצע באמצעות מערכת פיימנט בלבד'));
   assert.ok(text.includes('7.4חסימת פלטפורמות: אסטרטג אינה אחראית לחסימה'));
-  assert.ok(text.includes('8.הוראות נוספות'));
+  assert.ok(!text.includes('הוראות נוספות'));
   // Our longer wording is gone from a new agreement: no early exit, no 18 chapters.
   for (const gone of ['תנאי ההסכם', 'הגבלת אחריות', 'סודיות ואי־שידול', 'סיום ההתקשרות לפני תום התקופה', '50%']) assert.ok(!text.includes(gone), gone);
 });
