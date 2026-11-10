@@ -321,7 +321,8 @@ const MATERIALS = [
 ];
 const resolvedCheck = (checks, key) => checks[key]?.state === 'done' || checks[key]?.state === 'na';
 export function materialsOf(checks) {
-  const missing = MATERIALS.filter(([k]) => !resolvedCheck(checks, k)).map(([, label]) => label);
+  // v14: the characterizer's one mark of 5 (p05.got) says everything came.
+  const missing = resolvedCheck(checks, 'p05.got') ? [] : MATERIALS.filter(([k]) => !resolvedCheck(checks, k)).map(([, label]) => label);
   return { got: MATERIALS.length - missing.length, of: MATERIALS.length, missing };
 }
 

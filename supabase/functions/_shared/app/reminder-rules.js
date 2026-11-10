@@ -425,8 +425,11 @@ export const RULES = [
   {
     id: 'access', event: 'גישות התקבלו (5→6)', procs: ['p05', 'p06'],
     instances(env) {
-      return casesOf(env, 'p06', (i) => !i.pre && !i.resolved('p06.verified') && !i.s.wait && !!i.doneAt('p05.access'))
-        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check('p05.access')?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt('p05.access') } }));
+      // v14: the access came (the vault, the client's form) or the characterizer's one mark of 5 (p05.got),
+      // whichever first; it stops once 6 is done (its one mark p06.ok, or the old p06.verified).
+      const gotKey = (i) => ['p05.access', 'p05.got'].filter((k) => i.doneAt(k)).sort((a, b) => i.doneAt(a) - i.doneAt(b))[0];
+      return casesOf(env, 'p06', (i) => !i.pre && !i.s.complete && !i.resolved('p06.verified') && !i.s.wait && !!gotKey(i))
+        .map((i) => ({ ...i, id: 'p06', checker: pagesOwnerOf(i.client), self: env.personOf(i.check(gotKey(i))?.by_email) === pagesOwnerOf(i.client), anchors: { event: i.doneAt(gotKey(i)) } }));
     },
     steps: [
       { id: 'now', to: (i) => i.checker, level: 'ring', exempt: 'clock', when: (i) => !i.self, title: (i) => `קיבלת גישות: ${i.name}`, body: (i, env) => `יש לך 30 דקות לבדוק אותן מהכספת ולסדר את העמודים. יעד ${whenText(addWorkingMinutes(i.anchors.event, 30), env.now)}.` },
@@ -483,7 +486,7 @@ export const RULES = [
         const checks = env.checksOf(c);
         const got = checks['p05.access'];
         const gotAt = got?.state === 'done' ? new Date(got.at) : null;
-        const verified = ['done', 'na'].includes(checks['p06.verified']?.state);
+        const verified = ['p06.verified', 'p06.ok'].some((k) => ['done', 'na'].includes(checks[k]?.state));
         // `access` rings Ofir for this very event when the form itself marked 5.
         const covered = !!gotAt && Math.abs(gotAt - at) < MIN && !verified;
         const have = (l.summary || []).filter((s) => s.choice === 'have').map((s) => platformName(s.network, s.label));
@@ -1526,6 +1529,7 @@ export const RULES = [
   // mark he rings (a client that started before v7: the item is new for it, so no
   // lateness ring; see freshCase). Late: `late` tells Lior (Ofir rang: LATE_RUNG).
   {
+    // v14: 8ב left (one mark in 8, p08.ok): its process applies to nobody, so this rule rings nobody.
     id: 'highlightsUpload', event: 'Highlights מוכנים: להעלות לרשתות (8ב)', procs: ['p08b'],
     instances(env) {
       return casesOf(env, 'p08b', (i) => !!i.finishedAt('p08') && !!i.s.startAt && !!i.s.dueAt && !halted(i))

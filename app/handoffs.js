@@ -49,11 +49,12 @@ export const HANDOFFS = [
     // client's characterizer's, Noam or Ofir (pagesOwnerOf). When he took the
     // accesses himself (he runs the characterization) he is offered no message to himself
     // (`from` in handoffsFor; the card's "העברות" line has no button for him either).
-    id: 'access', on: 'p05.access', label: 'גישות התקבלו',
+    // v14 (Ofir: "לאחד"): offered when 5 is complete (its one mark p05.got, or the last of its old marks).
+    id: 'access', on: 'p05', label: 'גישות התקבלו',
     // One target per checker (optional: only the client's own is offered), so each record names
     // its person: `p05.handoff.ofir`, `p05.handoff.noam`.
     to: ['ofir', 'noam'].map((p) => ({
-      id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: 'p06.verified',
+      id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: ['p06.ok', 'p06.verified'],
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
       due: [{ label: 'יעד', proc: 'p06', minutes: 30 }],
     })),

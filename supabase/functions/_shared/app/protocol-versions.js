@@ -229,17 +229,24 @@ export const PROTOCOL_HISTORY = [
     ],
   },
   {
-    version: 14, date: '2026-11-10', title: 'סדר בסימונים של העורכים',
+    version: 14, date: '2026-11-10', title: 'סדר בסימונים: העורכים, וסימון אחד לכל תהליך של מבצע האפיון',
     changes: [
       'ירדו הסימונים שהעורכים (נדיה, יריב, אנה וניראל) סימנו ״מיותר״, וגם התזכורות והאיחורים שלהם. גם אצל לקוחות שכבר באמצע.',
       'העריכה (22) מתחילה בשיוך: אין יותר ״קיבלתי את הכונן והתחלתי״, ואין תזכורת ״עוד לא התחלת״.',
       'נשארו בעריכה: כל חומרי הצילום קיימים, התסריטים ברורים, אין שגיאות כתיב, סאונד וחשיפה. ״מוכן לבדיקה״ שואל רק אותם, ואת הדרייב.',
       'ירדו: לוגו וטלפון תקינים, ״נערכו לפי התסריטים״, תבנית הבי־רול, הסגיר, כל כמות הסרטונים, ייצוב, זוויות והגדרות ייצוא (אופיר עדיין בודק את חמש הטעויות), וההעלאה ל־Dropbox.',
+      'מבצע האפיון (נעם, שיאל, אופיר): סימון אחד לכל תהליך. 5: ״התקבלו הגישות והחומרים״. 6: ״הגישות נבדקו, הרשתות סודרו וחוברו ל־Metricool״. 8 ו־8ב: ״ה־Highlights הוכנו והועלו לרשתות״ (8ב ירד). טופס האפיון (4) לא השתנה.',
+      'לקוח שכל הסימונים הישנים של תהליך כזה כבר סומנו: התהליך נחשב גמור.',
     ],
+    // The characterizer's merged marks are for every client (as v12 and v13); old marks pass them (`passedIf: { all }`).
+    always: ['p05.got', 'p06.ok', 'p08.ok'],
     // For every client, of every version, as v12 and v13.
     retired: [
       'p22.received', 'p22.check.logo', 'p22.check.phone', 'p22.edited', 'p22.self.broll', 'p22.self.closing', 'p22.self.complete',
       'p22.self.stable', 'p22.self.angles', 'p22.self.export', 'p24.dropbox',
+      'p05.access', 'p05.allnets', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos', 'p05.menu',
+      'p06.verified', 'p06.newpages', 'p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look', 'p06.metricool',
+      'p08.done', 'p08.saved', 'p08b',
     ],
   },
 ];

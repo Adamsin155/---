@@ -424,9 +424,10 @@ function realAnchor(from, client, procs, checks, now) {
     case 'contractEnd': return parseDate(client.contract_end);
     default: {
       // `item:p05.access`: when that one item was done (process 6 starts when access arrives).
+      // v14: `item:p05.access|p05.got`, the first of them that was done.
       if (from.startsWith('item:')) {
-        const c = checks[from.slice(5)];
-        return c && c.state === 'done' ? new Date(c.at) : null;
+        const at = from.slice(5).split('|').map((k) => checks[k]).filter((c) => c && c.state === 'done').map((c) => new Date(c.at));
+        return at.length ? new Date(Math.min(...at)) : null;
       }
       const p = procs.find((x) => x.id === from);
       return p ? completedAt(p, checks, now) : null;
@@ -766,14 +767,21 @@ function withoutFreshAfterImport(procs, checks) {
 // רלוונטי" in the card), in nobody's list, and it holds nothing open. Whatever the
 // client's version, and with or without the migration's own mark.
 function withoutPassed(procs, checks) {
-  // (v13: `passedIf` may name several marks, any one of them: Eli's merged drive check.)
-  const passed = (i, round) => !!i.passedIf && !checks[i.key] && [].concat(i.passedIf).some((k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state));
+  // (v13: `passedIf` may name several marks, any one of them: Eli's merged drive check.
+  // v14: `{ all: [...] }`, every one of them: the characterizer's one mark of 5, 6 and 8, passed by
+  // the old items it replaced once all of them are resolved.)
+  const resolvedIn = (round, k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state);
+  const passedBy = (i, round) => {
+    if (i.passedIf?.all) return i.passedIf.all.every((k) => resolvedIn(round, k)) ? i.passedIf.all[i.passedIf.all.length - 1] : null;
+    return [].concat(i.passedIf).find((k) => resolvedIn(round, k)) || null;
+  };
+  const passed = (i, round) => !!i.passedIf && !checks[i.key] && !!passedBy(i, round);
   // What waited for a passed item waits for the mark that passed it (v13: Irit's sending of the Gantt
   // waits for GANTT_READY, or for the full Gantt Ilai marked before it existed).
   const instead = new Map();
   for (const p of procs) {
     const round = /^(r\d+\.)/.exec(p.keyBase || '')?.[1] || '';
-    for (const i of p.items) if (passed(i, round)) instead.set(i.key, `${round}${[].concat(i.passedIf).find((k) => ['done', 'na'].includes(checks[`${round}${k}`]?.state))}`);
+    for (const i of p.items) if (passed(i, round)) instead.set(i.key, `${round}${passedBy(i, round)}`);
   }
   if (!instead.size) return procs;
   const req = (i) => (i.requires?.some((k) => instead.has(k)) ? { ...i, requires: i.requires.map((k) => instead.get(k) || k) } : i);

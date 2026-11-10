@@ -4,10 +4,17 @@
 -- under (no list, no reminder, no lateness): p22.received, p22.check.logo, p22.check.phone, p22.edited,
 -- p22.self.broll, p22.self.closing, p22.self.complete, p22.self.stable, p22.self.angles, p22.self.export,
 -- and 24's optional upload to the client's other cloud folder (the key 'p24.d' || 'ropbox'). Their marks stay in the history as they are. The editing starts at the assignment.
+-- The same version (the owner, 10.11.2026; Ofir marked "לאחד"): the characterizer has one mark per process.
+-- 5: p05.got for p05.access, p05.allnets, p05.logo, p05.colors, p05.photos, p05.videos, p05.menu; 6: p06.ok for
+-- the nine of 6; 8 and 8ב: p08.ok for p08.done, p08.saved and the whole of 8ב (p08b.posted). The old keys are
+-- still written where the system and the characterization form write them (the vault, the client's form, the
+-- form's materials), and when all of them are resolved they pass the new one (in the app).
 -- The database needs two things, as v13:
 --   1. the version (private.protocol_version_current() and the default of clients.protocol_version);
---   2. the writers table, from app/protocol.js: the retired items lose their editor rows (the office
---      still writes every key). The site of v14 never writes them; publish it before running this.
+--   2. the writers table, from app/protocol.js: the retired items lose their rows (the office still writes
+--      every key), except the old marks of 5 the characterizer's pages still write (EXTRA_MARKS in
+--      scripts/protocol-writers.mjs). The site of v14 never writes the rest; publish it before running this;
+--   3. the status page reads the new mark of 5 (p05.got: "everything came", nothing more to ask the client).
 -- Additive only: no table, no column, no policy, no trigger; no mark is added, changed or taken away.
 -- Every statement can run again safely.
 
@@ -35,36 +42,19 @@ insert into private.protocol_writers (key, proc, round, persons) values
   ('p04.special', 'p04', false, array['lior', 'noam', 'ofir', 'shiel']::text[]),
   ('p04.saved', 'p04', false, array['lior', 'noam', 'ofir', 'shiel']::text[]),
   ('p04.@part', 'p04', false, array['lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.access', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.allnets', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.logo', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.colors', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.photos', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.videos', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p05.menu', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
+  ('p05.got', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
   ('p05.newlogo', 'p05', false, array['ilai']::text[]),
   ('p05.@wait', 'p05', false, array['ilai', 'irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
   ('p05.@part', 'p05', false, array['ilai', 'irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
-  ('p06.verified', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.newpages', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.name', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.bio', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.details', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.phone', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.address', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.look', 'p06', false, array['noam', 'ofir']::text[]),
-  ('p06.metricool', 'p06', false, array['noam', 'ofir']::text[]),
+  ('p06.ok', 'p06', false, array['noam', 'ofir']::text[]),
   ('p06.@part', 'p06', false, array['noam', 'ofir']::text[]),
   ('p07.made', 'p07', false, array['ilai']::text[]),
   ('p07.@wait', 'p07', false, array['ilai', 'irit', 'ofir']::text[]),
   ('p07.@part', 'p07', false, array['ilai', 'irit', 'ofir']::text[]),
   ('p07b.posted', 'p07b', false, array['ilai']::text[]),
   ('p07b.@part', 'p07b', false, array['ilai']::text[]),
-  ('p08.done', 'p08', false, array['noam', 'ofir']::text[]),
-  ('p08.saved', 'p08', false, array['noam', 'ofir']::text[]),
+  ('p08.ok', 'p08', false, array['noam', 'ofir']::text[]),
   ('p08.@part', 'p08', false, array['noam', 'ofir']::text[]),
-  ('p08b.posted', 'p08b', false, array['noam', 'ofir']::text[]),
-  ('p08b.@part', 'p08b', false, array['noam', 'ofir']::text[]),
   ('p09.file', 'p09', false, array['ilai']::text[]),
   ('p09.@part', 'p09', false, array['ilai']::text[]),
   ('p17b.drive', 'p17b', true, array['eli']::text[]),
@@ -118,9 +108,25 @@ insert into private.protocol_writers (key, proc, round, persons) values
   ('p16.read', 'p16', true, array['eli']::text[]),
   ('p18b.files', 'p18b', true, array['eli']::text[]),
   ('p19b.notes', 'p19b', true, array['eli']::text[]),
+  ('p05.access', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
+  ('p05.logo', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
+  ('p05.colors', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
+  ('p05.photos', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
+  ('p05.videos', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
+  ('p05.menu', 'p05', false, array['irit', 'lior', 'noam', 'ofir', 'shiel']::text[]),
   ('p25.@qafixed', 'p25', true, array['@editor']::text[]),
   ('p23.@qafixed', 'p23', false, array['ilai']::text[]),
   ('p07.@qafixed', 'p07', false, array['ilai']::text[])
 on conflict (key) do update set proc = excluded.proc, round = excluded.round, persons = excluded.persons;
-update private.protocol_writers set persons = '{}'::text[] where key <> all (array['@office', '@editors', 'p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p04.@part', 'p05.access', 'p05.allnets', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos', 'p05.menu', 'p05.newlogo', 'p05.@wait', 'p05.@part', 'p06.verified', 'p06.newpages', 'p06.name', 'p06.bio', 'p06.details', 'p06.phone', 'p06.address', 'p06.look', 'p06.metricool', 'p06.@part', 'p07.made', 'p07.@wait', 'p07.@part', 'p07b.posted', 'p07b.@part', 'p08.done', 'p08.saved', 'p08.@part', 'p08b.posted', 'p08b.@part', 'p09.file', 'p09.@part', 'p17b.drive', 'p17b.gear', 'p17b.broll', 'p17b.@part', 'p18b.order', 'p18b.quality', 'p18b.numbered', 'p18b.@part', 'p19b.folders', 'p19b.checked', 'p19b.handed', 'p19b.@part', 'p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure', 'p22.@wait', 'p22.@pause', 'p22.@part', 'p23.made', 'p23.@wait', 'p23.@part', 'p23b.posted', 'p23b.@part', 'p24.folder', 'p24.drive', 'p24.notify', 'p24.@wait', 'p24.@part', 'p27.fixes', 'p27.final', 'p27.toilai', 'p27.@wait', 'p27.@pause', 'p27.@part', 'p28.auto', 'p28.@part', 'p29b.c.vsched', 'p29b.c.gsched', 'p29b.c.ganttok', 'p29b.c.updated', 'p29b.done', 'p29b.@part', 'p17b.brollq', 'p22.missing', 'p27.fixed', 'p16.photographer', 'p16.read', 'p18b.files', 'p19b.notes', 'p25.@qafixed', 'p23.@qafixed', 'p07.@qafixed']::text[]);
+update private.protocol_writers set persons = '{}'::text[] where key <> all (array['@office', '@editors', 'p04.address', 'p04.phone', 'p04.services', 'p04.audiences', 'p04.advantages', 'p04.goals', 'p04.offers', 'p04.content', 'p04.graphics', 'p04.campaigns', 'p04.special', 'p04.saved', 'p04.@part', 'p05.got', 'p05.newlogo', 'p05.@wait', 'p05.@part', 'p06.ok', 'p06.@part', 'p07.made', 'p07.@wait', 'p07.@part', 'p07b.posted', 'p07b.@part', 'p08.ok', 'p08.@part', 'p09.file', 'p09.@part', 'p17b.drive', 'p17b.gear', 'p17b.broll', 'p17b.@part', 'p18b.order', 'p18b.quality', 'p18b.numbered', 'p18b.@part', 'p19b.folders', 'p19b.checked', 'p19b.handed', 'p19b.@part', 'p22.check.footage', 'p22.check.scripts', 'p22.self.spelling', 'p22.self.sound', 'p22.self.exposure', 'p22.@wait', 'p22.@pause', 'p22.@part', 'p23.made', 'p23.@wait', 'p23.@part', 'p23b.posted', 'p23b.@part', 'p24.folder', 'p24.drive', 'p24.notify', 'p24.@wait', 'p24.@part', 'p27.fixes', 'p27.final', 'p27.toilai', 'p27.@wait', 'p27.@pause', 'p27.@part', 'p28.auto', 'p28.@part', 'p29b.c.vsched', 'p29b.c.gsched', 'p29b.c.ganttok', 'p29b.c.updated', 'p29b.done', 'p29b.@part', 'p17b.brollq', 'p22.missing', 'p27.fixed', 'p16.photographer', 'p16.read', 'p18b.files', 'p19b.notes', 'p05.access', 'p05.logo', 'p05.colors', 'p05.photos', 'p05.videos', 'p05.menu', 'p25.@qafixed', 'p23.@qafixed', 'p07.@qafixed']::text[]);
 -- protocol-writers:end
+
+-- ── 3. The status page reads p05.got ──────────
+-- The same list as MARKS in app/status-logic.js (tests/sql/status.test.mjs), with p05.got added.
+create or replace function private.status_mark_ok(p_key text) returns boolean
+language sql immutable set search_path = '' as $$
+  select p_key ~ ('^(r[0-9]+\.)?(p02\.opened|p04\.(ended|saved)|p05\.(access|logo|colors|photos|videos|got)'
+    || '|p07\.(sent|approved)|p11\.(ok\.client|calendar)|p12\.(scripts|numbered|docs)|p13\.approved'
+    || '|p19\.(all|took)|p23\.(sent|approved)|p26\.sent|p27\.(notes|fixes|final|approved)'
+    || '|p28\.scheduled|p29\.sent|p30\.live|p34\.talk)$');
+$$;
