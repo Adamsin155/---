@@ -173,6 +173,19 @@ async function chips(page) {
   assert.deepEqual(await rowIds(page), ORDER);
   assert.match(await text(chip(page, 'kind', 'edit')), /עורכים 4/);
   assert.match(await text(chip(page, 'status', 'open')), /פתוחות 4/);
+  // By name (the owner, 10.11.2026): Nadia's two, newest first; a name clears "עורכים", and back.
+  assert.match(await text(chip(page, 'person', 'nadia')), /נדיה 2/);
+  await chip(page, 'kind', 'edit').click();
+  await chip(page, 'person', 'nadia').click();
+  assert.equal(await chip(page, 'person', 'nadia').getAttribute('aria-pressed'), 'true');
+  assert.equal(await chip(page, 'kind', 'all').getAttribute('aria-pressed'), 'true', 'a name clears the kind');
+  assert.deepEqual(await rowIds(page), [IDS[3], IDS[4]]);
+  await chip(page, 'person', 'ilai').click();
+  assert.deepEqual(await rowIds(page), [IDS[0]]);
+  await chip(page, 'kind', 'edit').click();
+  assert.equal(await chip(page, 'person', 'all').getAttribute('aria-pressed'), 'true', 'the kind clears the name');
+  await chip(page, 'kind', 'all').click();
+  assert.deepEqual(await rowIds(page), ORDER);
 }
 
 // "משימה חדשה" with גרפיקאי: the form for Ilai alone; typed key by key and deleted; the client searched.

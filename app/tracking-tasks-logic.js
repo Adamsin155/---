@@ -24,6 +24,8 @@ export const STATE_TEXT = { open: 'בתהליך', done: 'הושלם' };
 // The filter chips: [key, label].
 export const KINDS = [['all', 'הכל'], ['edit', 'עורכים'], ['graphic', 'גרפיקאי']];
 export const STATES = [['all', 'הכל'], ['open', 'פתוחות'], ['done', 'הושלמו']];
+// By name (the owner, 10.11.2026: Irit taps Ilai and sees everything he has): every person of the tab.
+export const PERSON_CHIPS = [['all', 'כולם'], ...TASK_PEOPLE.map((k) => [k, PEOPLE[k]?.name || k])];
 // A finished task stays in the list this many days (the list stays short).
 export const DONE_DAYS = 30;
 export const PAGE_SIZE = 30;
@@ -78,14 +80,15 @@ export function taskRows({ clientTasks = [], staffTasks = [], clients = {} } = {
   return rows.sort((a, b) => t(b.createdAt) - t(a.createdAt));
 }
 
-// The two filters. kind: 'all' | 'edit' | 'graphic'; state: 'all' | 'open' | 'done'.
-export const filterTasks = (rows, { kind = 'all', state = 'all' } = {}) =>
-  (rows || []).filter((r) => (kind === 'all' || r.kind === kind) && (state === 'all' || r.state === state));
+// The filters. kind: 'all' | 'edit' | 'graphic'; state: 'all' | 'open' | 'done'; person: 'all' | a person key.
+export const filterTasks = (rows, { kind = 'all', state = 'all', person = 'all' } = {}) =>
+  (rows || []).filter((r) => (kind === 'all' || r.kind === kind) && (state === 'all' || r.state === state) && (person === 'all' || r.person === person));
 // How many each chip would show (with the other filter as it is).
-export function chipCounts(rows, { kind = 'all', state = 'all' } = {}) {
+export function chipCounts(rows, { kind = 'all', state = 'all', person = 'all' } = {}) {
   return {
-    kind: Object.fromEntries(KINDS.map(([k]) => [k, filterTasks(rows, { kind: k, state }).length])),
-    state: Object.fromEntries(STATES.map(([s]) => [s, filterTasks(rows, { kind, state: s }).length])),
+    kind: Object.fromEntries(KINDS.map(([k]) => [k, filterTasks(rows, { kind: k, state, person }).length])),
+    state: Object.fromEntries(STATES.map(([s]) => [s, filterTasks(rows, { kind, state: s, person }).length])),
+    person: Object.fromEntries(PERSON_CHIPS.map(([k]) => [k, filterTasks(rows, { kind, state, person: k }).length])),
   };
 }
 
@@ -100,4 +103,4 @@ export function shortDay(v, now = new Date()) {
 // "12 משימות" / "משימה אחת".
 export const tasksWord = (n) => (n === 1 ? 'משימה אחת' : `${n} משימות`);
 // Which people the form offers for the chosen chip.
-export const formPeople = (kind) => (kind === 'graphic' ? [DESIGNER] : kind === 'edit' ? [...EDITORS] : [...TASK_PEOPLE]);
+export const formPeople = (kind, person = 'all') => (person !== 'all' ? [person] : kind === 'graphic' ? [DESIGNER] : kind === 'edit' ? [...EDITORS] : [...TASK_PEOPLE]);

@@ -86,8 +86,8 @@ test('the filters and their counts', () => {
   assert.deepEqual(filterTasks(rows, { kind: 'edit' }).map((r) => r.title), ['c', 'b']);
   assert.deepEqual(filterTasks(rows, { kind: 'edit', state: 'open' }).map((r) => r.title), ['c']);
   assert.deepEqual(filterTasks(rows, { state: 'done' }).map((r) => r.title), ['b']);
-  assert.deepEqual(chipCounts(rows), { kind: { all: 3, edit: 2, graphic: 1 }, state: { all: 3, open: 2, done: 1 } });
-  assert.deepEqual(chipCounts(rows, { kind: 'edit', state: 'open' }), { kind: { all: 2, edit: 1, graphic: 1 }, state: { all: 2, open: 1, done: 1 } });
+  assert.deepEqual(chipCounts(rows), { kind: { all: 3, edit: 2, graphic: 1 }, state: { all: 3, open: 2, done: 1 }, person: { all: 3, nadia: 1, yariv: 0, anna: 0, nirel: 1, ilai: 1 } });
+  assert.deepEqual(chipCounts(rows, { kind: 'edit', state: 'open' }), { kind: { all: 2, edit: 1, graphic: 1 }, state: { all: 2, open: 1, done: 1 }, person: { all: 1, nadia: 0, yariv: 0, anna: 0, nirel: 1, ilai: 0 } });
 });
 
 test('the dates and the words', () => {
@@ -99,4 +99,21 @@ test('the dates and the words', () => {
   assert.equal(tasksWord(1), 'משימה אחת');
   assert.equal(tasksWord(0), '0 משימות');
   assert.equal(tasksWord(12), '12 משימות');
+});
+
+// By name (the owner, 10.11.2026: "לוחצת עילאי ויכולה לראות את כל מה שיש לו").
+test('by name: one person\'s tasks, the counts per person, and the form offers that person', async () => {
+  const { PERSON_CHIPS } = await import('../app/tracking-tasks-logic.js');
+  assert.deepEqual(PERSON_CHIPS.map(([k]) => k), ['all', 'nadia', 'yariv', 'anna', 'nirel', 'ilai']);
+  const rows = taskRows({
+    clientTasks: [{ id: 1, owner: 'ilai', title: 'a', created_at: daysAgo(1) }, { id: 2, owner: 'nadia', title: 'b', created_at: daysAgo(2) }],
+    staffTasks: [{ id: 3, assignee: 'ilai', body: 'c', status: 'open', created_at: daysAgo(3) }, { id: 4, assignee: 'yariv', body: 'd', status: 'done', done_at: daysAgo(1), created_at: daysAgo(4) }],
+  }, NOW);
+  assert.deepEqual(filterTasks(rows, { person: 'ilai' }).map((r) => r.title), ['a', 'c']);
+  assert.deepEqual(filterTasks(rows, { person: 'yariv', state: 'open' }), []);
+  const c = chipCounts(rows, { person: 'all' });
+  assert.deepEqual([c.person.all, c.person.ilai, c.person.nadia, c.person.yariv, c.person.anna], [4, 2, 1, 1, 0]);
+  assert.deepEqual(chipCounts(rows, { person: 'ilai' }).state, { all: 2, open: 2, done: 0 });
+  assert.deepEqual(formPeople('all', 'yariv'), ['yariv']);
+  assert.deepEqual(formPeople('edit'), ['nadia', 'yariv', 'anna', 'nirel']);
 });

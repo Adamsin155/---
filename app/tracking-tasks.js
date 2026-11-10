@@ -19,7 +19,7 @@ import { openDueFix } from './tracking-fix.js';
 import { icon, pill } from './kit.js';
 import { mountStaffTaskForm } from './staff-tasks-ui.js';
 import {
-  TASK_PEOPLE, KINDS, STATES, KIND_TEXT, STATE_TEXT, PAGE_SIZE, DONE_DAYS,
+  TASK_PEOPLE, KINDS, STATES, PERSON_CHIPS, KIND_TEXT, STATE_TEXT, PAGE_SIZE, DONE_DAYS,
   taskRows, filterTasks, chipCounts, shortDay, tasksWord, formPeople,
 } from './tracking-tasks-logic.js';
 
@@ -63,14 +63,18 @@ async function loadStaff() {
 }
 
 // ── The tab ─────────────────────────────────
-const state = { host: null, viewer: null, rows: [], kind: 'all', status: 'all', shown: PAGE_SIZE, loaded: false };
+const state = { host: null, viewer: null, rows: [], kind: 'all', status: 'all', person: 'all', shown: PAGE_SIZE, loaded: false };
 
 function chipGroup(label, list, key, counts) {
   return h('div', { class: 'filters tt-chips', role: 'group', 'aria-label': label },
     h('span', { class: 'tt-chips-l', 'aria-hidden': 'true' }, label),
     ...list.map(([k, text]) => h('button', {
       type: 'button', class: 'chip', 'data-tt': key, 'data-v': k, 'aria-pressed': String(state[key] === k),
-      onclick: () => { state[key] = k; state.shown = PAGE_SIZE; draw(); state.host.querySelector(`[data-tt="${key}"][data-v="${k}"]`)?.focus(); },
+      onclick: () => {
+        state[key] = k; state.shown = PAGE_SIZE;
+        // A name and "עורכים / גרפיקאי" never fight: choosing one clears the other.
+        if (key === 'person' && k !== 'all') state.kind = 'all';
+        if (key === 'kind' && k !== 'all') state.person = 'all'; draw(); state.host.querySelector(`[data-tt="${key}"][data-v="${k}"]`)?.focus(); },
     }, text, ' ', h('span', { class: 'n' }, String(counts[k])))));
 }
 
@@ -141,7 +145,7 @@ function draw() {
   const { host } = state;
   if (!host) return;
   const now = new Date();
-  const chosen = { kind: state.kind, state: state.status };
+  const chosen = { kind: state.kind, state: state.status, person: state.person };
   const counts = chipCounts(state.rows, chosen);
   const list = filterTasks(state.rows, chosen);
   const page = list.slice(0, state.shown);
@@ -150,7 +154,8 @@ function draw() {
     h('div', { class: 'tt-tools' },
       h('div', { class: 'tt-filters' },
         chipGroup('למי', KINDS, 'kind', counts.kind),
-        chipGroup('מצב', STATES, 'status', counts.state)),
+        chipGroup('מצב', STATES, 'status', counts.state),
+        chipGroup('שם', PERSON_CHIPS, 'person', counts.person)),
       gives ? h('button', { type: 'button', class: 'btn btn-primary tt-new', id: 'tt-new', onclick: openForm }, icon('plus', { size: 18 }), 'משימה חדשה') : null),
     h('p', { class: 'mt-count tt-count', id: 'tt-count', role: 'status', 'aria-live': 'polite' },
       list.length === state.rows.length ? tasksWord(list.length) : `${tasksWord(list.length)} מתוך ${state.rows.length}`),
@@ -178,7 +183,7 @@ async function openForm(e) {
     h('div', { class: 'dlg-body', id: 'tt-dlg-body' })));
   const done = () => { dlg.close(); };
   const ok = await mountStaffTaskForm(dlg.querySelector('#tt-dlg-body'), state.viewer, {
-    people: formPeople(state.kind),
+    people: formPeople(state.kind, state.person),
     cancel: done,
     changed: async () => { done(); await reload(); },
   }).catch(() => false);
