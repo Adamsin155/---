@@ -216,7 +216,9 @@ async function desktop(engine, { person = 'irit', width = 1366, name }) {
     assert.ok(await page.locator('#sh .sh-14-set').count() >= 2, 'Lior sets the Channel 14 dates');
   } else {
     // All eight columns in sight at 1366, with the Channel 14 one.
-    assert.ok(await page.locator('#sh-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the table fits');
+    const fit = await page.locator('#sh-wrap').evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    await shot(page, 'tracking-shoots-before-fix-1366', { fullPage: true });
+    assert.ok(fit[0] <= fit[1] + 1, `the table fits: ${fit}`);
     await shootFixes(page, db, name, { phone: false });
     await ch14(page, db, name, { phone: false });
     await countFixes(page, db, name, { phone: false });
@@ -277,7 +279,10 @@ async function shootsTab(page, name, { phone }) {
   await noOverflow(page);
   if (!phone) {
     // All seven columns in sight at 1366: the table does not scroll sideways.
-    assert.ok(await page.locator('#sh-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the table fits');
+    const fit = await page.locator('#sh-wrap').evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    if (fit[0] > fit[1] + 1) await shot(page, `tracking-shoots-wide-${name}`, { fullPage: true });
+    if (fit[0] > fit[1] + 1) console.log(await page.locator('#sh thead th').evaluateAll((ths) => ths.map((t) => Math.round(t.getBoundingClientRect().width))));
+    assert.ok(fit[0] <= fit[1] + 1, `the table fits: ${fit}`);
   }
   await page.waitForTimeout(300); // the tab's colour has settled
   await shot(page, `tracking-shoots-${name}`, { fullPage: true });
@@ -570,8 +575,8 @@ async function noAccess(engine) {
 
 const engines = { chromium: await chromium.launch(), webkit: await webkit.launch() };
 try {
-  await step('Irit on an iPhone 13 (WebKit): the cards, the numbers, the dates, the search key by key', () => phone(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));
-  await step('Irit on Chromium 390: the same', () => phone(engines.chromium, { width: 390, name: 'chromium390' }));
+  if (process.env.ONLY !== 'desktop') await step('Irit on an iPhone 13 (WebKit): the cards, the numbers, the dates, the search key by key', () => phone(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));
+  if (process.env.ONLY !== 'desktop') await step('Irit on Chromium 390: the same', () => phone(engines.chromium, { width: 390, name: 'chromium390' }));
   await step('Irit at 1366: the table, five columns; the tab "ימי צילום"; its button opens the card', () => desktop(engines.chromium, { name: 'irit-1366' }));
   await step('Lior at 1366: he sees it too', () => desktop(engines.chromium, { person: 'lior', name: 'lior-1366' }));
   await step('Ilai on an iPhone 13 (WebKit): the first tab only, he fixes the graphics', () => ilai(engines.webkit, { device: devices['iPhone 13'], name: 'iphone13' }));

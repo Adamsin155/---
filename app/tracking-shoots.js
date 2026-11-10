@@ -60,7 +60,7 @@ function ch14Cell(r) {
     canSetCh14(viewer) && client ? h('button', {
       type: 'button', class: `btn btn-sm sh-14-set${r.ch14.set ? ' btn-ghost' : ''}`, 'aria-label': `קביעת מועד לערוץ 14 ל${r.label}`,
       onclick: () => openCh14({ client, viewer, saved: () => reload() }),
-    }, r.ch14.set ? 'שינוי מועד' : 'קביעת מועד לערוץ 14') : null);
+    }, r.ch14.set ? 'שינוי מועד' : 'קביעת מועד') : null);
 }
 
 function row(r) {

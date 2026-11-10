@@ -49,6 +49,7 @@
 
 /* ── "ימי צילום": the tiles (owner.css .ow-stats), the filters, the table ── */
 /* The value at the foot of every tile, level across the row even when a label takes two lines. */
+.sh-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .sh-stats .ow-stat { grid-template-rows: 1fr auto; align-content: stretch; }
 .sh-stats .ow-stat .v { font-size: 40px; align-self: end; }
 .sh-stats .is-waiting .v { color: var(--ds-amber, #855400); }
@@ -62,11 +63,14 @@
 /* Seven columns within 1366: the headers may take two lines, the name and the kinds wrap. */
 .sh thead th { white-space: normal; }
 .sh thead th > span { line-height: 1.25; }
+.mt.sh td:nth-child(2) { min-inline-size: 0; } /* not manager.css's second column (a name there; a date here) */
 .sh th:nth-child(3), .sh th:nth-child(4) { max-inline-size: 80px; }
-.sh td:first-child .mt-name { max-inline-size: 200px; }
-.sh .sh-type { min-inline-size: 130px; max-inline-size: 200px; white-space: normal; }
+.sh td:first-child .mt-name { max-inline-size: 160px; }
+.sh .sh-type { min-inline-size: 110px; max-inline-size: 140px; white-space: normal; }
 .sh .sh-status, .sh .sh-act { white-space: nowrap; }
 .sh tbody td { vertical-align: middle; }
+/* Eight columns within 1366 since the Channel 14 one (10.11.2026): a little less room around each cell. */
+.sh th, .sh td { padding-inline: 7px; }
 .sh .sh-act .btn { min-height: 40px; }
 .sh-foot { margin: 0; font-weight: 600; color: var(--text); }
 
@@ -153,7 +157,7 @@
    Whoever may fix it sees the number as a quiet button with a pencil; under a fixed number, a small
    line "עודכן ביד · עירית · 10.11". The others see the number as before. */
 .ct-fix {
-  display: inline-flex; align-items: center; gap: 6px; min-block-size: 36px; padding: 2px 8px; margin-inline: -8px;
+  display: inline-flex; align-items: center; gap: 4px; min-block-size: 36px; padding: 2px 6px; margin-inline: -6px;
   border: 1px dashed transparent; border-radius: var(--ds-r-ctl, 10px); background: none; color: inherit; font: inherit; cursor: pointer;
 }
 .ct-fix:hover { border-color: var(--control-edge, #C8CEDB); background: var(--ds-soft, #F3F5F9); }
@@ -164,9 +168,9 @@
 .ct .is-fixed .num, .sh .is-fixed .sh-total .num, .sh .is-fixed .sh-left .num { color: var(--k-purple, #5B3BA8); }
 .ct .ct-ed-in { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .ct .ct-ed-change { font-size: 13px; font-weight: 600; color: var(--ds-navy-2, #33468A); }
-.sh .sh-fix-status { margin-inline: -8px; }
-.tt .tt-toggle { margin-inline: -8px; }
-.tt .tt-due-fix { margin-inline: -8px; }
+.sh .sh-fix-status { margin-inline: -6px; }
+.tt .tt-toggle { margin-inline: -6px; }
+.tt .tt-due-fix { margin-inline: -6px; }
 
 /* The dialog. */
 .fx-dlg { inline-size: min(460px, calc(100vw - 24px)); }
