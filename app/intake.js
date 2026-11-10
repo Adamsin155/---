@@ -943,7 +943,7 @@ mountSession(async (staff) => {
   if (!id || charOnly) {
     if (!writesChar(v)) {
       $('app').hidden = true;
-      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר, לנעם ולשיאל.' : 'לא נבחר לקוח.';
+      $('state').textContent = id ? 'עדכון האפיון פתוח לבעלים, לעירית, לליאור, לאופיר ולשיאל.' : 'לא נבחר לקוח.';
       return;
     }
     if (!id) { await showPicker(); return; }

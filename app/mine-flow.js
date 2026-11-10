@@ -226,8 +226,7 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
   // ── Ofir: the clients not connected to Metricool (v11, the owner, 21.10.2026) ──
   // Connecting is his step since he takes the accesses (Ilai's until then). The card is on
   // the Gantt index; here a quiet line to it.
-  // Since 1.11.2026 Noam too: he sets the pages up when he is the client's characterizer.
-  if ((me === 'ofir' || me === 'noam') && extra.metricool) {
+  if (me === 'ofir' && extra.metricool) {
     const p = extra.metricool;
     if (p.notConnected) {
       add({ id: 'metricool-connect', bucket: 'today', tone: 'plain', n: p.notConnected, rule: null, href: NOT_CONNECTED_URL, cta: 'לחיבור',
@@ -263,7 +262,7 @@ export function flowNeeds(viewer, now = new Date()) {
   if (me === 'irit') needs.push('messages');
   if (QUOTE_LIST_VIEWERS.includes(me)) needs.push('unsigned');
   if (me === 'ofir') needs.push('liorShoot');
-  if (me === 'ilai' || me === 'ofir' || me === 'noam') needs.push('metricool');
+  if (me === 'ilai' || me === 'ofir') needs.push('metricool');
   if (PHOTOGRAPHERS.includes(me) || (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
   return needs;
 }
