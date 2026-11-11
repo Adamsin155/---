@@ -279,8 +279,9 @@ export function makeHandler(deps) {
           ? await callWrite({ userClient, owner, token, gateKey: await gateKeyOf(), deps, now, baseUrl: baseUrl() }, toolName, args)
           : toolName === DRAFT_TOOL
             ? callDraft(viewer, args)
-            : toolName === FOLDERS_TOOL.name
-              ? await callFolders({ owner, deps }, args)
+            : toolName === FOLDERS_TOOL.name || (toolName === 'drive_files' && owner && folderIdOf(args?.client) && /drive.google.com/.test(String(args?.client)))
+              // A connected Claude keeps the tool list it first saw: an owner may also pass the folder's link as drive_files' "client".
+              ? await callFolders({ owner, deps }, { folder: toolName === 'drive_files' ? args.client : args.folder })
             : await callRead({ userClient, viewer, seesMoney, deps, now }, toolName, args);
         await keepUsage(user.email, toolName, out.code);
         return rpcResult(id, { content: [{ type: 'text', text: out.text }], ...(out.isError ? { isError: true } : {}) });
