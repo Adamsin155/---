@@ -191,30 +191,31 @@ test('D. the sync writes only through gantt_sync_apply (service role): the marks
   const post = (id, dateTime, status, extra = {}) => ({ id, publicationDate: { dateTime, timezone: 'Asia/Jerusalem' }, text: `פוסט ${id}`, media: ['https://x/v.mp4'], instagramData: { type: 'REEL' }, providers: [{ network: 'instagram', status, ...extra }] });
   const listing = { data: [
     post(1, '2026-11-15T20:30:00', 'PENDING'),
-    post(2, '2026-11-18T19:00:00', 'PENDING'),                 // the next free video row (video.31) moves to its day (11.11.2026)
-    post(4, '2026-11-19T19:00:00', 'PENDING'),                 // no free video row left: an extra row
+    post(2, '2026-11-18T19:00:00', 'PENDING'),                 // no entry that day or a day off: a new row, video.32 (11.11.2026)
+    post(4, '2026-11-19T19:00:00', 'PENDING'),                 // and video.33
     { ...post(3, '2026-11-10T13:00:00', 'PUBLISHED', { publicUrl: 'https://www.instagram.com/p/g9' }), instagramData: { type: 'POST' }, media: ['https://x/a.jpg'] },
   ] };
   const now = new Date('2026-11-12T08:00:00Z');
   const plan = async () => planSync({ rows: await rowsOf(ids.a), posts: parsePosts(listing).posts, window: windowOf(now), complete: true });
   const p1 = await plan();
   const res = await svc('select public.gantt_sync_apply($1, $2, true, null, $3) as r', [ids.a, JSON.stringify({ update: p1.update, insert: p1.insert, remove: p1.remove }), JSON.stringify(p1.stats)], { commit: true });
-  assert.deepEqual(res[0].r, { updated: 3, inserted: 1, removed: 0 });
+  assert.deepEqual(res[0].r, { updated: 2, inserted: 2, removed: 0 });
   const rows = await rowsOf(ids.a);
   const by = Object.fromEntries(rows.map((r) => [r.key, r]));
   assert.deepEqual([by['video.30'].state, by['video.30'].source, by['video.30'].time_il, by['video.30'].edited, by['video.30'].mc_post_id, by['video.30'].mc_status, by['video.30'].mc_networks, by['video.30'].by_email],
     ['scheduled', 'metricool', '20:30', true, '1', 'pending', ['instagram'], 'system']);
   // A mark a person made stays theirs: only the post's link fills the empty one.
   assert.deepEqual([by['graphic.9'].state, by['graphic.9'].source, by['graphic.9'].link, by['graphic.9'].mc_post_id], ['posted', 'manual', 'https://www.instagram.com/p/g9', '3']);
-  assert.deepEqual([by['mc.4'].kind, by['mc.4'].title, by['mc.4'].state, by['mc.4'].source, by['mc.4'].mc_extra, by['mc.4'].internal], ['custom', 'פוסט 4', 'scheduled', 'metricool', true, false]);
-  assert.deepEqual([by['video.31'].state, by['video.31'].mc_post_id, String(by['video.31'].day instanceof Date ? by['video.31'].day.toISOString() : by['video.31'].day).slice(0, 10), by['video.31'].edited], ['scheduled', '2', '2026-11-18', true]);
+  assert.deepEqual([by['video.32'].kind, by['video.32'].title, by['video.32'].day, by['video.32'].state, by['video.32'].source, by['video.32'].mc_extra, by['video.32'].internal, by['video.32'].mc_post_id], ['video', 'סרטון 32', '2026-11-18', 'scheduled', 'metricool', true, false, '2']);
+  assert.deepEqual([by['video.33'].kind, by['video.33'].mc_post_id], ['video', '4']);
+  assert.deepEqual([by['video.31'].state, by['video.31'].mc_post_id], ['planned', null]);
   // Twice: nothing to write.
   const p2 = await plan();
   assert.deepEqual([p2.update, p2.insert, p2.remove], [[], [], []]);
   // The last run, for the Gantt page: the office and the client's editor read it; nobody writes it.
   for (const who of ['ilai', 'irit', 'nadia']) {
     const s = (await run(who, 'select ok, error, stats from public.client_gantt_sync where client_id = $1', [ids.a])).rows;
-    assert.deepEqual([s[0].ok, s[0].error, s[0].stats.matched, s[0].stats.extras], [true, null, 3, 1], who);
+    assert.deepEqual([s[0].ok, s[0].error, s[0].stats.matched, s[0].stats.extras], [true, null, 2, 0], who);
   }
   assert.deepEqual((await run('anna', 'select * from public.client_gantt_sync')).rows, []);
   assert.match((await run('owner', 'delete from public.client_gantt_sync')).error, /permission denied/);
@@ -222,7 +223,7 @@ test('D. the sync writes only through gantt_sync_apply (service role): the marks
   // A failed run keeps the last good counts next to its error, and writes no row of the Gantt.
   await svc("select public.gantt_sync_apply($1, '{}', false, 'rate_limited', '{}')", [ids.a], { commit: true });
   const failed = (await db.query('select ok, error, stats from public.client_gantt_sync where client_id = $1', [ids.a])).rows[0];
-  assert.deepEqual([failed.ok, failed.error, failed.stats.matched], [false, 'rate_limited', 3]);
+  assert.deepEqual([failed.ok, failed.error, failed.stats.matched], [false, 'rate_limited', 2]);
   const st = (await run('owner', 'select public.metricool_settings() as s')).rows[0].s;
   assert.deepEqual([st.mapped, st.synced, st.failed, st.lastError], [2, 0, 1, 'rate_limited']);
   // Only what the function names is ever written: a forged op cannot touch another client, a note or the kind.
@@ -251,7 +252,7 @@ test('D. after the sync: a person\'s change makes the mark theirs; a removed pos
   await db.query("update public.client_gantt set day = '2026-11-16' where client_id = $1 and key = 'video.31'", [ids.a]);
   const p2 = planSync({ rows: await rowsOf(ids.a), posts: parsePosts(listing).posts, window: windowOf(now), complete: true });
   await svc('select public.gantt_sync_apply($1, $2, true, null, $3)', [ids.a, JSON.stringify({ update: p2.update, insert: p2.insert, remove: p2.remove }), JSON.stringify(p2.stats)], { commit: true });
-  assert.deepEqual((await rowsOf(ids.a)).filter((r) => r.mc_post_id).map((r) => [r.key, r.state, r.source]), [['video.31', 'scheduled', 'metricool'], ['mc.8', 'scheduled', 'metricool']]);
+  assert.deepEqual((await rowsOf(ids.a)).filter((r) => r.mc_post_id).map((r) => [r.key, r.state, r.source]), [['video.31', 'scheduled', 'metricool'], ['video.32', 'scheduled', 'metricool']]);
   await keep('owner', 'select public.gantt_set_brand($1, null)', [ids.a]);
   const cleared = await rowsOf(ids.a);
   assert.deepEqual(cleared.map((r) => r.key).sort(), ['graphic.9', 'video.30', 'video.31']);
@@ -264,18 +265,33 @@ test('D. after the sync: a person\'s change makes the mark theirs; a removed pos
 
 // The owner, 11.11.2026 (docs/ops.md, section 128): an extra row of before gives its post to the
 // free video row in one run, and the one-row-per-post index never sees the post twice.
-test('D. an extra row from before gives its post to a free row of its kind in one run; the index holds', async () => {
+test('D. an extra "custom" row from before becomes a row of its kind, numbered next; a new post a new row of its kind (20261211100000)', async () => {
   const now = new Date('2026-11-12T08:00:00Z');
-  const listing = { data: [{ id: 50, publicationDate: { dateTime: '2026-11-20T18:00:00', timezone: 'Asia/Jerusalem' }, text: 'רילס', media: ['https://x/v.mp4'], providers: [{ network: 'instagram', status: 'PENDING' }, { network: 'tiktok', status: 'PENDING' }] }] };
-  const apply = async (p) => (await svc('select public.gantt_sync_apply($1, $2, true, null, $3) as r', [ids.b, JSON.stringify({ update: p.update, insert: p.insert, remove: p.remove }), JSON.stringify(p.stats)], { commit: true }))[0].r;
-  // As the old sync left it: the post on an extra row, the template's video.1 still free.
-  const old = planSync({ rows: [], posts: parsePosts(listing).posts, window: windowOf(now), complete: true });
-  assert.deepEqual(await apply(old), { updated: 0, inserted: 1, removed: 0 });
+  const reel = (id, dateTime) => ({ id, publicationDate: { dateTime, timezone: 'Asia/Jerusalem' }, text: 'רילס', media: ['https://x/v.mp4'], providers: [{ network: 'instagram', status: 'PENDING' }, { network: 'tiktok', status: 'PENDING' }] });
+  const listing = { data: [reel(50, '2026-11-20T18:00:00')] };
+  const apply = async (p) => (await svc('select public.gantt_sync_apply($1, $2, true, null, $3) as r', [ids.b, JSON.stringify({ update: p.update || [], insert: p.insert || [], remove: p.remove || [] }), JSON.stringify(p.stats || {})], { commit: true }))[0].r;
+  // As the old sync left it: the post on an extra 'custom' row; the client's video.1 (planned, 15.11) is not touched.
+  const post = parsePosts(listing).posts[0];
+  assert.deepEqual(await apply({ insert: [{ key: 'mc.50', title: 'רילס', day: post.day, time_il: post.time, state: 'scheduled', mc_post_id: '50', mc_status: 'pending', mc_at: post.at, mc_networks: post.networks }] }), { updated: 0, inserted: 1, removed: 0 });
   const p = planSync({ rows: await rowsOf(ids.b), posts: parsePosts(listing).posts, window: windowOf(now), complete: true });
-  assert.deepEqual(await apply(p), { updated: 2, inserted: 0, removed: 1 });
-  assert.deepEqual((await rowsOf(ids.b)).map((r) => [r.key, r.day, r.time_il, r.state, r.source, r.mc_post_id, r.mc_extra]), [['video.1', '2026-11-20', '18:00', 'scheduled', 'metricool', '50', false]]);
-  const again = planSync({ rows: await rowsOf(ids.b), posts: parsePosts(listing).posts, window: windowOf(now), complete: true });
-  assert.equal(again.stats.changed, 0);
+  assert.deepEqual(await apply(p), { updated: 1, inserted: 0, removed: 0 });
+  const shape = (rows) => rows.map((r) => [r.key, r.kind, r.title, r.day, r.state, r.source, r.mc_post_id, r.mc_extra]);
+  assert.deepEqual(shape(await rowsOf(ids.b)), [['video.1', 'video', 'שלהם', '2026-11-15', 'planned', 'manual', null, false], ['video.2', 'video', 'סרטון 2', '2026-11-20', 'scheduled', 'metricool', '50', true]]);
+  assert.equal((await db.query("select num from public.client_gantt where client_id = $1 and key = 'video.2'", [ids.b])).rows[0].num, 2);
+  // A new post: a new row of its kind, video.3; twice: nothing to write.
+  listing.data.push(reel(51, '2026-11-24T18:00:00'));
+  const p2 = planSync({ rows: await rowsOf(ids.b), posts: parsePosts(listing).posts, window: windowOf(now), complete: true });
+  assert.deepEqual(await apply(p2), { updated: 0, inserted: 1, removed: 0 });
+  assert.deepEqual(shape(await rowsOf(ids.b)).at(-1), ['video.3', 'video', 'סרטון 3', '2026-11-24', 'scheduled', 'metricool', '51', true]);
+  assert.equal(planSync({ rows: await rowsOf(ids.b), posts: parsePosts(listing).posts, window: windowOf(now), complete: true }).stats.changed, 0);
+  // The function never re-kinds a row the sync did not make, nor to a kind it does not make.
+  const own = (await db.query("select id from public.client_gantt where client_id = $1 and key = 'video.1'", [ids.b])).rows[0].id;
+  const made = (await db.query("select id from public.client_gantt where client_id = $1 and key = 'video.3'", [ids.b])).rows[0].id;
+  await apply({ update: [{ id: own, fields: { kind: 'graphic', key: 'graphic.1', num: 1 } }, { id: made, fields: { kind: 'plan', key: 'plan.1' } }] });
+  assert.deepEqual(shape(await rowsOf(ids.b)).map((r) => [r[0], r[1]]), [['video.1', 'video'], ['video.2', 'video'], ['video.3', 'video']]);
+  // When its post goes, a row the sync made leaves with it.
+  const p3 = planSync({ rows: await rowsOf(ids.b), posts: parsePosts({ data: [listing.data[0]] }).posts, window: windowOf(now), complete: true });
+  assert.deepEqual(await apply(p3), { updated: 0, inserted: 0, removed: 1 });
 });
 
 test('D. the clock: every 15 minutes, with the cron secret from Vault, only while the switch is on and not at night', async () => {

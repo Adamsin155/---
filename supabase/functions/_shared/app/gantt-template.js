@@ -17,7 +17,7 @@
 // TEMPLATE_VERSION goes up with any change, so a plan can say which template made it.
 import { CYCLE_FROM } from './year-logic.js';
 
-export const TEMPLATE_VERSION = 2;
+export const TEMPLATE_VERSION = 3;
 
 // Weekdays: 0 = Sunday … 6 = Saturday (Israel). Times are Israel wall-clock 'HH:MM'.
 export const WEEKDAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -64,12 +64,15 @@ const POSTS = ['holiday', 'erev'];
 // A day that is not allowed moves to the next allowed day in the same package month
 // (or the one before when there is none after it).
 export const GANTT_RULES = [
-  { key: 'video', kind: 'video', place: 'spreadPosts', qty: (d) => d.videos, weekdays: [0, 2, 4], time: '19:00', avoid: POSTS, numbered: true, title: (n) => `סרטון ${n}` },
-  { key: 'graphic', kind: 'graphic', place: 'spreadPosts', qty: (d) => d.graphics, weekdays: [1, 3], time: '13:00', avoid: POSTS, numbered: true, title: (n) => `גרפיקה ${n}` },
+  // `scheduled`: made by Metricool's planner (and by Ilai's dated files in Drive), never by the
+  // template (the owner, 11.11.2026: "לא צריך לשים דברים שלא תוזמנו"; docs/ops.md, section 128).
+  // The rule stays to describe the cadence; generatePlan leaves it out unless asked ({ all: true }).
+  { key: 'video', kind: 'video', scheduled: true, place: 'spreadPosts', qty: (d) => d.videos, weekdays: [0, 2, 4], time: '19:00', avoid: POSTS, numbered: true, title: (n) => `סרטון ${n}` },
+  { key: 'graphic', kind: 'graphic', scheduled: true, place: 'spreadPosts', qty: (d) => d.graphics, weekdays: [1, 3], time: '13:00', avoid: POSTS, numbered: true, title: (n) => `גרפיקה ${n}` },
   // The monthly photographer (a paid add-on): 8 contents a month; he comes on business
   // day 10, and his contents go up in the rest of that month (year-logic: shot by day 12).
   { key: 'photo', kind: 'photo', place: 'businessDay', when: (d) => d.monthly > 0, day: 10, time: '10:00', title: (m) => `הצלם החודשי בבית העסק · חודש ${m}` },
-  { key: 'monthly', kind: 'monthly', place: 'perMonth', when: (d) => d.monthly > 0, count: (d, of) => Math.max(1, Math.round(d.monthly / Math.max(1, of))), afterBusinessDay: 11, weekdays: [0, 1, 2, 3, 4], time: '17:00', avoid: POSTS, title: (k, m) => `תוכן ${k} מהצלם החודשי · חודש ${m}` },
+  { key: 'monthly', kind: 'monthly', scheduled: true, place: 'perMonth', when: (d) => d.monthly > 0, count: (d, of) => Math.max(1, Math.round(d.monthly / Math.max(1, of))), afterBusinessDay: 11, weekdays: [0, 1, 2, 3, 4], time: '17:00', avoid: POSTS, title: (k, m) => `תוכן ${k} מהצלם החודשי · חודש ${m}` },
   // Shoot days: the first in month 1 (the second Tuesday), unless the card already has
   // its date; the extra ones in the months of year-logic's "round" items.
   { key: 'shoot', kind: 'shoot', place: 'nthWeekday', qty: (d) => d.shoot_days, firstMonth: 1, week: 2, weekday: 2, time: '10:00', avoid: ['holiday', 'erev'], title: (k) => `יום צילום ${k}` },
@@ -84,6 +87,10 @@ export const GANTT_RULES = [
   { key: 'end', kind: 'end', place: 'fromEnd', days: 0, time: null, title: () => 'סיום שנת החבילה' },
 ];
 
+// The kinds whose rows only Metricool (and Drive) make: "עדכון מהתבנית" never adds, moves or
+// removes them (11.11.2026).
+export const SCHEDULED_KINDS = new Set(GANTT_RULES.filter((r) => r.scheduled).map((r) => r.kind));
+
 // The month posts start in: the monthly cycle's first month.
 export const POSTS_FROM = CYCLE_FROM;
 
@@ -91,7 +98,8 @@ export const POSTS_FROM = CYCLE_FROM;
 export const TEMPLATE_TEXT = [
   'החודשים נספרים מיום החתימה (deal_at), בשעון ישראל: אותו יום בכל חודש, וה־31 הופך ליום האחרון בחודש.',
   `הפרסומים מתחילים בחודש ${POSTS_FROM}, החודש שבו מתחיל המחזור החודשי, ומתפזרים שווה עד סוף החבילה.`,
-  'גאנט שנפתח באמצע החבילה לא ממציא תכנים בעבר: הסרטונים והגרפיקות מתפזרים מהיום ועד סוף החבילה, באותם ימים ושעות, בלי לאבד אף אחד מהכמות.',
+  'סרטונים וגרפיקות (וגם תכני הצלם החודשי) לא נכנסים מהתבנית: הם מופיעים בגאנט כשהם מתוזמנים ב־Metricool, או כשעילאי שם בדרייב קובץ ששמו מתחיל בתאריך. למעלה כתוב כמה תוזמנו מתוך הכמות בחבילה.',
+  'גאנט שנפתח באמצע החבילה לא ממציא תכנים בעבר: סטורי, קולאב, ערוץ 14 ו־Highlights מתחילים מהיום.',
   'סרטונים: ימי ראשון, שלישי וחמישי ב־19:00. גרפיקות: ימי שני ורביעי ב־13:00. בכל חודש במרווחים שווים.',
   'לא מפרסמים בשבת, בחג ובערב חג; פרסום שנופל על יום כזה עובר ליום המותר הבא באותו חודש.',
   'צלם חודשי (כשנרכש): יום עסקים 10 בכל חודש ב־10:00, ו־8 התכנים שלו עולים בהמשך החודש, מיום העסקים ה־11, בימים ראשון עד חמישי ב־17:00.',

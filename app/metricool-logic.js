@@ -290,38 +290,51 @@ function diff(row, want) {
 
 // One client's sync: the client's Gantt rows and the brand's posts of the window →
 // { update: [{ id, fields }], insert: [row], remove: [id], stats, failed: [{ id, key, title, day }] }.
-//  - a post stands on one entry. The one it already stands on keeps it by the post's id
-//    (when the post moves in Metricool, the entry moves with it); a mark a person made
-//    (manual, not planned) keeps it only while the post is on its day;
-//  - a new post first takes an entry of its own day that someone marked by hand, or one of
-//    the kinds that are placed by day (the photographer's contents, a collab, a story, the
-//    Highlights, an entry added by hand): the nearest in time whose kind fits (COMPATIBLE);
-//  - then (the owner, 11.11.2026; docs/ops.md, section 128) a video or a graphic takes the
-//    NEXT FREE ROW OF ITS KIND: the template's video or graphic entries still planned, with no
-//    post, in number order, the earliest post first, and the row takes the post's day and
-//    time. A video: the media is a video file, or a reel, or it goes to TikTok or YouTube (and
-//    is not all pictures); anything else that is not a story is a graphic (postFormat);
-//  - only a post with no free row of its kind becomes an extra row ('mc.<post id>', kind
-//    'custom', mc_extra), so the calendar still shows what is really scheduled. An extra row
-//    the sync made and nobody touched gives its post to a free row once there is one, and
-//    goes (the duplicates of before 11.11.2026 clean themselves up);
-//  - a post that left Metricool un-schedules only what the sync itself had set, and removes
-//    only an extra row nobody touched; and only when the listing was complete and the post's
-//    time is inside the window.
+// The owner, 11.11.2026 (docs/ops.md, section 128): the Gantt shows what is really scheduled, so
+// the videos and the graphics on it are Metricool's posts (and Ilai's dated files in Drive).
+//  - a post stands on one entry. The one it already stands on keeps it by the post's id (when
+//    the post moves in Metricool, the entry moves with it); a mark a person made (manual, not
+//    planned) keeps it only while the post is on its day;
+//  - a new post takes an entry of its own day whose kind fits (COMPATIBLE), the nearest in time:
+//    a row from Drive, one added by hand, the photographer's, a collab, a story, the Highlights;
+//  - else a video or a graphic takes a planned row of its kind with no post a day before or after
+//    (Ilai's file in Drive named a day off), and the row moves to the post's day;
+//  - else it becomes a NEW ROW OF ITS KIND, numbered after the rows of that kind (video.<max+1>,
+//    "סרטון <max+1>"; the earliest post first), with the post's day, time and state. A video: the
+//    media is a video file, or a reel, or it goes to TikTok or YouTube (and is not all pictures);
+//    anything else that is not a story is a graphic (postFormat). Only a story (or a post with no
+//    kind at all) becomes an extra row of kind 'custom' ('mc.<post id>');
+//  - an extra 'custom' row of before 11.11.2026 that the sync made and nobody touched, whose post
+//    is a video or a graphic, becomes a row of that kind, numbered next (never moved onto a
+//    planned row);
+//  - every row the sync made (mc_extra) leaves with its post when nobody touched it; a row of the
+//    template or of a person goes back to planned (only what the sync itself had set), and only
+//    when the listing was complete and the post's time is inside the window.
 // The updates that free a post come first, so the database's one-row-per-post index
-// (client_gantt_mc_post_idx) never sees a post on two rows in one run.
+// (client_gantt_mc_post_idx) never sees a post on two rows in one run. Writing a row's kind, key
+// and number (the conversion, the new rows) needs 20261211100000_gantt_sync_kinds.sql; before it,
+// the database writes them as 'custom' rows, as before.
 export const ROW_KIND = { video: 'video', graphic: 'graphic', other: 'graphic' };
-const numOf = (r) => (Number.isFinite(Number(r.num)) && r.num !== null ? Number(r.num) : Number(/\.(\d+)$/.exec(String(r.key || ''))?.[1] || 9999));
+export const ROW_TITLE = { video: (n) => `סרטון ${n}`, graphic: (n) => `גרפיקה ${n}` };
+const numOf = (r) => {
+  const n = Number(r.num);
+  if (r.num !== null && r.num !== undefined && Number.isFinite(n)) return n;
+  const m = /^(?:video|graphic)\.(\d+)$/.exec(String(r.key || ''));
+  return m ? Number(m[1]) : 0;
+};
+const DAY_MS = 864e5;
+const daysApart = (a, b) => Math.round((Date.parse(`${a}T12:00:00Z`) - Date.parse(`${b}T12:00:00Z`)) / DAY_MS);
 export function planSync({ rows = [], posts = [], window, complete = true }) {
   const live = posts.filter((p) => p.status !== 'draft');
   const byId = new Map(live.map((p) => [p.id, p]));
   const linked = new Map(); // row id -> post
   const taken = new Set();  // post ids
-  const loose = new Map();  // post id -> an extra row the sync made, waiting to see if a free row takes its post
+  const convert = new Set(); // row ids: an old extra row that becomes a row of its kind
   const out = { update: [], insert: [], remove: [], failed: [] };
   const push = (row, fields) => { if (Object.keys(fields).length) out.update.push({ id: row.id, fields }); };
   const manualMark = (r) => r.source !== 'metricool' && r.state !== 'planned';
-  const untouchedExtra = (r) => r.mc_extra && r.source === 'metricool' && !r.file_id && !String(r.note || '').trim();
+  const untouched = (r) => r.source === 'metricool' && !r.file_id && !String(r.note || '').trim();
+  const link = (r, p) => { linked.set(r.id, p); taken.add(p.id); };
 
   // 1. Links that still hold.
   for (const r of rows) {
@@ -329,20 +342,20 @@ export function planSync({ rows = [], posts = [], window, complete = true }) {
     const p = byId.get(String(r.mc_post_id));
     if (!p || taken.has(p.id)) continue;
     if (r.mc_extra) {
-      if (untouchedExtra(r) && ROW_KIND[p.format]) { loose.set(p.id, r); continue; }
-      linked.set(r.id, p); taken.add(p.id); continue;
+      if (r.kind === 'custom' && untouched(r) && ROW_KIND[p.format]) convert.add(r.id);
+      link(r, p);
+      continue;
     }
     if (r.state === 'skipped') continue;
     if (manualMark(r) && p.day !== r.day) continue;
-    linked.set(r.id, p); taken.add(p.id);
+    link(r, p);
   }
-  // 2a. The same day: an entry marked by hand, or one of the kinds placed by day.
+  // 2. An entry of the post's own day whose kind fits, the nearest in time.
   const open = (r) => !linked.has(r.id) && !r.mc_extra && !r.internal && r.state !== 'skipped';
-  const byNumber = (r) => (r.kind === 'video' || r.kind === 'graphic') && r.state === 'planned' && !isCustomKey(r);
-  const free = rows.filter((r) => open(r) && !byNumber(r));
+  const free = rows.filter(open);
   const pairs = [];
   for (const p of live) {
-    if (taken.has(p.id) || loose.has(p.id)) continue;
+    if (taken.has(p.id)) continue;
     for (const r of free) {
       if (r.day !== p.day) continue;
       const c = cost(p, r);
@@ -350,39 +363,45 @@ export function planSync({ rows = [], posts = [], window, complete = true }) {
     }
   }
   pairs.sort((a, b) => a.c - b.c || a.p.at.localeCompare(b.p.at) || a.p.id.localeCompare(b.p.id) || String(a.r.key).localeCompare(String(b.r.key)));
-  for (const { p, r } of pairs) {
-    if (taken.has(p.id) || linked.has(r.id)) continue;
-    linked.set(r.id, p);
-    taken.add(p.id);
-  }
-  // 2b. A video or a graphic: the next free row of its kind, in number order.
-  const queue = { video: [], graphic: [] };
-  for (const r of rows.filter((x) => open(x) && byNumber(x) && !x.mc_post_id).sort((a, b) => numOf(a) - numOf(b) || String(a.day).localeCompare(String(b.day)))) queue[r.kind].push(r);
-  for (const p of [...live].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id))) {
-    if (taken.has(p.id)) continue;
+  for (const { p, r } of pairs) if (!taken.has(p.id) && !linked.has(r.id)) link(r, p);
+  // 2b. A day off: a planned row of its kind with no post, a day before or after.
+  const chrono = [...live].sort((a, b) => a.at.localeCompare(b.at) || a.id.localeCompare(b.id));
+  for (const p of chrono) {
     const kind = ROW_KIND[p.format];
-    const r = kind && queue[kind].shift();
-    if (!r) continue;
-    linked.set(r.id, p);
-    taken.add(p.id);
+    if (taken.has(p.id) || !kind) continue;
+    const near = free.filter((r) => !linked.has(r.id) && r.kind === kind && r.state === 'planned' && !r.mc_post_id && Math.abs(daysApart(r.day, p.day)) === 1)
+      .sort((a, b) => daysApart(a.day, b.day) || numOf(a) - numOf(b));
+    if (near.length) link(near[0], p);
   }
-  // An extra row whose post found a row goes; one whose post found none stays its post's.
-  for (const [pid, r] of loose) {
-    if (taken.has(pid)) { out.update.push({ id: r.id, fields: { ...MC_NONE } }); out.remove.push(r.id); continue; }
-    linked.set(r.id, byId.get(pid));
-    taken.add(pid);
+  // 3. Numbers for the rows that become a video or a graphic: after the highest of that kind.
+  const max = { video: 0, graphic: 0 };
+  for (const r of rows) if (max[r.kind] !== undefined) max[r.kind] = Math.max(max[r.kind], numOf(r));
+  const newRows = []; // { p, kind, row? }
+  for (const p of chrono) {
+    if (taken.has(p.id)) {
+      const r = rows.find((x) => convert.has(x.id) && linked.get(x.id) === p);
+      if (r) newRows.push({ p, kind: ROW_KIND[p.format], row: r });
+      continue;
+    }
+    newRows.push({ p, kind: ROW_KIND[p.format] || null });
   }
-  // 3. What each link means; what a lost link means.
-  const stats = { posts: posts.length, drafts: posts.length - live.length, matched: 0, extras: 0, scheduled: 0, published: 0, errors: 0 };
-  const gone = new Set(out.remove);
+  const numbered = new Map(); // post id -> { kind, num, key, title }
+  for (const x of newRows) {
+    if (!x.kind) continue;
+    max[x.kind] += 1;
+    numbered.set(x.p.id, { kind: x.kind, num: max[x.kind], key: `${x.kind}.${max[x.kind]}`, title: ROW_TITLE[x.kind](max[x.kind]) });
+  }
+  // 4. What each link means; what a lost link means.
+  const stats = { posts: posts.length, drafts: posts.length - live.length, matched: 0, extras: 0, created: 0, scheduled: 0, published: 0, errors: 0 };
+  const count = (p) => { stats[p.status === 'pending' ? 'scheduled' : p.status === 'published' ? 'published' : 'errors'] += 1; };
   for (const r of rows) {
-    if (gone.has(r.id)) continue;
     const p = linked.get(r.id);
     if (p) {
       if (r.mc_extra) {
         stats.extras += 1;
         const want = { mc_post_id: p.id, mc_status: p.status, mc_at: p.at, mc_networks: p.networks, mc_error: p.error };
-        if (r.source === 'metricool') Object.assign(want, extraFields(p), { title: r.title === extraTitle(p) || !p.text ? r.title : extraTitle(p) });
+        if (r.source === 'metricool') Object.assign(want, extraFields(p), r.kind === 'custom' && !convert.has(r.id) ? { title: r.title === extraTitle(p) || !p.text ? r.title : extraTitle(p) } : {});
+        if (convert.has(r.id)) { const n = numbered.get(p.id); Object.assign(want, { kind: n.kind, key: n.key, num: n.num, title: n.title }); }
         // A link someone pasted (the video in Drive, 22.10.2026) stays: the post's own link only fills an empty one.
         if (r.link) delete want.link;
         push(r, diff(r, want));
@@ -390,27 +409,30 @@ export function planSync({ rows = [], posts = [], window, complete = true }) {
         stats.matched += 1;
         push(r, effects(r, p));
       }
-      stats[p.status === 'pending' ? 'scheduled' : p.status === 'published' ? 'published' : 'errors'] += 1;
-      if (p.status === 'error') out.failed.push({ id: r.id, key: r.key, title: r.title, day: p.day });
+      count(p);
+      if (p.status === 'error') out.failed.push({ id: r.id, key: convert.has(r.id) ? numbered.get(p.id).key : r.key, title: convert.has(r.id) ? numbered.get(p.id).title : r.title, day: p.day });
       continue;
     }
     if (!r.mc_post_id && !r.mc_status) continue;
     // The post is gone. Without a complete listing, or outside the window, nothing is known.
     const known = complete && inWindow(r.mc_at ? dayKeyIL(new Date(r.mc_at)) : r.day, window);
     if (!known) continue;
-    if (r.mc_extra) { if (r.source === 'metricool') out.remove.push(r.id); else push(r, diff(r, MC_NONE)); continue; }
+    if (r.mc_extra) { if (untouched(r)) out.remove.push(r.id); else push(r, diff(r, MC_NONE)); continue; }
     const fields = { ...MC_NONE };
     if (r.source === 'metricool' && (r.state === 'scheduled' || r.state === 'error')) { fields.state = 'planned'; fields.source = 'manual'; }
     push(r, diff(r, fields));
   }
-  // 4. Posts no entry fits.
+  // 5. Posts no entry took: a new row of their kind, or (a story) an extra 'custom' row.
   const have = new Set(rows.map((r) => r.key));
-  for (const p of live) {
-    if (taken.has(p.id) || have.has(extraKey(p))) continue;
-    stats.extras += 1;
-    stats[p.status === 'pending' ? 'scheduled' : p.status === 'published' ? 'published' : 'errors'] += 1;
-    out.insert.push({ key: extraKey(p), title: extraTitle(p), ...extraFields(p), mc_post_id: p.id, mc_status: p.status, mc_at: p.at, mc_networks: p.networks, mc_error: p.error });
-    if (p.status === 'error') out.failed.push({ id: null, key: extraKey(p), title: extraTitle(p), day: p.day });
+  for (const { p, row } of newRows) {
+    if (row || taken.has(p.id) || have.has(extraKey(p))) continue;
+    const n = numbered.get(p.id);
+    const base = { ...extraFields(p), mc_post_id: p.id, mc_status: p.status, mc_at: p.at, mc_networks: p.networks, mc_error: p.error };
+    const ins = n ? { key: n.key, kind: n.kind, num: n.num, title: n.title, ...base } : { key: extraKey(p), title: extraTitle(p), ...base };
+    if (n) stats.created += 1; else stats.extras += 1;
+    count(p);
+    out.insert.push(ins);
+    if (p.status === 'error') out.failed.push({ id: null, key: ins.key, title: ins.title, day: p.day });
   }
   // What frees a post first (the one-row-per-post index), then the rest in order.
   const frees = (u) => 'mc_post_id' in u.fields && u.fields.mc_post_id === null;
@@ -418,7 +440,6 @@ export function planSync({ rows = [], posts = [], window, complete = true }) {
   stats.changed = out.update.length + out.insert.length + out.remove.length;
   return { ...out, stats };
 }
-const isCustomKey = (r) => r.kind === 'custom' || /^(custom|mc)\./.test(String(r.key || ''));
 function extraFields(p) {
   const state = p.status === 'published' ? 'posted' : p.status === 'error' ? 'error' : 'scheduled';
   return { day: p.day, time_il: p.time, state, posted_on: state === 'posted' ? p.day : null, link: p.url };
