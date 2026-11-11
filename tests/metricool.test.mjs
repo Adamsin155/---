@@ -175,7 +175,7 @@ test('a scheduled post marks its entry "תוזמן" with its time; a published o
   assert.equal(planSync({ rows: asDb, posts: norm([reel(1, '2026-11-15T20:30:00'), post(2, '2026-11-16T13:00:00')]), window: W, complete: false }).stats.changed, 0);
 });
 
-test('matching: the same Israel day and a fitting kind; the nearest time wins; one post per entry', () => {
+test('matching: a kind placed by day takes a post of its day (nearest time); a video or a graphic the next free row of its kind; one post per entry', () => {
   const a = row('video.1', 'video', '2026-11-15', '19:00');
   const b = row('monthly.9.1', 'monthly', '2026-11-15', '17:00');
   const c = row('graphic.1', 'graphic', '2026-11-15', '13:00');
@@ -185,21 +185,22 @@ test('matching: the same Israel day and a fitting kind; the nearest time wins; o
   const skipped = row('video.3', 'video', '2026-11-15', '18:00', { state: 'skipped' });
   const rows = [a, b, c, s, other, internal, skipped];
   const plan = sync(rows, [
-    reel(1, '2026-11-15T18:40:00'),                                   // nearest to video.1 (19:00), not the skipped 18:00
-    reel(2, '2026-11-15T17:10:00'),                                   // the monthly content
-    post(3, '2026-11-15T16:00:00'),                                   // a graphic: only graphic.1 is left that fits
+    reel(1, '2026-11-15T18:40:00'),                                   // a video: the next free video row, video.1 (never the skipped one)
+    reel(2, '2026-11-15T17:10:00'),                                   // the monthly content of its day (the nearest time)
+    post(3, '2026-11-15T16:00:00'),                                   // the second graphic: no free graphic row left, an extra row
     post(4, '2026-11-15T20:00:00', { instagramData: { type: 'STORY' } }),
-    reel(5, '2026-11-16T19:00:00'),                                   // another day: no entry, an extra row
-    post(6, '2026-11-15T09:00:00', { instagramData: { type: 'POST' } }), // a second graphic that day: nothing left that fits
+    reel(5, '2026-11-16T19:00:00'),                                   // another day: video.2 (17.11) moves to it
+    post(6, '2026-11-15T09:00:00', { instagramData: { type: 'POST' } }), // the earliest graphic: graphic.1
   ]);
   const of = (r) => fieldsOf(plan, r)?.mc_post_id;
-  assert.deepEqual([of(a), of(b), of(c), of(s), of(other), of(internal), of(skipped)], ['1', '2', '3', '4', undefined, undefined, undefined]);
-  assert.deepEqual(plan.insert.map((i) => [i.key, i.day, i.time_il, i.state, i.title]), [['mc.5', '2026-11-16', '19:00', 'scheduled', 'טקסט 5'], ['mc.6', '2026-11-15', '09:00', 'scheduled', 'טקסט 6']]);
-  // Two posts for one entry: the nearer takes it, the other becomes an extra row.
+  assert.deepEqual([of(a), of(b), of(c), of(s), of(other), of(internal), of(skipped)], ['1', '2', '6', '4', '5', undefined, undefined]);
+  assert.deepEqual([fieldsOf(plan, other).day, fieldsOf(plan, other).edited], ['2026-11-16', true]); // the same 19:00: no time to change
+  assert.deepEqual(plan.insert.map((i) => [i.key, i.day, i.time_il, i.state, i.title]), [['mc.3', '2026-11-15', '16:00', 'scheduled', 'טקסט 3']]);
+  // Two posts for one video row: the earlier takes it, the other becomes an extra row.
   const one = row('video.9', 'video', '2026-11-18', '19:00');
   const two = sync([one], [reel(7, '2026-11-18T12:00:00'), reel(8, '2026-11-18T19:30:00')]);
-  assert.equal(fieldsOf(two, one).mc_post_id, '8');
-  assert.deepEqual(two.insert.map((i) => i.key), ['mc.7']);
+  assert.equal(fieldsOf(two, one).mc_post_id, '7');
+  assert.deepEqual(two.insert.map((i) => i.key), ['mc.8']);
   // A whole-day entry takes a post when no timed one fits; an entry added by hand takes any kind.
   const allDay = row('ch.1', 'video', '2026-11-19', null);
   const custom = row('custom.1700000000000', 'custom', '2026-11-19', '10:00');
@@ -233,8 +234,8 @@ test('a mark a person made is never changed: only the link to the post is kept, 
 });
 
 test('a post removed from Metricool un-schedules only what the sync set; not with a partial listing, not outside the window', () => {
-  const a = row('video.1', 'video', '2026-11-15', '19:00');
-  const b = row('video.2', 'video', '2026-11-10', '19:00');
+  const a = row('video.2', 'video', '2026-11-15', '19:00');
+  const b = row('video.1', 'video', '2026-11-10', '19:00');
   const rows = [a, b];
   const first = sync(rows, [reel(1, '2026-11-15T19:00:00'), reel(2, '2026-11-10T19:00:00', published())]);
   const linked = after(rows, first);
@@ -249,11 +250,12 @@ test('a post removed from Metricool un-schedules only what the sync set; not wit
   // Outside the window (a post of three weeks ago is no longer listed): untouched.
   const old = row('video.0', 'video', '2026-10-20', '19:00', { state: 'posted', posted_on: '2026-10-20', source: 'metricool', mc_post_id: '77', mc_status: 'published', mc_at: '2026-10-20T16:00:00.000Z' });
   assert.equal(planSync({ rows: [old], posts: [], window: W, complete: true }).stats.changed, 0);
-  // Moved to another day in Metricool: the old entry is un-scheduled, the entry of the new day takes the post.
+  // Moved to another day in Metricool (11.11.2026): the entry keeps its post by its id and moves with it; the
+  // entry already planned on the new day stays free.
   const c = row('video.3', 'video', '2026-11-17', '19:00');
   const moved = planSync({ rows: [...linked, c], posts: norm([reel(1, '2026-11-17T19:00:00'), reel(2, '2026-11-10T19:00:00', published())]), window: W, complete: true });
   const m = after([...linked, c], moved);
-  assert.deepEqual(m.map((r) => [r.key, r.state, r.mc_post_id]), [['video.1', 'planned', null], ['video.2', 'posted', '2'], ['video.3', 'scheduled', '1']]);
+  assert.deepEqual(m.map((r) => [r.key, r.day, r.state, r.mc_post_id]), [['video.2', '2026-11-17', 'scheduled', '1'], ['video.1', '2026-11-10', 'posted', '2'], ['video.3', '2026-11-17', 'planned', null]]);
 });
 
 test('posts no entry fits become extra rows from Metricool, follow their post, and leave with it', () => {
@@ -281,6 +283,79 @@ test('posts no entry fits become extra rows from Metricool, follow their post, a
   // On the Gantt a scheduled extra reads as scheduled, and as up once its time has passed.
   assert.equal(entryStatus({ ...first.insert[1], kind: 'custom' }, NOW), 'scheduled');
   assert.equal(entryStatus({ ...first.insert[1], kind: 'custom' }, dateIL(2026, 11, 18, 10, 1)), 'posted');
+});
+
+// ── The next free row of its kind (the owner, 11.11.2026; docs/ops.md, section 128) ──
+// Dabush: the Gantt opened on 11.11 with its videos and graphics from that day on; Metricool
+// already had posts from 5.11 and posts on days the template did not pick. Each post takes the
+// next free row of its kind in number order; nothing becomes a "custom" duplicate.
+test('a post takes the next free row of its kind, in number order, with its day and time; a custom row only when none is free', () => {
+  const tk = (id, dateTime, fields = {}) => post(id, dateTime, { instagramData: undefined, media: [], providers: [{ network: 'instagram', status: 'PENDING' }, { network: 'tiktok', status: 'PENDING' }], ...fields });
+  const ig = (id, dateTime, fields = {}) => post(id, dateTime, { instagramData: undefined, media: [], ...fields });
+  const both = (url) => ({ providers: [{ network: 'instagram', status: 'PUBLISHED', publicUrl: url }, { network: 'tiktok', status: 'PUBLISHED' }] });
+  const v = [1, 2, 3].map((n) => row(`video.${n}`, 'video', ['2026-11-12', '2026-11-17', '2026-11-19'][n - 1], '19:00', { num: n }));
+  const g = [1, 2].map((n) => row(`graphic.${n}`, 'graphic', ['2026-11-16', '2026-11-25'][n - 1], '13:00', { num: n }));
+  const rep = row('report.4', 'report', '2026-11-24', '12:00');
+  const rows = [...v, ...g, rep];
+  const listing = [
+    tk(11, '2026-11-05T18:00:00', both('https://www.instagram.com/reel/a')), // to TikTok: a video
+    tk(12, '2026-11-08T18:00:00', both('https://www.instagram.com/reel/b')),
+    ig(13, '2026-11-11T18:00:00'),                                               // Instagram only, no media type: a graphic
+    tk(14, '2026-11-12T18:00:00'),
+    ig(15, '2026-11-18T18:00:00', { media: ['https://cdn.example/x.mp4'] }),     // the media is a video: a video, though Instagram only
+    tk(16, '2026-11-20T18:00:00', { media: ['https://cdn.example/1.jpg', 'https://cdn.example/2.png'] }), // TikTok photos: a graphic
+    ig(17, '2026-11-26T18:00:00'),                                               // no graphic row left: a custom row
+  ];
+  const plan = sync(rows, listing);
+  const next = after(rows, plan);
+  const by = (k) => next.find((r) => r.key === k);
+  assert.deepEqual(['video.1', 'video.2', 'video.3', 'graphic.1', 'graphic.2'].map((k) => [k, by(k).day, String(by(k).time_il).slice(0, 5), by(k).state, by(k).mc_post_id]), [
+    ['video.1', '2026-11-05', '18:00', 'posted', '11'],
+    ['video.2', '2026-11-08', '18:00', 'posted', '12'],
+    ['video.3', '2026-11-12', '18:00', 'scheduled', '14'],
+    ['graphic.1', '2026-11-11', '18:00', 'scheduled', '13'],
+    ['graphic.2', '2026-11-20', '18:00', 'scheduled', '16'],
+  ]);
+  assert.ok(['video.1', 'video.3', 'graphic.2'].every((k) => by(k).edited && by(k).source === 'metricool'));
+  // Post 15 (a video) finds no free video row: the only extra rows are 15 and 17.
+  assert.deepEqual(plan.insert.map((i) => i.key), ['mc.15', 'mc.17']);
+  assert.equal(fieldsOf(plan, rep), undefined, 'a report never takes a post');
+  // A second run with the same listing changes nothing.
+  assert.equal(sync(next, listing).stats.changed, 0);
+  // A linked row keeps its post by its id when the post moves, and moves with it.
+  const moved = sync(next, listing.map((p) => (p.id === 14 ? { ...p, publicationDate: { dateTime: '2026-11-13T20:00:00', timezone: 'Asia/Jerusalem' } } : p)));
+  assert.deepEqual(fieldsOf(moved, by('video.3')), { mc_at: '2026-11-13T18:00:00.000Z', day: '2026-11-13', time_il: '20:00' });
+  assert.deepEqual([moved.insert, moved.remove], [[], []]);
+});
+
+test('an extra row the sync made gives its post to a free row once there is one (the duplicates clean up); one touched by hand stays', () => {
+  const extra = (id, day, extraFields = {}) => row(`mc.${id}`, 'custom', day, '18:00', { source: 'metricool', mc_extra: true, mc_post_id: String(id), mc_status: 'pending', mc_at: `${day}T16:00:00.000Z`, mc_networks: ['instagram', 'tiktok'], state: 'scheduled', edited: true, title: `טקסט ${id}`, ...extraFields });
+  const free = row('video.1', 'video', '2026-11-19', '19:00', { num: 1 });
+  const free2 = row('video.2', 'video', '2026-11-24', '19:00', { num: 2 });
+  const a = extra(31, '2026-11-14');
+  const noted = extra(32, '2026-11-15', { note: 'לא לגעת' });
+  const rows = [free, free2, a, noted];
+  const tk = (id, dateTime) => post(id, dateTime, { instagramData: undefined, media: [], providers: [{ network: 'instagram', status: 'PENDING' }, { network: 'tiktok', status: 'PENDING' }] });
+  const plan = sync(rows, [tk(31, '2026-11-14T18:00:00'), tk(32, '2026-11-15T18:00:00')]);
+  // The extra row lets go of its post first (the one-row-per-post index), then the row takes it, then the extra goes.
+  assert.equal(plan.update[0].id, a.id);
+  assert.equal(plan.update[0].fields.mc_post_id, null);
+  assert.deepEqual(plan.remove, [a.id]);
+  const next = after(rows, plan);
+  assert.deepEqual(next.map((r) => [r.key, r.day, r.mc_post_id]), [['video.1', '2026-11-14', '31'], ['video.2', '2026-11-24', null], ['mc.32', '2026-11-15', '32']]);
+  assert.equal(sync(next, [tk(31, '2026-11-14T18:00:00'), tk(32, '2026-11-15T18:00:00')]).stats.changed, 0);
+  // With no free row of its kind the extra row simply stays its post's.
+  const full = sync([a], [tk(31, '2026-11-14T18:00:00')]);
+  assert.deepEqual([full.update, full.insert, full.remove], [[], [], []]);
+});
+
+test('the kind of a post: the media first, then the type, then TikTok or YouTube', () => {
+  assert.equal(postFormat({ media: ['https://x/a.mp4'] }, ['instagram']), 'video');
+  assert.equal(postFormat({ instagramData: { type: 'POST' }, media: ['https://x/a.mov'] }), 'video');
+  assert.equal(postFormat({ media: ['https://x/a.jpg', 'https://x/b.webp'] }, ['tiktok']), 'graphic');
+  assert.equal(postFormat({ instagramData: { type: 'REEL' }, media: ['https://x/cover.jpg'] }), 'video');
+  assert.equal(postFormat({ media: [] }, ['instagram', 'tiktok']), 'video');
+  assert.equal(postFormat({ media: [] }, ['instagram']), 'other');
 });
 
 // ── The run ─────────────────────────────────
