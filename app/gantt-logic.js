@@ -6,7 +6,7 @@
 // Every day is an Israel calendar day ('YYYY-MM-DD') and every time an Israel wall
 // clock ('HH:MM'), as stored in public.client_gantt (day date, time_il time): no
 // device or server time zone, and no daylight-saving shift, can move an entry.
-import { GANTT_RULES, GANTT_KINDS, KIND_ORDER, POSTS_FROM, TEMPLATE_VERSION } from './gantt-template.js';
+import { GANTT_RULES, GANTT_KINDS, KIND_ORDER, POSTS_FROM, TEMPLATE_VERSION, SCHEDULED_KINDS } from './gantt-template.js';
 import { monthStart, termOf, spreadMonth } from './year-logic.js';
 import { addBusinessDays, isBusinessDay, parseDate, roundsOf } from './protocol-logic.js';
 import { holidayOn, erevOn } from './holidays.js';
@@ -172,7 +172,12 @@ const hhmm = (d) => { const p = partsIL(d); return `${pad(p.hour)}:${pad(p.minut
 // date), the reports, Ilai's plan, the renewal call and the end keep their dates: they are
 // not content, and past ones read "עבר", never "חסר". Without `today` the plan is the
 // template's from the deal on (the tests, and a Gantt made before its posts start).
-export function generatePlan(client, rules = GANTT_RULES, { today = null } = {}) {
+//
+// Since the owner's decision of 11.11.2026 ("לא צריך לשים דברים שלא תוזמנו") the rules marked
+// `scheduled` (videos, graphics, the photographer's contents) are left out: those rows come from
+// Metricool's planner and from Ilai's dated files in Drive only. `all: true` keeps them (the
+// template's cadence, for the tests and the docs).
+export function generatePlan(client, rules = GANTT_RULES, { today = null, all = false } = {}) {
   if (!parseDate(client?.deal_at)) return { error: 'no-deal', entries: [] };
   const d = { videos: 0, graphics: 0, shoot_days: 0, collabs: 0, stories: 0, ch14: 0, monthly: 0, ...(client.deliverables || {}) };
   const of = termOf(client);
@@ -185,6 +190,7 @@ export function generatePlan(client, rules = GANTT_RULES, { today = null } = {})
     key, kind: rule.kind, title, day, time_il: rule.time ?? null, month, num: null, internal: !GANTT_KINDS[rule.kind].client, ...extra,
   });
   for (const rule of rules) {
+    if (rule.scheduled && !all) continue;
     if (rule.when && !rule.when(d)) continue;
     const avoid = rule.avoid || [];
     const ahead = !!today && !!GANTT_KINDS[rule.kind]?.post; // content: never before `today`
@@ -297,16 +303,19 @@ export function planFrom(rows, now = new Date()) {
   const days = made.map((r) => (r.created_at ? dayKeyIL(new Date(r.created_at)) : null)).filter(Boolean).sort();
   if (!days.length) return null;
   const created = days[0];
-  const invented = made.some((r) => (r.kind === 'video' || r.kind === 'graphic') && r.state === 'planned' && !r.edited && r.day < created);
+  const invented = made.some((r) => GANTT_KINDS[r.kind]?.post && !SCHEDULED_KINDS.has(r.kind) && r.state === 'planned' && !r.edited && r.day < created);
   return invented ? null : created;
 }
 // What "עדכון מהתבנית" does to the stored rows. A row moved by hand (edited) keeps its
 // day and time unless `overwrite`; posted state, links, files and notes are never
 // touched. A row the template no longer makes is removed only when nothing was done
-// with it (not posted, no link, no file, no note, not moved). Custom rows stay.
+// with it (not posted, no link, no file, no note, not moved). Custom rows stay, and so do the
+// rows of the kinds only Metricool and Drive make (SCHEDULED_KINDS, 11.11.2026): the template
+// never adds, moves or removes a video, a graphic or a content of the photographer.
 // Returns { insert: [entry], update: [{ id, key, fields }], remove: [id], keptEdited: [row], orphans: [row] }.
 export function planDiff(rows, generated, { overwrite = false } = {}) {
-  const byKey = new Map((rows || []).map((r) => [r.key, r]));
+  rows = (rows || []).filter((r) => !SCHEDULED_KINDS.has(r.kind));
+  const byKey = new Map(rows.map((r) => [r.key, r]));
   const made = new Set();
   const out = { insert: [], update: [], remove: [], keptEdited: [], orphans: [] };
   for (const g of generated) {

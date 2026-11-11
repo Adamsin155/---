@@ -16,6 +16,9 @@ import {
 } from '../app/gantt-logic.js';
 
 const IL = (y, m, d, h = 10, mi = 0) => dateIL(y, m, d, h, mi).toISOString();
+// The template's whole cadence, videos and graphics too (since 11.11.2026 a Gantt is made without
+// them: generatePlan's default; the test of that is below).
+const genAll = (c, rules, o = {}) => generatePlan(c, rules, { all: true, ...o });
 const FULL = { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, monthly: 96 };
 const client = (fields = {}) => ({ deal_at: IL(2026, 3, 15), contract_end: '2027-03-15', deliverables: FULL, rounds: [], shoot_at: null, ...fields });
 const count = (entries, kind) => entries.filter((e) => e.kind === kind).length;
@@ -31,7 +34,7 @@ test('the template is relative only: no rule names a year or a date', () => {
 });
 
 test('a full package signed 15.3.2026 for a year: every unit of the package, from March 2026 to March 2027', () => {
-  const p = generatePlan(client());
+  const p = genAll(client());
   assert.equal(p.error, null);
   assert.equal(p.of, 12);
   assert.equal(p.endKey, '2027-03-15');
@@ -57,7 +60,7 @@ test('a full package signed 15.3.2026 for a year: every unit of the package, fro
 });
 
 test('posts: videos Sun/Tue/Thu 19:00, graphics Mon/Wed 13:00, never on Shabbat, a holiday or erev chag', () => {
-  const { entries } = generatePlan(client());
+  const { entries } = genAll(client());
   for (const v of entries.filter((x) => x.kind === 'video')) {
     assert.ok([0, 2, 4].includes(weekdayOf(v.day)), v.day);
     assert.equal(v.time_il, '19:00');
@@ -83,7 +86,7 @@ test('posts: videos Sun/Tue/Thu 19:00, graphics Mon/Wed 13:00, never on Shabbat,
 
 test('every entry sits in its package month; the cycle\'s items match the package year\'s', () => {
   const c = client();
-  const { entries } = generatePlan(c);
+  const { entries } = genAll(c);
   for (const e of entries) {
     if (e.kind === 'end') continue;
     assert.equal(packageMonthOf(c, e.day), e.month, `${e.key} ${e.day}`);
@@ -113,7 +116,7 @@ test('the deal on the 31st: each month starts on its last day when it is shorter
   assert.deepEqual(starts, ['2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30', '2026-05-31', '2026-06-30', '2026-07-31', '2026-08-31',
     '2026-09-30', '2026-10-31', '2026-11-30', '2026-12-31', '2027-01-31']);
   for (let n = 1; n <= 12; n += 1) assert.equal(monthRange(c, n).to, monthRange(c, n + 1).from);
-  const { entries } = generatePlan(c);
+  const { entries } = genAll(c);
   assert.equal(count(entries, 'video'), 42);
   for (const e of entries.filter((x) => x.kind !== 'end')) {
     const r = monthRange(c, e.month);
@@ -129,7 +132,7 @@ test('a deal late at night is the Israel day it was signed, in any zone of the m
   assert.equal(monthRange(c, 1).from, '2026-03-14');
   assert.equal(monthRange(c, 2).from, '2026-04-14');
   // Deterministic: the same input gives the same plan.
-  assert.deepEqual(generatePlan(c), generatePlan(structuredClone(c)));
+  assert.deepEqual(genAll(c), genAll(structuredClone(c)));
 });
 
 test('a holiday or erev chag moves a dated item to the next allowed day in its month', () => {
@@ -137,12 +140,12 @@ test('a holiday or erev chag moves a dated item to the next allowed day in its m
   // third Sunday is 20.9, erev Yom Kippur. Both land on Tuesday 22.9.
   const c = client({ deal_at: IL(2026, 9, 1), contract_end: '2027-09-01', deliverables: { shoot_days: 1 } });
   const rule = (weekday) => ({ key: 'shoot', kind: 'shoot', place: 'nthWeekday', qty: () => 1, firstMonth: 1, week: 3, weekday, time: '10:00', avoid: ['holiday', 'erev'], title: () => 't' });
-  assert.equal(generatePlan(c, [rule(1)]).entries[0].day, '2026-09-22');
-  assert.equal(generatePlan(c, [rule(0)]).entries[0].day, '2026-09-22');
+  assert.equal(genAll(c, [rule(1)]).entries[0].day, '2026-09-22');
+  assert.equal(genAll(c, [rule(0)]).entries[0].day, '2026-09-22');
   // Without erev in the rule, erev stays.
-  assert.equal(generatePlan(c, [{ ...rule(0), avoid: ['holiday'] }]).entries[0].day, '2026-09-20');
+  assert.equal(genAll(c, [{ ...rule(0), avoid: ['holiday'] }]).entries[0].day, '2026-09-20');
   // A fifth Thursday asked of a month with four: the last one.
-  assert.equal(generatePlan(c, [{ ...rule(4), week: 5 }]).entries[0].day, '2026-09-24');
+  assert.equal(genAll(c, [{ ...rule(4), week: 5 }]).entries[0].day, '2026-09-24');
   assert.equal(allowedDay('2026-09-21', ['holiday']), false);
   assert.equal(allowedDay('2026-09-20', ['holiday']), true);
   assert.equal(allowedDay('2026-09-20', ['erev']), false);
@@ -187,7 +190,7 @@ test('the calendar: weeks Sunday first, month lengths, and the months of the con
 
 test('a shorter contract: the quantities fit inside it, nothing after its end', () => {
   const c = client({ contract_end: '2026-09-15' });
-  const { entries, of, endKey } = generatePlan(c);
+  const { entries, of, endKey } = genAll(c);
   assert.equal(of, 6);
   assert.equal(endKey, '2026-09-15');
   assert.equal(count(entries, 'video'), 42);
@@ -199,11 +202,11 @@ test('a shorter contract: the quantities fit inside it, nothing after its end', 
 
 test('shoot days already in the card are the dates; without a deal there is no plan', () => {
   const c = client({ shoot_at: IL(2026, 3, 29, 9, 30), rounds: [{ n: 2, shoot_at: IL(2026, 10, 6, 11, 0) }] });
-  const shoots = generatePlan(c).entries.filter((e) => e.kind === 'shoot');
+  const shoots = genAll(c).entries.filter((e) => e.kind === 'shoot');
   assert.deepEqual(shoots.map((s) => [s.key, s.day, s.time_il, s.month]), [['shoot.1', '2026-03-29', '09:30', 1], ['shoot.2', '2026-10-06', '11:00', 7]]);
-  assert.deepEqual(generatePlan({ deal_at: null }), { error: 'no-deal', entries: [] });
+  assert.deepEqual(genAll({ deal_at: null }), { error: 'no-deal', entries: [] });
   // A package without the photographer, stories or collabs: none of them.
-  const small = generatePlan(client({ deliverables: { videos: 25, graphics: 35, shoot_days: 1 } })).entries;
+  const small = genAll(client({ deliverables: { videos: 25, graphics: 35, shoot_days: 1 } })).entries;
   assert.deepEqual([count(small, 'monthly'), count(small, 'photo'), count(small, 'story'), count(small, 'collab'), count(small, 'ch14')], [0, 0, 0, 0, 0]);
   assert.equal(count(small, 'shoot'), 1);
 });
@@ -213,8 +216,8 @@ test('shoot days already in the card are the dates; without a deal there is no p
 test('a Gantt opened in the middle of the package: no content before today, the quantities whole, the rest of the dates kept', () => {
   const today = '2026-11-11';
   const dabush = { deal_at: IL(2026, 8, 19, 9), contract_end: '2027-02-19', shoot_at: IL(2026, 9, 16, 11), rounds: [], deliverables: { videos: 24, graphics: 12, shoot_days: 1 } };
-  const before = generatePlan(dabush).entries;
-  const { entries } = generatePlan(dabush, undefined, { today });
+  const before = genAll(dabush).entries;
+  const { entries } = genAll(dabush, undefined, { today });
   const posts = entries.filter((e) => GANTT_KINDS[e.kind].post);
   assert.ok(posts.every((e) => e.day >= today), posts.filter((e) => e.day < today).map((e) => e.key).join(','));
   assert.deepEqual([count(entries, 'video'), count(entries, 'graphic')], [24, 12]);
@@ -240,13 +243,13 @@ test('a Gantt opened in the middle of the package: no content before today, the 
   assert.deepEqual(shareWeighted(10, [0, 0.5, 1, 1]), [0, 2, 4, 4]);
   assert.deepEqual(shareWeighted(5, [0, 0]), [0, 0]);
   // Before the posts start, `today` changes nothing.
-  assert.deepEqual(generatePlan(client(), undefined, { today: '2026-03-20' }), generatePlan(client()));
+  assert.deepEqual(genAll(client(), undefined, { today: '2026-03-20' }), genAll(client()));
 });
 
 test('a full package opened late: the photographer\'s contents, stories, collabs and channel 14 move ahead too', () => {
   const today = '2026-11-12';
-  const { entries } = generatePlan(client(), undefined, { today });
-  const base = generatePlan(client()).entries;
+  const { entries } = genAll(client(), undefined, { today });
+  const base = genAll(client()).entries;
   for (const kind of Object.keys(GANTT_KINDS).filter((k) => GANTT_KINDS[k].post)) {
     for (const e of entries.filter((x) => x.kind === kind)) assert.ok(e.day >= today, `${e.key} ${e.day}`);
   }
@@ -269,12 +272,14 @@ test('the day a plan is made from: today for a new Gantt; the day a stored one w
     { key: 'mc.9', kind: 'custom', day: '2026-10-01', state: 'scheduled', edited: true, created_at: '2026-10-01T08:00:00Z' },
   ];
   assert.equal(planFrom(rowsNew, now), '2026-11-11');
-  const old = [{ key: 'video.1', kind: 'video', day: '2026-06-10', state: 'planned', edited: false, created_at: '2026-10-05T08:00:00Z' }];
+  const old = [{ key: 'story.1', kind: 'story', day: '2026-06-10', state: 'planned', edited: false, created_at: '2026-10-05T08:00:00Z' }];
   assert.equal(planFrom(old, now), null);
-  assert.equal(planFrom([{ key: 'video.1', kind: 'video', day: '2026-06-10', state: 'planned', edited: false }], now), null);
+  assert.equal(planFrom([{ key: 'story.1', kind: 'story', day: '2026-06-10', state: 'planned', edited: false }], now), null);
+  // A planned video of the old template does not count: the template no longer makes videos.
+  assert.equal(planFrom([{ key: 'video.1', kind: 'video', day: '2026-06-10', state: 'planned', edited: false, created_at: '2026-10-05T08:00:00Z' }], now), '2026-10-05');
   // "עדכון מהתבנית" never moves a row that stands for a post in Metricool.
-  const gen = generatePlan(client(), undefined, { today: '2026-11-11' }).entries;
-  const g = gen.find((e) => e.key === 'video.1');
+  const gen = genAll(client(), undefined, { today: '2026-11-11' }).entries;
+  const g = gen.find((e) => e.key === 'collab.1');
   const row = { ...g, id: 'x', day: '2026-11-05', time_il: '18:00', edited: false, state: 'posted', mc_post_id: '5' };
   assert.equal(planDiff([row], [g]).update.find((u) => u.id === 'x')?.fields.day, undefined);
 });
@@ -293,14 +298,17 @@ test('spreading: share gives the remainder to the earlier months; pick spaces ev
 test('"עדכון מהתבנית": new entries added, unchanged ones left, dates moved by hand kept unless confirmed', () => {
   const gen = generatePlan(client()).entries;
   const row = (e, extra = {}) => ({ id: `id-${e.key}`, state: 'planned', link: null, file_id: null, note: null, edited: false, ...e, ...extra });
-  const [v1, v2, v3] = gen.filter((e) => e.kind === 'video');
+  const [v1, v2, v3] = gen.filter((e) => e.kind === 'report');
   const rows = [
     row(v1),                                                     // as made
     row(v2, { day: '2026-04-30', edited: true }),                // moved by hand
     row(v3, { day: '2026-01-01', state: 'posted', link: 'https://x.y/1' }), // posted, the template moved it
-    { id: 'id-old', key: 'video.99', kind: 'video', title: 'סרטון 99', day: '2026-05-01', state: 'planned', edited: false },  // no longer made
-    { id: 'id-oldp', key: 'video.98', kind: 'video', title: 'סרטון 98', day: '2026-05-01', state: 'posted', edited: false },  // no longer made, but posted
+    { id: 'id-old', key: 'report.99', kind: 'report', title: 'דוח 99', day: '2026-05-01', state: 'planned', edited: false },  // no longer made
+    { id: 'id-oldp', key: 'report.98', kind: 'report', title: 'דוח 98', day: '2026-05-01', state: 'posted', edited: false },  // no longer made, but done
     { id: 'id-c', key: 'custom.1', kind: 'custom', title: 'השקה', day: '2026-06-01', state: 'planned', edited: true },
+    // Videos and graphics (Metricool's, Drive's, or the old template's): never added, moved or removed (11.11.2026).
+    { id: 'id-v', key: 'video.1', kind: 'video', title: 'סרטון 1', day: '2026-04-02', state: 'planned', edited: false },
+    { id: 'id-g', key: 'graphic.7', kind: 'graphic', title: 'גרפיקה 7', day: '2026-11-20', state: 'scheduled', edited: true, mc_post_id: '9' },
   ];
   const d = planDiff(rows, gen);
   assert.equal(d.insert.length, gen.length - 3);
@@ -308,7 +316,9 @@ test('"עדכון מהתבנית": new entries added, unchanged ones left, dates
   assert.deepEqual(d.update, [{ id: `id-${v3.key}`, key: v3.key, fields: { day: v3.day } }]);
   assert.deepEqual(d.keptEdited.map((r) => r.key), [v2.key]);
   assert.deepEqual(d.remove, ['id-old']);
-  assert.deepEqual(d.orphans.map((r) => r.key), ['video.98']);
+  assert.deepEqual(d.orphans.map((r) => r.key), ['report.98']);
+  assert.ok(![...d.update, ...d.remove, ...d.orphans.map((r) => r.id)].some((x) => ['id-v', 'id-g'].includes(x.id || x)));
+  assert.ok(!d.insert.some((x) => ['video', 'graphic', 'monthly'].includes(x.kind)));
   // Confirmed: the moved date goes back to the template's, and is no longer "moved by hand".
   const o = planDiff(rows, gen, { overwrite: true });
   assert.deepEqual(o.update.find((u) => u.key === v2.key).fields, { day: v2.day, edited: false });
@@ -316,7 +326,7 @@ test('"עדכון מהתבנית": new entries added, unchanged ones left, dates
   // Never touched: state, link, file, note; custom rows.
   for (const u of [...d.update, ...o.update]) for (const f of ['state', 'link', 'file_id', 'note', 'posted_on']) assert.ok(!(f in u.fields), f);
   assert.ok(![...d.update, ...o.update].some((u) => u.key === 'custom.1'));
-  assert.equal(isCustom(rows.at(-1)), true);
+  assert.equal(isCustom(rows.find((r) => r.key === 'custom.1')), true);
   // A second run with nothing changed does nothing.
   const same = gen.map((e) => row(e, { time_il: e.time_il ? `${e.time_il}:00` : null }));
   assert.deepEqual(planDiff(same, gen), { insert: [], update: [], remove: [], keptEdited: [], orphans: [] });
