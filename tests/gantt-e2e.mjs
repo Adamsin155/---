@@ -14,7 +14,7 @@
 //  - Links from the client card and from Ilai's process 29 in "המשימות שלי".
 //  - A 360px phone: the list by default, the grid with dots, no sideways scrolling.
 // Run: npx http-server -p 8080 -s . &  then  node tests/gantt-e2e.mjs [outDir]
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -333,7 +333,8 @@ async function fakeSupabase(route) {
 }
 
 // ── Browser ────────────────────────────────
-const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+// BROWSER=webkit runs the same suite in WebKit (Safari's engine, as on an iPhone).
+const browser = process.env.BROWSER === 'webkit' ? await webkit.launch() : await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const errors = [];
 async function newContext(viewport = { width: 1360, height: 960 }) {
   const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
@@ -403,8 +404,8 @@ const target = '2026-11-26';
 assert.ok(posted && moved, 'November has videos before and after the 12th');
 
 // ── Ilai ──────────────────────────────────
-const ictx = await newContext();
-const ilai = await newPage(ictx);
+let ictx = await newContext();
+let ilai = await newPage(ictx);
 
 await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it opens on November 2026 (month 8)', async () => {
   await signIn(ilai, `gantt.html?id=${A.id}`, 'ilai@astrateg.test');
@@ -434,7 +435,11 @@ await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it o
   // the Gantts stored before 11.11.2026 are: its past posts read "חסר" until they are marked.
   const old = new Map(plan.map((e) => [e.key, e]));
   for (const r of gantt(A)) { const e = old.get(r.key); Object.assign(r, { day: e.day, time_il: e.time_il, month: e.month, created_at: '2026-03-20T10:00:00Z' }); }
-  await ilai.reload();
+  // A fresh window, signed in again (in WebKit a reload of this page signs out).
+  await ictx.close();
+  ictx = await newContext();
+  ilai = await newPage(ictx);
+  await signIn(ilai, `gantt.html?id=${A.id}`, 'ilai@astrateg.test');
   await ilai.waitForSelector('#gm-list:not([hidden]) .gt-aday');
   assert.equal(gantt(A).every((r) => r.by_email === 'ilai@astrateg.test' && r.edited === false), true);
   assert.equal(row(A, 'plan.9').internal, true);
@@ -456,7 +461,7 @@ await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it o
   // Glance: a row per kind, 12 months, the current one marked.
   await openFold(ilai, 'gt-glance');
   assert.equal(await ilai.locator('#gg-table thead th').count(), 13);
-  assert.equal(await ilai.locator('#gg-table thead th.is-now').innerText(), '8\nאוק׳'); // month 8 starts 15.10
+  assert.equal((await ilai.locator('#gg-table thead th.is-now').innerText()).trim(),'8\nאוק׳'); // month 8 starts 15.10
   assert.match(await ilai.innerText('#gg-table tbody'), /סרטונים[^]*גרפיקות/);
   // Stats: the posts of the year, none up or scheduled yet; everything whose time has
   // passed is "חסר" (the alert colour, since there are some). The old "עברו ולא סומנו" is gone.
