@@ -66,7 +66,9 @@ test('the menus: the three have the owners\' list but the payments app; the owne
   const owners = ids(OWNER);
   assert.ok(owners.includes('payouts'));
   for (const who of THREE.map(v)) {
-    assert.deepEqual(ids(who), owners.filter((id) => id !== 'payouts'), who.me);
+    // "תשלומי לקוחות" (11.11.2026, section 130): Ofir only. "הודעות ללקוחות": off for Irit since 9.11.2026 (section 120).
+    const want = owners.filter((id) => id !== 'payouts' && (id !== 'payments' || who.me === 'ofir') && (id !== 'messages' || who.me !== 'irit'));
+    assert.deepEqual(ids(who), want, who.me);
     for (const p of ['mine', 'manager']) assert.equal(profileMenu(who, p).some((it) => it.id === 'payouts'), false, `${who.me} ${p}`);
   }
   for (const who of REST.map(v)) assert.equal(ids(who).includes('payouts') || ids(who).includes('team'), false, who.me);
