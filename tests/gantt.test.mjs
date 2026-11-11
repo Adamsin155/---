@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  generatePlan, planDiff, monthGrid, calendarMonths, monthRange, packageMonthOf, entryMoment, entryStatus,
+  generatePlan, planFrom, shareWeighted, planDiff, monthGrid, calendarMonths, monthRange, packageMonthOf, entryMoment, entryStatus,
   allowedDay, weekdayOf, addDays, share, pick, yearGlance, totals, contractEndKey, safeLink, isCustom,
 } from '../app/gantt-logic.js';
 import { GANTT_RULES, GANTT_KINDS, KIND_ORDER, POSTS_FROM } from '../app/gantt-template.js';
@@ -206,6 +206,77 @@ test('shoot days already in the card are the dates; without a deal there is no p
   const small = generatePlan(client({ deliverables: { videos: 25, graphics: 35, shoot_days: 1 } })).entries;
   assert.deepEqual([count(small, 'monthly'), count(small, 'photo'), count(small, 'story'), count(small, 'collab'), count(small, 'ch14')], [0, 0, 0, 0, 0]);
   assert.equal(count(small, 'shoot'), 1);
+});
+
+// The owner, 11.11.2026 (docs/ops.md, section 128): Ilai opened Dabush's Gantt on 11.11 and the
+// template put its videos and graphics from 24.9 on, all of them "חסר" the moment it was made.
+test('a Gantt opened in the middle of the package: no content before today, the quantities whole, the rest of the dates kept', () => {
+  const today = '2026-11-11';
+  const dabush = { deal_at: IL(2026, 8, 19, 9), contract_end: '2027-02-19', shoot_at: IL(2026, 9, 16, 11), rounds: [], deliverables: { videos: 24, graphics: 12, shoot_days: 1 } };
+  const before = generatePlan(dabush).entries;
+  const { entries } = generatePlan(dabush, undefined, { today });
+  const posts = entries.filter((e) => GANTT_KINDS[e.kind].post);
+  assert.ok(posts.every((e) => e.day >= today), posts.filter((e) => e.day < today).map((e) => e.key).join(','));
+  assert.deepEqual([count(entries, 'video'), count(entries, 'graphic')], [24, 12]);
+  assert.ok(entries.every((e) => e.day <= '2027-02-19'), 'nothing after the contract');
+  // The template's own weekdays and times, numbered in date order.
+  for (const e of entries.filter((x) => x.kind === 'video')) { assert.ok([0, 2, 4].includes(weekdayOf(e.day)), e.day); assert.equal(e.time_il, '19:00'); }
+  for (const e of entries.filter((x) => x.kind === 'graphic')) { assert.ok([1, 3].includes(weekdayOf(e.day)), e.day); assert.equal(e.time_il, '13:00'); }
+  for (const kind of ['video', 'graphic']) {
+    const list = entries.filter((x) => x.kind === kind);
+    list.forEach((e, i) => { assert.equal(e.num, i + 1); if (i) assert.ok(e.day >= list[i - 1].day); });
+  }
+  // Evenly: each whole month still ahead has its share (24 videos over 3 months and a bit).
+  const per = (m) => entries.filter((e) => e.kind === 'video' && e.day.slice(0, 7) === m).length;
+  assert.ok(per('2026-12') >= 6 && per('2027-01') >= 6, `${per('2026-12')} ${per('2027-01')}`);
+  // Not content: the real shoot day, the past reports and plans keep their dates (they read "עבר", not "חסר").
+  const keep = (list) => list.filter((e) => !GANTT_KINDS[e.kind].post).map((e) => `${e.key}@${e.day}`);
+  assert.deepEqual(keep(entries), keep(before));
+  assert.equal(entries.find((e) => e.key === 'shoot.1').day, '2026-09-16');
+  assert.equal(entryStatus(entries.find((e) => e.key === 'report.2'), dateIL(2026, 11, 11, 12)), 'past');
+  // The Highlights were due on 20.9: the next business day from today.
+  assert.equal(entries.find((e) => e.kind === 'highlight').day, today);
+  assert.deepEqual(shareWeighted(10, [1, 1, 1]), share(10, 3));
+  assert.deepEqual(shareWeighted(10, [0, 0.5, 1, 1]), [0, 2, 4, 4]);
+  assert.deepEqual(shareWeighted(5, [0, 0]), [0, 0]);
+  // Before the posts start, `today` changes nothing.
+  assert.deepEqual(generatePlan(client(), undefined, { today: '2026-03-20' }), generatePlan(client()));
+});
+
+test('a full package opened late: the photographer\'s contents, stories, collabs and channel 14 move ahead too', () => {
+  const today = '2026-11-12';
+  const { entries } = generatePlan(client(), undefined, { today });
+  const base = generatePlan(client()).entries;
+  for (const kind of Object.keys(GANTT_KINDS).filter((k) => GANTT_KINDS[k].post)) {
+    for (const e of entries.filter((x) => x.kind === kind)) assert.ok(e.day >= today, `${e.key} ${e.day}`);
+  }
+  for (const kind of ['video', 'graphic', 'story', 'collab', 'ch14']) assert.equal(count(entries, kind), count(base, kind), kind);
+  // Stories, collabs: one per month still ahead, as far as they go.
+  const months = (kind) => entries.filter((e) => e.kind === kind).map((e) => e.day.slice(0, 7));
+  for (const kind of ['story', 'collab']) assert.equal(new Set(months(kind)).size, months(kind).length, kind);
+  // The photographer's months that are over have no contents; the month under way has them from today.
+  assert.ok(count(entries, 'monthly') < count(base, 'monthly'));
+  assert.equal(count(entries, 'photo'), count(base, 'photo'), 'his visits are not content: they stay');
+});
+
+test('the day a plan is made from: today for a new Gantt; the day a stored one was made; never for an old Gantt with untouched past rows', () => {
+  const now = dateIL(2026, 11, 20, 10);
+  assert.equal(planFrom([], now), '2026-11-20');
+  const made = '2026-11-11T08:00:00Z';
+  const rowsNew = [
+    { key: 'video.1', kind: 'video', day: '2026-11-05', state: 'posted', edited: true, created_at: made }, // moved by the sync
+    { key: 'video.2', kind: 'video', day: '2026-11-15', state: 'planned', edited: false, created_at: made },
+    { key: 'mc.9', kind: 'custom', day: '2026-10-01', state: 'scheduled', edited: true, created_at: '2026-10-01T08:00:00Z' },
+  ];
+  assert.equal(planFrom(rowsNew, now), '2026-11-11');
+  const old = [{ key: 'video.1', kind: 'video', day: '2026-06-10', state: 'planned', edited: false, created_at: '2026-10-05T08:00:00Z' }];
+  assert.equal(planFrom(old, now), null);
+  assert.equal(planFrom([{ key: 'video.1', kind: 'video', day: '2026-06-10', state: 'planned', edited: false }], now), null);
+  // "עדכון מהתבנית" never moves a row that stands for a post in Metricool.
+  const gen = generatePlan(client(), undefined, { today: '2026-11-11' }).entries;
+  const g = gen.find((e) => e.key === 'video.1');
+  const row = { ...g, id: 'x', day: '2026-11-05', time_il: '18:00', edited: false, state: 'posted', mc_post_id: '5' };
+  assert.equal(planDiff([row], [g]).update.find((u) => u.id === 'x')?.fields.day, undefined);
 });
 
 test('spreading: share gives the remainder to the earlier months; pick spaces evenly', () => {
