@@ -3,7 +3,10 @@
 // and month ("15.11 רילס מבצע.mp4"; also "15.11.26 …", "15/11", "15-11", "3.1", leading zeros
 // optional). One tap reads the folder (the drive function, ../supabase/functions/drive/) and fills
 // the link of the Gantt item on that date. The owner's rule: a link already in the Gantt is NEVER
-// replaced; only empty items are filled. Plain logic, so node tests it (tests/drive-links.test.mjs).
+// replaced; only empty items are filled. Since 11.11.2026 (docs/ops.md, section 128) a file whose date
+// has no free item of its kind takes the nearest one a day before or after it, and a year in the
+// name that is one off ("13.1.2026" in a 2027 package) is read as the package's. Plain logic, so
+// node tests it (tests/drive.test.mjs).
 import { GANTT_KINDS } from './gantt-template.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -44,68 +47,109 @@ export const linkable = (row) => !!GANTT_KINDS[row?.kind]?.post;
 const hasLink = (row) => !!String(row?.link || '').trim();
 const byOrder = (a, b) => String(a.time_il || '').localeCompare(String(b.time_il || '')) || (a.num ?? 0) - (b.num ?? 0) || String(a.id).localeCompare(String(b.id));
 
-// The year of a file that has none: the year of the Gantt's day with that day and month nearest to
-// when the file was added (a Gantt runs a year or a little more, so "15.12" and "3.1" find their
-// own years; the same day and month twice in one Gantt goes to the one nearest the upload).
-function dayKeyFor(d, f, daysOf) {
+// What a file is to the Gantt: 'video' (a video file), 'image' (a picture, or anything in a
+// graphics or highlights folder: "גרפיקות", "היילייטס"; the drive function's own rule,
+// supabase/functions/_shared/drive.js fileClass), else 'other'.
+const GRAPHIC_FOLDER = /גרפיק|היילייט/;
+export function fileKind(f) {
+  const t = fileType(f);
+  if (t === 'video') return 'video';
+  if (t === 'image' || GRAPHIC_FOLDER.test(String(f?.path || ''))) return 'image';
+  return 'other';
+}
+const addDay = (key, n) => new Date(Date.parse(`${key}T12:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
+const NEAR = [0, -1, 1]; // the day itself, then the day before (a post of yesterday), then the day after
+
+// The days a dated name may stand for: with a year, that year's day (and, when the Gantt has
+// nothing within a day of it in that year, the same day a year earlier or later: "13.1.2026" for
+// a package that runs into 2027 is a typo of the year); without one, that day in each year of
+// the Gantt, the one nearest to when the file was added first.
+function basesFor(d, f, daysOf) {
   const md = `${pad(d.month)}-${pad(d.day)}`;
-  if (d.year) return `${d.year}-${md}`;
-  const keys = [...daysOf].filter((k) => k.slice(5) === md);
-  if (keys.length <= 1) return keys[0] || null;
+  const near = (k) => NEAR.some((n) => daysOf.has(addDay(k, n)));
+  const valid = (y) => !Number.isNaN(Date.parse(`${y}-${md}T12:00:00Z`)) && new Date(`${y}-${md}T12:00:00Z`).getUTCMonth() === d.month - 1;
+  if (d.year) {
+    const own = `${d.year}-${md}`;
+    if (near(own)) return [{ key: own, typo: false }];
+    const other = [d.year - 1, d.year + 1].filter(valid).map((y) => `${y}-${md}`).filter(near);
+    return other.length === 1 ? [{ key: other[0], typo: true }] : [{ key: own, typo: false }];
+  }
+  const years = [...new Set([...daysOf].map((k) => Number(k.slice(0, 4))))].filter(valid);
   const at = Date.parse(f.createdTime || '') || Date.now();
-  return keys.sort((a, b) => Math.abs(Date.parse(`${a}T12:00:00Z`) - at) - Math.abs(Date.parse(`${b}T12:00:00Z`) - at))[0];
+  return years.map((y) => `${y}-${md}`).filter(near)
+    .sort((a, b) => Math.abs(Date.parse(`${a}T12:00:00Z`) - at) - Math.abs(Date.parse(`${b}T12:00:00Z`) - at))
+    .map((key) => ({ key, typo: false }));
 }
 
-// The plan: { fills: [{ id, link, file }], already, unplaced: [{ name, why }], empty: [rows] }.
-//   fills     an empty item gets this file's link;
+// The plan: { fills: [{ id, link, file, day, near, typo }], already, unplaced: [{ name, why }], empty: [rows] }.
+//   fills     an empty item gets this file's link: the item of the file's date, else (the owner,
+//             11.11.2026) the nearest within one day of it of the same kind (Dabush's file
+//             "13.11.2026" was the Metricool post of 12.11); `near`: the days between, `typo`:
+//             the year in the name was a year off;
 //   already   files whose item already had a link (or that link is this file);
-//   unplaced  files with no date in the name, no item on their date, or more files than items;
-//   empty     items still without a link on the days the folder speaks of, and before `upTo`.
+//   unplaced  files with no date in the name, no item within a day of it, or more files than items;
+//   empty     items still without a link on the months the folder speaks of, and before `upTo`.
+// A link already in the Gantt is never replaced, and one file goes on one item.
 // rows: the Gantt's rows ({ id, kind, day, time_il, num, link }); files: the folder's listing
-// ({ name, mimeType, createdTime, link }), folders left out.
+// ({ name, mimeType, createdTime, link, path }), folders left out.
 export function matchFiles(rows, files, { upTo = null } = {}) {
   const items = (rows || []).filter(linkable);
   const daysOf = new Set(items.map((r) => r.day));
   const known = new Set(items.filter(hasLink).map((r) => String(r.link).trim()));
   const unplaced = [];
   let already = 0;
-  const groups = new Map(); // day -> files
+  const dated = []; // { f, t, bases }
   for (const f of files || []) {
     if (!f || f.mimeType === 'application/vnd.google-apps.folder') continue;
     if (f.link && known.has(String(f.link).trim())) { already += 1; continue; }
     const d = dateOfName(f.name);
     if (!d) { unplaced.push({ name: f.name, why: 'אין תאריך בתחילת השם' }); continue; }
-    const key = dayKeyFor(d, f, daysOf);
-    if (!key || !daysOf.has(key)) { unplaced.push({ name: f.name, why: `אין פריט בגאנט ב־${d.day}.${d.month}` }); continue; }
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(f);
+    dated.push({ f, d, t: fileKind(f), bases: basesFor(d, f, daysOf) });
   }
+  dated.sort((a, b) => String(a.bases[0]?.key || '').localeCompare(String(b.bases[0]?.key || '')) || String(a.f.name).localeCompare(String(b.f.name), 'he'));
   const fills = [];
   const taken = new Set();
-  for (const [key, list] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
-    const dayRows = items.filter((r) => r.day === key).sort(byOrder);
-    // Files of one type go to the items of that type, in the day's order, then by name.
-    const types = ['video', 'image', 'other'];
-    const ofType = Object.fromEntries(types.map((t) => [t, list.filter((f) => fileType(f) === t).sort((a, b) => String(a.name).localeCompare(String(b.name), 'he'))]));
-    for (const t of types) {
-      for (const f of ofType[t]) {
-        // The empty items this file could be, its own type first; any empty item when the day has
-        // exactly one empty item left (a PDF for the day's one post).
-        let free = dayRows.filter((r) => !hasLink(r) && !taken.has(r.id) && TAKES[t](r.kind));
-        if (!free.length) {
-          const left = dayRows.filter((r) => !hasLink(r) && !taken.has(r.id));
-          free = left.length === 1 ? left : [];
-        }
-        if (free.length) {
-          taken.add(free[0].id);
-          fills.push({ id: free[0].id, link: f.link, file: f.name, day: key });
-        } else if (dayRows.some(hasLink)) already += 1;
-        else unplaced.push({ name: f.name, why: `יותר קבצים מפריטים ב־${Number(key.slice(8))}.${Number(key.slice(5, 7))}` });
+  const free = (r) => !hasLink(r) && !taken.has(r.id);
+  const rowsOn = (key) => items.filter((r) => r.day === key).sort(byOrder);
+  const place = (x, r, key, n, typo) => { taken.add(r.id); fills.push({ id: r.id, link: x.f.link, file: x.f.name, day: r.day, near: n, typo }); x.done = true; };
+  // 1. The file's own day: the items of its kind in the day's order; a file that is neither a
+  //    video nor a picture (a PDF) takes the day's one empty item when only one is left. Videos first, then pictures, then the rest.
+  const types = ['video', 'image', 'other'];
+  for (const t of types) {
+    for (const x of dated.filter((y) => y.t === t)) {
+      for (const b of x.bases) {
+        const day = rowsOn(b.key);
+        let cand = day.filter((r) => free(r) && TAKES[t](r.kind));
+        if (!cand.length && t === 'other') { const left = day.filter(free); cand = left.length === 1 ? left : []; }
+        if (cand.length) { place(x, cand[0], b.key, 0, b.typo); break; }
       }
     }
   }
-  const spoken = new Set([...groups.keys()].map((k) => k.slice(0, 7)));
-  const empty = items.filter((r) => !hasLink(r) && !taken.has(r.id) && spoken.has(r.day.slice(0, 7)) && (!upTo || r.day <= upTo)).sort((a, b) => a.day.localeCompare(b.day) || byOrder(a, b));
+  // 2. A day off: the nearest item of the same kind (the day before first), never any kind.
+  for (const t of types) {
+    for (const x of dated.filter((y) => y.t === t && !y.done)) {
+      let hit = null;
+      for (const n of NEAR.slice(1)) {
+        for (const b of x.bases) {
+          const cand = rowsOn(addDay(b.key, n)).filter((r) => free(r) && TAKES[t](r.kind));
+          if (cand.length) { hit = { r: cand[0], b, n }; break; }
+        }
+        if (hit) break;
+      }
+      if (hit) place(x, hit.r, hit.b.key, hit.n, hit.b.typo);
+    }
+  }
+  // 3. What found nothing: its item already had a link, there were more files than items, or no item.
+  for (const x of dated) {
+    if (x.done) continue;
+    const key = x.bases[0]?.key || null;
+    const day = key ? rowsOn(key) : [];
+    if (day.some(hasLink)) already += 1;
+    else if (day.length) unplaced.push({ name: x.f.name, why: `יותר קבצים מפריטים ב־${Number(key.slice(8))}.${Number(key.slice(5, 7))}` });
+    else unplaced.push({ name: x.f.name, why: `אין פריט בגאנט ב־${x.d.day}.${x.d.month} או יום לפניו או אחריו` });
+  }
+  const spoken = new Set([...fills.map((x) => x.day), ...dated.map((x) => x.bases[0]?.key).filter((k) => k && daysOf.has(k))].map((k) => k.slice(0, 7)));
+  const empty = items.filter((r) => free(r) && spoken.has(r.day.slice(0, 7)) && (!upTo || r.day <= upTo)).sort((a, b) => a.day.localeCompare(b.day) || byOrder(a, b));
   return { fills: fills.filter((x) => x.link), already, unplaced, empty };
 }
 

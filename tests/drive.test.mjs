@@ -9,7 +9,7 @@ import {
   folderIdOf, serviceAccountOf, signedAssertion, makeDrive, summarize, kindOf, SCOPE, TOKEN_URL, MAX_FILES,
 } from '../supabase/functions/_shared/drive.js';
 import { makeHandler } from '../supabase/functions/drive/handler.js';
-import { dateOfName, fileType, matchFiles, linkable } from '../app/drive-links.js';
+import { dateOfName, fileType, fileKind, matchFiles, linkable } from '../app/drive-links.js';
 import { fakeClient } from './fake-pgrest.mjs';
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -199,6 +199,44 @@ test('the match: the file\'s own link already in the Gantt counts as "כבר ה�
   // A year in the name wins.
   const y = matchFiles(rows, [file('3.1.26 b.mp4', 'video/mp4', '2027-01-02T10:00:00Z')]);
   assert.deepEqual(y.fills.map((x) => x.id), ['j3old']);
-  // No item on the date.
-  assert.match(matchFiles(rows, [file('4.1 x.mp4')]).unplaced[0].why, /אין פריט בגאנט ב־4\.1/);
+  // No item on the date, nor a day before or after it.
+  assert.match(matchFiles(rows, [file('6.1 x.mp4')]).unplaced[0].why, /אין פריט בגאנט ב־6\.1 או יום לפניו או אחריו/);
+});
+
+// The owner, 11.11.2026 (docs/ops.md, section 128): Dabush's file "13.11.2026" was the post of 12.11.
+test('the match: a day off finds the nearest item of the same kind, never over a link, one file per item; a year off by one', () => {
+  const rows = [
+    row('v12', '2026-11-12', 'video'),
+    row('g11', '2026-11-11', 'graphic'),
+    row('v19', '2026-11-19', 'video', { link: 'https://drive.google.com/file/d/kept/view' }),
+    row('v21', '2026-11-21', 'video'),
+    row('g25', '2026-11-25', 'graphic'),
+    row('v26', '2026-11-26', 'video'),
+    row('j13', '2027-01-13', 'graphic'),
+  ];
+  const plan = matchFiles(rows, [
+    file('13.11.2026 רילס.mp4'),                                       // the post of 12.11: a day before
+    { ...file('12.11 עיצוב.jpg', 'application/octet-stream'), path: 'גרפיקות' }, // a picture: the graphic of 11.11, not the video of 12.11
+    file('20.11 עוד.mp4'),                                             // 19.11 has a link (never replaced): 21.11
+    file('20.11 רילס.mp4'),                                            // nothing left within a day
+    { ...file('24.11 פוסט', 'application/pdf'), path: 'לקוח/גרפיקות' }, // "גרפיקות" folder: a graphic, 25.11
+    file('25.11 רילס.mp4'),                                            // a video on a graphic day: the video of 26.11
+    file('13.1.2026 גרפיקה.png', 'image/png'),                         // a 2027 package: the year was a typo
+  ]);
+  const got = Object.fromEntries(plan.fills.map((f) => [f.file, [f.id, f.near, f.typo]]));
+  assert.deepEqual(got, {
+    '13.11.2026 רילס.mp4': ['v12', -1, false],
+    '12.11 עיצוב.jpg': ['g11', -1, false],
+    '20.11 עוד.mp4': ['v21', 1, false],
+    '24.11 פוסט': ['g25', 1, false],
+    '25.11 רילס.mp4': ['v26', 1, false],
+    '13.1.2026 גרפיקה.png': ['j13', 0, true],
+  });
+  assert.ok(!plan.fills.some((f) => f.id === 'v19'), 'a link already there stays');
+  assert.deepEqual(plan.unplaced.map((u) => u.name), ['20.11 רילס.mp4']);
+  // The file of the day itself comes first: a day off never takes an item that a file of that very day wants.
+  const two = matchFiles([row('v12', '2026-11-12', 'video')], [file('13.11 א.mp4'), file('12.11 ב.mp4')]);
+  assert.deepEqual(two.fills.map((f) => [f.file, f.near]), [['12.11 ב.mp4', 0]]);
+  assert.equal(fileKind({ name: 'x', mimeType: 'application/pdf', path: 'היילייטס' }), 'image');
+  assert.equal(fileKind({ name: 'x.mov', mimeType: '' }), 'video');
 });
