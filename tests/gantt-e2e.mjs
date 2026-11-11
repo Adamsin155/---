@@ -393,8 +393,10 @@ const gantt = (c) => db.client_gantt.filter((r) => r.client_id === c.id);
 const row = (c, key) => gantt(c).find((r) => r.key === key);
 
 // The plan the template makes for Ron, to pick entries the steps use.
-const plan = generatePlan(A).entries;
-// What Ilai's tap makes on 12.11 (the owner, 11.11.2026): no content before today, the quantities whole.
+// A Gantt made in March by the template of then: its videos and graphics too (generatePlan's `all`).
+const plan = generatePlan(A, undefined, { all: true }).entries;
+// What Ilai's tap makes on 12.11 (the owner, 11.11.2026): no video or graphic at all (only Metricool
+// and Drive make them), and no content before today.
 const planNew = generatePlan(A, undefined, { today: todayIL }).entries;
 const novVideos = plan.filter((e) => e.kind === 'video' && e.day.startsWith('2026-11'));
 const perDay = (d) => plan.filter((e) => e.day === d).length;
@@ -417,10 +419,11 @@ await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it o
   await ilai.click('#btn-create');
   await toastHas(ilai, `הגאנט נוצר: ${planNew.length} פריטים`);
   assert.equal(gantt(A).length, planNew.length);
-  // Opened in month 8: every video and graphic (and every other content) from today on, so nothing reads "חסר".
+  // Opened in month 8: no video or graphic, the other content from today on, so nothing reads "חסר".
   const contentRows = gantt(A).filter((r) => GANTT_KINDS[r.kind].post);
   assert.deepEqual(contentRows.filter((r) => r.day < todayIL).map((r) => r.key), []);
-  assert.deepEqual([gantt(A).filter((r) => r.kind === 'video').length, gantt(A).filter((r) => r.kind === 'graphic').length], [42, 42]);
+  assert.deepEqual([gantt(A).filter((r) => r.kind === 'video').length, gantt(A).filter((r) => r.kind === 'graphic').length], [0, 0]);
+  assert.match(await ilai.innerText('#gt-quota'), /סרטונים:\s*תוזמנו 0 מתוך 42 בחבילה[^]*גרפיקות:\s*תוזמנו 0 מתוך 42 בחבילה/);
   await ilai.waitForSelector('.st-missing');
   assert.match(await ilai.innerText('.st-missing'), /חסרים\s*0/);
   assert.equal(await ilai.locator('.st-missing.is-missing').count(), 0);
@@ -433,8 +436,9 @@ await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it o
   await ilai.setViewportSize({ width: 1360, height: 960 });
   // From here on Ron's Gantt is one made back in March (the template's dates from the deal), as
   // the Gantts stored before 11.11.2026 are: its past posts read "חסר" until they are marked.
-  const old = new Map(plan.map((e) => [e.key, e]));
-  for (const r of gantt(A)) { const e = old.get(r.key); Object.assign(r, { day: e.day, time_il: e.time_il, month: e.month, created_at: '2026-03-20T10:00:00Z' }); }
+  const proto = gantt(A)[0];
+  for (let i = db.client_gantt.length - 1; i >= 0; i -= 1) if (db.client_gantt[i].client_id === A.id) db.client_gantt.splice(i, 1);
+  for (const e of plan) db.client_gantt.push({ ...proto, id: randomUUID(), key: e.key, kind: e.kind, title: e.title, day: e.day, time_il: e.time_il, month: e.month, num: e.num, internal: e.internal, created_at: '2026-03-20T10:00:00Z' });
   // A fresh window, signed in again (in WebKit a reload of this page signs out).
   await ictx.close();
   ictx = await newContext();
@@ -621,35 +625,28 @@ await step('he adds an entry of his own from a day: a custom key, moved by hand'
   await ilai.waitForSelector('#gm-day .gt-row:has-text("גרפיקת בלאק פריידיי")');
 });
 
-await step('"עדכון מהתבנית" after the package grew: 2 more videos, the moved date kept; confirmed, it goes back', async () => {
-  A.deliverables = { ...A.deliverables, videos: 44 };
+await step('"עדכון מהתבנית" after the package grew: one more story is added; videos and graphics are never added, moved or removed (11.11.2026)', async () => {
+  A.deliverables = { ...A.deliverables, videos: 44, stories: 4 };
+  const videosBefore = gantt(A).filter((r) => r.kind === 'video').map((r) => `${r.key}@${r.day}`).sort();
   await ilai.reload();
   await ilai.waitForSelector('#btn-regen');
   await ilai.click('#btn-regen');
   await ilai.waitForSelector('#regen-dlg[open]');
   const text = await ilai.innerText('#rg-body');
-  assert.match(text, /יתווספו 2 פריטים/);
-  assert.match(text, /פריט אחד הוזז ידנית, והוא|פריט אחד הוזז ידנית/);
+  assert.match(text, /יתווספו פריט אחד/);
+  assert.doesNotMatch(text, /הוזז ידנית/, 'the video moved by hand is not the template\'s any more');
   assert.match(text, /מה שעלה, קישורים, קבצים והערות לא משתנים/);
   await shot(ilai, 'gantt-04-regen', false);
   await ilai.click('#rg-go');
   await toastHas(ilai, 'הגאנט עודכן מהתבנית');
-  assert.equal(gantt(A).filter((r) => r.kind === 'video').length, 44);
-  assert.equal(row(A, moved.key).day === target || row(A, moved.key).edited, true, 'the moved date stays');
+  assert.equal(gantt(A).filter((r) => r.kind === 'story').length, 4);
+  assert.deepEqual(gantt(A).filter((r) => r.kind === 'video').map((r) => `${r.key}@${r.day}`).sort(), videosBefore, 'no video added, moved or removed');
+  assert.equal(row(A, moved.key).day, target, 'the moved date stays');
   assert.equal(row(A, posted.key).state, 'posted');
   assert.equal(gantt(A).some((r) => r.title === 'גרפיקת בלאק פריידיי'), true);
-  const movedNow = row(A, moved.key);
-  if (movedNow.edited) {
-    await ilai.click('#btn-regen');
-    await ilai.waitForSelector('#regen-dlg[open]');
-    await ilai.check('#rg-overwrite');
-    await ilai.click('#rg-go');
-    await toastHas(ilai, 'הגאנט עודכן מהתבנית');
-    const back = row(A, moved.key);
-    const want = generatePlan(A).entries.find((e) => e.key === moved.key);
-    assert.deepEqual([back.day, back.edited], [want.day, false]);
-  }
   assert.equal(row(A, posted.key).note, 'עלה עם שיר טרנדי');
+  // "סרטונים: תוזמנו X מתוך 44 בחבילה" follows the package.
+  assert.match(await ilai.innerText('#gt-quota'), /סרטונים:\s*תוזמנו \d+ מתוך 44 בחבילה/);
 });
 
 let shareLink = null;
