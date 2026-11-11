@@ -9,6 +9,13 @@
 //   POST { client_ids: [id, id] }    → 200 { samples: [{ id, name, business, videos: [{ name, link }] }] }
 //        up to 3 clients; for each, its newest finished videos (up to 3) from its Drive folder, read by
 //        the robot account (../_shared/drive.js: names and links only). A folder it cannot open: no videos.
+//   POST { showcase: true }          → 200 { clients: [{ id, name, business, reels: [{ title, link, posted_on }],
+//        pages: [{ network, username }] }] }
+//        for the field agents' showcase on a tablet (the owner, 12.11.2026): per client (archived ones left
+//        out), its newest posted videos that have a link in the content Gantt (up to 12), and the handles of
+//        its Instagram, TikTok and Facebook pages from the access list. Only the network and the user name are
+//        read there, never the password; a user name that is an e-mail or a phone (a login) is left out.
+//        Clients with neither are left out.
 //
 // The gate: the header x-crm-key equals the secret CRM_SAMPLES_KEY (the same value is the CRM's
 // STAFF_SAMPLES_KEY). Without the secret: 503, nothing is read. The Drive robot is the secret
@@ -39,6 +46,16 @@ export function finishedVideos(files, max = VIDEOS_PER_CLIENT) {
     .map((f) => ({ name: f.name, link: f.link }));
 }
 
+export const REELS_PER_CLIENT = 12;
+const REEL_KINDS = ['video', 'monthly', 'collab', 'highlight', 'ch14'];
+const PAGE_NETWORKS = ['instagram', 'tiktok', 'facebook'];
+// A page's handle as people see it (letters, digits, dot, underscore, dash): an e-mail or a phone, which is a
+// login, is not one.
+export function pageHandle(username) {
+  const u = String(username ?? '').trim().replace(/^@/, '');
+  return /^[A-Za-z0-9._-]{2,60}$/.test(u) && !/^[0-9._-]+$/.test(u) ? u : null;
+}
+
 const clean = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
 // deps: { env(name), createClient(url, key, opts?), fetch, log(message) }
@@ -53,6 +70,28 @@ export function makeHandler(deps) {
     let body = {};
     try { body = (await req.json()) || {}; } catch { body = {}; }
     const db = deps.createClient(deps.env('SUPABASE_URL'), deps.env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+
+    if (body.showcase === true) {
+      const { data: cs, error: e1 } = await db.from('clients').select('id, name, business, archived_at');
+      const { data: gs, error: e2 } = await db.from('client_gantt').select('client_id, kind, title, posted_on, link, internal')
+        .eq('state', 'posted').in('kind', REEL_KINDS).order('posted_on', { ascending: false });
+      const { data: as, error: e3 } = await db.from('client_access').select('client_id, network, username').in('network', PAGE_NETWORKS);
+      if (e1 || e2 || e3) { log('sales-samples: showcase failed'); return json(502, { error: 'db' }); }
+      const clients = [];
+      for (const c of cs || []) {
+        if (c.archived_at) continue;
+        const reels = (gs || []).filter((g) => g.client_id === c.id && !g.internal && /^https:\/\/[^\s"<>]+$/.test(g.link || ''))
+          .slice(0, REELS_PER_CLIENT)
+          .map((g) => ({ title: clean(g.title, 200), link: g.link, posted_on: g.posted_on }));
+        const pages = [];
+        for (const a of (as || []).filter((x) => x.client_id === c.id)) {
+          const username = pageHandle(a.username);
+          if (username && !pages.some((p) => p.network === a.network)) pages.push({ network: a.network, username });
+        }
+        if (reels.length || pages.length) clients.push({ id: c.id, name: clean(c.name, 120), business: clean(c.business, 160) || null, reels, pages });
+      }
+      return json(200, { clients });
+    }
 
     if (body.client_ids === undefined) {
       const { data, error } = await db.from('clients').select('id, name, business, links, archived_at');
