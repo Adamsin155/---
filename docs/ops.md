@@ -4983,3 +4983,13 @@ Claude יראה פסקה של "מה ישתנה". עונים "כן" ורק אז �
 - **מיגרציה שממתינה לאישור:** `supabase/migrations/20261210110000_remove_noam.sql`. היא רק מחליפה פונקציות, ורצה אחרי מיגרציית גרסה 14 (`is_office`, `can_connect_metricool`, `can_edit_gantt`, `can_manage_access_links`, `ofir_meetings`, `access_form_submit`, `staff_task_create_brief`, `private.task_gives_access`) וכותבת מחדש את טבלת הכותבים. בלעדיה אין סכנה, כי אין לנעם שורה בצוות. הבדיקות (check constraints) שמזכירות את `'noam'` נשארות, כי שורות ישנות עדיין נושאות את השם.
 - **הדלקה:** להריץ את המיגרציה (אחרי "מאשר להריץ את ה-SQL"), לפרסם את האתר, ולפרוס מחדש את `staff-admin`, `metricool`, `ask`, `mcp`, `reminders` ושאר הפונקציות שנושאות עותק של הקבצים (`node scripts/sync-functions.mjs --deploy`).
 - **בדיקות:** `tests/noam.test.mjs` (אף רשימה לא מציעה אותה; השם נשאר בהיסטוריה; לקוח ישן שלה הוא של אופיר), ובדפדפן `tests/noam-clients-e2e.mjs` (הבחירה "מי מבצע את האפיון" ב־iPhone WebKit וב־1366).
+
+## 128. 9 "פתיחת גאנט שנתי" בלי שעון (בקשת הבעלים, 11.11.2026)
+
+הבעלים: "שיקבל התראה בלי זמן". לתהליך 9 של עילאי אין יותר 5 דקות.
+
+- **בפרוטוקול (`app/protocol.js`):** ל־`p09` נשאר `start: { from: 'charEnd' }` ואין `due`. אין יעד, הוא אף פעם לא "באיחור", לא נכנס לטבלת 19:00 ולא לדוח הביצועים (שם נמדד רק תהליך עם יעד).
+- **ההתראה (`app/reminder-rules.js`, הכלל `started`):** כשהאפיון מסתיים עילאי מקבל את ההודעה "השעון שלך התחיל" כמו קודם, ובה "פתיחת גאנט שנתי (בלי זמן קצוב)" ליד 7 עם השעה שלו. ה"עוד 30 דקות" של עילאי הוא של 7 בלבד; כש־7 בוצע ונשאר רק 9, אין לו תזכורת.
+- **הכרטיס "יום אפיון" של עילאי:** השורה "שלד גאנט" בלי "עד", ו"הבא" הוא 9 הגרפיקות.
+- **הדלקה:** לפרסם את האתר ולפרוס מחדש את הפונקציות שנושאות עותק של הקבצים (`reminders` ושאר, `node scripts/sync-functions.mjs --deploy`), כל אחת באישור.
+- **בדיקות:** `tests/intake.test.mjs`, `tests/reminder-engine.test.mjs` (ההודעה בלי שעה, אין "עוד 30 דקות" ואין איחור), `tests/late-ladder.test.mjs`, `tests/owner-decisions.test.mjs`, `tests/office-flows.test.mjs`, `tests/office-time.test.mjs`.
