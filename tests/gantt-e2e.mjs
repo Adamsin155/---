@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import { dateIL } from '../app/tz.js';
 import { generatePlan, entryStatus } from '../app/gantt-logic.js';
+import { GANTT_KINDS } from '../app/gantt-template.js';
 import { importKeys } from '../app/client-open.js';
 import { withClientColumns } from './fake-clients.mjs';
 import { planSync, parsePosts, windowOf, applyOps } from '../app/metricool-logic.js';
@@ -392,6 +393,8 @@ const row = (c, key) => gantt(c).find((r) => r.key === key);
 
 // The plan the template makes for Ron, to pick entries the steps use.
 const plan = generatePlan(A).entries;
+// What Ilai's tap makes on 12.11 (the owner, 11.11.2026): no content before today, the quantities whole.
+const planNew = generatePlan(A, undefined, { today: todayIL }).entries;
 const novVideos = plan.filter((e) => e.kind === 'video' && e.day.startsWith('2026-11'));
 const perDay = (d) => plan.filter((e) => e.day === d).length;
 const posted = novVideos.find((e) => e.day < todayIL && perDay(e.day) <= 3);
@@ -406,12 +409,33 @@ const ilai = await newPage(ictx);
 await step('Ilai: no Gantt yet; the template\'s preview; he creates it, and it opens on November 2026 (month 8)', async () => {
   await signIn(ilai, `gantt.html?id=${A.id}`, 'ilai@astrateg.test');
   await ilai.waitForSelector('#gt-empty:not([hidden])');
-  assert.match(await ilai.innerText('#ge-text'), new RegExp(`התבנית תיצור ${plan.length} פריטים, מהם \\d+ פרסומים, מ־25\\.3\\.2026 עד 15\\.3\\.2027`));
+  const dm = (k) => `${Number(k.slice(8))}\\.${Number(k.slice(5, 7))}\\.${k.slice(0, 4)}`;
+  assert.match(await ilai.innerText('#ge-text'), new RegExp(`התבנית תיצור ${planNew.length} פריטים, מהם \\d+ פרסומים, מ־${dm(planNew[0].day)} עד 15\\.3\\.2027`));
   assert.match(await ilai.innerText('#gt-sub'), /חוזה מ־15\.3\.2026 עד 15\.3\.2027 · חודש 8 מתוך 12/);
   await shot(ilai, 'gantt-01-empty');
   await ilai.click('#btn-create');
-  await toastHas(ilai, `הגאנט נוצר: ${plan.length} פריטים`);
-  assert.equal(gantt(A).length, plan.length);
+  await toastHas(ilai, `הגאנט נוצר: ${planNew.length} פריטים`);
+  assert.equal(gantt(A).length, planNew.length);
+  // Opened in month 8: every video and graphic (and every other content) from today on, so nothing reads "חסר".
+  const contentRows = gantt(A).filter((r) => GANTT_KINDS[r.kind].post);
+  assert.deepEqual(contentRows.filter((r) => r.day < todayIL).map((r) => r.key), []);
+  assert.deepEqual([gantt(A).filter((r) => r.kind === 'video').length, gantt(A).filter((r) => r.kind === 'graphic').length], [42, 42]);
+  await ilai.waitForSelector('.st-missing');
+  assert.match(await ilai.innerText('.st-missing'), /חסרים\s*0/);
+  assert.equal(await ilai.locator('.st-missing.is-missing').count(), 0);
+  await shot(ilai, 'gantt-01b-new-from-today');
+  for (const [name, viewport] of [['iphone', { width: 390, height: 844 }], ['1366', { width: 1366, height: 900 }]]) {
+    await ilai.setViewportSize(viewport);
+    await ilai.waitForTimeout(300);
+    await shot(ilai, `gantt-01c-new-${name}`);
+  }
+  await ilai.setViewportSize({ width: 1360, height: 960 });
+  // From here on Ron's Gantt is one made back in March (the template's dates from the deal), as
+  // the Gantts stored before 11.11.2026 are: its past posts read "חסר" until they are marked.
+  const old = new Map(plan.map((e) => [e.key, e]));
+  for (const r of gantt(A)) { const e = old.get(r.key); Object.assign(r, { day: e.day, time_il: e.time_il, month: e.month, created_at: '2026-03-20T10:00:00Z' }); }
+  await ilai.reload();
+  await ilai.waitForSelector('#gm-list:not([hidden]) .gt-aday');
   assert.equal(gantt(A).every((r) => r.by_email === 'ilai@astrateg.test' && r.edited === false), true);
   assert.equal(row(A, 'plan.9').internal, true);
   // The list first, this month's days (the owner, 20.10.2026), and the year at a glance folded.
@@ -930,7 +954,7 @@ await step('the index for the owner, Irit, Lior and Ofir ("יצירת הגאנט
   const ph = await newPage(pctx);
   await signIn(ph, 'clients.html#mine', 'ilai@astrateg.test');
   await ph.waitForSelector('#side-list #side-gantt');
-  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'שאלו']); // no year in his menu since 20.10.2026
+  assert.deepEqual(await ph.locator('#side-list > a, #side-list > button').allInnerTexts(), ['המשימות שלי', 'הלקוחות שלי', 'גאנט תוכן', 'מעקב לקוחות', 'עוד']); // no year in his menu since 20.10.2026; tracking in the bar and the rest under עוד (the bar as it is on idan/rollout, 11.11.2026)
   await ph.click('#side-gantt');
   await ph.waitForSelector('#gx:not([hidden]) #gx-list .gx-client');
   assert.equal(await noHScroll(ph), true);
@@ -1006,13 +1030,19 @@ await step('with the switch on, a sync marks the Gantt: scheduled with a clock, 
   const future = gantt(A).filter((r) => r.kind === 'video' && r.day > todayIL && r.day.startsWith('2026-11') && shownInGrid(r))[0];
   const past = gantt(A).filter((r) => r.kind === 'graphic' && r.day < todayIL && r.day.startsWith('2026-11') && shownInGrid(r))[0];
   const bad = gantt(A).filter((r) => r.kind === 'video' && r.day < todayIL && r.day.startsWith('2026-11') && r.key !== posted.key && shownInGrid(r))[0];
+  // Since 11.11.2026 a post takes the NEXT FREE row of its kind in number order: the other videos
+  // and graphics before today are done with (skipped here), so the free ones are bad, past, and
+  // the videos from today on.
+  for (const r of gantt(A)) if (['video', 'graphic'].includes(r.kind) && r.day < todayIL && ![bad?.key, past?.key, posted.key].includes(r.key)) r.state = 'skipped';
+  const byNum = (kind) => gantt(A).filter((r) => r.kind === kind && r.key.startsWith(`${kind}.`) && r.state === 'planned').sort((a, b) => a.num - b.num);
   assert.ok(future && past && bad, 'November has what the step needs');
+  assert.deepEqual([byNum('video')[0].key, byNum('video')[1].key, byNum('graphic')[0].key], [bad.key, future.key, past.key], 'the next free rows are the ones the step looks at');
   const mcPost = (id, day, time, status, extra = {}, type = 'REEL') => ({ id, publicationDate: { dateTime: `${day}T${time}:00`, timezone: 'Asia/Jerusalem' }, text: `פוסט ${id}`, media: [type === 'REEL' ? 'https://x/v.mp4' : 'https://x/a.jpg'], instagramData: { type }, providers: [{ network: 'instagram', status, ...extra }] });
   const listing = { data: [
     mcPost(1, future.day, '20:15', 'PENDING'),
     mcPost(2, past.day, '13:00', 'PUBLISHED', { publicUrl: 'https://www.instagram.com/p/from-metricool' }, 'POST'),
     mcPost(3, bad.day, '19:00', 'ERROR', { detailedStatus: 'Token expired' }),
-    mcPost(4, '2026-11-27', '09:30', 'PENDING'), // a Friday: the template never posts then, so no entry fits
+    mcPost(4, '2026-11-27', '09:30', 'PENDING', {}, 'STORY'), // a story on a Friday: no story that day, and a story never takes a video row: an extra row
   ] };
   // Four minutes before the clock of the page that opens below. A page's clock starts at
   // NOW when its context opens, while serverNow() has been running since the suite began:
