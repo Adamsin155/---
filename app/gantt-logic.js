@@ -134,6 +134,19 @@ export function share(q, months) {
   const rem = q - base * months;
   return Array.from({ length: months }, (_, i) => base + (i < rem ? 1 : 0));
 }
+// q units by weights (a month's part still ahead): in proportion, the largest remainders
+// get the rest, the earlier first at a tie. All weights 1 is share(q, n); all 0 places none.
+export function shareWeighted(q, weights) {
+  const total = weights.reduce((a, b) => a + b, 0);
+  if (!total) return weights.map(() => 0);
+  const exact = weights.map((w) => (q * w) / total);
+  const out = exact.map((x) => Math.floor(x + 1e-9));
+  let left = q - out.reduce((a, b) => a + b, 0);
+  const order = exact.map((x, i) => ({ i, f: x - Math.floor(x + 1e-9) })).filter((x) => weights[x.i] > 0)
+    .sort((a, b) => b.f - a.f || a.i - b.i);
+  for (const { i } of order) { if (left <= 0) break; out[i] += 1; left -= 1; }
+  return out;
+}
 // c units on `slots` (day keys), evenly spaced; more units than slots share days.
 export function pick(slots, c) {
   if (!slots.length || c <= 0) return [];
@@ -147,7 +160,19 @@ const hhmm = (d) => { const p = partsIL(d); return `${pad(p.hour)}:${pad(p.minut
 // ── The plan ──────────────────────────────
 // The client's dated plan from the template: [{ key, kind, title, day, time_il, month,
 // num, internal }], by day and time. { error } when the deal's date is missing.
-export function generatePlan(client, rules = GANTT_RULES) {
+//
+// `today` (a day key; the owner, 11.11.2026, docs/ops.md section 128): a Gantt opened in the
+// middle of the package never invents content in the past. Videos and graphics are spread
+// over what is left of the cycle from that day on (the same weekdays and times; the month
+// already under way gets its share by the part of it still ahead), so the package's
+// quantities stay whole and nothing reads "חסר" on the day the Gantt is made. The other
+// content kinds move ahead the same way (the photographer's contents: from that day in its
+// month, none for a month already over; the Highlights: the next business day; stories,
+// collabs and channel 14: spread over the months still ahead). Shoot days (the card's real
+// date), the reports, Ilai's plan, the renewal call and the end keep their dates: they are
+// not content, and past ones read "עבר", never "חסר". Without `today` the plan is the
+// template's from the deal on (the tests, and a Gantt made before its posts start).
+export function generatePlan(client, rules = GANTT_RULES, { today = null } = {}) {
   if (!parseDate(client?.deal_at)) return { error: 'no-deal', entries: [] };
   const d = { videos: 0, graphics: 0, shoot_days: 0, collabs: 0, stories: 0, ch14: 0, monthly: 0, ...(client.deliverables || {}) };
   const of = termOf(client);
@@ -162,35 +187,53 @@ export function generatePlan(client, rules = GANTT_RULES) {
   for (const rule of rules) {
     if (rule.when && !rule.when(d)) continue;
     const avoid = rule.avoid || [];
+    const ahead = !!today && !!GANTT_KINDS[rule.kind]?.post; // content: never before `today`
     if (rule.place === 'spreadPosts') {
       const q = qtyOf(rule.qty, d);
       if (!q || !cycle.length) continue;
-      const per = share(q, cycle.length);
+      const all = cycle.map((m) => {
+        const r = monthRange(client, m);
+        return daysBetween(r.from, r.to).filter((x) => rule.weekdays.includes(weekdayOf(x)) && allowedDay(x, avoid));
+      });
+      const live = ahead ? all.map((slots) => slots.filter((x) => x >= today)) : all;
+      const cut = live.some((slots, i) => slots.length !== all[i].length);
+      const per = cut ? shareWeighted(q, live.map((slots, i) => (all[i].length ? slots.length / all[i].length : 0))) : share(q, cycle.length);
       let n = 0;
       cycle.forEach((m, i) => {
-        const r = monthRange(client, m);
-        const slots = daysBetween(r.from, r.to).filter((x) => rule.weekdays.includes(weekdayOf(x)) && allowedDay(x, avoid));
-        for (const day of pick(slots, per[i])) { n += 1; add(rule, `${rule.key}.${n}`, day, rule.title(n), m, { num: rule.numbered ? n : null }); }
+        for (const day of pick(live[i], per[i])) { n += 1; add(rule, `${rule.key}.${n}`, day, rule.title(n), m, { num: rule.numbered ? n : null }); }
       });
     } else if (rule.place === 'perMonth') {
       const c = Math.min(31, Math.max(0, Math.floor(rule.count(d, of)) || 0));
       for (const m of cycle) {
         const r = monthRange(client, m);
-        const start = rule.afterBusinessDay ? businessDayOf(client, m, rule.afterBusinessDay) : r.from;
+        let start = rule.afterBusinessDay ? businessDayOf(client, m, rule.afterBusinessDay) : r.from;
+        if (ahead && start < today) start = today;
         const slots = daysBetween(start, r.to).filter((x) => rule.weekdays.includes(weekdayOf(x)) && allowedDay(x, avoid));
         pick(slots, c).forEach((day, j) => add(rule, `${rule.key}.${m}.${j + 1}`, day, rule.title(j + 1, m), m));
       }
     } else if (rule.place === 'businessDay') {
       const months = rule.months === 'first' ? cycle.slice(0, 1) : cycle;
       for (const m of months) {
-        const day = rule.before ? businessDayBefore(client, m, rule.before) : businessDayOf(client, m, rule.day);
+        let day = rule.before ? businessDayBefore(client, m, rule.before) : businessDayOf(client, m, rule.day);
+        if (ahead && day < today) { day = today; while (!isBusinessDay(noonOf(day))) day = addDays(day, 1); }
         add(rule, `${rule.key}.${rule.months === 'first' ? 1 : m}`, day, rule.title(m), m);
       }
     } else if (rule.place === 'nthWeekday') {
       const q = qtyOf(rule.qty, d);
+      // The months still ahead: from today's package month, or the next one when this
+      // month's day for the rule has passed.
+      let fromNow = from;
+      if (ahead && rule.spread) {
+        const cur = packageMonthOf(client, today);
+        if (cur >= fromNow) {
+          const r = monthRange(client, cur);
+          fromNow = r && settle(nthWeekday(r, rule.week, rule.weekday), r.from, r.to, avoid) < today ? cur + 1 : cur;
+        }
+        fromNow = Math.min(of, fromNow);
+      }
       for (let k = 1; k <= q; k += 1) {
         let m;
-        if (rule.spread) m = spreadMonth(k, q, from, of);
+        if (rule.spread) m = spreadMonth(k, q, fromNow, of);
         else if (k === 1) m = rule.firstMonth;
         else m = spreadMonth(k - 1, q - 1, from, of); // year-logic's "round" k - 1: shoot day k
         const r = monthRange(client, m);
@@ -198,7 +241,14 @@ export function generatePlan(client, rules = GANTT_RULES) {
         // A shoot day already in the card (the main one, or its round's) is the fact.
         const known = rule.kind === 'shoot' ? (k === 1 ? parseDate(client.shoot_at) : parseDate(roundsOf(client).find((x) => Number(x.n) === k)?.shoot_at)) : null;
         if (known) { add(rule, `${rule.key}.${k}`, dayKeyIL(known), rule.title(k, q), Math.max(1, packageMonthOf(client, dayKeyIL(known))), { time_il: hhmm(known) }); continue; }
-        add(rule, `${rule.key}.${k}`, settle(nthWeekday(r, rule.week, rule.weekday), r.from, r.to, avoid), rule.title(k, q), m);
+        let day = settle(nthWeekday(r, rule.week, rule.weekday), r.from, r.to, avoid);
+        // The last month already under way: the rule's next weekday from today (after the
+        // end, it is left out like anything after the contract).
+        if (ahead && rule.spread && day < today) {
+          day = today;
+          while (weekdayOf(day) !== rule.weekday || !allowedDay(day, avoid)) day = addDays(day, 1);
+        }
+        add(rule, `${rule.key}.${k}`, day, rule.title(k, q), m);
       }
     } else if (rule.place === 'fromEnd') {
       if (!endKey) continue;
@@ -235,6 +285,21 @@ const same = (f, a, b) => norm(f, a) === norm(f, b);
 // A row the template did not make: added by hand ('custom.<n>'), or a post found in
 // Metricool that matches no item ('mc.<post id>', app/metricool-logic.js).
 export const isCustom = (row) => row?.kind === 'custom' || /^(custom|mc)\./.test(String(row?.key || ''));
+// The day a plan is made from (generatePlan's `today`). A new Gantt: today. "עדכון מהתבנית"
+// on a stored one: the day it was made (the earliest created_at of the template's rows), so
+// the update does not bring back the past dates it never had; but a Gantt made before
+// 11.11.2026 whose template rows still sit in the past untouched (planned, not moved) keeps
+// the template's dates from the deal (null), as it always had: those are fixed by hand or by
+// SQL (docs/ops.md, section 128), never moved by a tap.
+export function planFrom(rows, now = new Date()) {
+  const made = (rows || []).filter((r) => !isCustom(r));
+  if (!made.length) return dayKeyIL(now);
+  const days = made.map((r) => (r.created_at ? dayKeyIL(new Date(r.created_at)) : null)).filter(Boolean).sort();
+  if (!days.length) return null;
+  const created = days[0];
+  const invented = made.some((r) => (r.kind === 'video' || r.kind === 'graphic') && r.state === 'planned' && !r.edited && r.day < created);
+  return invented ? null : created;
+}
 // What "עדכון מהתבנית" does to the stored rows. A row moved by hand (edited) keeps its
 // day and time unless `overwrite`; posted state, links, files and notes are never
 // touched. A row the template no longer makes is removed only when nothing was done
@@ -252,6 +317,8 @@ export function planDiff(rows, generated, { overwrite = false } = {}) {
     const fields = {};
     for (const f of FIELDS) {
       if (DATE_FIELDS.has(f) && r.edited && !overwrite) continue;
+      // A row standing for a post in Metricool is where the post is (the sync moves it).
+      if (DATE_FIELDS.has(f) && r.mc_post_id) continue;
       if (!same(f, r[f], g[f])) fields[f] = g[f] ?? null;
     }
     const movedByHand = r.edited && (!same('day', r.day, g.day) || !same('time_il', r.time_il, g.time_il));

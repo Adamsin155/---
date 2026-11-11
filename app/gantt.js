@@ -18,7 +18,7 @@
 // text nodes, never innerHTML.
 import { GANTT_KINDS, KIND_ORDER, TEMPLATE_TEXT, TEMPLATE_VERSION, WEEKDAY_NAMES } from './gantt-template.js';
 import {
-  generatePlan, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
+  generatePlan, planFrom, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
   holidayName, contractEndKey, safeLink, isCustom, timeText, STATUS_TEXT, CLIENT_STATUS_TEXT, DAY_KEY, TIME_KEY, byWhen, monthRange, fileTitle,
   clientStatus, nextState, toSchedule, weekOf, nextPost, addDays,
 } from './gantt-logic.js';
@@ -343,7 +343,7 @@ function renderEmpty() {
   else if (missing) text = 'הגאנט יישמר אחרי שהמיגרציה של הגאנט תוחל במסד (20261003130000_content_gantt.sql).';
   else if (!client.deal_at) text = 'חסר תאריך החתימה בכרטיס הלקוח. הגאנט נבנה ממנו: החודשים נספרים מיום החתימה.';
   else {
-    const plan = generatePlan(client);
+    const plan = generatePlan(client, undefined, { today: todayKey() });
     const posts = plan.entries.filter((e) => GANTT_KINDS[e.kind].post).length;
     text = canEdit
       ? `התבנית תיצור ${plan.entries.length} פריטים, מהם ${posts} פרסומים, מ־${dmy(plan.entries[0]?.day)} עד ${dmy(plan.endKey)}, לפי הכמויות בחבילה. אחר כך אפשר להזיז כל תאריך ללקוח הזה בלבד.`
@@ -815,7 +815,7 @@ async function applyBulk(range) {
 
 // ── Update from the template ──────────────
 async function regenerate() {
-  const plan = generatePlan(client);
+  const plan = generatePlan(client, undefined, { today: planFrom(rows, new Date()) });
   if (plan.error) { toast('חסר תאריך החתימה בכרטיס הלקוח.'); return; }
   const diff = planDiff(rows, plan.entries);
   if (!rows.length) return applyRegen(plan, false);

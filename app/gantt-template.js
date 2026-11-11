@@ -16,7 +16,7 @@
 // TEMPLATE_VERSION goes up with any change, so a plan can say which template made it.
 import { CYCLE_FROM } from './year-logic.js';
 
-export const TEMPLATE_VERSION = 1;
+export const TEMPLATE_VERSION = 2;
 
 // Weekdays: 0 = Sunday … 6 = Saturday (Israel). Times are Israel wall-clock 'HH:MM'.
 export const WEEKDAY_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -90,6 +90,7 @@ export const POSTS_FROM = CYCLE_FROM;
 export const TEMPLATE_TEXT = [
   'החודשים נספרים מיום החתימה (deal_at), בשעון ישראל: אותו יום בכל חודש, וה־31 הופך ליום האחרון בחודש.',
   `הפרסומים מתחילים בחודש ${POSTS_FROM}, החודש שבו מתחיל המחזור החודשי, ומתפזרים שווה עד סוף החבילה.`,
+  'גאנט שנפתח באמצע החבילה לא ממציא תכנים בעבר: הסרטונים והגרפיקות מתפזרים מהיום ועד סוף החבילה, באותם ימים ושעות, בלי לאבד אף אחד מהכמות.',
   'סרטונים: ימי ראשון, שלישי וחמישי ב־19:00. גרפיקות: ימי שני ורביעי ב־13:00. בכל חודש במרווחים שווים.',
   'לא מפרסמים בשבת, בחג ובערב חג; פרסום שנופל על יום כזה עובר ליום המותר הבא באותו חודש.',
   'צלם חודשי (כשנרכש): יום עסקים 10 בכל חודש ב־10:00, ו־8 התכנים שלו עולים בהמשך החודש, מיום העסקים ה־11, בימים ראשון עד חמישי ב־17:00.',

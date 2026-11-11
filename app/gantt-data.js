@@ -12,7 +12,7 @@
 import { supabase } from './supa.js';
 import { isMissingTable } from './year-data.js';
 
-const BASE_COLS = 'id, client_id, key, kind, title, day, time_il, month, num, internal, state, posted_on, file_id, link, note, edited, template_version, by_email, at';
+const BASE_COLS = 'id, client_id, key, kind, title, day, time_il, month, num, internal, state, posted_on, file_id, link, note, edited, template_version, by_email, at, created_at';
 // The sync's columns (20261007100000): who set the state, and the post it stands for.
 const SYNC_COLS = 'source, mc_post_id, mc_status, mc_at, mc_networks, mc_error, mc_extra';
 let cols = `${BASE_COLS}, ${SYNC_COLS}`;
