@@ -485,23 +485,24 @@ test('the 19:00 table: a row per employee with what is late, what was for today 
   // (Lior had a row until v12: his Meta check, 10, late, and the focus call, 12א, for today. Both left.)
   // (v13: Irit's vault, p05.vault, left the protocol: 5 is Ofir's alone, and her row has the late task only.)
   assert.deepEqual(sum.rows.map((r) => [r.person, r.late, r.today, r.longest]), [
-    ['ofir', 2, 0, 'יום עסקים'], ['ilai', 2, 0, 'יום עסקים'], ['irit', 1, 1, '3 ימי עסקים'],
+    ['ofir', 2, 0, 'יום עסקים'], ['irit', 1, 1, '3 ימי עסקים'], ['ilai', 1, 0, 'יום עסקים'],
   ]);
-  assert.deepEqual([sum.totals.late, sum.totals.today, sum.totals.people, sum.totals.longest], [5, 1, 3, '3 ימי עסקים']);
+  // (11.11.2026: Ilai's yearly gantt, 9, has no clock and is never late: his row has 7 only.)
+  assert.deepEqual([sum.totals.late, sum.totals.today, sum.totals.people, sum.totals.longest], [4, 1, 3, '3 ימי עסקים']);
   assert.equal(sum.items[0].what, 'לשלוח חשבונית');
-  assert.deepEqual(sum.items.map((x) => x.kind), ['late', 'late', 'late', 'late', 'late', 'today']);
+  assert.deepEqual(sum.items.map((x) => x.kind), ['late', 'late', 'late', 'late', 'today']);
   assert.deepEqual(sum.items.filter((x) => x.kind === 'late').map((x) => +x.dueAt), sum.items.filter((x) => x.kind === 'late').map((x) => +x.dueAt).sort((a, b) => a - b));
   // The push says the numbers by itself.
-  assert.equal(headline(sum), 'היום: 5 באיחור אצל 3 עובדים, אחד מהיום לא בוצע');
+  assert.equal(headline(sum), 'היום: 4 באיחור אצל 3 עובדים, אחד מהיום לא בוצע');
   assert.deepEqual(pushLines(sum).slice(1), [
-    'אופיר: 2 באיחור (הארוך: יום עסקים)', 'עילאי: 2 באיחור (הארוך: יום עסקים)', 'עירית: 1 באיחור (הארוך: 3 ימי עסקים), אחד מהיום לא בוצע',
+    'אופיר: 2 באיחור (הארוך: יום עסקים)', 'עירית: 1 באיחור (הארוך: 3 ימי עסקים), אחד מהיום לא בוצע', 'עילאי: 1 באיחור (הארוך: יום עסקים)',
   ]);
   // The page computes the same from what it loaded (no engine, no env): the same numbers.
   const page = daySummary({ clients: w.clients, checksOf: (x) => w.checks[x.id] || {}, stateOf: (x) => clientState(x, w.checks[x.id] || {}, now), tasks: w.tasks, now });
   assert.deepEqual([page.rows, page.totals], [sum.rows, sum.totals]);
   // The WhatsApp text of the same day is ready for when the channel is connected; nothing sends it now.
   const wa = waText(sum, { link: 'https://example.test/owner.html#eod' });
-  assert.match(wa, /^סיכום היום\nהיום: 5 באיחור אצל 3 עובדים, אחד מהיום לא בוצע\n\nאופיר: 2 באיחור/);
+  assert.match(wa, /^סיכום היום\nהיום: 4 באיחור אצל 3 עובדים, אחד מהיום לא בוצע\n\nאופיר: 2 באיחור/);
   assert.match(wa, /• אלפא · לשלוח חשבונית · עירית · באיחור 3 ימי עסקים/);
   // No money anywhere in it.
   assert.doesNotMatch(JSON.stringify(sum) + wa + pushLines(sum).join(' '), /₪|מחיר|agorot|monthly/);

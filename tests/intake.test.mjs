@@ -92,11 +92,14 @@ test('"ended" starts the clocks of Ilai and Ofir (8) at once, before the full fo
   const st = (id) => s.states.find((x) => x.proc.id === id);
   assert.equal(st('p04').complete, false);
   assert.equal(hhmm(st('p07').dueAt), '6.10 13:20'); // two office hours from the tap, not from 12:00
-  assert.equal(hhmm(st('p09').dueAt), '6.10 11:25');
+  assert.equal(st('p09').dueAt, null); // 9 has no clock (the owner, 11.11.2026): Ilai only hears
+  assert.ok(st('p09').startAt); // ...when the characterization ends
+  assert.equal(clientState(c, checks, IL(2026, 10, 9, 18)).states.find((x) => x.proc.id === 'p09').late, false); // never late
   assert.equal(st('p04').dueAt, null); // the form is filled in the meeting: no clock after the tap (26.10.2026)
   const at = due(world(c, checks), IL(2026, 10, 6, 11, 20));
   const ilai = one(at, 'started', 'start', 'ilai');
   assert.match(ilai.body, /הכנת 9 גרפיקות ראשונות עד היום 13:20/);
+  assert.match(ilai.body, /פתיחת גאנט שנתי \(בלי זמן קצוב\)/);
   one(at, 'started', 'start', 'ofir');
   none(at.filter((r) => r.person === 'lior'), 'started');
   // "האפיון הסתיים?" does not ring any more once it was tapped.

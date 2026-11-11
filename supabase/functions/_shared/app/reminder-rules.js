@@ -387,6 +387,8 @@ export const RULES = [
 
   // 6–10: the clocks that start when the characterization is marked done. One
   // message each ("your clock started") and one 30 minutes before the two-hour target.
+  // 9 (the yearly gantt) has no clock since 11.11.2026 (the owner): it is in Ilai's start
+  // message without a time, and no "30 minutes left" is for it (Ilai's is 7's).
   {
     id: 'started', event: 'השעון התחיל (6–10)', procs: ['p07', 'p08', 'p09', 'p10'],
     instances(env) {
@@ -412,7 +414,7 @@ export const RULES = [
       return out;
     },
     steps: [
-      { id: 'start', to: (i) => i.who, level: 'ring', exempt: 'clock', title: (i) => `השעון שלך התחיל: ${i.name}`, body: (i, env) => i.open.map((s) => `${s.proc.title} עד ${whenText(s.dueAt, env.now)}`).join(' · ') },
+      { id: 'start', to: (i) => i.who, level: 'ring', exempt: 'clock', title: (i) => `השעון שלך התחיל: ${i.name}`, body: (i, env) => i.open.map((s) => (s.dueAt ? `${s.proc.title} עד ${whenText(s.dueAt, env.now)}` : `${s.proc.title} (בלי זמן קצוב)`)).join(' · ') },
       { id: 'pre30', from: 'due', officeMinutes: -30, to: (i) => i.who, level: 'ring', exempt: 'clock', when: (i) => i.mainOpen, title: (i) => `עוד 30 דקות: ${i.name}`, body: (i, env) => `${i.proc.title} · יעד ${whenText(i.anchors.due, env.now)}.` },
     ],
   },
