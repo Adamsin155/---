@@ -270,7 +270,7 @@ test('what the signed contract grants follows the customised quantities (the cli
   assert.match(sum.items[0].text, /50 בחוזה/);
   assert.equal(slotCount(videosOf(client)), 50);
   // The Gantt template plans the same numbers over the six months of this contract.
-  const { entries: plan, of: planMonths } = generatePlan(client);
+  const { entries: plan, of: planMonths } = generatePlan(client, undefined, { all: true }); // the cadence (videos and graphics come from Metricool since 11.11.2026)
   assert.equal(planMonths, 6);
   const planned = (kind) => plan.filter((e) => e.kind === kind).length;
   assert.deepEqual([planned("video"), planned("graphic"), planned("story"), planned("ch14"), planned("collab")], [50, 14, 6, 3, 0]);

@@ -84,7 +84,7 @@ test('Ilai, Irit, Ofir, Lior and the owner write the plan, stamped by the sessio
 });
 
 test('the shapes: every key and kind the template makes is accepted; bad keys, kinds and links are not', async () => {
-  const plan = generatePlan({ deal_at: '2026-03-15T08:00:00Z', contract_end: '2027-03-15', deliverables: { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, monthly: 96 } });
+  const plan = generatePlan({ deal_at: '2026-03-15T08:00:00Z', contract_end: '2027-03-15', deliverables: { videos: 42, graphics: 42, shoot_days: 2, collabs: 3, stories: 3, ch14: 1, monthly: 96 } }, undefined, { all: true }); // every kind the template knows (videos and graphics come from Metricool since 11.11.2026)
   const kinds = new Set(plan.entries.map((e) => e.kind));
   assert.ok(kinds.size >= 12);
   const values = plan.entries.map((e, i) => `($1, '${e.key}', '${e.kind}', $${i + 2}, '${e.day}', ${e.time_il ? `'${e.time_il}'` : 'null'}, ${e.month}, ${e.num ?? 'null'})`);
