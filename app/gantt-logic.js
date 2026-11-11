@@ -421,6 +421,18 @@ export function totals(entries, now = new Date()) {
   }
   return out;
 }
+// How many videos and graphics are scheduled (or up) against the package's quantity (11.11.2026):
+// [{ kind, label, done, of }] for the kinds the package has.
+export function quota(client, rows) {
+  const d = client?.deliverables || {};
+  const of = { video: Math.max(0, Math.floor(Number(d.videos) || 0)), graphic: Math.max(0, Math.floor(Number(d.graphics) || 0)) };
+  const label = { video: 'סרטונים', graphic: 'גרפיקות' };
+  return ['video', 'graphic'].filter((k) => of[k] > 0).map((kind) => ({
+    kind, label: label[kind], of: of[kind],
+    done: (rows || []).filter((r) => r.kind === kind && (r.state === 'scheduled' || r.state === 'posted')).length,
+  }));
+}
+
 // The next post still ahead (planned or scheduled), from now on.
 export function nextPost(entries, now = new Date()) {
   return entries.filter((e) => GANTT_KINDS[e.kind]?.post && ['planned', 'today', 'scheduled'].includes(entryStatus(e, now)) && entryMoment(e) >= now).sort(byWhen)[0] || null;

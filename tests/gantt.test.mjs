@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  generatePlan, planFrom, shareWeighted, planDiff, monthGrid, calendarMonths, monthRange, packageMonthOf, entryMoment, entryStatus,
+  generatePlan, planFrom, shareWeighted, quota, planDiff, monthGrid, calendarMonths, monthRange, packageMonthOf, entryMoment, entryStatus,
   allowedDay, weekdayOf, addDays, share, pick, yearGlance, totals, contractEndKey, safeLink, isCustom,
 } from '../app/gantt-logic.js';
 import { GANTT_RULES, GANTT_KINDS, KIND_ORDER, POSTS_FROM } from '../app/gantt-template.js';
@@ -468,4 +468,26 @@ test('a client file in the item editor: its label, else its own file name, else 
   assert.equal(fileTitle({ label: null, kind: 'deliverable_video', storage_path: 'c1/deliverable_video/3f2b8c1e-7a41-4d2c-9b1f-0a1b2c3d4e5f-Reel-Final.mp4' }), 'Reel-Final.mp4');
   assert.equal(fileTitle({ label: '', kind: 'deliverable_graphic' }), 'גרפיקה'); // the client's view has no path
   assert.equal(fileTitle({}), 'קובץ');
+});
+
+// The owner, 11.11.2026: "לא צריך לשים דברים שלא תוזמנו". A new Gantt (and "עדכון מהתבנית") has
+// no video, graphic or photographer's content: those rows are Metricool's posts and Ilai's dated
+// files in Drive. The header says how many are scheduled against the package.
+test('the template makes no video, graphic or photographer\'s content; the counter says scheduled out of the package', () => {
+  const { entries } = generatePlan(client({ deliverables: { ...FULL, monthly: 96 } }), undefined, { today: '2026-11-12' });
+  assert.deepEqual([...new Set(entries.map((e) => e.kind))].filter((k) => ['video', 'graphic', 'monthly'].includes(k)), []);
+  assert.ok(['shoot', 'photo', 'report', 'plan', 'renewal', 'end', 'highlight', 'story', 'collab', 'ch14'].every((k) => entries.some((e) => e.kind === k)));
+  // A monthly client (אלאור בוטיק's package): nothing to post from the template at all but the Highlights task.
+  const monthly = generatePlan({ deal_at: IL(2026, 9, 2, 9), contract_end: '2027-09-02', shoot_at: null, rounds: [], deliverables: { graphics: 48, shoot_days: 1, shoot_monthly: true, videos: 36, videos_month: 8 } }, undefined, { today: '2026-11-11' }).entries;
+  assert.deepEqual(monthly.filter((e) => GANTT_KINDS[e.kind].post).map((e) => e.kind), ['highlight']);
+  const rows = [
+    { kind: 'video', state: 'scheduled' }, { kind: 'video', state: 'posted' }, { kind: 'video', state: 'planned' }, { kind: 'video', state: 'skipped' },
+    { kind: 'graphic', state: 'posted' }, { kind: 'custom', state: 'scheduled' },
+  ];
+  assert.deepEqual(quota({ deliverables: { videos: 24, graphics: 12 } }, rows), [
+    { kind: 'video', label: 'סרטונים', of: 24, done: 2 },
+    { kind: 'graphic', label: 'גרפיקות', of: 12, done: 1 },
+  ]);
+  assert.deepEqual(quota({ deliverables: { videos: 10 } }, rows).map((x) => x.kind), ['video']);
+  assert.deepEqual(quota({}, rows), []);
 });

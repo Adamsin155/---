@@ -200,7 +200,7 @@ test('the match: the file\'s own link already in the Gantt counts as "כבר ה�
   const y = matchFiles(rows, [file('3.1.26 b.mp4', 'video/mp4', '2027-01-02T10:00:00Z')]);
   assert.deepEqual(y.fills.map((x) => x.id), ['j3old']);
   // No item on the date, nor a day before or after it.
-  assert.match(matchFiles(rows, [file('6.1 x.mp4')]).unplaced[0].why, /אין פריט בגאנט ב־6\.1 או יום לפניו או אחריו/);
+  assert.match(matchFiles(rows, [file('6.1 x.mp4')], { range: { from: '2026-03-15', to: '2026-12-31' } }).unplaced[0].why, /אין פריט בגאנט ב־6\.1 או יום לפניו או אחריו/);
 });
 
 // The owner, 11.11.2026 (docs/ops.md, section 128): Dabush's file "13.11.2026" was the post of 12.11.
@@ -239,4 +239,57 @@ test('the match: a day off finds the nearest item of the same kind, never over a
   assert.deepEqual(two.fills.map((f) => [f.file, f.near]), [['12.11 ב.mp4', 0]]);
   assert.equal(fileKind({ name: 'x', mimeType: 'application/pdf', path: 'היילייטס' }), 'image');
   assert.equal(fileKind({ name: 'x.mov', mimeType: '' }), 'video');
+});
+
+// The owner, 11.11.2026: the Gantt shows only what is real, and Ilai's dated files are his plan.
+test('the match: a video or a picture with no row of its kind within a day makes a new row on its day; never next to one, never footage, never outside the package', () => {
+  const range = { from: '2026-08-19', to: '2027-02-19' };
+  const rows = [
+    row('v12', '2026-11-13', 'video', { num: 12, key: 'video.12', link: 'https://drive.google.com/file/d/v12/view' }),
+    row('g4', '2026-11-04', 'graphic', { num: 4, key: 'graphic.4' }),
+  ];
+  const plan = matchFiles(rows, [
+    file('13.11.2026 רילס.mp4'),                                       // video.12 is that day, with its link: no second row
+    file('20.11 רילס.mp4'),                                            // nothing within a day: video.13 on the 20th
+    file('20.11 עוד.mp4'),                                             // the row just made is there: no second one
+    file('22.11 עיצוב.png', 'image/png'),                              // a picture: graphic.5
+    { ...file('25.11 גלם.mp4'), path: 'יום צילום 2' },                  // footage of a shoot: never a row
+    file('1.3 x.mp4', 'video/mp4', '2027-02-20T10:00:00Z'),            // after the package
+    file('3.11 מסמך.pdf', 'application/pdf'),                          // neither a video nor a picture
+  ], { range });
+  assert.deepEqual(plan.creates.map((c) => [c.key, c.kind, c.num, c.title, c.day, c.time_il, c.file]), [
+    ['video.13', 'video', 13, 'סרטון 13', '2026-11-20', '19:00', '20.11 עוד.mp4'], // by name: עוד before רילס
+    ['graphic.5', 'graphic', 5, 'גרפיקה 5', '2026-11-22', '13:00', '22.11 עיצוב.png'],
+  ]);
+  assert.equal(plan.already, 1);
+  assert.deepEqual(plan.unplaced.map((u) => u.name).sort(), ['1.3 x.mp4', '20.11 רילס.mp4', '25.11 גלם.mp4', '3.11 מסמך.pdf'].sort());
+  // An empty Gantt of a package into 2027: "13.1.2026" is January 2027 (a year typo).
+  const typo = matchFiles([], [file('13.1.2026 גרפיקה.png', 'image/png')], { range: { from: '2026-06-03', to: '2027-06-03' } });
+  assert.deepEqual(typo.creates.map((c) => [c.key, c.day, c.typo]), [['graphic.1', '2027-01-13', true]]);
+});
+
+// אלאור בוטיק, 11.11.2026 (the owner: "שלא יהיה יותר"): the files are named year first
+// ("2026-11-11 - סרטון 9.mp4", in "סרטונים מוכנים") and the rows are Metricool's 'custom' rows
+// (Wednesdays videos, Thursdays graphics). Before the fix no date was read, nothing linked.
+test('the match: a name with the year first links to the row of its date, a Metricool row or the row of its kind it became', () => {
+  assert.deepEqual(dateOfName('2026-11-11 - סרטון 9.mp4'), { day: 11, month: 11, year: 2026 });
+  assert.deepEqual(dateOfName('2026.12.30 סרטון 16.mp4'), { day: 30, month: 12, year: 2026 });
+  assert.deepEqual(dateOfName('2026_1_5 x.png'), { day: 5, month: 1, year: 2026 });
+  assert.equal(dateOfName('2026-13-01 x'), null);
+  const wed = ['2026-11-11', '2026-11-18', '2026-11-25', '2026-12-02', '2026-12-09', '2026-12-16', '2026-12-23', '2026-12-30'];
+  const thu = ['2026-11-12', '2026-11-19'];
+  const custom = [
+    ...wed.map((d, i) => row(`w${i}`, d, 'custom', { key: `mc.${400 + i}`, time_il: '18:00' })),
+    ...thu.map((d, i) => row(`t${i}`, d, 'custom', { key: `mc.${500 + i}`, time_il: '18:00' })),
+  ];
+  const files = [
+    ...wed.map((d, i) => ({ ...file(`${d} - סרטון ${9 + i}.mp4`), path: 'סרטונים מוכנים' })),
+    ...thu.map((d, i) => ({ ...file(`${d} - גרפיקה ${3 + i}.png`, 'image/png'), path: 'גרפיקות' })),
+  ];
+  const plan = matchFiles(custom, files, { range: { from: '2026-10-01', to: '2027-10-01' } });
+  assert.deepEqual(plan.fills.map((f) => [f.id, f.file]).sort(), [...wed.map((d, i) => [`w${i}`, `${d} - סרטון ${9 + i}.mp4`]), ...thu.map((d, i) => [`t${i}`, `${d} - גרפיקה ${3 + i}.png`])].sort());
+  assert.deepEqual([plan.creates, plan.unplaced], [[], []]);
+  // The same rows after the sync made them a video and a graphic: the same links.
+  const kinds = custom.map((r) => ({ ...r, kind: r.id.startsWith('w') ? 'video' : 'graphic' }));
+  assert.equal(matchFiles(kinds, files).fills.length, wed.length + thu.length);
 });

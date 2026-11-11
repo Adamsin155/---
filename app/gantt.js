@@ -20,7 +20,7 @@ import { GANTT_KINDS, KIND_ORDER, TEMPLATE_TEXT, TEMPLATE_VERSION, WEEKDAY_NAMES
 import {
   generatePlan, planFrom, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
   holidayName, contractEndKey, safeLink, isCustom, timeText, STATUS_TEXT, CLIENT_STATUS_TEXT, DAY_KEY, TIME_KEY, byWhen, monthRange, fileTitle,
-  clientStatus, nextState, toSchedule, weekOf, nextPost, addDays,
+  clientStatus, nextState, toSchedule, weekOf, nextPost, addDays, quota,
 } from './gantt-logic.js';
 import { isOwnerView } from './team-rules.js';
 // Who changes a Gantt besides the owners: GANTT_EDITORS in app/shell-rules.js (a copy here, so the
@@ -363,7 +363,12 @@ function renderStats() {
   // "חסרים": past their time and neither scheduled nor up. The alert colour only when there are any.
   // A failed post is one of them (it needs someone), and is named. Never on the client's link.
   const bad = t.missing + t.errors;
+  // "סרטונים: תוזמנו X מתוך N בחבילה" (the owner, 11.11.2026): the Gantt holds only what is
+  // scheduled, so the package's count is said next to it. Not on the client's link (no package there).
+  const q = quota(client, rows);
+  const quotaLine = !SHARE && q.length ? h('p', { class: 'gt-quota', id: 'gt-quota' }, ...q.map((x) => h('span', { class: 'gt-quota-i', 'data-kind': x.kind }, h('strong', {}, `${x.label}:`), ` תוזמנו ${x.done} מתוך ${x.of} בחבילה`))) : null;
   $('gt-stats').replaceChildren(...[
+    quotaLine,
     stat('st-posts', 'פרסומים בשנה', String(t.posts)),
     stat('st-up', 'עלו', `${t.posted}`, h('span', { class: 'gt-meter', role: 'img', 'aria-label': `${pct} אחוז עלו` }, h('span', { style: `inline-size:${pct}%` }))),
     stat('st-sched', 'תוזמנו', String(t.scheduled)),

@@ -352,6 +352,18 @@ test('an extra "custom" row the sync made before 11.11.2026 becomes a row of its
   assert.equal(sync(next, listing).stats.changed, 0);
 });
 
+// אלאור בוטיק, 11.11.2026: a monthly client whose Gantt is only Metricool's extra rows; Wednesdays go to
+// TikTok too (videos), Thursdays to Instagram and Facebook only (graphics).
+test('Metricool\'s extra rows of a monthly client become its videos and graphics, in the order of the posts', () => {
+  const p = (id, dateTime, networks) => post(id, dateTime, { instagramData: undefined, media: [], providers: networks.map((network) => ({ network, status: 'PENDING' })) });
+  const extra = (id, day, networks) => row(`mc.${id}`, 'custom', day, '18:00', { source: 'metricool', mc_extra: true, mc_post_id: String(id), mc_status: 'pending', mc_at: `${day}T16:00:00.000Z`, mc_networks: networks, state: 'scheduled', edited: true, title: `טקסט ${id}` });
+  const days = [['2026-11-11', ['facebook', 'instagram', 'tiktok']], ['2026-11-12', ['facebook', 'instagram']], ['2026-11-18', ['facebook', 'instagram', 'tiktok']], ['2026-11-19', ['facebook', 'instagram']]];
+  const rows = days.map(([d, n], i) => extra(700 + i, d, n));
+  const plan = sync(rows, days.map(([d, n], i) => p(700 + i, `${d}T18:00:00`, n)));
+  assert.deepEqual(rows.map((r) => [fieldsOf(plan, r)?.key, fieldsOf(plan, r)?.title]), [['video.1', 'סרטון 1'], ['graphic.1', 'גרפיקה 1'], ['video.2', 'סרטון 2'], ['graphic.2', 'גרפיקה 2']]);
+  assert.deepEqual([plan.insert, plan.remove], [[], []]);
+});
+
 test('the kind of a post: the media first, then the type, then TikTok or YouTube', () => {
   assert.equal(postFormat({ media: ['https://x/a.mp4'] }, ['instagram']), 'video');
   assert.equal(postFormat({ instagramData: { type: 'POST' }, media: ['https://x/a.mov'] }), 'video');
@@ -401,7 +413,7 @@ test('a run: each connected client in turn with a pause between two; counts only
   assert.deepEqual(calls.map((c) => [c.path, c.blog, c.user, c.auth]), [['/api/v2/scheduler/posts', '101', '4455', TOKEN], ['/api/v2/scheduler/posts', '102', '4455', TOKEN], ['/api/v2/scheduler/posts', '103', '4455', TOKEN]]);
   assert.deepEqual(sleeps, [PAUSE_MS, PAUSE_MS]);
   assert.deepEqual([w.rows.get('c1')[0].state, w.rows.get('c2')[0].state], ['scheduled', 'scheduled']);
-  assert.deepEqual(w.syncs.get('c2'), { ok: true, error: null, stats: { posts: 1, drafts: 0, matched: 1, extras: 0, scheduled: 1, published: 0, errors: 0, changed: 1, partial: true } });
+  assert.deepEqual(w.syncs.get('c2'), { ok: true, error: null, stats: { posts: 1, drafts: 0, matched: 1, extras: 0, created: 0, scheduled: 1, published: 0, errors: 0, changed: 1, partial: true } });
   const again = await runSync({ db: w.db, fetch, config: CONFIG, now: NOW, sleep: async () => {} });
   assert.deepEqual([again.synced, again.changed], [3, 0]);
   // Nothing of the secret anywhere in what is stored or returned.
