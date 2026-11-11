@@ -32,6 +32,8 @@
 
 /* ── Stats ── */
 .gt-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.gt-quota { grid-column: 1 / -1; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 15px; color: var(--text-2, var(--muted)); }
+.gt-quota strong { color: var(--text, inherit); margin-inline-end: 4px; }
 .gt-stat {
   background: var(--panel); border-radius: var(--ds-r-card); padding: 16px;
   display: grid; gap: 4px; align-content: start; min-inline-size: 0;

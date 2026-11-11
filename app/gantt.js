@@ -18,9 +18,9 @@
 // text nodes, never innerHTML.
 import { GANTT_KINDS, KIND_ORDER, TEMPLATE_TEXT, TEMPLATE_VERSION, WEEKDAY_NAMES } from './gantt-template.js';
 import {
-  generatePlan, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
+  generatePlan, planFrom, planDiff, monthGrid, calendarMonths, packageMonthOf, entryStatus, entriesByDay, yearGlance, totals,
   holidayName, contractEndKey, safeLink, isCustom, timeText, STATUS_TEXT, CLIENT_STATUS_TEXT, DAY_KEY, TIME_KEY, byWhen, monthRange, fileTitle,
-  clientStatus, nextState, toSchedule, weekOf, nextPost, addDays,
+  clientStatus, nextState, toSchedule, weekOf, nextPost, addDays, quota,
 } from './gantt-logic.js';
 import { isOwnerView } from './team-rules.js';
 // Who changes a Gantt besides the owners: GANTT_EDITORS in app/shell-rules.js (a copy here, so the
@@ -343,7 +343,7 @@ function renderEmpty() {
   else if (missing) text = 'הגאנט יישמר אחרי שהמיגרציה של הגאנט תוחל במסד (20261003130000_content_gantt.sql).';
   else if (!client.deal_at) text = 'חסר תאריך החתימה בכרטיס הלקוח. הגאנט נבנה ממנו: החודשים נספרים מיום החתימה.';
   else {
-    const plan = generatePlan(client);
+    const plan = generatePlan(client, undefined, { today: todayKey() });
     const posts = plan.entries.filter((e) => GANTT_KINDS[e.kind].post).length;
     text = canEdit
       ? `התבנית תיצור ${plan.entries.length} פריטים, מהם ${posts} פרסומים, מ־${dmy(plan.entries[0]?.day)} עד ${dmy(plan.endKey)}, לפי הכמויות בחבילה. אחר כך אפשר להזיז כל תאריך ללקוח הזה בלבד.`
@@ -363,7 +363,12 @@ function renderStats() {
   // "חסרים": past their time and neither scheduled nor up. The alert colour only when there are any.
   // A failed post is one of them (it needs someone), and is named. Never on the client's link.
   const bad = t.missing + t.errors;
+  // "סרטונים: תוזמנו X מתוך N בחבילה" (the owner, 11.11.2026): the Gantt holds only what is
+  // scheduled, so the package's count is said next to it. Not on the client's link (no package there).
+  const q = quota(client, rows);
+  const quotaLine = !SHARE && q.length ? h('p', { class: 'gt-quota', id: 'gt-quota' }, ...q.map((x) => h('span', { class: 'gt-quota-i', 'data-kind': x.kind }, h('strong', {}, `${x.label}:`), ` תוזמנו ${x.done} מתוך ${x.of} בחבילה`))) : null;
   $('gt-stats').replaceChildren(...[
+    quotaLine,
     stat('st-posts', 'פרסומים בשנה', String(t.posts)),
     stat('st-up', 'עלו', `${t.posted}`, h('span', { class: 'gt-meter', role: 'img', 'aria-label': `${pct} אחוז עלו` }, h('span', { style: `inline-size:${pct}%` }))),
     stat('st-sched', 'תוזמנו', String(t.scheduled)),
@@ -815,7 +820,7 @@ async function applyBulk(range) {
 
 // ── Update from the template ──────────────
 async function regenerate() {
-  const plan = generatePlan(client);
+  const plan = generatePlan(client, undefined, { today: planFrom(rows, new Date()) });
   if (plan.error) { toast('חסר תאריך החתימה בכרטיס הלקוח.'); return; }
   const diff = planDiff(rows, plan.entries);
   if (!rows.length) return applyRegen(plan, false);
