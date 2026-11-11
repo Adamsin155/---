@@ -8,7 +8,7 @@
 .pm-sum { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--ds-gap, 12px); }
 .pm-sum > li { display: grid; min-width: 0; }
 .pm-s {
-  display: grid; grid-template-rows: auto 1fr auto; align-content: stretch; gap: 4px; min-width: 0; inline-size: 100%;
+  display: grid; grid-template-rows: auto auto 1fr; align-content: stretch; gap: 4px; min-width: 0; inline-size: 100%;
   padding: 14px; border-radius: var(--radius); background: var(--panel); border: 2px solid transparent;
   color: var(--text); font: inherit; text-align: start; cursor: pointer;
   transition: border-color .15s ease, background-color .15s ease;
@@ -17,15 +17,18 @@
 .pm-s.is-on { border-color: var(--ds-navy, #1B2A4E); background: var(--ds-surface, var(--panel)); }
 .pm-s .pm-s-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pm-s .k { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
-.pm-s .v { font-family: var(--font-h); font-size: 38px; font-weight: 400; line-height: 1; align-self: end; font-variant-numeric: tabular-nums; }
-.pm-s-sub { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
-.pm-s-money { display: grid; gap: 1px; color: var(--text-2); }
+.pm-s-n { display: flex; align-items: baseline; gap: 6px; margin-block-start: 4px; }
+.pm-s .v { font-family: var(--font-h); font-size: 38px; font-weight: 400; line-height: 1; font-variant-numeric: tabular-nums; }
+.pm-s-w { font-size: 13px; color: var(--muted); }
+
+.pm-s-money { display: grid; align-content: start; gap: 1px; font-size: 13px; color: var(--text-2); }
 .pm-s-line .num { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .pm-s-none .v { color: var(--muted); }
 
 /* ── The table ── */
 .pm-tools { grid-template-columns: minmax(180px, 360px); }
 .pm td { vertical-align: middle; }
+.mt.pm td:nth-child(2) { min-inline-size: 0; max-inline-size: none; white-space: nowrap; } /* not manager.css's second column (a name there; the amount here) */
 .pm td:first-child { white-space: normal; }
 .pm td:first-child .mt-name { display: inline-block; max-inline-size: 260px; }
 .pm .num { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
@@ -42,10 +45,13 @@
 .pm-pill-checks { background: var(--k-orange-soft); color: var(--k-orange); }
 .pm-pill-transfer { background: var(--k-blue-soft); color: var(--k-blue); }
 .pm-pill-card { background: var(--k-teal-soft); color: var(--k-teal); }
-.pm .pm-checks { white-space: normal; min-inline-size: 120px; max-inline-size: 200px; }
+.pm .pm-checks { white-space: normal; min-inline-size: 110px; max-inline-size: 170px; }
+.pm .pm-lines { display: grid; gap: 1px; }
+.pm .pm-checks .pm-line + .pm-line { font-size: 12.5px; color: var(--text-2); }
 .pm .pm-act { white-space: nowrap; }
 .pm .pm-act .btn { min-height: 40px; }
-.pm .pm-new { margin-inline-start: 6px; min-block-size: 40px; }
+.pm .pm-new { display: block; margin: 2px 0 0; min-block-size: 32px; font-size: 13px; }
+.pm th, .pm td { padding-inline: 8px; }
 .pm tr.pm-old td { background: var(--ds-ground, var(--bg-2)); color: var(--text-2); }
 .pm tr.pm-old td:first-child { background: var(--ds-ground, var(--bg-2)); }
 .pm-old-h { font-size: 13px; color: var(--muted); padding-inline-start: 12px; }
@@ -79,8 +85,11 @@
 }
 @media (max-width: 760px) {
   .pm-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .pm-s { padding: 12px; }
-  .pm-s .v { font-size: 30px; }
+  .pm-s { padding: 10px 12px; gap: 2px; }
+  .pm-s .k { font-size: 13.5px; }
+  .pm-s-money { font-size: 12.5px; }
+  .pm-s .v { font-size: 26px; }
+  .pm-s-n { margin: 0; }
   .pm-tools { grid-template-columns: 1fr; }
   .pm-wrap { overflow: visible; max-block-size: none; min-block-size: 0; background: none; }
   .pm, .pm tbody { display: block; inline-size: 100%; min-inline-size: 0; }
@@ -104,7 +113,12 @@
   .pm-old-h { padding: 6px 0 0; }
   .pm .pm-checks { max-inline-size: none; }
   .pm tbody td.pm-act { display: flex; justify-content: flex-start; gap: 8px; padding-block-start: 8px; }
-  .pm tbody td.pm-act .btn { flex: 1 1 auto; min-height: 44px; justify-content: center; }
+  .pm tbody td.pm-act .btn { flex: 0 0 auto; min-inline-size: 96px; min-height: 44px; justify-content: center; }
+  /* A client with no deal: the name, then "לא הוזן" and "הוספה" on one line. */
+  .pm tbody tr.is-empty { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+  .pm tbody tr.is-empty td:first-child { grid-column: 1 / -1; }
+  .pm tbody tr.is-empty td.pm-empty { justify-content: flex-start; }
+  .pm tbody tr.is-empty td.pm-act { padding: 0; }
   .pm .pm-new { margin: 0; min-block-size: 44px; }
   .pm tbody tr.pm-none-row { padding: 0; background: none; }
   .pm tbody tr.pm-none-row td { display: block; }

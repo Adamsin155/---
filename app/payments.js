@@ -62,17 +62,18 @@ const TONE = { payment: 'purple', checks: 'orange', transfer: 'blue', card: 'tea
 const ICON = { payment: 'bolt', checks: 'file', transfer: 'link', card: 'check-circle', [NONE]: 'question', '': 'users' };
 function sumTile(s) {
   const on = f.method === s.key;
-  const money = s.key === NONE ? null : [
+  // The sums only where there is something to sum.
+  const money = s.key === NONE || !s.clients ? null : h('span', { class: 'pm-s-money' },
     h('span', { class: 'pm-s-line' }, 'עסקאות ', h('bdi', { class: 'num' }, moneyText(s.amount))),
-    h('span', { class: 'pm-s-line' }, 'ריטיינר ', h('bdi', { class: 'num' }, moneyText(s.retainer)), ' לחודש')];
+    h('span', { class: 'pm-s-line' }, 'ריטיינר ', h('bdi', { class: 'num' }, moneyText(s.retainer)), ' לחודש'));
   return h('li', {},
     h('button', {
       type: 'button', class: `pm-s pm-s-${s.key || 'all'}${on ? ' is-on' : ''}`, 'aria-pressed': String(on), 'data-method': s.key,
       onclick: () => { f.method = on && s.key ? '' : s.key; render(); },
     },
     h('span', { class: 'pm-s-h' }, iconSquare(ICON[s.key], TONE[s.key], { size: 'sm' }), h('span', { class: 'k' }, s.label)),
-    h('strong', { class: 'v ds-num' }, String(s.clients)),
-    h('span', { class: 'pm-s-sub' }, s.clients === 1 ? 'לקוח' : 'לקוחות', ...(money ? [h('span', { class: 'pm-s-money' }, ...money)] : []))));
+    h('span', { class: 'pm-s-n' }, h('strong', { class: 'v ds-num' }, String(s.clients)), h('span', { class: 'pm-s-w' }, s.clients === 1 ? 'לקוח' : 'לקוחות')),
+    money));
 }
 
 // ── The table ───────────────────────────────
@@ -85,7 +86,7 @@ function dealCells(p) {
     h('td', { 'data-label': 'סכום העסקה', class: 'is-num' }, money(p.amount)),
     h('td', { 'data-label': 'ריטיינר חודשי', class: 'is-num' }, money(p.retainer)),
     h('td', { 'data-label': 'אמצעי תשלום' }, methodPill(p.method)),
-    h('td', { 'data-label': 'שיקים', class: 'pm-checks' }, p.method === 'checks' ? checksText(p) : h('span', { class: 'pm-dash', 'aria-label': 'אין' }, '—')),
+    h('td', { 'data-label': 'שיקים', class: 'pm-checks' }, p.method === 'checks' ? h('span', { class: 'pm-lines' }, ...checksText(p).split(' · ').map((t) => h('span', { class: 'pm-line' }, t))) : h('span', { class: 'pm-dash', 'aria-label': 'אין' }, '—')),
     h('td', { 'data-label': 'תאריך העסקה' }, day(p.deal_date)),
   ];
 }
@@ -93,7 +94,7 @@ function actCell(r, p) {
   if (!edits()) return null;
   return h('td', { class: 'pm-act' },
     h('button', {
-      type: 'button', class: p ? 'btn btn-sm' : 'btn btn-sm btn-primary', 'data-act': p ? 'edit' : 'add',
+      type: 'button', class: 'btn btn-sm', 'data-act': p ? 'edit' : 'add',
       'aria-label': `${p ? 'עריכת' : 'הוספת'} פרטי התשלום של ${r.label}`, onclick: (e) => openForm(r, p, e.currentTarget),
     }, p ? 'עריכה' : 'הוספה'),
     p && p === r.latest ? h('button', {

@@ -20,7 +20,8 @@ const SHOTS = process.env.SHOTS === '1' && !!process.env.SHOTS_OUT;
 const OUT = `${String(process.env.SHOTS_OUT || '').replace(/[\\/]+$/, '')}/`;
 const errors = [];
 const settle = async (page) => { await page.waitForLoadState('networkidle').catch(() => {}); await page.waitForTimeout(400); };
-const shot = async (page, name, full = false) => { if (SHOTS) await page.screenshot({ path: `${OUT}payments-${name}.png`, fullPage: full }); };
+// After the sign-in screen has faded out (html[data-door]).
+const shot = async (page, name, full = false) => { if (!SHOTS) return; await page.waitForFunction(() => !document.documentElement.hasAttribute('data-door'), null, { timeout: 5000 }).catch(() => {}); await page.waitForTimeout(900); await page.screenshot({ path: `${OUT}payments-${name}.png`, fullPage: full }); };
 const text = async (loc) => (await loc.innerText()).replace(/\s+/g, ' ').trim();
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*' };
 
@@ -112,6 +113,8 @@ await step('1  iPhone (WebKit), the owner: the summary, "לא הוזן", a tile 
   assert.ok(await noSideways(page), 'no sideways scroll');
   await shot(page, 'owner-390');
   await shot(page, 'owner-390-full', true);
+  await page.locator('#pm-q').scrollIntoViewIfNeeded();
+  await shot(page, 'owner-390-list');
   // A tile filters, and a second tap shows everyone again.
   await tileOf(page, 'checks').tap();
   assert.equal(await page.locator('#pm-body tr.pm-row').count(), 1);
@@ -156,7 +159,8 @@ await step('1  iPhone (WebKit), the owner: the summary, "לא הוזן", a tile 
   await settle(page);
   assert.deepEqual(deals(NEW).map((p) => [p.amount, p.retainer, p.method, p.checks_count, p.first_check_date, p.deal_date, p.note]),
     [[21240, 1500, 'checks', 12, '2026-12-01', '2026-10-20', 'שיקים בדואר']]);
-  assert.match(await text(rowOf(page, NEW)), /21,240 ₪.*1,500 ₪.*שיקים.*12 שיקים · הראשון ב־1.12.2026.*20.10.2026.*עריכה/);
+  await rowOf(page, NEW).scrollIntoViewIfNeeded();
+  assert.match(await text(rowOf(page, NEW)), /21,240 ₪.*1,500 ₪.*שיקים.*12 שיקים.*הראשון ב־1.12.2026.*20.10.2026.*עריכה/);
   assert.match(await text(tileOf(page, 'checks')), /שיקים 2 לקוחות/);
   assert.ok(await noSideways(page), 'no sideways scroll after saving');
   await shot(page, 'owner-390-saved');
