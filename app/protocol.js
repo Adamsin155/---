@@ -813,8 +813,10 @@ export const PROCESSES = [
   },
   {
     id: 'p09', num: '9', phase: 'parallel', title: 'פתיחת גאנט שנתי', owners: ['ilai'],
-    sla: '5 דקות',
-    start: { from: 'charEnd' }, due: { from: 'charEnd', minutes: 5 },
+    // No clock (the owner, 11.11.2026: "שיקבל התראה בלי זמן"): Ilai hears when the characterization
+    // ends, and the step waits for him without a deadline or "באיחור".
+    sla: 'בלי זמן קצוב: עילאי מקבל התראה כשהאפיון מסתיים',
+    start: { from: 'charEnd' },
     what: 'עילאי פותח את גאנט התוכן של הלקוח במערכת. בשלב זה מכינים רק את המבנה; הסרטונים נוספים אחרי העריכה.',
     items: [
       // v13: one item (the same key, so a gantt already opened stays done); its seven columns left.

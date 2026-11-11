@@ -174,14 +174,15 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
   // (the old summary waited 24 hours before it said so).
   const mon = at(IL(2026, 10, 5, 19));
   // (Until v12 Lior had a row too: his Meta check, 10, late, and on Tuesday the focus call, 12א. Both left.)
-  assert.equal(headline(mon), 'היום: 5 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
+  assert.equal(headline(mon), 'היום: 4 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
   // (v13: "הכול בכספת", p05.vault, left as Irit's item: 5 is Ofir's alone, and Irit's one late thing is the task.)
-  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['ofir', 2, '6 שעות'], ['ilai', 2, '6 שעות'], ['irit', 1, '2 ימי עסקים']]);
+  assert.deepEqual(mon.rows.map((r) => [r.person, r.late, r.longest]), [['ofir', 2, '6 שעות'], ['irit', 1, '2 ימי עסקים'], ['ilai', 1, '4 שעות']]);
+  // (11.11.2026: Ilai's yearly gantt, 9, has no clock and is never late: his one late thing is 7.)
   // Tuesday: a day later.
   const tue = at(IL(2026, 10, 6, 19));
-  assert.equal(headline(tue), 'היום: 5 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
+  assert.equal(headline(tue), 'היום: 4 באיחור אצל 3 עובדים, כל מה שהיה להיום בוצע');
   assert.deepEqual(tue.items.map((x) => `${x.kind}:${x.what}:${x.who}`), [
-    'late:לשלוח חשבונית:irit', 'late:5 · לקיחת גישות לרשתות:ofir', 'late:9 · פתיחת גאנט שנתי:ilai', 'late:7 · הכנת 9 גרפיקות ראשונות:ilai',
+    'late:לשלוח חשבונית:irit', 'late:5 · לקיחת גישות לרשתות:ofir', 'late:7 · הכנת 9 גרפיקות ראשונות:ilai',
     'late:8 · הכנת Highlights:ofir',
   ]);
   // One message at 19:00 with the numbers in it, none at 18:00.
@@ -189,7 +190,7 @@ test('the owners\' end of the day (19:00) replaced the 18:00 summary: everything
   const d = planDigests({ env, now: IL(2026, 10, 6, 19), log: [], active: new Set() }).filter((x) => x.person === 'owner');
   assert.equal(d.length, 1);
   assert.deepEqual(d[0].lines, pushLines(tue));
-  assert.equal(d[0].lines[3], 'עירית: 1 באיחור (הארוך: 3 ימי עסקים)');
+  assert.equal(d[0].lines[2], 'עירית: 1 באיחור (הארוך: 3 ימי עסקים)');
   const env18 = buildEnv({ ...w, now: IL(2026, 10, 6, 18) });
   assert.equal(planDigests({ env: env18, now: IL(2026, 10, 6, 18), log: [], active: new Set() }).filter((x) => x.person === 'owner').length, 0);
   // Nothing late and nothing left: still sent, one friendly sentence.

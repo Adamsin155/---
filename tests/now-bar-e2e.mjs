@@ -374,14 +374,11 @@ await page.goto('about:blank');
 await page.goto(`${BASE}clients.html`);
 await page.waitForSelector('#view-mine:not([hidden]) .wproc');
 assert.match(await page.locator('#me-bar').innerText(), /עילאי/);
-// His one clock: the sea shop's annual Gantt (process 9), due 10:45.
-assert.deepEqual(await page.locator('#now-bar .now-clock').evaluateAll((els) => els.map((e) => e.dataset.clock)), [`soon:${sea.id}:p09`]);
-// No clock of his at all: no bar.
-sea.status = 'ended';
-await page.reload();
-await page.waitForSelector('#view-mine:not([hidden]) .wproc');
+// His one clock was the sea shop's annual Gantt (process 9). It has no clock since 11.11.2026
+// (the owner): it is in his list, and the others' clocks the owner saw are not his: no bar.
+assert.match(await page.locator('#view-mine').innerText(), /פתיחת גאנט שנתי/);
+assert.equal(await page.locator('#now-bar .now-clock').count(), 0);
 assert.equal(await page.isHidden('#now-bar'), true);
-sea.status = 'active';
 db.staff[0].person = 'irit'; await newRole(page);
 
 // ── A deadline that is not a clock still alerts when it turns overdue ──

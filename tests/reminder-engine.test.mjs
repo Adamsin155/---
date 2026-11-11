@@ -191,7 +191,8 @@ test('"the meeting ended" starts the clocks of 6–10: one message each, and 30 
   const at = due(w, IL(2026, 10, 6, 12, 30));
   const ilai = one(at, 'started', 'start', 'ilai');
   assert.equal(ilai.exempt, 'clock');
-  assert.match(ilai.body, /הכנת 9 גרפיקות ראשונות עד היום 14:30 · פתיחת גאנט שנתי עד היום 12:35/);
+  // 9 has no clock since 11.11.2026 (the owner): it is in the message, without a time.
+  assert.match(ilai.body, /הכנת 9 גרפיקות ראשונות עד היום 14:30 · פתיחת גאנט שנתי \(בלי זמן קצוב\)/);
   one(at, 'started', 'start', 'ofir');
   // v12: Lior's Meta check (10) left the protocol: no clock of his starts here.
   none(at.filter((r) => r.person === 'lior'), 'started');
@@ -202,6 +203,10 @@ test('"the meeting ended" starts the clocks of 6–10: one message each, and 30 
   // Ofir's highlights are done: no reminder for him.
   marks(w, c, itemsOf('p08'), IL(2026, 10, 6, 13));
   none(due(w, IL(2026, 10, 6, 14)).filter((r) => r.person === 'ofir'), 'started');
+  // Ilai's graphics (7) are done and only the gantt (9) is open: no "30 minutes left", no late, ever.
+  marks(w, c, itemsOf('p07'), IL(2026, 10, 6, 13));
+  none(due(w, IL(2026, 10, 6, 14)).filter((r) => r.person === 'ilai'), 'started', 'pre30');
+  assert.equal(due(w, IL(2026, 10, 8, 17)).filter((r) => r.person === 'ilai' && /גאנט/.test(`${r.title} ${r.body}`) && /באיחור|איחור/.test(`${r.title} ${r.body}`)).length, 0);
   // Ended late in the day: the office clock runs on the next morning.
   const w2 = world();
   const c2 = client(w2, { char_at: IL(2026, 10, 6, 15).toISOString() });

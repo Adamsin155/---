@@ -417,8 +417,10 @@ test('Ilai\'s characterization day: one line per client with the nearest due; th
   assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, IL(2026, 10, 21, 12, 30)), checks: w.checks, now: IL(2026, 10, 21, 12, 30) }).length, 0);
   assert.equal(card.length, 1);
   assert.deepEqual(card[0].lines.map((l) => l.key), ['graphics', 'gantt', 'logo']);
-  assert.equal(card[0].next.key, 'gantt'); // 5 minutes after the meeting: the nearest
-  assert.equal(hhmm(card[0].next.due), '20.10 12:05');
+  // The gantt (9) has no clock since 11.11.2026 (the owner): the nearest is the graphics, two office hours.
+  assert.equal(card[0].lines.find((l) => l.key === 'gantt').due, null);
+  assert.equal(card[0].next.key, 'graphics');
+  assert.equal(hhmm(card[0].next.due), '20.10 14:00');
   // Process 6 open in full does not keep his card: it is not his.
   marks(w, c, ['p07.made', ...GANTT_KEYS, 'p05.newlogo'], IL(2026, 10, 20, 13));
   assert.equal(charDay({ clients: w.clients, stateOf: stateOfW(w, now), checks: w.checks, now }).length, 0);
