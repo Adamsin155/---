@@ -23,6 +23,8 @@ const officeOf = (v) => known(v) && v.scope === 'office';
 const sendsMessages = (v) => known(v) && ((!v.me && v.scope === 'office') || ['irit', 'lior', 'ofir'].includes(v.me));
 const seesInsights = (v) => known(v) && ((!v.me && v.scope === 'office') || ['lior', 'irit', 'ofir'].includes(v.me));
 const seesAllClients = (v) => canSeeTable(v);
+// As canSeePayments (payments-logic.js): the owners and Ofir.
+const seesPayments = (v) => isOwnerView(v) || (known(v) && v.me === 'ofir');
 // The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
 // field sales (as seesCalendar in calendar-view.js).
 const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
@@ -119,6 +121,10 @@ export function menuOf(viewer) {
   // never takes a place in the bottom bar (barOf), so that nobody's bar changes.
   if (canAsk(viewer)) list.push(ASK_ITEM);
   if (canManageTeam(viewer)) list.push({ id: 'team', href: 'team.html', label: 'צוות' });
+  // "תשלומי לקוחות" (the owner, 11.11.2026; payments.html): how each client pays. The owners,
+  // who write, and Ofir, who reads (public.client_payments decides the same). Nothing of the
+  // payments app below: that one stays the owners' only.
+  if (seesPayments(viewer)) list.push({ id: 'payments', href: 'payments.html', label: 'תשלומי לקוחות' });
   // The payments app (payouts/, another app with its own gate, public.payout_owners): the owners
   // only, also after 4.11.2026 (the managers have everything else of the owners' menu).
   if (isOwnerView(viewer)) list.push({ id: 'payouts', href: 'payouts/', label: 'אסטרטג פיימנט' });
