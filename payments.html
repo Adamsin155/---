@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="he" dir="rtl" data-boot>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Only this site's own files, and the office's database and files (docs/ops.md, section 36). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://czncjzziqrqtezpwxxpz.supabase.co; media-src 'self' blob: https://czncjzziqrqtezpwxxpz.supabase.co; font-src 'self' data:; connect-src 'self' https://czncjzziqrqtezpwxxpz.supabase.co; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <!-- First, before any script: the page takes part in the move from the screen before it (app/styles/nav.css). -->
+  <link rel="stylesheet" href="app/styles/nav.css">
+  <!-- Never inside another site's frame. First, and not a module: it runs before the page is drawn. -->
+  <script src="app/frame-guard.js"></script>
+  <!-- The sign-in screen (docs/ops.md, section 51): what the first paint is, before the page is drawn. -->
+  <script src="app/login-gate.js"></script>
+  <!-- The app's frame (the menu, the name) in the first paint, as it was last drawn in this tab (docs/ops.md, section 60). -->
+  <script src="app/shell-gate.js"></script>
+  <link rel="stylesheet" href="app/styles/login.css">
+  <title>תשלומי לקוחות · astrateg</title>
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" href="app/assets/logo-mark.png">
+  <link rel="manifest" href="clients.webmanifest">
+  <link rel="apple-touch-icon" href="payouts/icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#EEF0F4">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="אסטרטג לקוחות">
+  <link rel="stylesheet" href="app/fonts/fonts.css">
+  <link rel="stylesheet" href="app/styles/tokens.css">
+  <link rel="stylesheet" href="app/styles/app.css">
+  <link rel="stylesheet" href="app/styles/quotes.css">
+  <link rel="stylesheet" href="app/styles/protocol.css">
+  <link rel="stylesheet" href="app/styles/protocol-office.css">
+  <link rel="stylesheet" href="app/styles/protocol-roles.css">
+  <link rel="stylesheet" href="app/styles/owner.css">
+  <link rel="stylesheet" href="app/styles/office-flows.css">
+  <link rel="stylesheet" href="app/styles/manager.css">
+  <link rel="stylesheet" href="app/styles/payments.css">
+  <link rel="stylesheet" href="app/styles/kit.css">
+  <link rel="stylesheet" href="app/styles/shell.css">
+  <!-- Written at publish (scripts/build-pages.mjs): what this page will load, asked for together. -->
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-hebrew.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/heebo-latin.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-hebrew.woff2" crossorigin>
+  <link rel="preload" as="font" type="font/woff2" href="app/fonts/varela-round-latin.woff2" crossorigin>
+  <link rel="modulepreload" href="app/supa.js">
+  <link rel="modulepreload" href="app/protocol-data.js">
+  <link rel="modulepreload" href="app/protocol-ui.js">
+  <link rel="modulepreload" href="app/kit.js">
+  <link rel="modulepreload" href="app/payments-logic.js">
+  <link rel="modulepreload" href="app/vendor/supabase.js">
+  <link rel="modulepreload" href="app/landing-data.js">
+  <link rel="modulepreload" href="app/access-logic.js">
+  <link rel="modulepreload" href="app/log-brief.js">
+  <link rel="modulepreload" href="app/session-store.js">
+  <link rel="modulepreload" href="app/quote-doc.js">
+  <link rel="modulepreload" href="app/protocol.js">
+  <link rel="modulepreload" href="app/protocol-logic.js">
+  <link rel="modulepreload" href="app/tz.js">
+  <link rel="modulepreload" href="app/shoot-prep.js">
+  <link rel="modulepreload" href="app/set-password.js">
+  <link rel="modulepreload" href="app/login-ui.js">
+  <link rel="modulepreload" href="app/manager-rules.js">
+  <link rel="modulepreload" href="app/visit.js">
+  <link rel="modulepreload" href="app/whatsapp.js">
+  <link rel="modulepreload" href="app/shell.js">
+  <link rel="modulepreload" href="app/data-cache.js">
+  <link rel="modulepreload" href="app/feel.js">
+  <link rel="modulepreload" href="app/pricing.js">
+  <link rel="modulepreload" href="app/catalog.js">
+  <link rel="modulepreload" href="app/holidays.js">
+  <link rel="modulepreload" href="app/protocol-versions.js">
+  <link rel="modulepreload" href="app/messages-logic.js">
+  <link rel="modulepreload" href="app/team-rules.js">
+  <link rel="modulepreload" href="app/shell-state.js">
+  <link rel="modulepreload" href="app/staff-notes-ui.js">
+  <link rel="modulepreload" href="app/shell-rules.js">
+  <link rel="modulepreload" href="app/legal.js">
+  <link rel="modulepreload" href="app/access-nudge.js">
+  <link rel="modulepreload" href="app/staff-notes-logic.js">
+  <link rel="modulepreload" href="app/ask-logic.js">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="clients.html" aria-label="astrateg · לקוחות ופרוטוקול">
+      <img class="brand-logo" src="app/assets/logo.png" alt="" width="403" height="280">
+      <span class="brand-sep" aria-hidden="true"></span>
+      <span class="brand-product">תשלומי לקוחות</span>
+    </a>
+    <nav aria-label="ניווט ראשי">
+      <a class="navlink" href="clients.html#mine">לקוחות</a>
+      <a class="navlink" href="payments.html" aria-current="page">תשלומי לקוחות</a>
+      <span class="session"><span class="dot" id="session-dot"></span><span class="who" id="session-who">לא מחובר</span></span>
+      <button type="button" class="btn btn-sm btn-ghost" id="btn-logout" hidden>התנתקות</button>
+    </nav>
+  </header>
+
+  <main class="list-shell" id="main">
+    <section class="block" id="login-block" hidden aria-labelledby="lg-h">
+      <form class="login" id="login-form" novalidate>
+        <h2 id="lg-h">ברוכים השבים</h2>
+        <div class="field"><label for="lg-email">אימייל</label><input class="input" id="lg-email" type="email" dir="ltr" autocomplete="username" required></div>
+        <div class="field"><label for="lg-pass">סיסמה</label><input class="input" id="lg-pass" type="password" dir="ltr" autocomplete="current-password" required></div>
+        <div class="err" id="lg-err" role="alert" hidden></div>
+        <div class="note-ok" id="lg-msg" role="status" hidden></div>
+        <button type="submit" class="btn btn-primary" id="lg-submit">כניסה</button>
+        <button type="button" class="btn-text" id="lg-forgot">שכחתי סיסמה</button>
+      </form>
+    </section>
+
+    <div id="app" class="pr-app of-app pm-app" hidden>
+      <!-- "תשלומי לקוחות" (the owner, 11.11.2026; docs/ops.md, section 130): app/payments.js. -->
+      <div id="pm-page" hidden>
+        <div class="page-head">
+          <div>
+            <div class="kicker latin">CLIENT PAYMENTS</div>
+            <h1>תשלומי לקוחות</h1>
+            <p id="pm-sub">איך כל לקוח משלם: סכום העסקה, הריטיינר החודשי ואמצעי התשלום.</p>
+          </div>
+          <div class="head-actions">
+            <button type="button" class="btn btn-sm btn-ghost" id="btn-refresh">רענון</button>
+          </div>
+        </div>
+
+        <!-- The summary is also the filter: a tap shows only that method's clients. -->
+        <section aria-labelledby="pm-sum-h">
+          <h2 class="sr-only" id="pm-sum-h">סיכום לפי אמצעי תשלום</h2>
+          <ul class="pm-sum" id="pm-sum"></ul>
+        </section>
+
+        <section class="block mt-view pm-view" aria-labelledby="pm-h">
+          <h2 class="sr-only" id="pm-h">הלקוחות ואיך הם משלמים</h2>
+          <div class="mt-tools pm-tools" role="search" aria-label="חיפוש לקוח">
+            <div class="field mt-search"><label for="pm-q">חיפוש לקוח</label><input class="input" id="pm-q" type="search" placeholder="שם העסק או איש הקשר" autocomplete="off"></div>
+          </div>
+          <p class="mt-count" id="pm-count" role="status" aria-live="polite"></p>
+          <div class="mt-wrap pm-wrap" id="pm-wrap" tabindex="0" role="region" aria-labelledby="pm-h">
+            <table class="mt pm" id="pm">
+              <thead><tr id="pm-head">
+                <th scope="col"><span>לקוח</span></th>
+                <th scope="col"><span>סכום העסקה</span></th>
+                <th scope="col"><span>ריטיינר חודשי</span></th>
+                <th scope="col"><span>אמצעי תשלום</span></th>
+                <th scope="col"><span>שיקים</span></th>
+                <th scope="col"><span>תאריך העסקה</span></th>
+              </tr></thead>
+              <tbody id="pm-body"></tbody>
+            </table>
+          </div>
+          <p class="pm-foot" id="pm-foot"></p>
+        </section>
+      </div>
+
+      <section class="block ow-noaccess" id="no-access" hidden aria-labelledby="na-h">
+        <h2 id="na-h">אין לך גישה לעמוד הזה</h2>
+        <p>תשלומי הלקוחות פתוחים לבעלים בלבד. העבודה שלך נמצאת ב״המשימות שלי״.</p>
+        <a class="btn" href="clients.html#mine">מעבר להמשימות שלי</a>
+      </section>
+    </div>
+
+    <p class="state" id="state" role="status"></p>
+  </main>
+
+  <div class="toast pr-toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app/payments.js"></script>
+</body>
+</html>
