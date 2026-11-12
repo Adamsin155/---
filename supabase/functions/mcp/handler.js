@@ -24,7 +24,7 @@
 import { TOOLS, runTool, guardDb } from '../ask/tools.js';
 import { SYSTEM, makeLimiter } from '../ask/handler.js';
 import { PEOPLE, scopeOf } from '../_shared/app/protocol.js';
-import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
+import { serviceAccountOf, makeDrive, folderIdOf } from '../_shared/drive.js';
 import { canBuildQuote } from '../_shared/app/manager-rules.js';
 import { mayUseMcp } from '../_shared/app/mcp-logic.js';
 import { MONEY_RPC, MONEY_RPC_BEFORE } from '../_shared/app/ask-logic.js';
@@ -217,7 +217,7 @@ export function makeHandler(deps) {
     // What goes into mcp_usage as the tool: a name of ours, never words the caller made up.
     const isCall = hasId && msg.method === 'tools/call';
     const asked = isCall && hasFields(msg.params) ? msg.params.name : null;
-    const toolName = asked === DRAFT_TOOL || READ_NAMES.has(asked) || WRITE_NAMES.has(asked) ? asked : 'unknown';
+    const toolName = asked === DRAFT_TOOL || READ_NAMES.has(asked) || WRITE_NAMES.has(asked) || asked === 'drive_folders' ? asked : 'unknown';
 
     // A light limit for each person, before the database is asked anything.
     if (hasId && !allow(user.id, now())) {
@@ -264,7 +264,7 @@ export function makeHandler(deps) {
       case 'ping':
         return rpcResult(id, {});
       case 'tools/list':
-        return rpcResult(id, { tools: [...MCP_READ_TOOLS, ...(canBuildQuote(viewer) ? [draftTool()] : []), ...(owner ? MCP_WRITE_TOOLS : [])] });
+        return rpcResult(id, { tools: [...MCP_READ_TOOLS, ...(canBuildQuote(viewer) ? [draftTool()] : []), ...(owner ? [...MCP_WRITE_TOOLS, FOLDERS_TOOL] : [])] });
       case 'tools/call': {
         const args = hasFields(msg.params) ? msg.params.arguments ?? {} : null;
         if (!hasFields(msg.params) || typeof asked !== 'string' || !hasFields(args)) {
@@ -279,6 +279,9 @@ export function makeHandler(deps) {
           ? await callWrite({ userClient, owner, token, gateKey: await gateKeyOf(), deps, now, baseUrl: baseUrl() }, toolName, args)
           : toolName === DRAFT_TOOL
             ? callDraft(viewer, args)
+            : toolName === FOLDERS_TOOL.name || (toolName === 'drive_files' && owner && folderIdOf(args?.client) && /drive.google.com/.test(String(args?.client)))
+              // A connected Claude keeps the tool list it first saw: an owner may also pass the folder's link as drive_files' "client".
+              ? await callFolders({ owner, deps }, { folder: toolName === 'drive_files' ? args.client : args.folder })
             : await callRead({ userClient, viewer, seesMoney, deps, now }, toolName, args);
         await keepUsage(user.email, toolName, out.code);
         return rpcResult(id, { content: [{ type: 'text', text: out.text }], ...(out.isError ? { isError: true } : {}) });
@@ -322,6 +325,31 @@ async function callWrite({ userClient, owner, token, gateKey, deps, now, baseUrl
     }
   };
   return runWrite({ db: guardWrite(userClient), now: () => new Date(now()), createQuote }, name, args);
+}
+
+// The owners only (11.11.2026): the folders inside one Drive folder (names and links), so the
+// clients' folders can be matched to their cards. Read-only, the robot's metadata scope.
+export const FOLDERS_TOOL = {
+  name: 'drive_folders',
+  description: 'The owners only: the subfolders directly inside one Google Drive folder (name and link), e.g. the main clients folder, to find the folder of each client. Read-only.',
+  inputSchema: { type: 'object', properties: { folder: { type: 'string', description: 'The Drive folder link.' } }, required: ['folder'], additionalProperties: false },
+};
+async function callFolders({ owner, deps }, args) {
+  const fail = (error, code) => ({ text: JSON.stringify({ error, code }), isError: true, code });
+  if (!owner) return fail('רק הבעלים.', 'not_allowed');
+  const id = folderIdOf(args?.folder);
+  if (!id) return fail('זה לא קישור לתיקייה בדרייב.', 'bad_folder');
+  const sa = serviceAccountOf(deps.env('GOOGLE_DRIVE_SERVICE_ACCOUNT'));
+  if (!sa) return fail('הדרייב עוד לא מחובר.', 'drive_off');
+  try {
+    const { files, truncated } = await makeDrive(sa, { fetch: deps.fetch || globalThis.fetch }).list(id, { maxDepth: 0, maxFiles: 2000 });
+    const folders = files.filter((f) => f.mimeType === 'application/vnd.google-apps.folder').map((f) => ({ name: f.name, link: f.link }));
+    return { text: JSON.stringify({ count: folders.length, folders, partial: truncated || undefined }), isError: false, code: 'ok' };
+  } catch (e) {
+    const code = String(e?.code || 'error');
+    if (code === 'no_access') return fail(`אין גישה לתיקייה. צריך לשתף אותה (צפייה) עם ${sa.email}.`, 'no_access');
+    return fail('הדרייב לא ענה כרגע. נסו שוב.', code.slice(0, 20));
+  }
 }
 
 // The draft: for whoever builds a contract. It touches no database and sends nothing.
