@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
-import { makeHandler, sameKey, finishedVideos } from '../supabase/functions/sales-samples/handler.js';
+import { makeHandler, sameKey, finishedVideos, pageHandle } from '../supabase/functions/sales-samples/handler.js';
 import { TOKEN_URL } from '../supabase/functions/_shared/drive.js';
 import { fakeClient } from './fake-pgrest.mjs';
 
@@ -86,6 +86,46 @@ test('the ids: one to three uuids; the robot must be set', async () => {
   const h = handler();
   for (const ids of [[], [A, B, C, A.replace('1', '4')], ['x'], 'A']) assert.equal((await h.handle(post({ client_ids: ids }))).status, 400);
   assert.equal((await handler({ GOOGLE_DRIVE_SERVICE_ACCOUNT: '' }).handle(post({ client_ids: [A] }))).status, 503);
+});
+
+test('the showcase: posted videos with a link and page handles, never a password or a login', async () => {
+  const GANTT = [
+    { client_id: A, kind: 'video', title: 'רילס החלפת שמן', state: 'posted', posted_on: '2026-10-05', link: 'https://www.instagram.com/reel/AAA/', internal: false },
+    { client_id: A, kind: 'custom', title: 'ישן', state: 'posted', posted_on: '2026-09-05', link: 'https://www.instagram.com/reel/OLD/', internal: false },
+    { client_id: A, kind: 'graphic', title: 'גרפיקה', state: 'posted', posted_on: '2026-10-01', link: 'https://www.instagram.com/p/GRA/', internal: false },
+    { client_id: A, kind: 'video', title: 'מתוכנן', state: 'planned', posted_on: null, link: 'https://www.instagram.com/reel/PLN/', internal: false },
+    { client_id: A, kind: 'video', title: 'בלי קישור', state: 'posted', posted_on: '2026-10-06', link: null, internal: false },
+    { client_id: A, kind: 'plan', title: 'תכנון', state: 'posted', posted_on: '2026-10-07', link: 'https://x.test/plan', internal: true },
+    { client_id: C, kind: 'video', title: 'ארכיון', state: 'posted', posted_on: '2026-10-05', link: 'https://www.instagram.com/reel/ARC/', internal: false },
+  ];
+  const ACCESS = [
+    { client_id: A, network: 'instagram', username: '@garage_north', secret_id: 'SECRET' },
+    { client_id: A, network: 'facebook', username: 'owner@gmail.com', secret_id: 'SECRET' },
+    { client_id: A, network: 'tiktok', username: '0501234567', secret_id: 'SECRET' },
+    { client_id: B, network: 'tiktok', username: 'dana.hair', secret_id: 'SECRET' },
+    { client_id: B, network: 'google', username: 'dana.hair', secret_id: 'SECRET' },
+  ];
+  const db = fakeClient({ clients: CLIENTS, client_gantt: GANTT, client_access: ACCESS });
+  const r = await makeHandler({ env: env(), createClient: () => db, fetch: driveFetch() })(post({ showcase: true }));
+  assert.equal(r.status, 200);
+  const { clients } = await r.json();
+  assert.deepEqual(clients, [
+    { id: A, name: 'מוסך הצפון', business: 'מוסך', reels: [
+      { title: 'רילס החלפת שמן', link: 'https://www.instagram.com/reel/AAA/', posted_on: '2026-10-05' },
+      { title: 'ישן', link: 'https://www.instagram.com/reel/OLD/', posted_on: '2026-09-05' }],
+    pages: [{ network: 'instagram', username: 'garage_north' }] },
+    { id: B, name: 'מספרת דנה', business: null, reels: [], pages: [{ network: 'tiktok', username: 'dana.hair' }] },
+  ]);
+  const access = db.reads.find((x) => x.table === 'client_access');
+  assert.ok(!access.cols.includes('secret'), 'the password is never read');
+  assert.ok(!JSON.stringify(clients).includes('gmail') && !JSON.stringify(clients).includes('0501234567'));
+});
+
+test('pageHandle: a handle, not an e-mail or a phone', () => {
+  assert.equal(pageHandle('@natali.dadon'), 'natali.dadon');
+  assert.equal(pageHandle('a@b.com'), null);
+  assert.equal(pageHandle('050-1234567'), null);
+  assert.equal(pageHandle(''), null);
 });
 
 test('finishedVideos keeps three at most', () => {
