@@ -91,7 +91,8 @@ test('the ids: one to three uuids; the robot must be set', async () => {
 test('the showcase: posted videos with a link and page handles, never a password or a login', async () => {
   const GANTT = [
     { client_id: A, kind: 'video', title: 'רילס החלפת שמן', state: 'posted', posted_on: '2026-10-05', link: 'https://www.instagram.com/reel/AAA/', internal: false },
-    { client_id: A, kind: 'video', title: 'ישן', state: 'posted', posted_on: '2026-09-05', link: 'https://www.instagram.com/reel/OLD/', internal: false },
+    { client_id: A, kind: 'custom', title: 'ישן', state: 'posted', posted_on: '2026-09-05', link: 'https://www.instagram.com/reel/OLD/', internal: false },
+    { client_id: A, kind: 'graphic', title: 'גרפיקה', state: 'posted', posted_on: '2026-10-01', link: 'https://www.instagram.com/p/GRA/', internal: false },
     { client_id: A, kind: 'video', title: 'מתוכנן', state: 'planned', posted_on: null, link: 'https://www.instagram.com/reel/PLN/', internal: false },
     { client_id: A, kind: 'video', title: 'בלי קישור', state: 'posted', posted_on: '2026-10-06', link: null, internal: false },
     { client_id: A, kind: 'plan', title: 'תכנון', state: 'posted', posted_on: '2026-10-07', link: 'https://x.test/plan', internal: true },

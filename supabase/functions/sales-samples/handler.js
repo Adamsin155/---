@@ -47,7 +47,8 @@ export function finishedVideos(files, max = VIDEOS_PER_CLIENT) {
 }
 
 export const REELS_PER_CLIENT = 12;
-const REEL_KINDS = ['video', 'monthly', 'collab', 'highlight', 'ch14'];
+// Most reels that went up are 'custom' entries; graphics, stories, shoots and the office's own rows are not.
+const REEL_KINDS = ['video', 'custom', 'monthly', 'collab', 'highlight', 'ch14'];
 const PAGE_NETWORKS = ['instagram', 'tiktok', 'facebook'];
 // A page's handle as people see it (letters, digits, dot, underscore, dash): an e-mail or a phone, which is a
 // login, is not one.
