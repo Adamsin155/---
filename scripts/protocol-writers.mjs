@@ -66,6 +66,7 @@ const PROBES = [
   { editor: EDITOR, characterizer: null, has_logo: null },
   { editor: EDITOR, characterizer: 'ofir', has_logo: true },
   { editor: EDITOR, characterizer: 'lior', has_logo: false },
+  { editor: EDITOR, characterizer: 'amit', has_logo: null }, // Amit (15.11.2026): 4, 5, 6 and 8
   { editor: EDITOR, characterizer: 'shiel', has_logo: null }, // Shiel (9.11.2026): 4 and 5 only
 ];
 export function tokens(owners) {

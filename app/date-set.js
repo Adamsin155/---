@@ -23,7 +23,7 @@ import { nextShootDay } from './shoot-plan.js';
 import { dayKeyIL } from './tz.js';
 import { CHARACTERIZERS } from './protocol.js';
 
-export const MEET_PEOPLE = CHARACTERIZERS; // Ofir, Shiel, or Lior when nobody else can (app/protocol.js)
+export const MEET_PEOPLE = CHARACTERIZERS; // Amit, Ofir, Shiel, or Lior when nobody else can (app/protocol.js)
 const refuse = (text) => Object.assign(new Error(text), { rule: true });
 
 // → { row, marked: null } (row: the client as saved). Throws { rule: true } with a sentence to show.
