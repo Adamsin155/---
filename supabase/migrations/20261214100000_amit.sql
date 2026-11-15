@@ -17,7 +17,7 @@
 --   7. the writers table, from app/protocol.js (scripts/protocol-writers.mjs).
 -- 'amit' in staff.person, clients.characterizer and the other lists of people (reminder_log,
 -- client_tasks, client_status_notes, client_questions, staff_tasks): the checks are widened in
--- 20261214100100_amit_checks.sql, which waits for the owner's approval of its drop + add. Until it
+-- 20261214100100_amit_checks.sql, which waits for the owner's approval of its widened checks. Until it
 -- runs nothing of hers can be stored, so nothing here changes anything for anyone.
 -- ofir_meetings is not touched: a client of hers is not Ofir's meeting (his fast ladder does not wait).
 -- The vault is a flag on the staff row that only the owner sets (team.html, "כספת"); no SQL here.
