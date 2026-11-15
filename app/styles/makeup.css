@@ -9,6 +9,7 @@
 .mk-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
 .mk-what { display: grid; gap: 6px; justify-items: start; min-width: 0; }
 .mk-when { margin: 0; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
+.mk-when > span { white-space: nowrap; }
 .mk-who { margin: 0; white-space: pre-line; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 .mk-form { display: grid; gap: 6px; }
 .mk-label { font-weight: 600; }

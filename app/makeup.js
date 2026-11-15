@@ -44,7 +44,7 @@ function card(d) {
   const err = h('p', { class: 'err mk-err', id: `mk-err-${k}`, role: 'alert', hidden: true });
   const field = h('input', {
     class: 'input mk-hour', id: `mk-hour-${k}`, type: 'text', inputmode: 'numeric', dir: 'ltr', maxlength: '5', autocomplete: 'off',
-    placeholder: '07:30', value: drafts.get(k) ?? (s === 'yes' ? shortHour(a.arrive_time) : ''), 'aria-describedby': `mk-err-${k}`,
+    placeholder: '--:--', value: drafts.get(k) ?? (s === 'yes' ? shortHour(a.arrive_time) : ''), 'aria-describedby': `mk-err-${k}`,
     oninput: (ev) => { drafts.set(k, ev.currentTarget.value); if (!err.hidden) { err.hidden = true; ev.currentTarget.removeAttribute('aria-invalid'); } },
     onkeydown: (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); confirm(d); } },
   });
@@ -52,7 +52,7 @@ function card(d) {
     h('div', { class: 'mk-top' },
       dateLeaf({ ...leafOf(d.shootAt), label: `${dayWords(d.shootAt)} ${hourText(d.shootAt)}` }),
       h('div', { class: 'mk-what' },
-        h('h2', { class: 'mk-when' }, `צילום עם נטלי · ${dayWords(d.shootAt)} · ${hourText(d.shootAt)}`),
+        h('h2', { class: 'mk-when' }, h('span', {}, dayWords(d.shootAt)), ' ', h('span', {}, `צילום ב־${hourText(d.shootAt)}`)),
         h('p', { class: 'mk-who' }, who),
         pill(s === 'yes' ? `${STATUS_WORDS.yes} · מגיעה ב־${shortHour(a.arrive_time)}` : STATUS_WORDS[s], TONE[s], { id: `mk-st-${k}` }))),
     open
