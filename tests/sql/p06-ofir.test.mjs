@@ -86,8 +86,8 @@ test('who writes process 6: the office (Ofir among them), Ilai no more; the rest
   for (const key of ['p05.newlogo', 'p07.made', 'p07b.posted']) assert.equal(mayWrite({ person: 'ilai', client: {}, key }), true, key);
   const rows = (await db.query("select key, persons from private.protocol_writers where key like 'p06.%' order by key")).rows;
   assert.ok(rows.length > 0);
-  // Nothing of Ilai's; since 1.11.2026 Noam (not the office) writes them, beside Ofir.
-  for (const r of rows) assert.ok(!r.persons.includes('ilai') && r.persons.every((p) => ['noam', 'ofir', 'lior'].includes(p)), `${r.key}: ${r.persons}`);
+  // Nothing of Ilai's; since 1.11.2026 Noam (not the office) wrote them, beside Ofir; Amit since 15.11.2026.
+  for (const r of rows) assert.ok(!r.persons.includes('ilai') && r.persons.every((p) => ['noam', 'ofir', 'lior', 'amit'].includes(p)), `${r.key}: ${r.persons}`);
 });
 
 test('the client\'s form: a network to open is an urgent task for Ofir', async () => {

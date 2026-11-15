@@ -66,7 +66,7 @@ test('the files: the first only replaces functions and writes the app\'s writers
     ['public.is_office', 'private.task_gives_access', 'public.access_form_submit']);
   // The writers block was written again by 20261208120000_protocol_v13.sql (9.11.2026), the latest since.
   // v14 (10.11.2026) after v13, and again when Noam left (10.11.2026).
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261210110000_remove_noam.sql', true]);
+  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261214100000_amit.sql', true]); // Amit (15.11.2026) wrote it again
   const checks = readFileSync(new URL(`../../supabase/migrations/${CHECKS}`, import.meta.url), 'utf8');
   assert.match(checks, /^-- WAITS FOR THE OWNER'S APPROVAL/);
   const taken = checks.replace(/--[^\n]*/g, '').match(/\b(drop|delete|truncate)\b[^\n]*/gi);
