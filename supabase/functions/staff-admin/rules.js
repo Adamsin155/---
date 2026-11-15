@@ -14,7 +14,7 @@
 // Keep in step with TEAM_PEOPLE in app/protocol.js and TEAM_MANAGERS in
 // app/team-rules.js (the unit tests compare them). A copy, because the deployed
 // function cannot import files from outside its folder.
-export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'shiel', 'stav', 'amos'];
+export const PERSONS = ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'shiel', 'stav', 'amos', 'tal'];
 export const TEAM_MANAGERS = ['irit', 'lior', 'ofir'];
 // The office accounts: they see every client, the quotes and the office screens
 // (public.is_office() in the database; SCOPE 'office' and Ilai in app/protocol.js).
