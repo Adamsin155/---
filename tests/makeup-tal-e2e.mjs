@@ -28,6 +28,7 @@ const db = flowWorld({ landing: false, queues: false });
 db.staff.push({ email: emailOf('tal'), person: 'tal', vault: false, phone: null });
 for (const n of [7, 10]) db.clients.find((c) => c.id === cid(n)).shoot_type = 'natali'; // Wed 21.10, 10:00 and 13:00
 db.makeup_answers = [];
+const STAFF = db.staff.slice();
 const D1 = '2026-10-21';
 const D2 = '2026-10-27';
 
@@ -40,13 +41,13 @@ function makeupFake() {
     const p = new URL(req.url()).pathname;
     const json = (status, data) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data), headers: CORS });
     const token = /^Bearer (.+)$/.exec(req.headers().authorization || '')?.[1] || '';
-    const email = req.method() === 'OPTIONS' ? null : JSON.parse(Buffer.from(token.split('.')[1] || 'e30', 'base64url').toString()).email;
+    let email = null;
+    try { email = JSON.parse(Buffer.from(token.split('.')[1] || 'e30', 'base64url').toString()).email || null; } catch { /* the anon key, or no token */ }
     const person = db.staff.find((s) => s.email === email)?.person;
     // The team list: she reads only her own row (the restrictive policy of the migration).
     if (person === 'tal' && p === '/rest/v1/staff') {
-      const all = db.staff;
-      db.staff = all.filter((s) => s.email === email);
-      try { return await fake.route(r); } finally { db.staff = all; }
+      const mine = STAFF.filter((s) => s.email === email);
+      return r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify(/vnd.pgrst.object/.test(req.headers().accept || '') ? mine[0] : mine) });
     }
     if (req.method() === 'OPTIONS' || !p.startsWith('/rest/v1/rpc/makeup_')) return fake.route(r);
     if (person !== 'tal' && !(person === null || ['irit', 'lior', 'ofir'].includes(person))) return json(403, { code: '42501', message: 'not allowed' });
