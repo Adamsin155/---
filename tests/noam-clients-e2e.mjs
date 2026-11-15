@@ -221,7 +221,7 @@ for (const [w, h, tag] of [[390, 844, 'phone'], [1280, 900, 'web']]) {
 }
 // "מי מבצע את האפיון": Noam is offered nowhere; her old client is Ofir's meeting; its card keeps her name.
 for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, { width: 1366, height: 768 }]]) {
-  await step(`the picker "מי מבצע את האפיון?" (${tag}): Ofir, Shiel and Lior; her old client defaults to Ofir`, async () => {
+  await step(`the picker "מי מבצע את האפיון?" (${tag}): Amit, Ofir, Shiel and Lior; her old client defaults to Ofir`, async () => {
     const n = await newPage(viewport || undefined, { iphone });
     await signIn(n, 'clients.html#mine', 'irit@astrateg.test');
     // Her old client's meeting has waited for days: it is on the "באיחור" tab.
@@ -231,7 +231,7 @@ for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, {
     await btn.waitFor({ timeout: 15000 });
     await btn.click();
     await n.waitForSelector('#dlg-meet[open]');
-    assert.deepEqual(await n.locator('#meet-who option').evaluateAll((os) => os.map((o) => o.value)), ['ofir', 'shiel', 'lior']);
+    assert.deepEqual(await n.locator('#meet-who option').evaluateAll((os) => os.map((o) => o.value)), ['amit', 'ofir', 'shiel', 'lior']); // Amit since 15.11.2026
     assert.doesNotMatch(await n.locator('#meet-who').innerText(), /נעם/);
     assert.equal(await n.locator('#meet-who').inputValue(), 'ofir');
     assert.ok(await noSideScroll(n));
@@ -246,7 +246,7 @@ for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, {
     await settled(n);
     await n.click('#btn-edit');
     await n.waitForSelector('#ed-characterizer');
-    assert.deepEqual(await n.locator('#ed-characterizer option').evaluateAll((os) => os.map((o) => o.value)), ['', 'ofir', 'shiel', 'lior']);
+    assert.deepEqual(await n.locator('#ed-characterizer option').evaluateAll((os) => os.map((o) => o.value)), ['', 'amit', 'ofir', 'shiel', 'lior']); // Amit since 15.11.2026
     assert.equal(await n.locator('#ed-characterizer').inputValue(), 'ofir');
     await n.locator('#ed-characterizer').scrollIntoViewIfNeeded();
     if (OUT) await n.screenshot({ path: `${OUT}/noam-left-card-picker-${tag}.png`, animations: 'disabled' });
