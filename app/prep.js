@@ -38,6 +38,9 @@ import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.j
 import { inputValueIL, fromInputIL, dayKeyIL, dayFromKeyIL } from './tz.js';
 // The photographer's monthly availability (docs/ops.md, section 39): the line next to the date, and the reason for a day he did not mark free.
 import { mountAvailability, shootDayHint, confirmShootDay, photographerNote } from './availability-ui.js';
+// Tal, Natali's makeup artist (15.11.2026; docs/ops.md, section 132): her answer next to the makeup item.
+import { nataliDays, answerFor, liorWords, isNataliDay, MAKEUP_PERSON } from './makeup-logic.js';
+import { loadMakeupAnswers } from './makeup-data.js';
 import { headIcon, iconSquare, emptyState, noteIcon, dress, dateLeaf } from './kit.js';
 
 const only = new URLSearchParams(location.search).get('id');
@@ -45,6 +48,7 @@ let clients = [];
 let checks = {};
 let tasks = [];          // open tasks of every client
 let requests = [];       // request and "tell" tasks, open or finished lately
+let makeupAnswers = []; // Tal's answers (public.makeup_answers), from today on
 let clientMail = {};     // client id → email, from the agreements (for "שליחת זימון")
 let me = null;
 let busy = false;
@@ -72,7 +76,8 @@ async function load() {
   } catch (err) { $('state').textContent = errorText(err); return; }
   const quoteIds = [...new Set(clients.map((c) => c.quote_id).filter(Boolean))];
   let facts;
-  [requests, facts] = await Promise.all([loadRequestTasks().catch(() => []), quoteIds.length ? quoteFacts(quoteIds) : null]);
+  [requests, facts, makeupAnswers] = await Promise.all([loadRequestTasks().catch(() => []), quoteIds.length ? quoteFacts(quoteIds) : null,
+    loadMakeupAnswers(dayKeyIL(new Date())).catch(() => [])]);
   clientMail = clientEmails(clients, facts);
   $('state').textContent = '';
   render();
@@ -273,6 +278,19 @@ function coordinatorBlock(e, k) {
       type: 'button', class: 'btn', id: `pty-${k}-${a.key.replace(/\./g, '-')}`, 'aria-pressed': String(a.done), disabled: busy,
       onclick: (ev) => toggleCheck(c.id, a.key, !a.done, ev.currentTarget.id),
     }, h('span', {}, a.label, a.done && a.check ? h('small', {}, `אושר ${formatWhen(new Date(a.check.at))}`) : note ? h('small', {}, note) : null)));
+  // A day with Natali (15.11.2026; docs/ops.md, section 132): the makeup row says what Tal answered
+  // ("טל אישרה, מגיעה ב־07:30" / "טל לא יכולה"), when she answered. Lior can still mark it himself.
+  const makeupParty = (a) => {
+    if (!a.key.endsWith('p11b.makeup') || !isNataliDay(x.ctx) || !coord.shootAt) return null;
+    const day = nataliDays(clients).find((d) => d.day === dayKeyIL(coord.shootAt));
+    const w = day ? liorWords(day, answerFor(day, makeupAnswers), PEOPLE[MAKEUP_PERSON].name) : null;
+    if (!w) return null;
+    return h('li', { class: 'pp-party' },
+      h('button', {
+        type: 'button', class: 'btn', id: `pty-${k}-${a.key.replace(/\./g, '-')}`, 'aria-pressed': String(w.done || a.done), disabled: busy,
+        onclick: (ev) => toggleCheck(c.id, a.key, !a.done, ev.currentTarget.id),
+      }, h('span', {}, a.label, h('small', { class: `pp-makeup is-${w.status}`, id: `mk-answer-${k}` }, w.text))));
+  };
   const edit = !set || editOpen.has(k);
   const dt = shootDraft.get(k) ?? (e.coord.shootAt ? inputValueIL(e.coord.shootAt) : '');
   // Into everyone's calendar in one step (15.10.2026): Google Calendar opens with the day
@@ -311,7 +329,7 @@ function coordinatorBlock(e, k) {
         'שליחת זימון', h('span', { class: 'sr-only' }, ` (מוזמנים: ${guestNames(invite)}. Google Calendar נפתח בחלון חדש)`)) : null) : null,
     coord.natali.length ? h('div', { class: 'pp-sub' },
       headIcon(h('h3', {}, `${coord.star}: מאפרת והסעה (11ב, באחריות ליאור)`), 'users', 'purple'),
-      h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);
+      h('ul', { class: 'pp-parties' }, ...coord.natali.map((a) => makeupParty(a) || party(a, me === 'lior' ? null : 'סימון בשם ליאור נרשם בשמך')))) : null);
 }
 // The date with, under it, what the photographer handed over for the day being picked.
 function shootAtField(c, x, k, dt) {
