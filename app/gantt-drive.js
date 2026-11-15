@@ -12,6 +12,8 @@ import { matchFiles } from './drive-links.js';
 import { addDays, contractEndKey } from './gantt-logic.js';
 import { dayKeyIL } from './tz.js';
 import { icon } from './kit.js';
+import { readFolderLink, withFolder } from './drive-folder.js';
+import { updateClient } from './protocol-data.js';
 
 export const DRIVE_BUTTON = 'משיכת קישורים מהדרייב';
 const ERRORS = {
@@ -133,4 +135,64 @@ export function driveButton(ctx) {
     }
   });
   return btn;
+}
+
+// "תיקיית הדרייב" (the owner's request of 15.11.2026; docs/ops.md, section 132): the Gantt's editors
+// (Ilai first: the card's "עריכת פרטים" is not his) paste the client's Drive folder here, or replace
+// it. No link: the field and "שמירה". A link: "פתיחה" and "החלפה". The links are read again before
+// the save and only `drive` changes (the one it replaces is kept in `drive_old`).
+// ctx: { client, onSaved(client), toast }.
+export function folderRow(ctx) {
+  const box = h('div', { class: 'gt-folder', id: 'gt-folder' });
+  let links = ctx.client.links || {};
+  const current = () => String(links.drive || '').trim();
+  const shown = () => {
+    const url = current();
+    box.replaceChildren(
+      h('span', { class: 'gt-folder-label' }, icon('folder', { size: 16 }), 'תיקיית הדרייב'),
+      h('a', { class: 'btn btn-sm btn-ghost', id: 'gt-folder-open', href: url, target: '_blank', rel: 'noopener' }, 'פתיחה'),
+      h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'gt-folder-change', onclick: () => editing(true) }, 'החלפה'));
+  };
+  const editing = (replace) => {
+    const input = h('input', {
+      class: 'input', id: 'gt-folder-input', type: 'url', inputmode: 'url', dir: 'ltr', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+      placeholder: 'https://drive.google.com/drive/folders/…', 'aria-describedby': 'gt-folder-msg',
+    });
+    const msg = h('p', { class: 'gt-folder-msg', id: 'gt-folder-msg', 'aria-live': 'polite' });
+    const save = h('button', { type: 'submit', class: 'btn btn-sm', id: 'gt-folder-save' }, 'שמירה');
+    const form = h('form', { class: 'gt-folder-form', novalidate: true },
+      h('label', { class: 'gt-folder-label', for: 'gt-folder-input' }, icon('folder', { size: 16 }), replace ? 'קישור חדש לתיקיית הדרייב' : 'תיקיית הדרייב'),
+      h('div', { class: 'gt-folder-line' }, input, save,
+        replace ? h('button', { type: 'button', class: 'btn btn-sm btn-ghost', id: 'gt-folder-cancel', onclick: shown }, 'ביטול') : null),
+      msg);
+    input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); msg.textContent = ''; });
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (save.disabled) return;
+      const got = readFolderLink(input.value);
+      if (got.error) { input.setAttribute('aria-invalid', 'true'); msg.textContent = got.error; input.focus(); return; }
+      if (got.url === current()) { shown(); ctx.toast('זה אותו קישור. לא השתנה דבר.'); return; }
+      save.disabled = true;
+      save.setAttribute('aria-busy', 'true');
+      try {
+        // The links as they are now (someone may have changed another one meanwhile).
+        const { data, error } = await supabase.from('clients').select('links').eq('id', ctx.client.id).single();
+        if (error) throw error;
+        const client = await updateClient(ctx.client.id, { links: withFolder(data?.links, got.url) });
+        links = client?.links || withFolder(data?.links, got.url);
+        ctx.onSaved(client);
+        shown();
+        ctx.toast(replace ? 'הקישור לתיקיית הדרייב הוחלף. הקודם נשמר בצד.' : 'הקישור לתיקיית הדרייב נשמר.');
+      } catch {
+        msg.textContent = 'לא נשמר. בדקו את החיבור ונסו שוב.';
+        ctx.toast('הקישור לתיקיית הדרייב לא נשמר. נסו שוב.');
+        save.disabled = false;
+        save.removeAttribute('aria-busy');
+      }
+    });
+    box.replaceChildren(form);
+    if (replace) input.focus();
+  };
+  if (current()) shown(); else editing(false);
+  return box;
 }

@@ -2888,6 +2888,9 @@ for (const f of Object.keys(CREW_UI)) {
 
 // Links only: a password, token or code in the address is refused.
 const SECRET = /\/\/[^/?#@\s]+:[^/?#@\s]*@|[?&#;]([a-z_]*(password|passwd|pass|pwd|token|secret|apikey|api_key|key|auth|sig|signature)|code)=/i;
+// Keys of client.links that are not fields of the form (drive_old: the Drive folder replaced from the
+// Gantt, 15.11.2026; docs/ops.md, section 132) stay as they are when the card is saved.
+const keptLinks = (links) => Object.fromEntries(Object.entries(links || {}).filter(([k]) => !LINKS.some((l) => l.key === k)));
 function readLinks() {
   const out = {};
   for (const l of LINKS) {
@@ -2968,7 +2971,7 @@ $('ed-form').addEventListener('submit', async (e) => {
       char_at: fromLocal($('ed-char-at').value), characterizer: val('ed-characterizer'),
       has_logo: $('ed-logo').value === '' ? null : $('ed-logo').value === 'true',
       shoot_type: solo ? null : val('ed-shoot-type'), shoot_at: fromLocal($('ed-shoot-at').value), editor: val('ed-editor'),
-      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links, deliverables: delivered, ...contact,
+      contract_end: val('ed-contract-end'), notes: val('ed-notes'), links: { ...keptLinks(client.links), ...links }, deliverables: delivered, ...contact,
     });
     if (asked.note) await noteDateChange(id, 'shoot_at', null, newShoot, asked.note);
     await closeScriptsItem(); // v12: the scripts' link saved here closes its item too

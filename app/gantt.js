@@ -334,6 +334,15 @@ function renderHero() {
     }
   }
   $('gt-actions').replaceChildren(...acts);
+  // "תיקיית הדרייב" (15.11.2026): mounted once, so a link being typed survives the page's redraws.
+  const slot = $('gt-folder-slot');
+  if (canEdit && !SHARE && driveUi?.folderRow && !slot.firstChild) {
+    slot.append(driveUi.folderRow({
+      client, toast,
+      onSaved: (saved) => { client = { ...client, links: saved?.links || client.links }; renderHero(); },
+    }));
+    slot.hidden = false;
+  }
 }
 
 function renderEmpty() {
