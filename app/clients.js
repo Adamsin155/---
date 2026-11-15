@@ -235,6 +235,7 @@ let flowExtra = {};
 const landingTag = (c) => (c.landing === true ? h('span', { class: 'tag tag-landing', title: 'לקוח מהמערכת הישנה: בלי שעונים והתראות עד שיופעל' }, 'בקליטה') : null);
 // A client opened by the signing trigger stays "new" until someone confirms its details.
 // An imported client is never "new" (openedBySigning in app/client-open.js).
+const dealTime = (c) => (c.deal_at ? new Date(c.deal_at).getTime() || 0 : 0);
 const isAuto = (c) => openedBySigning(c, checks[c.id]) && !c.verified_at && live(c);
 const roundOf = (proc) => /^r(\d+)-/.exec(proc.id)?.[1] || null;
 const procLabel = (proc, sep = ' · ') => `${roundOf(proc) ? `סבב ${roundOf(proc)} · ` : ''}${proc.num}${sep}${proc.title}`;
@@ -2282,7 +2283,10 @@ function renderClients() {
     if (clientFilter === 'client') return open(c) && stateOf(c).waitingOnClient > 0;
     if (clientFilter === 'nologins') return noLogins(c);
     return c.status === clientFilter;
-  }).sort((a, b) => (isAuto(b) - isAuto(a)) || (stateOf(b).overdue - stateOf(a).overdue) || (new Date(b.deal_at) - new Date(a.deal_at)));
+  // By the deal, the newest first, as in "הצעות שנשלחו" (the owner, 15.11.2026: "פשוט שיהיה לפי הסדר"; a client
+  // opened from a contract uploaded by hand was lost in the middle). "באיחור" keeps the most late first.
+  }).sort((a, b) => (clientFilter === 'late' ? stateOf(b).overdue - stateOf(a).overdue : 0) || dealTime(b) - dealTime(a));
+
 
   if (!list.length) {
     fill($('client-list'), emptyState({ icon: 'users', tone: 'blue', text: own ? 'אין כרגע לקוחות עם עבודה שלך.'
