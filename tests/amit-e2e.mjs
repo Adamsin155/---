@@ -59,9 +59,11 @@ const client = (n, name, status, characterizer, extra = {}) => ({
 });
 // Her meeting: this morning at 9:00, nothing marked yet.
 const AMITS = client(1, 'קונדיטוריה של עמית', 'active', 'amit', { char_at: minutesAgo(60) });
-const OFIRS = client(2, 'מסעדה של אופיר', 'active', 'ofir', { metricool_blog_id: '7', metricool_brand: 'מסעדה של אופיר' });
-const SHIELS = client(3, 'מספרה של שיאל', 'active', 'shiel');
-const ENDING = client(4, 'מוסך מסיים', 'ending', 'ofir');
+// The others' meetings are set already (tomorrow): only the fresh client waits for "קביעת מועד".
+const tomorrow = new Date(NOW.getTime() + 864e5).toISOString();
+const OFIRS = client(2, 'מסעדה של אופיר', 'active', 'ofir', { metricool_blog_id: '7', metricool_brand: 'מסעדה של אופיר', char_at: tomorrow });
+const SHIELS = client(3, 'מספרה של שיאל', 'active', 'shiel', { char_at: tomorrow });
+const ENDING = client(4, 'מוסך מסיים', 'ending', 'ofir', { char_at: tomorrow });
 const ENDED = client(5, 'לקוח שהסתיים', 'ended', 'ofir');
 // No characterizer and no meeting yet, days after the deal: Irit's "קביעת מועד", on "באיחור".
 const FRESH = client(6, 'פיצה חדשה', 'active', null);
@@ -224,6 +226,7 @@ for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, {
     await btn.waitFor({ timeout: 15000 });
     await btn.click();
     await n.waitForSelector('#dlg-meet[open]');
+    assert.match(await n.locator('#dlg-meet').innerText(), /פיצה חדשה/, 'the client with nobody set');
     assert.deepEqual(await n.locator('#meet-who option').evaluateAll((os) => os.map((o) => [o.value, o.textContent])),
       [['amit', 'עמית'], ['ofir', 'אופיר'], ['shiel', 'שיאל'], ['lior', 'ליאור (רק כשאין אחר)']]);
     assert.equal(await n.locator('#meet-who').inputValue(), 'ofir', 'the default stays Ofir');
