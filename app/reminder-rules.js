@@ -2721,7 +2721,7 @@ const MAKEUP_ANSWER_RULE = {
     return out;
   },
   steps: (i) => [{
-    id: i.news.kind, to: 'lior', level: i.news.kind === 'no' ? 'ring' : 'quiet', exempt: 'urgent', exception: true, ownHours: i.soon,
+    id: i.news.kind, to: 'lior', ...(i.news.kind === 'no' ? { level: 'ring' } : { level: 'quiet' }), exempt: 'urgent', exception: true, ownHours: i.soon,
     title: () => i.news.title, body: () => i.news.body,
   }],
 };
