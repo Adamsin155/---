@@ -47,7 +47,7 @@ test('no picker, list or menu offers Noam', () => {
   assert.equal(isFormer('noam'), true);
   assert.equal(isFormer('ofir'), false);
   assert.deepEqual(FORMER_PEOPLE, { noam: 'ofir' });
-  assert.deepEqual(CHARACTERIZERS, ['ofir', 'shiel', 'lior']);
+  assert.deepEqual(CHARACTERIZERS, ['amit', 'ofir', 'shiel', 'lior']); // Amit since 15.11.2026 (tests/amit.test.mjs)
   assert.equal(DEFAULT_CHARACTERIZER, 'ofir');
   assert.deepEqual(MEET_PEOPLE, CHARACTERIZERS);
   // The characterizer pickers written in the pages: the card's edit form and "קביעת מועד".

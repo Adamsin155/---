@@ -39,8 +39,8 @@ test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; not
   // Who owns an item is not a protocol version (app/protocol-versions.js): still 11, no new entry.
   assert.equal(PROTOCOL_VERSION, 14); // 14 since 10.11.2026 (the editors' marks, docs/ops.md section 126); 12 since 3.11.2026 (Lior's four things), 13 since 9.11.2026; this change did not move it
   assert.equal(PROTOCOL_HISTORY.at(-1).version, 14); // (v13: what the team marked "מיותר" left, 9.11.2026; v14: the editors', 10.11.2026)
-  // A new network to open is Ofir's to say: 5's own note says so.
-  assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה לאופיר לפתוח/);
+  // A new network to open is for whoever sets the pages up (Ofir, or Amit on her clients since 15.11.2026): 5's own note says so.
+  assert.match(PROCESSES.find((p) => p.id === 'p05').ownerNote, /אין רשתות: משימה למי שמסדר את העמודים \(עמית או אופיר\) לפתוח/);
 });
 
 test('the lists: after the accesses, 6 is on Ofir\'s list and not on Ilai\'s', () => {
@@ -69,7 +69,7 @@ test('who writes 6: the office (Ofir among them); Ilai no more, and still his ow
 test('the hand-off of 5: to Ofir, never to himself; an old record to Ilai keeps its words', () => {
   const point = HANDOFFS.find((p) => p.id === 'access');
   const UNTIL = ['p06.ok', 'p06.verified']; // v14: the one mark, or the old check
-  assert.deepEqual(point.to.map((t) => [t.id, t.person(client), t.proc, t.until]), [['ofir', 'ofir', 'p06', UNTIL]]);
+  assert.deepEqual(point.to.map((t) => [t.id, t.person(client), t.proc, t.until]), [['ofir', 'ofir', 'p06', UNTIL], ['amit', null, 'p06', UNTIL]]); // Amit (15.11.2026): only on a client of hers
   const checks = { 'p05.got': done(IL(2026, 10, 20, 11)) };
   const at = { now: IL(2026, 10, 20, 11, 1) };
   assert.deepEqual(handoffsFor(client, checks, 'p05.got', { ...at, from: 'irit' }).map((o) => [o.person, o.markKey]), [['ofir', 'p05.handoff.ofir']]);
