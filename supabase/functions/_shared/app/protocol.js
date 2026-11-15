@@ -244,6 +244,11 @@ export const PEOPLE = {
   // sees only his own deals. Not part of the client protocol (no items, no clients).
   stav: { key: 'stav', name: 'סתיו', role: 'סוכן שטח', sales: true },
   amos: { key: 'amos', name: 'עמוס', role: 'סוכן שטח', sales: true },
+  // Natali Dadon's makeup artist (the owner, 15.11.2026; docs/ops.md, section 132): one screen only,
+  // "הימים שלי עם נטלי" (makeup.html): the days of a shoot with Natali (shoot_type 'natali' only),
+  // the hour she arrives at Natali's home (two hours before the shoot), and "מאשרת" / "לא יכולה".
+  // Not part of the client protocol (no items, no clients, no tasks): `makeup`, as `sales` is.
+  tal: { key: 'tal', name: 'טל', role: 'מאפרת של נטלי דדון', makeup: true },
   // Until Ofir assigns an editor, editing items belong to "the assigned editor".
   editor: { key: 'editor', name: 'העורך המשויך', role: 'עד ששויך עורך' },
 };
@@ -275,15 +280,18 @@ export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 // What each person sees when they sign in. 'office': their own work first, plus
 // the office screens (all clients, daily control, performance). 'own': only their
 // own work and the clients it belongs to. 'sales': only deal.html and their own
-// deals (no client is theirs). The owner (no person) sees the office.
-export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', shiel: 'own', stav: 'sales', amos: 'sales' };
+// deals (no client is theirs). 'makeup': only makeup.html, Natali's shoot days (Tal, 15.11.2026).
+// The owner (no person) sees the office.
+export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', shiel: 'own', stav: 'sales', amos: 'sales', tal: 'makeup' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
+// Natali's makeup artist (15.11.2026): her one screen is makeup.html, and nothing of the clients.
+export const isMakeup = (person) => !!PEOPLE[person]?.makeup;
 
 // The people of the client protocol (everyone but the "assigned editor" placeholder
 // and sales): for owner pickers, work lists and the reminders' digests.
 // Who left (`left`) is in no list (only their name stays, for the history).
-export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales && !p.left);
+export const STAFF_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.sales && !p.makeup && !p.left);
 // Everyone on the team, sales too: the team screen (team.html) and who has reminders.
 export const TEAM_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.key !== 'editor' && !p.left);
 // Who can be given work (a task, a decision, a pass item): the protocol's people but the silent.

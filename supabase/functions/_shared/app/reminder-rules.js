@@ -2627,3 +2627,105 @@ RULES.push({
   }],
 });
 RULE_BY_ID.set(SHOOT_NEXT.id, RULES.at(-1));
+
+// ── Natali's makeup artist, Tal (the owner's request of 15.11.2026; docs/ops.md, section 132) ──
+// One self-contained block (its import included). Two rules:
+//   makeupSet     Tal hears of every shoot day WITH NATALI (shoot_type 'natali' only, not the other
+//     stars' days): set, moved (its first shoot's time), or taken off; the date and the hour of the
+//     shoot. As the photographer's `shootSet` (section 40, rule 2), but one case per DAY: several
+//     clients on one date are one visit at Natali's home (app/makeup-logic.js). The engine keeps no
+//     state: what she was last told is this rule's own rows of the log (`env.shootTold`; the
+//     reminders function loads the rows of `shootSet` and `makeupSet`). A day up to two days ahead
+//     is told at any hour (`ownHours`); later ones within the sending hours, as for the photographer.
+//   makeupAnswer  every answer of hers reaches Lior at once (the owner, 15.11.2026): "מאשרת" with the
+//     hour she typed, a changed hour, "לא יכולה" (a ring: he arranges another makeup artist; the item
+//     stays open), and "מאשרת" after "לא יכולה". One case per answer row (public.makeup_answers,
+//     `env.makeupAnswers`), so each is told once. The same hours as `makeupSet`; on his shoot day
+//     it goes to Ofir (`exception`, decision 8), as any exception of his.
+import { MAKEUP_PERSON, MAKEUP_SCREEN, nataliDays, answersOfDay, answerNews, hourText as makeupHour, dayWords } from './makeup-logic.js';
+export const MAKEUP_SET = 'makeupSet';
+export const MAKEUP_ANSWER = 'makeupAnswer';
+const MAKEUP_TOLD = /^makeupSet:-:((\d{4}-\d{2}-\d{2})@(.+?)(?:#\d+)?):(set|changed|cancelled)@([a-z]+)$/;
+// What one of makeupSet's log rows told, read from its key: the day and its shoot time then.
+export function makeupToldOf(row) {
+  const m = MAKEUP_TOLD.exec(String(row?.key || ''));
+  const at = m && new Date(m[3]);
+  if (!m || Number.isNaN(+at)) return null;
+  return { id: Number(row.id) || 0, case: m[1], day: m[2], at, step: m[4], person: m[5] };
+}
+const makeupName = () => PEOPLE[MAKEUP_PERSON]?.name || 'המאפרת';
+const MAKEUP_SET_RULE = {
+  id: MAKEUP_SET, event: 'יום צילום עם נטלי נקבע, זז או בוטל: למאפרת', procs: [],
+  instances(env) {
+    const who = MAKEUP_PERSON;
+    if (!env.hasStaff(who)) return [];
+    const soon = (d) => daysBetweenIL(env.now, d) <= 2;
+    const told = (env.shootTold || []).map(makeupToldOf).filter((t) => t && t.person === who).sort((a, b) => a.id - b.id);
+    const last = new Map(told.map((t) => [t.day, t]));
+    const before = (t) => told.filter((x) => x.day === t.day && x.id < t.id && x.step !== 'cancelled').at(-1) || null;
+    const out = [];
+    const seen = new Set();
+    for (const d of nataliDays(env.clients, { after: env.now })) {
+      seen.add(d.day);
+      const L = last.get(d.day);
+      const inst = { cid: null, who, day: d, at: d.shootAt, url: MAKEUP_SCREEN, anchors: { event: env.now } };
+      if (L && L.step !== 'cancelled' && +L.at === +d.shootAt) {
+        out.push({ ...inst, id: L.case, step: L.step, from: L.step === 'changed' ? before(L)?.at || null : null, soon: soon(d.shootAt) });
+        continue;
+      }
+      const moved = !!L && L.step !== 'cancelled' && L.at > env.now;
+      out.push({
+        ...inst, id: `${d.day}@${d.shootAt.toISOString()}${L ? `#${L.id}` : ''}`, step: moved ? 'changed' : 'set',
+        from: moved ? L.at : null, soon: soon(d.shootAt) || (moved && soon(L.at)),
+      });
+    }
+    for (const [day, L] of last) {
+      if (seen.has(day) || L.at <= env.now) continue;
+      out.push({
+        cid: null, who, day: null, at: L.at, url: MAKEUP_SCREEN, step: 'cancelled', soon: soon(L.at),
+        id: L.step === 'cancelled' ? L.case : `${day}@${L.at.toISOString()}#${L.id}`, anchors: { event: env.now },
+      });
+    }
+    return out;
+  },
+  steps: (i) => [{
+    id: i.step, to: i.who, level: 'ring', exempt: 'shoot', ownHours: i.soon,
+    title: () => {
+      const when = `${dayWords(i.at)} ${makeupHour(i.at)}`;
+      if (i.step === 'cancelled') return `יום הצילום עם נטלי בוטל: ${when}`;
+      if (i.step === 'changed') return `יום הצילום עם נטלי זז: ${when}`;
+      return `נקבע יום צילום עם נטלי: ${when}`;
+    },
+    body: () => {
+      if (i.step === 'cancelled') return 'לא צריך להגיע ביום הזה.';
+      return [
+        `הצילום ב־${makeupHour(i.at)}.`,
+        i.step === 'changed' && i.from ? `במקום ${dayWords(i.from)} ${makeupHour(i.from)}.` : null,
+        i.step === 'changed' ? 'לאשר שוב באפליקציה ולכתוב באיזו שעה את מגיעה לנטלי.' : 'לאשר באפליקציה ולכתוב באיזו שעה את מגיעה לנטלי.',
+      ].filter(Boolean).join(' ');
+    },
+  }],
+};
+const MAKEUP_ANSWER_RULE = {
+  id: MAKEUP_ANSWER, event: 'המאפרת של נטלי ענתה: מאשרת (עם שעה), שינתה שעה, או לא יכולה', procs: [],
+  instances(env) {
+    const out = [];
+    for (const d of nataliDays(env.clients, { after: env.now })) {
+      const rows = answersOfDay(d, env.makeupAnswers).filter((r) => ['yes', 'no'].includes(r.answer) && !Number.isNaN(+new Date(r.at)));
+      rows.forEach((r, n) => {
+        // An answer given for another shoot time (the day moved since) is no news any more.
+        if (+new Date(r.shoot_at) !== +d.shootAt) return;
+        const news = answerNews(d, r, rows[n - 1] || null, makeupName());
+        out.push({ id: `${d.day}#${r.id}`, cid: null, day: d, news, url: 'prep.html', soon: daysBetweenIL(env.now, d.shootAt) <= 2, anchors: { event: new Date(r.at) } });
+      });
+    }
+    return out;
+  },
+  steps: (i) => [{
+    id: i.news.kind, to: 'lior', level: i.news.kind === 'no' ? 'ring' : 'quiet', exempt: 'urgent', exception: true, ownHours: i.soon,
+    title: () => i.news.title, body: () => i.news.body,
+  }],
+};
+RULES.push(MAKEUP_SET_RULE, MAKEUP_ANSWER_RULE);
+RULE_BY_ID.set(MAKEUP_SET, MAKEUP_SET_RULE);
+RULE_BY_ID.set(MAKEUP_ANSWER, MAKEUP_ANSWER_RULE);
