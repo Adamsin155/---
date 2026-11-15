@@ -17,7 +17,8 @@ import { isSales, PEOPLE } from './protocol.js';
 // Sales land on their page, always (clients.html and the office's pages send them
 // there): they have no client work and see nothing of the clients.
 export const SALES_SCREEN = 'deal.html';
-export const landingOf = (person) => (isSales(person) ? SALES_SCREEN : null);
+// Natali's makeup artist (15.11.2026): her one screen, the same way.
+export const landingOf = (person) => (isSales(person) ? SALES_SCREEN : PEOPLE[person]?.makeup ? 'makeup.html' : null);
 
 // The clock: 10 minutes of office time from the moment it was taken (while nobody took it, from
 // the moment the deal came in). While nobody took it, both ring again every DEAL_MINUTES.

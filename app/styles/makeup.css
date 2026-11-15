@@ -1,0 +1,22 @@
+/* makeup.html, "הימים שלי עם נטלי" (Tal, Natali's makeup artist; docs/ops.md, section 133).
+   Builds on app.css, protocol.css and kit.css. Phone first: one column at 360px, every target
+   at least 44px, 16px fields (no zoom on focus in iOS). */
+.mk-page .page-head { flex-wrap: wrap; gap: 12px; }
+.mk-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; max-width: 640px; }
+.mk-card { display: grid; gap: 12px; padding: 14px; border-radius: var(--radius-md); background: var(--panel); border-inline-start: 5px solid var(--ds-amber); min-width: 0; }
+.mk-card.is-yes { border-inline-start-color: var(--ds-ok); }
+.mk-card.is-no { border-inline-start-color: var(--ds-hot-text); }
+.mk-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+.mk-what { display: grid; gap: 6px; justify-items: start; min-width: 0; }
+.mk-when { margin: 0; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
+.mk-when > span { white-space: nowrap; }
+.mk-who { margin: 0; white-space: pre-line; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.mk-form { display: grid; gap: 6px; }
+.mk-label { font-weight: 600; }
+.mk-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mk-acts .btn { min-height: 44px; }
+.mk-hour.input { inline-size: 7.5em; font-size: 18px; text-align: center; min-height: 44px; }
+.mk-err { margin: 0; }
+@media (max-width: 420px) {
+  .mk-acts .mk-yes, .mk-acts .mk-no { flex: 1 1 0; }
+}

@@ -156,7 +156,11 @@ export function statusBadge(status, dueAt, now = new Date()) {
 }
 
 const numOf = (id) => PROCESSES.find((p) => p.id === id)?.num || id.replace(/^p0?/, '');
-const itemLabel = (key) => PROCESSES.flatMap((p) => p.items).find((i) => i.key === key)?.label || key;
+// A start on either of two marks ('p05.access|p05.got', v14) is named by the one still in use, not by its keys.
+const itemLabel = (key) => {
+  const items = key.split('|').map((k) => PROCESSES.flatMap((p) => p.items).find((i) => i.key === k)).filter(Boolean);
+  return (items.find((i) => !i.retired) || items[0])?.label || key;
+};
 export function dueText(state, now = new Date()) {
   if (state.status === 'done') return '';
   // Waiting on the client moved the deadline on (office time); say by how much.

@@ -334,6 +334,15 @@ function renderHero() {
     }
   }
   $('gt-actions').replaceChildren(...acts);
+  // "תיקיית הדרייב" (15.11.2026): mounted once, so a link being typed survives the page's redraws.
+  const slot = $('gt-folder-slot');
+  if (canEdit && !SHARE && driveUi?.folderRow && !slot.firstChild) {
+    slot.append(driveUi.folderRow({
+      client, toast,
+      onSaved: (saved) => { client = { ...client, links: saved?.links || client.links }; renderHero(); },
+    }));
+    slot.hidden = false;
+  }
 }
 
 function renderEmpty() {
@@ -442,7 +451,11 @@ function renderMonth() {
       type: 'button', class: `gt-pill${m.key === now ? ' is-today' : ''}`, 'aria-current': m.year === year && m.month === month ? 'true' : null,
       'aria-label': monthName(m.year, m.month), onclick: () => glide(() => { shown = { year: m.year, month: m.month }; selectedDay = null; renderMonth(); }),
     }, h('span', {}, shortMonth(m.year, m.month)), h('span', { class: 'gt-pill-y' }, String(m.year).slice(2)))))));
+  // The month's pill to the middle of its row, sideways only: the page itself does not move
+  // (with the taller head of 15.11.2026 the row could sit under the fold, and the page jumped).
+  const pageY = window.scrollY;
   $('gm-pills').querySelector('[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
+  if (window.scrollY !== pageY) window.scrollTo(window.scrollX, pageY);
   const visible = rows.filter((e) => e.day.slice(0, 7) === `${year}-${String(month).padStart(2, '0')}`);
   const kinds = new Set(rows.map((e) => e.kind));
   $('gt-legend').replaceChildren(...KIND_ORDER.filter((k) => kinds.has(k)).map((k) => h('li', { style: kindStyle(k) }, h('span', { class: 'gt-swatch', 'aria-hidden': 'true' }), GANTT_KINDS[k].label)),

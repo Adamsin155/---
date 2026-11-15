@@ -52,8 +52,9 @@ export const HANDOFFS = [
     // v14 (Ofir: "לאחד"): offered when 5 is complete (its one mark p05.got, or the last of its old marks).
     id: 'access', on: 'p05', label: 'גישות התקבלו',
     // One target per checker (optional: only the client's own is offered), so each record names
-    // its person: `p05.handoff.ofir` (`p05.handoff.noam`, Noam's until she left on 10.11.2026, is in RETIRED).
-    to: ['ofir'].map((p) => ({
+    // its person: `p05.handoff.ofir`, `p05.handoff.amit` (Amit's clients since 15.11.2026; `p05.handoff.noam`,
+    // Noam's until she left on 10.11.2026, is in RETIRED).
+    to: ['ofir', 'amit'].map((p) => ({
       id: p, person: (ctx) => (pagesOwnerOf(ctx) === p ? p : null), optional: true, who: PEOPLE[p].name, proc: 'p06', until: ['p06.ok', 'p06.verified'],
       text: 'גישות התקבלו ל{client}. יש לך 30 דק׳ לבדוק אותן מהכספת במערכת ולסדר את העמודים.',
       due: [{ label: 'יעד', proc: 'p06', minutes: 30 }],

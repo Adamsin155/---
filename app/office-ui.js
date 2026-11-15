@@ -27,6 +27,7 @@ export const FIRST_SCREEN = {};
 export const OWNER_SCREEN = 'owner.html';
 // The page clients.html leaves for, or null (stay on "המשימות שלי"): only the field sales.
 export function firstScreenOf(me) {
+  if (PEOPLE[me]?.makeup) return 'makeup.html'; // Tal (15.11.2026): her one screen
   if (PEOPLE[me]?.sales) return 'deal.html'; // Stav (3.10.2026); clients.js sends him there every time
   return null;
 }

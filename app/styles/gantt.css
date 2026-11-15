@@ -606,3 +606,20 @@ button.gt-alert-t { cursor: pointer; }
 .gd-fail { margin: 0; color: var(--ds-danger); font-weight: 600; }
 .gd-hint { margin: 0; color: var(--ds-muted); }
 #btn-drive { display: inline-flex; align-items: center; gap: 6px; }
+
+/* "תיקיית הדרייב" (app/gantt-drive.js, 15.11.2026): under the hero's actions, on the navy. The
+   Gantt's editors paste the client's Drive folder, or open and replace it. */
+.gt-folder-slot { flex-basis: 100%; position: relative; z-index: 1; min-width: 0; }
+.gt-folder-slot[hidden] { display: none; }
+.gt-folder { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-block-start: 14px; border-block-start: 1px solid rgba(255, 255, 255, 0.18); min-width: 0; }
+.gt-folder-label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #fff; font-size: 15px; margin-inline-end: 4px; }
+.gt-folder-form { display: grid; gap: 8px; inline-size: 100%; min-width: 0; }
+.gt-folder-line { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.gt-folder-line .input { flex: 1 1 260px; min-width: 0; max-inline-size: 560px; min-height: 44px; font-size: 16px; text-align: left; }
+.gt-folder-msg { margin: 0; color: #FFD9DE; font-weight: 600; font-size: 14.5px; }
+.gt-folder-msg:empty { display: none; }
+.gt-folder .input[aria-invalid='true'] { border-color: #FF8FA0; box-shadow: 0 0 0 3px rgba(255, 143, 160, 0.35); }
+@media (max-width: 640px) {
+  .gt-folder-line .input { flex-basis: 100%; max-inline-size: none; }
+  .gt-folder-line .btn, .gt-folder > .btn { flex: 1 1 auto; }
+}

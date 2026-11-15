@@ -19,7 +19,8 @@ const OWNER = 'owner';
 // v11 (the owner, 21.10.2026): connecting is Ofir's step, right after he takes the accesses;
 // Ilai keeps the right (the Gantt is his) but it is no longer his task. It is the step of
 // whoever sets the client's pages up (6: Ofir; Noam too from 1.11 until she left on 10.11.2026).
-export const CONNECTORS = [OWNER, 'ofir', 'ilai', 'irit', 'lior']; // Irit and Lior since 4.11.2026 (public.can_connect_metricool)
+// Amit since 15.11.2026: she sets the pages up of the clients she characterizes (6), as Noam did.
+export const CONNECTORS = [OWNER, 'ofir', 'ilai', 'amit', 'irit', 'lior']; // Irit and Lior since 4.11.2026 (public.can_connect_metricool)
 const personOfViewer = (viewer) => {
   if (!viewer || viewer.error) return null;
   if (viewer.me) return viewer.me;

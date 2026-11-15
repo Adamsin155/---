@@ -94,7 +94,7 @@ export const TEMPLATES = {
 export const TASK_RULES = new Set(['urgent', 'exception', 'task', 'tell', 'briefDone']);
 // Approvals and quality control: open the app, no quick replies.
 export const REVIEW_RULES = new Set(['qa', 'qaReturn', 'graphicsRest', 'graphics9', 'approval', 'approved', 'finalReady', 'clientFixes']);
-const SHOOT_RULES = new Set(['eve', 'briefing', 'shoot', 'broll', 'shootOpen', 'shootSet']);
+const SHOOT_RULES = new Set(['eve', 'briefing', 'shoot', 'broll', 'shootOpen', 'shootSet', 'makeupSet']);
 // Rings that say something was not done in time.
 const LATE_STEPS = new Set(['editing.nostart', 'char.end', 'charForm.form', 'charForm.irit', 'assign.stop12']);
 

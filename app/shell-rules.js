@@ -9,7 +9,7 @@
 // modules (tests/shell.test.mjs holds them equal for every role).
 // Screens only: what anyone may read or open is decided by the database and by each
 // page's own gate. No DOM here, so node can test it.
-import { PEOPLE, isSales } from './protocol.js';
+import { PEOPLE, isSales, isMakeup } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
 import { canAsk } from './ask-logic.js';
 import {
@@ -26,7 +26,7 @@ const seesAllClients = (v) => canSeeTable(v);
 const seesPayments = (v) => isOwnerView(v) || (known(v) && v.me === 'ofir');
 // The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
 // field sales (as seesCalendar in calendar-view.js).
-const seesCalendar = (v) => known(v) && v.scope !== 'sales' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
+const seesCalendar = (v) => known(v) && v.scope !== 'sales' && v.scope !== 'makeup' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
 // The pink "לקוח חדש" on clients.html (the owner, 20.10.2026; Lior and Ofir since
 // 27.10.2026): the owners, Irit, Lior and Ofir (processes 2–3 are Irit's; a signed agreement
 // opens its client by itself, app/client-open.js, and the field sales have no clients list).
@@ -38,18 +38,19 @@ export const opensClients = (v) => known(v) && v.scope === 'office' && (!v.me ||
 // any time, with no clock (intake.html?id=…&only=char, and intake.html with no client to pick
 // one): the owners, Irit, Lior and Ofir. public.characterizations is the office's to write.
 // Shiel (9.11.2026) runs the meetings and is not the office: he writes the form too, on his own
-// screens (MEETING_PEOPLE). (Noam did too, from 1.11 until she left on 10.11.2026.)
-export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'shiel']; // Shiel since 9.11.2026
+// screens (MEETING_PEOPLE), and so does Amit (15.11.2026). (Noam did too, from 1.11 until she left on 10.11.2026.)
+export const CHAR_WRITERS = ['irit', 'lior', 'ofir', 'amit', 'shiel']; // Shiel since 9.11.2026, Amit since 15.11.2026
 // Outside the office, who runs the characterization meeting itself: the end of the meeting and
 // its form (process 4, intake.html#end and #form) on the clients whose work is theirs.
-export const MEETING_PEOPLE = ['shiel']; // Shiel (9.11.2026): characterizations only
-// His own work like Ilai, but the list of clients is all of them, to reach any client's vault (the
-// owner, 1.11.2026). The database already answers him for every client (public.is_office()).
-export const ALL_CLIENTS_PEOPLE = ['shiel'];
+export const MEETING_PEOPLE = ['amit', 'shiel']; // Amit (15.11.2026); Shiel (9.11.2026): characterizations only
+// Their own work like Ilai, but the list of clients is all of them, to reach any client's vault (the
+// owner, 1.11.2026). The database already answers them for every client (public.is_office()).
+export const ALL_CLIENTS_PEOPLE = ['amit', 'shiel'];
 export const listsAllClients = (me) => ALL_CLIENTS_PEOPLE.includes(me);
 export const writesChar = (v) => known(v) && (v.scope === 'office' || MEETING_PEOPLE.includes(v.me)) && (!v.me || CHAR_WRITERS.includes(v.me));
-// The index of the content Gantt: the office and Ilai (as worksCycle in month-ui.js).
-export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai');
+// The index of the content Gantt: the office, Ilai and Amit (as worksCycle in month-ui.js; Amit since
+// 15.11.2026, for the Metricool card: she connects the pages she set up).
+export const seesGantt = (v) => known(v) && (v.scope === 'office' || v.me === 'ilai' || v.me === 'amit');
 // Who changes a Gantt: Ilai, Irit (22.10.2026), Ofir and Lior (4.11.2026) and the owner
 // (public.can_edit_gantt() decides).
 export const GANTT_EDITORS = ['ilai', 'irit', 'ofir', 'lior'];
@@ -74,6 +75,7 @@ export function officeScreens(viewer) {
 }
 
 export const QUOTE_LABEL = 'הצעה חדשה והכנת חוזה';
+export const MAKEUP_ITEM = { id: 'makeup', href: 'makeup.html', label: 'הימים שלי עם נטלי' };
 const ASK_ITEM = { id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' };
 // Every screen this person may open, in the menu's order. The owners, Irit, Ofir and
 // Lior see this list in two parts, one profile at a time: profileMenu below.
@@ -81,6 +83,8 @@ export function menuOf(viewer) {
   const me = viewer?.me || null;
   // The field sales: their deals, and "שאלו את המערכת" (everyone on the staff since 29.10.2026).
   if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, ASK_ITEM];
+  // Natali's makeup artist (15.11.2026; docs/ops.md, section 133): her one screen, and nothing else.
+  if (known(viewer) && isMakeup(me)) return [MAKEUP_ITEM];
   const list = [{ id: 'mine', href: MODES.mine.href, label: MODES.mine.label }];
   if (!known(viewer)) return list; // not identified: nothing is assumed
   const office = officeOf(viewer);
@@ -144,7 +148,8 @@ function unique(list) {
 // first screen. The field sales have one screen, their deals; everyone else their tasks.
 export const homeLink = (viewer) => (known(viewer) && isSales(viewer.me)
   ? { href: 'deal.html', label: 'מעבר לעסקה חדשה' }
-  : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
+  : known(viewer) && isMakeup(viewer.me) ? { href: 'makeup.html', label: 'מעבר לימים שלי עם נטלי' }
+    : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
 
 // The person's home: the one answer to "where does this person start" (the owner's rule,
 // 9.10.2026; docs/ops.md, section 54). Everyone on "המשימות שלי" in the personal profile:
@@ -349,7 +354,7 @@ export function inMenu(items, pathname, hash = '') {
 // the initials are the first two letters of the name.
 export const AVATAR_FILL = {
   irit: '#FAD4DF', lior: '#D6E6FB', ofir: '#E3DBFC', ilai: '#D5F0E1', nadia: '#FDE9C4', yariv: '#D9F0F4',
-  anna: '#F4DCF6', eli: '#E6E9C9', stav: '#FFE0CC', nirel: '#DDE3FA', amos: '#E9DCCB', noam: '#D4EEF0', shiel: '#F3E3D3', editor: '#E4E8F3',
+  anna: '#F4DCF6', eli: '#E6E9C9', stav: '#FFE0CC', nirel: '#DDE3FA', amos: '#E9DCCB', noam: '#D4EEF0', amit: '#D3EBDF', shiel: '#F3E3D3', editor: '#E4E8F3',
 };
 export const avatarFill = (person) => AVATAR_FILL[person] || '#E4E8F3';
 export const initialsOf = (name) => [...String(name || '').trim()].filter((c) => /\S/.test(c)).slice(0, 2).join('');

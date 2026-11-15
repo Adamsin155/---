@@ -60,6 +60,7 @@ export function buildEnv({
   changeRequests = [], // public.change_requests rows: the open ones and those decided lately
   decisions = [], // public.task_decisions rows of the last days (Lior's decisions on exceptions)
   staffNotes = [], // 9.11.2026: public.staff_notes rows written lately, not deleted (app/staff-notes-logic.js)
+  makeupAnswers = [], // 15.11.2026: public.makeup_answers rows, Tal's answers on the Natali days (app/makeup-logic.js)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -83,7 +84,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, makeupAnswers,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),
