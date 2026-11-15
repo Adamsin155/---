@@ -654,7 +654,7 @@ export const PROCESSES = [
     when: isStar, start: { from: 'p11' }, due: { from: 'p11' },
     what: 'יום צילום עם נטלי לא נחשב סגור עד שגם המאפרת וגם ההסעה סודרו.',
     items: [
-      { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לבית של נטלי שעתיים לפני הצילום' },
+      { key: 'p11b.makeup', label: 'מאפרת תואמה, מגיעה לבית של נטלי' },
       { key: 'p11b.ride', label: 'הסעה של נטלי לבית העסק וחזרה סודרה' },
     ],
   },
@@ -951,7 +951,7 @@ export const PROCESSES = [
       ...[['time', 'שעה'], ['address', 'כתובת'], ['content', 'תוכן מאושר'], ['details', 'פרטי יום הצילום']]
         .map(([k, l]) => ({ key: `p15.d.${k}`, label: `לכולם יש: ${l}` })),
       { key: 'p15.explain', label: 'בוצעה שיחת הסבר עם הלקוח' },
-      { key: 'p15.natali.makeup', label: 'המאפרת אישרה הגעה לבית של נטלי שעתיים לפני הצילום', owners: ['lior'], when: isStar },
+      { key: 'p15.natali.makeup', label: 'המאפרת אישרה הגעה לבית של נטלי', owners: ['lior'], when: isStar },
       { key: 'p15.natali.ride', label: 'ההסעה של נטלי סגורה ומאושרת', owners: ['lior'], when: isStar },
       { key: 'p15.irit', label: 'עירית וידאה שהתזכורות נשלחו, שהלקוח זוכר ושאין משימה פתוחה שתפגע ביום הצילום', owners: ['irit'] },
     ],

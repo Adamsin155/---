@@ -58,7 +58,7 @@ export const PARTIES = [
 // Natali's makeup artist and ride (11ב); the same on Niro's and "הצל"'s day (28.10.2026), in
 // their own name (starWords).
 export const NATALI = [
-  { key: 'p11b.makeup', label: 'המאפרת, בבית של נטלי שעתיים לפני', short: 'מאפרת' },
+  { key: 'p11b.makeup', label: 'המאפרת מגיעה לבית של נטלי', short: 'מאפרת' },
   { key: 'p11b.ride', label: 'ההסעה של נטלי, הלוך וחזור', short: 'הסעה' },
 ];
 // A day without influencers (25.10.2026): no influencers to approve or to check in the

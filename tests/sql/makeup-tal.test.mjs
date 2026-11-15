@@ -112,6 +112,21 @@ test('she reads nothing of the clients', async () => {
   assert.equal((await run('tal', 'select public.is_office() as ok'))[0].ok, false);
 });
 
+test('the team list: she reads only her own row; everyone else (a field agent too) reads it as before', async () => {
+  await db.query("insert into auth.users (email, email_confirmed_at) values ('stav@astrateg.test', now())");
+  await db.query("insert into public.staff (email, person) values ('stav@astrateg.test', 'stav')");
+  const stavId = (await db.query("select id from auth.users where email = 'stav@astrateg.test'")).rows[0].id;
+  const all = (await db.query('select count(*)::int as n from public.staff')).rows[0].n;
+  const mine = await run('tal', 'select email, person from public.staff');
+  assert.deepEqual(mine, [{ email: 'tal@astrateg.test', person: 'tal' }]);
+  // What her app asks: who she is (app/supa.js staffPerson), and that she is staff.
+  assert.equal((await run('tal', "select person from public.staff where email = 'tal@astrateg.test'"))[0].person, 'tal');
+  assert.equal((await run('tal', 'select public.is_staff() as ok, public.my_person() as p'))[0].p, 'tal');
+  for (const who of ['lior', 'nadia', 'eli']) assert.equal((await run(who, 'select count(*)::int as n from public.staff'))[0].n, all, who);
+  const stav = await as(db, { id: stavId, email: 'stav@astrateg.test' }, async (tx) => (await tx.query('select count(*)::int as n from public.staff')).rows);
+  assert.equal(stav[0].n, all, 'a field agent reads as before');
+});
+
 test('her screen: Natali only, from today, the business and the shoot time, nothing else', async () => {
   const r = (await run('tal', 'select public.makeup_my_days() as r'))[0].r;
   const days = r.days.map((d) => [d.day, d.business, d.round, new Date(d.shoot_at).toISOString()]);

@@ -27,7 +27,8 @@ create or replace function private.makeup_people() returns text[]
 language sql immutable set search_path = '' as $$
   select array['tal']::text[];
 $$;
-revoke all on function private.makeup_people() from public, anon, authenticated;
+revoke all on function private.makeup_people() from public, anon;
+grant execute on function private.makeup_people() to authenticated; -- read by the policy on public.staff (section 5)
 
 -- ── 2. The days with Natali ─────────────────
 -- Every shoot with Natali between two dates (Israel days), the client's own and each round's: the
@@ -156,3 +157,17 @@ begin
 end $$;
 revoke all on function public.makeup_answer(date, text, text) from public, anon, authenticated;
 grant execute on function public.makeup_answer(date, text, text) to authenticated;
+
+-- ── 5. She reads only her own row of the team ──
+-- Every staff member reads public.staff ("staff read staff": the directory of names and emails).
+-- Not her: a restrictive policy (it is added to the others, and every restrictive one must hold)
+-- leaves her only her own row, which is all her screen asks for (who she is). Nobody else's reading
+-- changes: for anyone who is not the makeup artist it is always true.
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'staff' and policyname = 'makeup artist reads only her own row') then
+    create policy "makeup artist reads only her own row" on public.staff as restrictive for select to authenticated
+      using (not coalesce((select public.my_person()) = any (private.makeup_people()), false)
+             or email = lower(coalesce(auth.jwt() ->> 'email', '')));
+  end if;
+end $$;

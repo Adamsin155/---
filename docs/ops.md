@@ -5087,7 +5087,7 @@ Claude יראה פסקה של "מה ישתנה". עונים "כן" ורק אז �
 - היא כותבת רק דרך `public.makeup_answer(day, answer, arrive)`: שורה ב־`public.makeup_answers` (מי ומתי נחתמים במסד; שעה חובה ב"מאשרת", לפני הצילום, ובלי שעה ב"לא יכולה"), וב"מאשרת" גם סימון של שני הפריטים של המאפרת לכל לקוח של אותו יום: `p11b.makeup` ו־`p15.natali.makeup` (בסבב עם `r2.` וכו'), עם השעה שלה בהערה ("מאפרת: מגיעה לנטלי ב־07:30"). סימון שליאור עשה בעצמו נשאר כמו שהוא. המשרד יכול לענות בשמה (אחרי שיחה), ונרשם מי.
 - "לא יכולה" אחרי "מאשרת" מוריד את הסימונים **שלה** של אותו יום (`private.makeup_unmark`, בקובץ שממתין לאישור).
 - את `makeup_answers` קורא רק המשרד. הדפדפן לא כותב אליה.
-- **מה כן פתוח לה כמו לכל איש צוות:** השורה שלה ב־`staff` ורשימת הצוות (כמו לסוכני השטח), ההתראות שלה (`reminder_log`, המכשירים שלה).
+- **רשימת הצוות:** מ־`public.staff` היא קוראת רק את השורה שלה (מדיניות restrictive "makeup artist reads only her own row" במיגרציה; שאר הצוות, וגם סוכני השטח, קוראים כמו קודם). פתוחים לה גם ההתראות שלה (`reminder_log`) והמכשירים שלה.
 
 **קבצים:** `app/makeup-logic.js`, `app/makeup-data.js`, `app/makeup.js`, `makeup.html`, `app/styles/makeup.css`; שינויים ב־`app/protocol.js`, `app/shell-rules.js`, `app/reminder-rules.js`, `app/reminder-engine.js`, `app/prep.js`, `app/styles/intake.css`, `app/deal-logic.js`, `app/office-ui.js`, `app/ask-logic.js`, `app/calendar-view.js`, `app/staff-tasks-logic.js`, `app/staff-notes-logic.js`, `app/wa-templates.js`, `supabase/functions/reminders/index.ts`, `supabase/functions/staff-admin/rules.js` (טל ב־`PERSONS`), והעותקים ב־`supabase/functions/_shared/app/`.
 

@@ -39,10 +39,16 @@ function makeupFake() {
     const req = r.request();
     const p = new URL(req.url()).pathname;
     const json = (status, data) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data), headers: CORS });
-    if (req.method() === 'OPTIONS' || !p.startsWith('/rest/v1/rpc/makeup_')) return fake.route(r);
     const token = /^Bearer (.+)$/.exec(req.headers().authorization || '')?.[1] || '';
-    const email = JSON.parse(Buffer.from(token.split('.')[1] || 'e30', 'base64url').toString()).email;
+    const email = req.method() === 'OPTIONS' ? null : JSON.parse(Buffer.from(token.split('.')[1] || 'e30', 'base64url').toString()).email;
     const person = db.staff.find((s) => s.email === email)?.person;
+    // The team list: she reads only her own row (the restrictive policy of the migration).
+    if (person === 'tal' && p === '/rest/v1/staff') {
+      const all = db.staff;
+      db.staff = all.filter((s) => s.email === email);
+      try { return await fake.route(r); } finally { db.staff = all; }
+    }
+    if (req.method() === 'OPTIONS' || !p.startsWith('/rest/v1/rpc/makeup_')) return fake.route(r);
     if (person !== 'tal' && !(person === null || ['irit', 'lior', 'ofir'].includes(person))) return json(403, { code: '42501', message: 'not allowed' });
     const cases = nataliCases(db.clients.filter((c) => !c.archived_at && !c.landing));
     const today = dayKeyIL(NOW);
