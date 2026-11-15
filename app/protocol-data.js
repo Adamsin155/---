@@ -368,6 +368,13 @@ export async function loadQuoteSummary(id) {
   if (error) return null;
   return data;
 }
+// The signed agreement's link token (the owner, 15.11.2026: "אין אופציה לראות" the contract
+// from the card). Only who reads the quotes gets it (the policy "money: who reads a quote");
+// anyone else: null, and the card shows no button.
+export async function loadQuoteToken(id) {
+  const { data, error } = await supabase.from('quotes').select('token').eq('id', id).maybeSingle();
+  return error || !data?.token ? null : data.token;
+}
 
 // Of the history since a moment, only what the office's lists read (app/health.js LOG_NEEDS;
 // docs/ops.md, section 77), in one answer: public.protocol_log_brief() gives the newest row

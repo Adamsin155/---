@@ -17,7 +17,7 @@ import {
 } from './protocol-logic.js';
 import {
   loadClient, loadClients, loadChecks, loadLog, loadTasks, setCheck, clearCheck, setChecksBulk, clearChecksBulk, addChecksOnce,
-  addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadCalls, quoteFacts,
+  addTask, setTaskDone, updateClient, loadDirectory, loadQuoteSummary, loadQuoteToken, loadCalls, quoteFacts,
   loadAccess, saveAccess, revealAccess, deleteAccess, loadAccessLog, canUseVault, loadStatusNotes, setPasswordGate, GATE_CANCELLED,
 } from './protocol-data.js';
 import {
@@ -97,7 +97,7 @@ import { contractSummary, fileCounts } from './contract-summary.js';
 import { loadDeliverableFiles, archiveClient } from './manager-data.js';
 import { canArchive, isManager } from './manager-rules.js';
 import { openedBySigning, influencerToChoose } from './client-open.js';
-import { warm, taken, onFresh } from './supa.js';
+import { warm, taken, onFresh, quoteLink } from './supa.js';
 import { fixTaskOf, FIX_ITEM_LABEL } from './late-chain.js';
 // Protocol v10 (docs/ops.md, section 58): a fix the client asked for outside the status page.
 import { fixSpecOf, mayRecordFix, awaitsClient } from './fix-request.js';
@@ -212,7 +212,9 @@ async function loadCard() {
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
     [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy, legacyChar, manual] = await Promise.all([
-      c.quote_id && (!quote || quote.id !== c.quote_id) ? loadQuoteSummary(c.quote_id) : quote,
+      c.quote_id && (!quote || quote.id !== c.quote_id)
+        ? Promise.all([loadQuoteSummary(c.quote_id), loadQuoteToken(c.quote_id).catch(() => null)]).then(([q, token]) => (q ? { ...q, token } : q))
+        : quote,
       vaultOk ? loadAccess(id).catch(() => []) : [],
       own() ? null : loadStatusNotes({ clientId: id }).catch(() => null),
       own() ? null : loadHealthExtras(id, new Date(Date.now() - 30 * 864e5).toISOString()),
@@ -1074,7 +1076,10 @@ function contractDocs() {
   const input = may ? h('input', { type: 'file', id: 'cd-file', class: 'sr-only', accept: CONTRACT_ACCEPT, tabindex: '-1', onchange: (e) => addContract(e.currentTarget) }) : null;
   const rows = [
     quote ? h('li', { class: 'cd-row', id: 'cd-quote' }, h('span', { class: 'cd-k' }, 'הסכם שנחתם במערכת'),
-      h('span', { class: 'cd-v' }, quote.number ? h('bdi', { class: 'num', dir: 'ltr' }, quote.number) : null, quote.signed_at ? ` · נחתם ${formatDay(quote.signed_at)}` : '')) : null,
+      h('span', { class: 'cd-v' }, quote.number ? h('bdi', { class: 'num', dir: 'ltr' }, quote.number) : null, quote.signed_at ? ` · נחתם ${formatDay(quote.signed_at)}` : ''),
+      // The agreement as the client signed it, with "הורדת PDF" there (15.11.2026).
+      quote.token ? h('a', { class: 'btn btn-sm cd-get', id: 'cd-quote-open', href: quoteLink(quote.token), target: '_blank', rel: 'noopener',
+        'aria-label': `פתיחת החוזה ${quote.number || ''}`.trim() }, 'פתיחת החוזה') : null) : null,
     ...files.map((f) => h('li', { class: 'cd-row', id: `cd-f-${f.id}` }, h('span', { class: 'cd-k' }, 'קובץ חוזה חתום'),
       h('span', { class: 'cd-v' }, h('bdi', { class: 'cd-name' }, fileNameOf(f.storage_path)), ` · הועלה ${formatDay(f.created_at)}`),
       h('button', { type: 'button', class: 'btn btn-sm cd-get', 'aria-label': `הורדת החוזה ${fileNameOf(f.storage_path)}`,
