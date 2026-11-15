@@ -27,11 +27,15 @@ export const folderUrl = (id) => `https://drive.google.com/drive/folders/${id}`;
 export function readFolderLink(text) {
   const v = String(text ?? '').trim();
   if (!v) return { error: 'הדביקו כאן את הקישור לתיקייה בדרייב.' };
-  if (SECRET.test(v)) return { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.' };
+  const secret = { error: 'אפשר לשמור כאן רק קישור. סיסמאות וקודי גישה לא נשמרים במערכת.' };
+  // A Drive folder's address: what follows "?" or "#" (?usp=…, ?resourcekey=…) is dropped, so only
+  // the address before it is checked for a password; anything else is checked whole.
+  if (SECRET.test(v.split(/[?#]/)[0])) return secret;
+  const id = /^https:\/\//i.test(v) ? folderIdOf(v) : null;
+  if (id) return { url: folderUrl(id) };
+  if (SECRET.test(v)) return secret;
   if (!/^https:\/\//i.test(v)) return { error: 'זה לא נראה כמו קישור. העתיקו את הכתובת המלאה, שמתחילה ב־https://' };
-  const id = folderIdOf(v);
-  if (!id) return { error: 'זה לא קישור לתיקייה בדרייב. פתחו את התיקייה ב־Google Drive והעתיקו את הכתובת שלה (drive.google.com/drive/folders/…).' };
-  return { url: folderUrl(id) };
+  return { error: 'זה לא קישור לתיקייה בדרייב. פתחו את התיקייה ב־Google Drive והעתיקו את הכתובת שלה (drive.google.com/drive/folders/…).' };
 }
 
 // The client's links with the new folder: every other key stays; the folder it replaces is kept in drive_old.

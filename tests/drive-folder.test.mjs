@@ -16,6 +16,12 @@ test('a folder link, in every form Drive gives, is kept as /drive/folders/<id>',
   ]) assert.deepEqual(readFolderLink(v), { url: URL1 }, v);
 });
 
+test('a Drive folder with ?resourcekey= (or another query) is kept without it', () => {
+  for (const v of [`${URL1}?resourcekey=0-AbCdEf_123`, `${URL1}?usp=sharing&resourcekey=0-AbC`, `https://drive.google.com/drive/u/0/folders/${ID}?resourcekey=0-x#y`, `${URL1}?token=abc`]) {
+    assert.deepEqual(readFolderLink(v), { url: URL1 }, v);
+  }
+});
+
 test('the id is the one the drive function reads', () => {
   for (const v of [URL1, `${URL1}?usp=sharing`, `https://drive.google.com/drive/u/0/folders/${ID}`, `https://drive.google.com/open?id=${ID}`,
     'https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view', 'https://docs.google.com/document/d/1AbCdEfGhIjKl/edit', 'http://drive.google.com/drive/folders/1AbCdEfGhIjKl']) {
@@ -37,9 +43,10 @@ test('anything else is refused, in Hebrew', () => {
     'https://drive.google.com/drive/folders/short': /לא קישור לתיקייה/,
     'https://drive.google.com/drive/my-drive': /לא קישור לתיקייה/,
     'https://user:pw@drive.google.com/drive/folders/1AbCdEfGhIjKl': /סיסמאות/,
-    'https://drive.google.com/drive/folders/1AbCdEfGhIjKl?token=abc': /סיסמאות/,
-    'https://drive.google.com/drive/folders/1AbCdEfGhIjKl?resourcekey=0-abc': /סיסמאות/,
-    'https://drive.google.com/drive/folders/1AbCdEfGhIjKl?password=1': /סיסמאות/,
+    'https://user:pw@drive.google.com/drive/folders/1AbCdEfGhIjKl?usp=sharing': /סיסמאות/,
+    'https://example.com/folder?token=abc': /סיסמאות/,
+    'https://docs.google.com/document/d/1AbCdEfGhIjKl/edit?resourcekey=0-abc': /סיסמאות/,
+    'https://www.dropbox.com/s/x?password=1': /סיסמאות/,
   };
   for (const [v, re] of Object.entries(cases)) {
     const got = readFolderLink(v);

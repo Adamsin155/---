@@ -56,6 +56,8 @@ async function signedIn(engine, opts, who, clientId) {
   await page.click('#lg-submit');
   await page.waitForSelector('#gt-title');
   await page.waitForFunction(() => !document.getElementById('gt-hero').hidden);
+  // The sign-in "door" lifts off the page (app/login-ui.js): gone before anything is looked at.
+  await page.waitForFunction(() => !('door' in document.documentElement.dataset) && document.getElementById('login-block').hidden, null, { timeout: 15000 });
   await settle(page);
   return { page, ctx, fake };
 }
@@ -64,7 +66,13 @@ const noSideways = (page) => page.evaluate(() => document.documentElement.scroll
 // Real typing: key by key, then Backspace.
 async function typeKeys(input, text) { await input.pressSequentially(text, { delay: 15 }); }
 async function backspace(page, n) { for (let i = 0; i < n; i += 1) await page.keyboard.press('Backspace'); }
-const shot = async (loc, name) => { if (SHOTS) await loc.screenshot({ path: `${OUT}drive-link-${name}.png` }); };
+const shot = async (loc, name) => {
+  if (!SHOTS) return;
+  const page = loc.page();
+  await page.waitForFunction(() => !('door' in document.documentElement.dataset) && document.getElementById('login-block').hidden);
+  assert.ok(await loc.isVisible(), `${name}: the Gantt's head is on screen`);
+  await loc.screenshot({ path: `${OUT}drive-link-${name}.png` });
+};
 
 let passed = 0;
 async function step(name, fn) { try { await fn(); passed += 1; console.log(`ok - ${name}`); } catch (e) { console.log(`not ok - ${name}`); throw e; } }
@@ -133,13 +141,13 @@ await step('2  Chromium 1366, Ilai: replace the folder; the one before is kept; 
   await input.waitFor();
   assert.ok(await input.evaluate((el) => el === document.activeElement), 'the field has the focus');
   // A link with a password in it: refused.
-  await typeKeys(input, `${FOLDER}?token=abc`);
+  await typeKeys(input, 'https://example.com/folder?token=abc');
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.getElementById('gt-folder-msg').textContent.length > 0);
   assert.match(await page.locator('#gt-folder-msg').innerText(), /סיסמאות/);
-  await backspace(page, `${FOLDER}?token=abc`.length);
+  await backspace(page, 'https://example.com/folder?token=abc'.length);
   assert.equal(await input.inputValue(), '');
-  await typeKeys(input, `https://drive.google.com/drive/u/0/folders/${NEW_ID}x`);
+  await typeKeys(input, `https://drive.google.com/drive/u/0/folders/${NEW_ID}?resourcekey=0-AbCx`);
   await backspace(page, 1);
   await shot(page.locator('#gt-hero'), 'replace-1366');
   await page.click('#gt-folder-save');
