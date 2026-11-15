@@ -158,7 +158,7 @@ test('a client of Niro or "הצל" has Natali\'s processes, every word in the ri
     const all = JSON.stringify(procs.map(({ title, sla, what, rule, ownerNote, items, guidance }) => ({ title, sla, what, rule, ownerNote, items: items.map((i) => i.label), guidance: guidance?.[inf] })));
     assert.ok(!all.includes('נטלי'), `${inf}: ${all.match(/[^"]{0,40}נטלי[^"]{0,40}/)?.[0]}`);
     // What left still says the day's influencer, for the history of its marks.
-    assert.ok(starProcess(PROCESSES.find((p) => p.id === 'p11b'), inf).items.some((i) => i.label === `מאפרת תואמה, מגיעה לבית של ${starShort(inf)} שעתיים לפני הצילום`));
+    assert.ok(starProcess(PROCESSES.find((p) => p.id === 'p11b'), inf).items.some((i) => i.label === `מאפרת תואמה, מגיעה לבית של ${starShort(inf)}`));
     assert.equal(starProcess(PROCESSES.find((p) => p.id === 'p20'), inf).title, `ניהול יום צילום עם ${INFLUENCERS[inf].name}`);
     assert.ok(procs.find((p) => p.id === 'p12').guidance[inf].startsWith(`יום עם ${starShort(inf)}:`));
   }
@@ -186,7 +186,7 @@ test('the shoot-day screens and texts name the day\'s influencer', () => {
   const c = { id: 'c1', name: 'קפה', status: 'active', shoot_type: 'niro', shoot_at: IL(2026, 11, 20, 11).toISOString(), rounds: [] };
   const coord = coordinatorOf(c, {}, shootContexts(c)[0]);
   assert.equal(coord.star, 'נירו');
-  assert.deepEqual(coord.natali.map((a) => a.label), ['המאפרת, בבית של נירו שעתיים לפני', 'ההסעה של נירו, הלוך וחזור']);
+  assert.deepEqual(coord.natali.map((a) => a.label), ['המאפרת מגיעה לבית של נירו', 'ההסעה של נירו, הלוך וחזור']);
   const sc = shootCases(c)[0];
   assert.equal(sc.natali, true);
   const makeup = timeline(sc).find((t) => t.key === 'makeup');

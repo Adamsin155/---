@@ -28,7 +28,7 @@ export const personOfViewer = (viewer) => {
 export const canGive = (viewer) => GIVERS.includes(personOfViewer(viewer));
 // Whom a task can be given to: everyone on the team (editors, the photographer and
 // the sales agents too), then the owner. Not the silent (Shiel, 9.11.2026: no notification at all).
-export const ASSIGNEES = () => [...TEAM_PEOPLE().filter((p) => !isSilent(p.key)).map((p) => ({ key: p.key, name: p.name })), { key: OWNER, name: 'הבעלים' }];
+export const ASSIGNEES = () => [...TEAM_PEOPLE().filter((p) => !isSilent(p.key) && !p.makeup).map((p) => ({ key: p.key, name: p.name })), { key: OWNER, name: 'הבעלים' }];
 export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key || '');
 // Where a person does their work: sales have only deal.html.
 export const homeUrl = (person) => (isSales(person) ? 'deal.html' : 'clients.html#mine');

@@ -19,10 +19,10 @@
 
 alter table public.staff drop constraint if exists staff_person_check;
 alter table public.staff add constraint staff_person_check
-  check (person in ('irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos', 'editor', 'shiel', 'amit'));
+  check (person in ('irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos', 'editor', 'shiel', 'amit', 'tal'));
 alter table public.reminder_log drop constraint if exists reminder_log_person_check;
 alter table public.reminder_log add constraint reminder_log_person_check
-  check (person in ('owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos', 'amit'));
+  check (person in ('owner', 'irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'stav', 'amos', 'amit', 'tal'));
 alter table public.client_tasks drop constraint if exists client_tasks_owner_check;
 alter table public.client_tasks add constraint client_tasks_owner_check
   check (owner in ('irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'noam', 'amit'));

@@ -103,6 +103,9 @@
 .pp-party .btn[aria-pressed='true'] { background: var(--ok-soft); border-color: var(--ok); color: var(--text); }
 .pp-party .btn[aria-pressed='true']::before { content: '✓'; margin-inline-end: 8px; color: var(--ok); font-weight: 700; }
 .pp-party small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+/* Tal's answer on a day with Natali (docs/ops.md, section 133). */
+.pp-party small.pp-makeup { font-weight: 600; color: var(--text); }
+.pp-party small.pp-makeup.is-no { color: var(--danger); }
 .pp-status { font-weight: 600; }
 .pp-status.is-ok { color: var(--ok); }
 .pp-status.is-open { color: var(--warn); }

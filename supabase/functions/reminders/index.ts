@@ -313,7 +313,21 @@ async function loadAvailability(now: Date): Promise<Row> {
 // that was set, moved or taken off. Only the key, the title and the id are read.
 async function loadShootTold(now: Date): Promise<Row[]> {
   const since = new Date(now.getTime() - 120 * 864e5).toISOString();
-  return all(() => admin.from('reminder_log').select('id, key, title, created_at').eq('rule', 'shootSet').gte('created_at', since).order('id'));
+  return all(() => admin.from('reminder_log').select('id, key, title, created_at').in('rule', ['shootSet', 'makeupSet']).gte('created_at', since).order('id'));
+}
+
+// Tal's answers on the days with Natali (15.11.2026, rule `makeupAnswer`; docs/ops.md, section 133):
+// those given in the last two days, for a day from yesterday on. Until migration
+// 20261213100000_makeup_tal.sql adds the table, none.
+async function loadMakeupAnswers(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('makeup_answers').select('id, day, shoot_at, answer, arrive_time, at').gte('at', since).gte('day', dayKeyIL(addDaysIL(now, -1))).order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205' || code === '42703' || code === 'PGRST204') return [];
+    throw err;
+  }
 }
 
 // The database as tick.js sees it (service role: row level security does not apply).
@@ -321,7 +335,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt, makeupAnswers] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -351,10 +365,11 @@ const db = {
       loadUnsigned(now),
       loadStaffNotes(now),
       loadGanttStates(),
+      loadMakeupAnswers(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, makeupAnswers, log: [...log.values()] };
   },
   // A monthly client's editing round (./tick.js openMonthlyRounds; docs/ops.md, section 94). The
   // round only when the client row is still the one loaded (its updated_at; the clients trigger
