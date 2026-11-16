@@ -177,3 +177,108 @@ export function gfxChoice({ assignee, clientId, kind = '', count = '' } = {}) {
   if (value.gfx_kind === 'fix') delete value.gfx_count; // a fix is judged by its notes, not counted
   return { ok: !Object.keys(errors).length, errors, value };
 }
+
+// ── Stage 3: Claude checks a fix task ─────
+// When new graphics files appeared in the client's Drive graphics folders after a fix task was
+// given (or reopened), the gfx-auto function sends Claude the task's notes and those images and
+// asks, per note: fixed, not fixed, or cannot tell. Every note fixed: the task closes. A note not
+// fixed: the assignee hears "עוד לא תוקן: …" (rule `gfxFix`) and the task stays open. Each file
+// is checked once (public.gfx_ai_checks.files).
+export const AI = {
+  maxImages: 12,     // images in one check (the newest)
+  maxImageBytes: 3.5 * 1024 * 1024, // as a contract picture (app/contract-read-logic.js READ_MAX_IMAGE)
+  perRun: 3,         // checks in one hourly run
+  perDay: 20,        // checks in one Israel day, all tasks together
+  perTaskDay: 2,     // checks of one task in one Israel day
+  maxNotes: 20,
+};
+export const AI_IMAGES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+// The notes as the giver wrote them: the task's words, and a brief's fields (Nirel's) under them.
+export function notesText(task) {
+  const lines = [String(task?.body || '').trim()];
+  const b = task?.brief && typeof task.brief === 'object' ? task.brief : {};
+  for (const [k, l] of [['problem', 'הבעיה'], ['change', 'מה לשנות'], ['keep', 'מה נשאר'], ['result', 'התוצאה']]) {
+    if (String(b[k] || '').trim()) lines.push(`${l}: ${String(b[k]).trim()}`);
+  }
+  return lines.filter(Boolean).join('\n');
+}
+
+export const AI_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['notes'],
+  properties: {
+    notes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['note', 'verdict', 'why'],
+        properties: {
+          note: { type: 'string' },
+          verdict: { type: 'string', enum: ['done', 'not_done', 'cant_tell'] },
+          why: { type: 'string' },
+        },
+      },
+    },
+  },
+};
+
+export function aiSystemPrompt() {
+  return [
+    'אתה בודק עבודה של גרפיקאי במשרד שיווק בישראל.',
+    'מקבלים משימת תיקון שנתנו לגרפיקאי (ההערות שנכתבו לו), ואת הגרפיקות שהעלה לתיקיית הגרפיקות של הלקוח אחרי שקיבל את המשימה.',
+    'פרק את המשימה להערות נפרדות (כל דרישה בנפרד), ולכל הערה החלט על פי התמונות בלבד:',
+    '- done: רואים בגרפיקות שההערה בוצעה.',
+    '- not_done: רואים בגרפיקות שההערה לא בוצעה (למשל הטקסט הישן עדיין שם, הצבע לא השתנה).',
+    '- cant_tell: אי אפשר לדעת מהתמונות (ההערה מפנה להודעות בווטסאפ או בקבוצה שלא ראית, היא על סרטונים או על פרסום ברשתות, או שאין גרפיקה שקשורה אליה).',
+    'אל תנחש. כשיש ספק: cant_tell.',
+    'note: ההערה במילים קצרות בעברית. why: סיבה קצרה בעברית, משפט אחד, עד 20 מילים.',
+  ].join('\n');
+}
+export const aiUserText = (task, n) => `המשימה (ההערות):\n${notesText(task)}\n\nלמעלה ${n} הגרפיקות החדשות. החזר את ההחלטה לכל הערה.`;
+
+// The request to the Messages API (client.beta.messages.create), as contract-ai's reading of a
+// signed contract: the model the repo uses for pictures, structured outputs, server-side fallback.
+export const AI_MODEL = 'claude-sonnet-5-5';
+export function aiRequest(task, images) {
+  return {
+    model: AI_MODEL,
+    max_tokens: 4000,
+    betas: ['server-side-fallback-2026-07-01'],
+    fallbacks: 'default',
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: AI_SCHEMA } },
+    system: [{ type: 'text', text: aiSystemPrompt(), cache_control: { type: 'ephemeral' } }],
+    messages: [{
+      role: 'user',
+      content: [
+        ...images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.mime, data: im.base64 } })),
+        { type: 'text', text: aiUserText(task, images.length) },
+      ],
+    }],
+  };
+}
+
+// The answer, checked: [{ note, verdict, why }] (unknown verdicts become cant_tell, text trimmed).
+export function aiVerdicts(raw) {
+  const list = Array.isArray(raw?.notes) ? raw.notes : [];
+  return list.slice(0, AI.maxNotes).map((x) => ({
+    note: String(x?.note || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+    verdict: ['done', 'not_done', 'cant_tell'].includes(x?.verdict) ? x.verdict : 'cant_tell',
+    why: String(x?.why || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+  })).filter((x) => x.note);
+}
+// 'done' (every note done), 'missing' (one or more not done), 'unclear' (the rest).
+export function aiOutcome(verdicts) {
+  if (!verdicts.length) return 'unclear';
+  if (verdicts.some((v) => v.verdict === 'not_done')) return 'missing';
+  return verdicts.every((v) => v.verdict === 'done') ? 'done' : 'unclear';
+}
+export const aiCloseNote = (n) => `נסגר אוטומטית: ה־AI בדק ${n} גרפיקות מול ההערות`;
+// "עוד לא תוקן: הצבעים של הלוגו; מספר הטלפון" (the notes not done, up to 200 characters).
+export function missingText(verdicts) {
+  const s = verdicts.filter((v) => v.verdict === 'not_done').map((v) => v.note).join('; ');
+  const out = `עוד לא תוקן: ${s}`;
+  return out.length > 200 ? `${out.slice(0, 199)}…` : out;
+}

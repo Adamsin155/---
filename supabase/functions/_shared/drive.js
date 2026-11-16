@@ -15,6 +15,11 @@
 // tests it whole (tests/drive.test.mjs). The key is never logged and never returned.
 
 export const SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly';
+// Reading a file's content (17.11.2026, the gfx-auto function's check of a fix task, docs/ops.md
+// section 138): only a reader made with { scope: READ_SCOPE } may download, and only that function
+// makes one, and only when the owner turned it on (GFX_AI=on). The folders are shared with the
+// robot as "צופה", which already allows reading; this scope is what the token asks for.
+export const READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 export const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
 export const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -98,11 +103,11 @@ async function timed(fetch, url, init, timeoutMs) {
 //   list(folderId) → { files: [{ name, mimeType, createdTime, modifiedTime, link, size, path }], truncated }
 // Throws a short code: no_access (not shared with the robot, or no such folder), auth (the key
 // was refused), timeout, unreachable, http_<status>.
-export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now(), timeoutMs = TIMEOUT_MS, subtle } = {}) {
+export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now(), timeoutMs = TIMEOUT_MS, subtle, scope = SCOPE } = {}) {
   let token = null;
   async function getToken() {
     if (token && token.until > now() + 60000) return token.value;
-    const assertion = await signedAssertion(sa, { now: now(), ...(subtle ? { subtle } : {}) });
+    const assertion = await signedAssertion(sa, { now: now(), scope, ...(subtle ? { subtle } : {}) });
     const res = await timed(fetch, TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -150,7 +155,7 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
         for (const f of Array.isArray(body?.files) ? body.files : []) {
           if (out.length >= maxFiles) { truncated = true; break; }
           const item = {
-            name: String(f.name ?? ''), mimeType: String(f.mimeType ?? ''), createdTime: f.createdTime ?? null,
+            id: f.id ?? null, name: String(f.name ?? ''), mimeType: String(f.mimeType ?? ''), createdTime: f.createdTime ?? null,
             modifiedTime: f.modifiedTime ?? null, link: f.webViewLink ?? null, size: f.size ? Number(f.size) : null, path: dir.path,
           };
           out.push(item);
@@ -164,7 +169,21 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
     }
     return { files: out, truncated };
   }
-  return { email: sa.email, list };
+  // The bytes of one file (a reader made with READ_SCOPE only): up to maxBytes, else 'too_big'.
+  async function download(fileId, { maxBytes = 4 * 1024 * 1024 } = {}) {
+    if (scope !== READ_SCOPE) throw fail('no_read_scope');
+    const id = String(fileId || '').replace(/[^\w-]/g, '');
+    if (!id) throw fail('no_access');
+    const res = await timed(fetch, `${FILES_URL}/${id}?alt=media&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${await getToken()}` } }, timeoutMs);
+    if (res.status === 404 || res.status === 403) throw fail('no_access');
+    if (res.status === 401) throw fail('auth');
+    if (!res.ok) throw fail(`http_${res.status}`);
+    if (Number(res.headers?.get?.('content-length')) > maxBytes) throw fail('too_big');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length > maxBytes) throw fail('too_big');
+    return bytes;
+  }
+  return { email: sa.email, list, download };
 }
 
 // What kind of file, by its type: 'folder', 'video', 'image', 'doc', 'other'.
