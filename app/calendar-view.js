@@ -26,7 +26,7 @@ import { TZ, dayKeyIL, dayFromKeyIL, dateIL, partsIL, weekdayIL } from './tz.js'
 
 const known = (v) => !!v && !v.error;
 // The page is everyone's but the field sales' (and whoever the app could not identify).
-export const seesCalendar = (v) => known(v) && v.scope !== 'sales' && v.scope !== 'makeup' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
+export const seesCalendar = (v) => known(v) && v.scope !== 'sales' && v.scope !== 'makeup' && v.scope !== 'bookkeeper' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
 // "שליחת זימון": Irit, who invites, and the owners (the owner, 20.10.2026; until then
 // Lior and Ofir too). The client card's and prep.html's own links are not decided here.
 export const sendsInvites = (v) => known(v) && v.scope === 'office' && (!v.me || v.me === 'irit');
