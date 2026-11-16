@@ -151,3 +151,14 @@ test('the function refuses what it may not read, before anything goes to Claude'
   // The text modes are as before.
   assert.equal((await call(world(), { text: '' })).body.error, 'text_required');
 });
+
+// Only a total for the whole term (Ofir, 16.11.2026): the monthly price is computed and the office told.
+test('a contract with only a total: the monthly price is the total divided by the months', () => {
+  const r = validateReadResult({ business: 'x', monthly_net: 0, total_net: 40000, term_months: 12, signed_on: '2026-11-04', notes: [] }, NOW);
+  assert.equal(r.result.monthly_net, 3333);
+  assert.ok(r.result.notes[0].includes("סכום כולל (40,000 ₪ לפני מע״מ)") && r.result.notes[0].includes("12 חודשים"));
+  // A monthly price written wins; without months nothing is guessed.
+  assert.equal(validateReadResult({ monthly_net: 3900, total_net: 46800, term_months: 12 }, NOW).result.monthly_net, 3900);
+  assert.equal(validateReadResult({ monthly_net: 0, total_net: 40000, term_months: 0 }, NOW).result.monthly_net, null);
+  assert.ok(READ_SCHEMA.required.includes('total_net'));
+});
