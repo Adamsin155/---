@@ -2861,7 +2861,7 @@ function crewChoice(f) {
   return p && PHOTOGRAPHERS[p] ? `${SOLO_PREFIX}${p}` : '';
 }
 // Who films what the form says: the photographer of a day without influencers, else Eli
-// (his availability is the one asked about).
+// (since 16.11.2026 only a day already taken is said about his days; Eliel's availability as before).
 function crewWho(f) {
   const ui = $(`${f}-crew-solo`);
   const p = ui?.checked ? pickedPhotographer(f) : null;

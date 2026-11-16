@@ -219,9 +219,15 @@ async function signIn(page, path, who) {
   await page.locator('#app:not([hidden])').waitFor();
 }
 const CARD = '#availability';
-const shot = async (page, name, fullPage = false) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage }); };
+// After the sign-in card has gone (it fades out over the page) and the motion has settled.
+const shot = async (page, name, fullPage = false) => {
+  if (!OUT) return;
+  await page.waitForFunction(() => { const b = document.getElementById('login-block'); return !b || b.hidden || !b.offsetParent; });
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: `${OUT}/${name}.png`, fullPage });
+};
 const text = (page, sel) => page.locator(sel).first().innerText();
-const texts = (page, sel) => page.locator(sel).allInnerTexts();
+const texts = async (page, sel) => (await page.locator(sel).allInnerTexts()).map((t) => t.trim()); // (WebKit keeps a trailing new line)
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
 const N = (d) => `2026-11-${String(d).padStart(2, '0')}`;
 let passed = 0;
