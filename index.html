@@ -200,6 +200,12 @@
               <fieldset class="custom-sec custom-flags">
                 <legend>משפיענים ותוספות</legend>
                 <label class="custom-flag" for="custom-noinf"><input type="checkbox" class="cbox" id="custom-noinf"><span>בלי משפיענים <span class="tag tag-ai" id="custom-noinf-ai" hidden>מולא אוטומטית</span></span></label>
+                <!-- Several influencers in one contract (the owner, 16.11.2026; docs/ops.md, section 135). -->
+                <div class="custom-also" id="custom-also" role="group" aria-labelledby="custom-also-h" aria-describedby="custom-also-hint">
+                  <span class="custom-also-h" id="custom-also-h">משפיענים נוספים בחוזה <span class="tag tag-ai" id="custom-also-ai" hidden>מולא אוטומטית</span></span>
+                  <div class="custom-also-chips" id="custom-also-chips"></div>
+                  <small id="custom-also-hint">מופיעים בשם בהצעה וביום הצילום. החבילה נשארת של המשפיען שנבחר למעלה.</small>
+                </div>
                 <label class="custom-flag" for="custom-incl"><input type="checkbox" class="cbox" id="custom-incl"><span>המחיר החודשי כולל את התוספות שנבחרו <span class="tag tag-ai" id="custom-incl-ai" hidden>מולא אוטומטית</span></span></label>
               </fieldset>
               <fieldset class="custom-sec">

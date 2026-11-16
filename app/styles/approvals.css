@@ -188,3 +188,20 @@ label .tag-ai, legend .tag-ai, h3 .tag-ai, .tile-title .tag-ai { margin-inline-s
 .qe-grid small { color: var(--ds-muted, #5B6680); font-size: 12.5px; }
 .discount-input.is-changed .input { border-color: var(--ds-navy-text); box-shadow: 0 0 0 2px var(--ds-soft); }
 @media (max-width: 640px) { .qe-grid .input { font-size: 16px; } }
+/* Several influencers in one contract (16.11.2026): chips to add them, and with more than one the
+   collabs and the stories as one small stepper per influencer. */
+.custom-also { display: grid; gap: 6px; padding: 8px 0 4px; }
+.custom-also[hidden] { display: none; }
+.custom-also-h { font-size: 14.5px; font-weight: 600; color: var(--ds-ink); }
+.custom-also-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.also-chip { min-height: 44px; padding: 0 16px; border-radius: var(--ds-r-pill, 999px); border: 1px solid var(--ds-line-strong); background: var(--ds-surface); color: var(--ds-ink); font: inherit; font-size: 14.5px; cursor: pointer; }
+.also-chip[aria-pressed='true'] { background: var(--ds-navy); border-color: var(--ds-navy); color: var(--ds-on-navy); font-weight: 600; }
+.also-chip[aria-pressed='true']::before { content: '✓ '; content: '✓ ' / ''; }
+.also-chip:disabled { opacity: .45; cursor: not-allowed; }
+.custom-also small { font-size: 12.5px; color: var(--ds-muted); line-height: 1.5; }
+.custom-per { grid-column: 1 / -1; gap: 4px; }
+.custom-per-h { font-size: 14px; font-weight: 600; }
+.custom-per-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 4px 0; border-top: 1px solid var(--ds-line); }
+.custom-per-row:first-of-type { border-top: 0; }
+.custom-per-row label { font-size: 14px; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
+.custom-per .stepper { grid-template-columns: 46px 60px 46px; height: 47px; }

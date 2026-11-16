@@ -376,6 +376,8 @@ export function explainError(err) {
   if (/only the managers change the price/i.test(msg)) return 'את המחיר ואת שם החבילה משנים רק הבעלים, עירית, אופיר וליאור.';
   if (/custom package name/i.test(msg)) return 'שם החבילה לא תקין: עד 60 תווים, בלי הסימנים < > { }.';
   if (/custom influencer name/i.test(msg)) return 'שם המשפיענים לא תקין: עד 60 תווים, בלי הסימנים < > { }.';
+  if (/custom also influencer/i.test(msg)) return 'המשפיענים הנוספים לא תקינים: עד 4 מהרשימה, כל אחד פעם אחת, ולא ליד ״משפיען לבחירה״.';
+  if (/custom posts per influencer/i.test(msg)) return 'הקולאבים והסטורי לפי משפיען לא תקינים: רק משפיענים שבחוזה, עד 24 קולאבים ועד 60 סטורי.';
   if (/discount is more than the monthly price/i.test(msg)) return 'ההנחה גדולה מהמחיר החודשי. יש להקטין את ההנחה או להגדיל את המחיר.';
   if (/not staff/i.test(msg)) return 'המשתמש מחובר אך אינו מורשה ליצור הצעות. יש לבקש הרשאה ממנהל המערכת.';
   if (/not signed in/i.test(msg)) return 'יש להתחבר מחדש.';
