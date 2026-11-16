@@ -44,8 +44,8 @@ test('who writes: the owners, Irit, Lior and Ofir; nobody else', () => {
   assert.equal(canWriteNotes(null), false);
 });
 
-test('to whom: everyone on the team, in its order (not the owners; nor the makeup artist of Natali, 15.11.2026)', () => {
-  assert.deepEqual(NOTE_PEOPLE().map((p) => p.key), TEAM_PEOPLE().map((p) => p.key).filter((k) => k !== 'tal'));
+test('to whom: everyone on the team, in its order (not the owners; nor the makeup artist of Natali, 15.11.2026, nor the bookkeeper, 16.11.2026)', () => {
+  assert.deepEqual(NOTE_PEOPLE().map((p) => p.key), TEAM_PEOPLE().map((p) => p.key).filter((k) => k !== 'tal' && k !== 'gal'));
   assert.ok(!NOTE_PEOPLE().some((p) => p.key === 'owner' || p.key === 'editor'));
 });
 

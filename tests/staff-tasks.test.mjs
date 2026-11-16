@@ -63,8 +63,8 @@ test('who gives a task (the owner and Irit, one list) and to whom (everyone on t
   assert.equal(personOfViewer(VIEW.owner), 'owner');
   assert.equal(personOfViewer(VIEW.legacy), null);
   const keys = ASSIGNEES().map((p) => p.key);
-  // Not the silent (Shiel, 9.11.2026: no notification at all), nor Natali's makeup artist (Tal, 15.11.2026: one screen, no tasks).
-  assert.deepEqual(keys, [...TEAM_PEOPLE().map((p) => p.key).filter((k) => k !== 'shiel' && k !== 'tal'), 'owner']);
+  // Not the silent (Shiel, 9.11.2026: no notification at all), nor Natali's makeup artist (Tal, 15.11.2026: one screen, no tasks), nor the bookkeeper (Gal, 16.11.2026: the same).
+  assert.deepEqual(keys, [...TEAM_PEOPLE().map((p) => p.key).filter((k) => k !== 'shiel' && k !== 'tal' && k !== 'gal'), 'owner']);
   for (const k of ['irit', 'lior', 'ofir', 'ilai', 'nirel', 'nadia', 'yariv', 'anna', 'eli', 'stav', 'amos', 'owner']) assert.ok(keys.includes(k), k);
   assert.ok(!keys.includes('editor'));
   // Everyone a task can be given to has a place in the reminder log.
