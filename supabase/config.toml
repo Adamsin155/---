@@ -35,6 +35,10 @@ verify_jwt = false
 [functions.drive-scan]
 verify_jwt = false
 
+# Graphics tasks that close by themselves (docs/ops.md, section 138): pg_cron with the cron secret.
+[functions.gfx-auto]
+verify_jwt = false
+
 # Claude accounts of the owners, Lior and Ofir (MCP): a client's first request has no token and must be
 # answered with 401 and where to sign in; the OAuth token is checked in code on every request.
 # See supabase/functions/mcp/index.ts.

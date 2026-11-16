@@ -226,8 +226,8 @@ export const PEOPLE = {
   irit: { key: 'irit', name: 'עירית', role: 'מנהלת משרד ותפעול לקוחות' },
   lior: { key: 'lior', name: 'ליאור', role: 'ניהול, תוכן, קמפיינים וימי צילום' },
   ofir: { key: 'ofir', name: 'אופיר', role: 'אפיונים, פיקוח ובקרת איכות' },
-  ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה, סושיאל ותזמון' },
-  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, נירו, הצל ואריק, גרפיקה ומשימות מורכבות', editor: true },
+  ilai: { key: 'ilai', name: 'עילאי', role: 'גרפיקה, סושיאל ותזמון', graphics: true },
+  nirel: { key: 'nirel', name: 'ניראל', role: 'עריכת סרטוני נטלי, נירו, הצל ואריק, גרפיקה ומשימות מורכבות', editor: true, graphics: true },
   nadia: { key: 'nadia', name: 'נדיה', role: 'עריכת וידאו', editor: true },
   yariv: { key: 'yariv', name: 'יריב', role: 'עריכת וידאו', editor: true },
   anna: { key: 'anna', name: 'אנה', role: 'עריכת וידאו', editor: true },
@@ -298,6 +298,11 @@ export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', amit: 'own', shiel: 'own', stav: 'sales', amos: 'sales', tal: 'makeup', gal: 'bookkeeper' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
+// Who receives graphics tasks (`graphics` above: Ilai and Nirel, 17.11.2026). A task given to one
+// of them about graphics closes by itself when the work shows (app/gfx-auto-logic.js). The same
+// list is in public.staff_task_create_brief (20261216100000_gfx_auto.sql).
+export const GRAPHICS_PEOPLE = () => Object.values(PEOPLE).filter((p) => p.graphics && !p.left).map((p) => p.key);
+export const isGraphics = (person) => !!PEOPLE[person]?.graphics && !PEOPLE[person]?.left;
 // Natali's makeup artist (15.11.2026): her one screen is makeup.html, and nothing of the clients.
 export const isMakeup = (person) => !!PEOPLE[person]?.makeup;
 // The bookkeeper (16.11.2026): her one screen is bookkeeper.html, and nothing else of the system.

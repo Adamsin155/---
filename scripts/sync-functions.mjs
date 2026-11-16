@@ -31,11 +31,12 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   gantt-auto.js                      reminders (protocol v13: the scheduling closes when the Gantt is all scheduled)
 //   editor-auto.js                     reminders (the editor's hand-off to Ofir, p24.notify, once the editing is all marked)
 //   mark-guard-rules.js, gantt-template.js, shoot-crew.js  mcp (the owner's write tools: the card's guards, the shoot's crew)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js'];
+//   gfx-auto-logic.js                  gfx-auto and reminders (graphics tasks that close by themselves, 17.11.2026)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js', 'gfx-auto-logic.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
-export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'drive-scan', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook'];
+export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'drive-scan', 'gfx-auto', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook'];
 export const FUNCTIONS_DIR = join(ROOT, 'supabase/functions');
 
 export const MARK = '// generated — edit app/ instead.';
