@@ -263,12 +263,30 @@ async function loadStaffTasks(now: Date): Promise<Row[]> {
     const read = (cols: string) => all(() => admin.from('staff_tasks').select(cols)
       .or(`status.eq.open,done_at.gte."${since}"`).order('id'));
     const cols = 'id, created_at, created_by, assignee, body, client_id, client_name, status, done_at';
+    // Closed by the system (auto_note, 20261216100000_gfx_auto.sql; rules `gfxAuto` and `nagDone`):
+    // until the column is there, as before.
+    try { return await read(`${cols}, claimed_at, done_by_email, auto_note`); } catch (e) { if ((e as { code?: string })?.code !== '42703') throw e; }
     // "אני על זה" (claimed_at, 20261203100000_staff_task_claim.sql): until it is there, as before.
     try { return await read(`${cols}, claimed_at`); } catch (e) { if ((e as { code?: string })?.code !== '42703') throw e; }
     return await read(cols);
   } catch (err) {
     const code = (err as { code?: string })?.code;
     if (code === '42P01' || code === 'PGRST205') return [];
+    throw err;
+  }
+}
+
+// Claude's checks of a fix task (17.11.2026, app/gfx-auto-logic.js; docs/ops.md, section 138): those
+// of the last two days (rule `gfxFix` tells the assignee what is not fixed yet, once per check).
+// Until migration 20261216100000_gfx_auto.sql adds the table, none.
+async function loadGfxChecks(now: Date): Promise<Row[]> {
+  const since = new Date(now.getTime() - 2 * 864e5).toISOString();
+  try {
+    return await all(() => admin.from('gfx_ai_checks').select('id, task_id, created_at, status, result')
+      .gte('created_at', since).eq('status', 'missing').order('id'));
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === '42P01' || code === 'PGRST205' || code === '42703' || code === 'PGRST204') return [];
     throw err;
   }
 }
@@ -335,7 +353,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt, makeupAnswers] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt, makeupAnswers, gfxChecks] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -366,10 +384,11 @@ const db = {
       loadStaffNotes(now),
       loadGanttStates(),
       loadMakeupAnswers(now),
+      loadGfxChecks(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, makeupAnswers, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, makeupAnswers, gfxChecks, log: [...log.values()] };
   },
   // A monthly client's editing round (./tick.js openMonthlyRounds; docs/ops.md, section 94). The
   // round only when the client row is still the one loaded (its updated_at; the clients trigger

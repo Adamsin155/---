@@ -1776,13 +1776,62 @@ RULES.push(
   {
     id: 'nagDone', event: 'משימה מיידית: בוצעה', procs: [],
     instances(env) {
-      return (env.staffTasks || []).filter((t) => t.status === 'done' && parseDate(t.done_at) && t.created_by !== t.assignee && REMINDER_PEOPLE.has(t.created_by)).map((t) => ({
+      // Not a task the system closed (17.11.2026): rule `gfxAuto` tells the giver what it saw.
+      return (env.staffTasks || []).filter((t) => t.status === 'done' && parseDate(t.done_at) && t.done_by_email !== AUTO_EMAIL && t.created_by !== t.assignee && REMINDER_PEOPLE.has(t.created_by)).map((t) => ({
         id: t.id, cid: null, task: t, who: t.created_by, url: homeUrl(t.created_by), anchors: { event: parseDate(t.done_at) },
       }));
     },
     steps: [
       { id: 'done', to: (i) => i.who, level: 'quiet', title: (i) => `${personName(i.task.assignee)} סימן/ה ״בוצע״: ${shortBody(i.task.body)}`, body: (i, env) => `נתת את המשימה ${whenText(parseDate(i.task.created_at), env.now)}.` },
     ],
+  },
+);
+
+// ── Graphics tasks that close by themselves (the owner, 17.11.2026; docs/ops.md, section 138) ──
+// `env.staffTasks` (as above: open, and finished in the last two days) and `env.gfxChecks`
+// (public.gfx_ai_checks of the last two days, app/gfx-auto-logic.js).
+//   gfxAuto  the system closed a task (done_by_email 'system:auto'): its assignee and whoever gave
+//            it hear what it saw ("נסגר אוטומטית: עלו 9 גרפיקות בדרייב ב־15.11"), and that it can
+//            be opened again. Once per closing (the step names the moment it closed), so a task
+//            reopened and closed again is told again.
+//   gfxFix   Claude checked a fix task and a note is not fixed: the assignee hears "עוד לא תוקן: …",
+//            once per check. Only while the task is still open.
+import { AUTO_EMAIL, missingText as gfxMissingText } from './gfx-auto-logic.js';
+const doneStamp = (t) => String(parseDate(t.done_at)?.getTime() || '');
+RULES.push(
+  {
+    id: 'gfxAuto', event: 'משימת גרפיקה נסגרה אוטומטית', procs: [],
+    instances(env) {
+      return (env.staffTasks || []).filter((t) => t.status === 'done' && t.done_by_email === AUTO_EMAIL && parseDate(t.done_at)).map((t) => ({
+        id: t.id, cid: null, task: t, url: MINE_URL, anchors: { event: parseDate(t.done_at) },
+      }));
+    },
+    steps: (i) => [
+      {
+        id: `a${doneStamp(i.task)}`, to: () => (REMINDER_PEOPLE.has(i.task.assignee) ? i.task.assignee : []), level: 'quiet',
+        title: () => `${i.task.auto_note || 'נסגר אוטומטית'}: ${shortBody(i.task.body, 60)}`,
+        body: () => `${i.task.client_name ? `לקוח: ${i.task.client_name} · ` : ''}המערכת ראתה שהעבודה נעשתה וסגרה את הנודניק. אם זה לא נכון: ״לפתוח מחדש״ ב״המשימות שלי״.`,
+      },
+      {
+        id: `g${doneStamp(i.task)}`, to: () => (i.task.created_by !== i.task.assignee && REMINDER_PEOPLE.has(i.task.created_by) ? i.task.created_by : []), level: 'quiet',
+        title: () => `${personName(i.task.assignee)}: ${i.task.auto_note || 'נסגר אוטומטית'}`,
+        body: () => `${shortBody(i.task.body)}${i.task.client_name ? ` · לקוח: ${i.task.client_name}` : ''} · אם זה לא נכון: ״לפתוח מחדש״ ב״משימות לעובדים״.`,
+      },
+    ],
+  },
+  {
+    id: 'gfxFix', event: 'משימת תיקון גרפיקות: ה־AI מצא מה עוד לא תוקן', procs: [],
+    instances(env) {
+      const open = new Map((env.staffTasks || []).filter((t) => t.status === 'open').map((t) => [t.id, t]));
+      return (env.gfxChecks || []).filter((c) => c.status === 'missing' && open.has(c.task_id) && REMINDER_PEOPLE.has(open.get(c.task_id).assignee)).map((c) => ({
+        id: c.id, cid: null, task: open.get(c.task_id), check: c, url: MINE_URL, anchors: { event: parseDate(c.created_at) },
+      }));
+    },
+    steps: [{
+      id: 'missing', to: (i) => i.task.assignee, level: 'quiet',
+      title: (i) => gfxMissingText(Array.isArray(i.check.result) ? i.check.result : []),
+      body: (i) => `${shortBody(i.task.body)}${i.task.client_name ? ` · לקוח: ${i.task.client_name}` : ''} · ה־AI בדק את הגרפיקות החדשות בדרייב מול ההערות.`,
+    }],
   },
 );
 

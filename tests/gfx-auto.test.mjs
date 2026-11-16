@@ -173,3 +173,36 @@ test('the request to Claude: the notes with the brief, the images first, strict 
   assert.equal(r.fallbacks, 'default');
   assert.equal(AI.maxImages, 12);
 });
+
+// ── The notices (app/reminder-rules.js gfxAuto, gfxFix; nagDone not for the system's closing) ──
+import { computeReminders } from '../app/reminder-engine.js';
+const STAFF = ['irit', 'ilai', 'nirel'].map((p) => ({ email: `${p}@astrateg.test`, person: p }));
+const due = (input) => computeReminders({ clients: [], checks: {}, tasks: [], access: [], reviews: [], statusNotes: [], messages: [], subscriptions: [], staff: STAFF, deals: [], approvals: [], log: [], ...input });
+
+test('closed by the system: the assignee and the giver hear the line, once per closing; no "סימן בוצע"', () => {
+  const t = { id: 't1', created_at: '2026-11-04T07:12:00Z', created_by: 'irit', assignee: 'ilai', body: 'יוסי הדגמה- להכין גרפיקות', client_name: 'יוסי הדגמה', status: 'done', done_at: '2026-11-17T07:25:00Z', done_by_email: 'system:auto', auto_note: 'נסגר אוטומטית: עלו 9 גרפיקות בדרייב ב־15.11' };
+  const now = new Date('2026-11-17T07:26:00Z');
+  const r = due({ staffTasks: [t], now }).filter((x) => ['gfxAuto', 'nagDone', 'nag'].includes(x.rule));
+  assert.deepEqual(r.map((x) => [x.rule, x.person]).sort(), [['gfxAuto', 'ilai'], ['gfxAuto', 'irit']]);
+  const mine = r.find((x) => x.person === 'ilai');
+  assert.match(mine.title, /^נסגר אוטומטית: עלו 9 גרפיקות בדרייב ב־15\.11: /);
+  assert.match(mine.body, /לפתוח מחדש/);
+  assert.match(r.find((x) => x.person === 'irit').title, /^עילאי: נסגר אוטומטית/);
+  // Reopened and closed again later: a new notice (the step names the closing).
+  const again = due({ staffTasks: [{ ...t, done_at: '2026-11-18T07:25:00Z' }], now: new Date('2026-11-18T07:26:00Z'), log: r.map((x) => ({ key: x.key })) }).filter((x) => x.rule === 'gfxAuto');
+  assert.equal(again.length, 2);
+  assert.notEqual(again[0].key, r[0].key);
+  // Marked done by the assignee: as before (nagDone), nothing from gfxAuto.
+  const byHand = due({ staffTasks: [{ ...t, done_by_email: 'ilai@astrateg.test', auto_note: null }], now }).filter((x) => ['gfxAuto', 'nagDone'].includes(x.rule));
+  assert.deepEqual(byHand.map((x) => [x.rule, x.person]), [['nagDone', 'irit']]);
+});
+
+test('Claude found a note not fixed: the assignee hears "עוד לא תוקן", once, only while the task is open', () => {
+  const t = { id: 't2', created_at: '2026-11-15T07:00:00Z', created_by: 'irit', assignee: 'ilai', body: 'לתקן גרפיקות לפי ההערות', client_name: 'ממתקים הדגמה', status: 'open', claimed_at: null };
+  const check = { id: 'k1', task_id: 't2', created_at: '2026-11-17T07:25:00Z', status: 'missing', result: [{ note: 'הלוגו של קוקה קולה', verdict: 'not_done', why: '' }, { note: 'צבעים', verdict: 'done', why: '' }] };
+  const now = new Date('2026-11-17T07:26:00Z');
+  const r = due({ staffTasks: [t], gfxChecks: [check], now }).filter((x) => x.rule === 'gfxFix');
+  assert.deepEqual(r.map((x) => [x.person, x.title]), [['ilai', 'עוד לא תוקן: הלוגו של קוקה קולה']]);
+  assert.equal(due({ staffTasks: [t], gfxChecks: [check], now, log: r.map((x) => ({ key: x.key })) }).filter((x) => x.rule === 'gfxFix').length, 0);
+  assert.equal(due({ staffTasks: [{ ...t, status: 'done', done_at: '2026-11-17T07:20:00Z' }], gfxChecks: [check], now }).filter((x) => x.rule === 'gfxFix').length, 0);
+});

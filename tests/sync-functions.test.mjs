@@ -16,7 +16,7 @@ const FUNCTIONS = join(ROOT, 'supabase/functions');
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
   assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-file.js', 'contract-read-logic.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'files-logic.js', 'gantt-auto.js', 'gantt-template.js', 'gcal-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-file.js', 'contract-read-logic.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'files-logic.js', 'gantt-auto.js', 'gantt-template.js', 'gcal-logic.js', 'gfx-auto-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shell-rules.js', 'shoot-crew.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -153,6 +153,16 @@ const DEPLOY = {
     'drive-scan/index.ts',
     'drive-scan/scan.js',
   ],
+  // Graphics tasks that close by themselves (docs/ops.md, section 138): the rules, the Drive robot, and
+  // contract-ai's reading of Claude's answer.
+  'gfx-auto': [
+    '_shared/oauth-token.js',
+    ...APP('catalog.js', 'contract-ai-logic.js', 'contract-file.js', 'contract-read-logic.js', 'gfx-auto-logic.js', 'legal.js', 'pricing.js', 'protocol.js', 'tz.js'),
+    '_shared/drive.js',
+    'contract-ai/handler.js',
+    'gfx-auto/index.ts',
+    'gfx-auto/run.js',
+  ],
   metricool: [
     '_shared/oauth-token.js',
     ...APP('metricool-logic.js', 'tz.js'),
@@ -161,7 +171,7 @@ const DEPLOY = {
   ],
   reminders: [
     '_shared/oauth-token.js',
-    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'gantt-auto.js', 'gantt-template.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'gantt-auto.js', 'gantt-template.js', 'gfx-auto-logic.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
     '_shared/wa-jako.js',
@@ -185,7 +195,7 @@ const DEPLOY = {
     'staff-admin/rules.js',
   ],
   'whatsapp-webhook': [
-    ...APP('qa-logic.js', 'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('qa-logic.js', 'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'gfx-auto-logic.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
     '_shared/wa-jako.js',
@@ -214,7 +224,7 @@ test('every function, and every file it deploys (the shared copies it reaches ar
 test('verify_jwt: off for the functions that check their caller themselves', () => {
   const config = readFileSync(join(ROOT, 'supabase/config.toml'), 'utf8');
   const off = [...config.matchAll(/\[functions\.([a-z-]+)\]\s*\nverify_jwt = false/g)].map((m) => m[1]).sort();
-  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook']);
+  assert.deepEqual(off, ['calendar', 'client-media', 'drive-scan', 'gfx-auto', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook']);
 });
 
 test('the shared pricing engine computes the same quote as app/', async () => {
