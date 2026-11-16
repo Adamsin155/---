@@ -1,25 +1,16 @@
-// End-to-end check of the photographer's monthly availability in the browser (his
-// protocol, step 1; docs/ops.md, section 39), against an in-memory fake of Supabase
-// that answers as the database does (tests/sql/availability.test.mjs holds the real
-// rules; the fake applies the same ones through app/availability-logic.js):
-//   - Eli, on a phone: the card above his shoot days, the month as big days (44px, no
-//     sideways scroll at 360px), a taken day, "אין לי ימים פנויים", the draft kept, the
-//     submit, then one line with "עדכון" and "בלת״ם"; highlighted from the 10th, late
-//     after the 15th;
-//   - he updates (a day comes off before the 15th, not after it), reports an unexpected
-//     change (two consecutive days at most, a shoot day said), and hits the limit: told
-//     to call Lior;
-//   - Irit, setting a shoot date in the client card: the line next to the date (free,
-//     taken, not free, an unexpected change, not handed over), a day he did not mark
-//     free asks for a reason that is kept with the date change, a free day asks
-//     nothing, and his approval is never ticked for her;
-//   - prep.html: the folded line, what he handed over, an entry in his name, and the
-//     words under "אלי הצלם";
-//   - who sees it: Lior and the owner (and enter it in his name), Ofir (reads); Ilai
-//     and an editor see nothing; before the migration nothing is shown or asked.
+// End-to-end check of the photographers' monthly availability in the browser (docs/ops.md,
+// sections 39 and 136), against an in-memory fake of Supabase that answers as the database
+// does (the database still names Eli: no migration when the app stopped asking him).
+// Since 16.11.2026 (the owner: "להוריד את אלי ממסירת הזמינות לגמרי") Eli hands nothing over:
+//   - Eli, on an iPhone (WebKit) and in Chrome: no card on his shoot days page, nothing read;
+//   - Lior on shoot.html and Irit on prep.html#availability: only Eliel's month (kept by the
+//     office), none of Eli's old rows, and no words under "אלי הצלם";
+//   - Irit setting Eli's shoot day in the client card: no availability line and nothing
+//     asked, only a day another shoot already sits on (a clash) is said and asked;
+//   - a day Eliel films: his hint and "סימון זמינות במקומו", as before.
 // Run: npx http-server -p 8461 -s -c-1 . &  then
 //      BASE_URL=http://localhost:8461/ node tests/availability-e2e.mjs [outDir]
-import { chromium } from 'playwright';
+import { chromium, webkit, devices } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -62,7 +53,7 @@ const client = (name, business, o = {}) => ({
   created_at: iso(2026, 8, 1), created_by_email: null, links: {}, deliverables: {}, rounds: [], verified_at: iso(2026, 8, 2), verified_by: 'irit@astrateg.test',
   closed_reason: null, archived_at: null, archived_by: null, protocol_version: 7, ...o,
 });
-// Ron's shoot day is set on 12.11 (beyond the 30 days Eli sees clients for); Dana's is not set yet.
+// Ron's shoot day (with influencers: Eli films it) is set on 12.11; Dana's is not set yet.
 const ron = client('רון כהן', 'פיצה רון', { shoot_at: iso(2026, 11, 12) });
 const dana = client('דנה לוי', 'קפה דנה');
 const tables = {
@@ -71,16 +62,26 @@ const tables = {
   protocol_checks: [ron, dana].map((c) => ({ client_id: c.id, item_key: 'p11.influencers', state: 'done', note: null, by_email: 'irit@astrateg.test', at: iso(2026, 10, 1) })),
   client_tasks: [], office_reviews: [], client_status_notes: [], protocol_log: [],
 };
-const months = [];
-const changes = [];
+// What the database holds from before 16.11.2026: Eli's November and an unexpected change of
+// his (shown nowhere now), and Eliel's November marked by Lior.
+const months = [
+  { person: 'eli', month: '2026-11-01', days: ['2026-11-03', '2026-11-20'], none: false, submitted_at: iso(2026, 10, 2), updated_at: iso(2026, 10, 2), by_person: 'eli' },
+  { person: 'eliel', month: '2026-11-01', days: ['2026-11-10', '2026-11-11'], none: false, submitted_at: iso(2026, 10, 3), updated_at: iso(2026, 10, 3), by_person: 'lior' },
+];
+const changes = [
+  { id: randomUUID(), person: 'eli', reported_at: iso(2026, 10, 4), reported_month: '2026-10-01', days: ['2026-11-04', '2026-11-05'], shoot_days: [], note: 'חתונה במשפחה' },
+];
+const monthReads = []; // who read photographer_months
 const dateNotes = [];
 const calls = [];
 const takenCalls = [];
 const ELI = 'details.av-office[data-person="eli"]';
-const ELIEL = 'details.av-office[data-person="eliel"]'; // whose taken days each page read (Eli's own page never asks for Eliel's)
+const ELIEL = 'details.av-office[data-person="eliel"]';
+// public.photographer_people(): unchanged in the database (no migration on 16.11.2026).
+const DB_PEOPLE = ['eli', 'eliel'];
 let tableMissing = false;
 
-const reads = (me, person) => { const p = personOf(me); return !!p && (A.READERS.includes(p) || (p === person && A.PHOTOGRAPHERS.includes(p))); };
+const reads = (me, person) => { const p = personOf(me); return !!p && (A.READERS.includes(p) || (p === person && DB_PEOPLE.includes(p))); };
 const takenNow = (person = 'eli') => A.takenFrom(tables.clients.filter((c) => ['active', 'ending'].includes(c.status) && !c.archived_at), person);
 const refuse = (json, token, code = '22023') => json(400, { code, message: token });
 function rpc(name, body, me, json) {
@@ -94,14 +95,14 @@ function rpc(name, body, me, json) {
     if (name === 'photographer_taken' || name === 'photographer_taken_by') {
       if (!reads(me, p)) return json(403, { code: '42501', message: 'not allowed' });
       // Each photographer's days (20261107100000_shoot_crew.sql): a day Eliel films is his, not Eli's.
-      if (name === 'photographer_taken_by' && !A.PHOTOGRAPHERS.includes(body.p_person)) return json(400, { code: '22023', message: 'unknown photographer' });
+      if (name === 'photographer_taken_by' && !DB_PEOPLE.includes(body.p_person)) return json(400, { code: '22023', message: 'unknown photographer' });
       takenCalls.push(name === 'photographer_taken_by' ? body.p_person : 'eli');
       return json(200, Object.entries(takenNow(body.p_person || 'eli')).filter(([d]) => d >= body.p_from && d <= body.p_to).sort().map(([day, n]) => ({ day, n })));
     }
     calls.push({ [name]: body, by: me?.email });
     if (name === 'photographer_submit') {
       const who = body.p_person ?? p;
-      if (!p || !A.PHOTOGRAPHERS.includes(who) || (who !== p && !A.ON_BEHALF.includes(p))) return json(403, { code: '42501', message: 'not allowed' });
+      if (!p || !DB_PEOPLE.includes(who) || (who !== p && !A.ON_BEHALF.includes(p))) return json(403, { code: '42501', message: 'not allowed' });
       const month = body.p_month.slice(0, 7);
       const days = [...new Set(body.p_days || [])].sort();
       const row = A.monthRow(months, who, month);
@@ -112,7 +113,7 @@ function rpc(name, body, me, json) {
       return json(200, A.monthRow(months, who, month));
     }
     if (name === 'photographer_change') {
-      if (!A.PHOTOGRAPHERS.includes(p)) return json(403, { code: '42501', message: 'not allowed' });
+      if (!DB_PEOPLE.includes(p)) return json(403, { code: '42501', message: 'not allowed' });
       const days = [...new Set(body.p_days || [])].sort();
       const problem = A.changeProblem({ days, person: p, months, changes, taken: takenNow(), now });
       if (problem) return refuse(json, { used: 'availability_change_used', pick: 'availability_change_span', span: 'availability_change_span', past: 'availability_change_past', notFree: 'availability_change_not_free' }[problem.code]);
@@ -164,6 +165,7 @@ async function fakeSupabase(route) {
     if (tableMissing) return json(404, { code: 'PGRST205', message: `Could not find the table 'public.${m[1]}' in the schema cache` });
     // No direct writes: only the two functions.
     if (req.method() !== 'GET') { calls.push({ directWrite: req.method(), by: me.email }); return json(403, { code: '42501', message: `permission denied for table ${m[1]}` }); }
+    if (m[1] === 'photographer_months') monthReads.push(me.email);
     const rows = (m[1] === 'photographer_months' ? months : changes).filter((r) => reads(me, r.person)).filter(matcher(filtersOf(url)));
     return answer(req, json)(rows);
   }
@@ -189,11 +191,15 @@ async function fakeSupabase(route) {
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
+let safari = null;
 const errors = [];
 const dialogs = [];
-async function newPage(viewport = { width: 1366, height: 900 }, now = NOW) {
+// `browserType: webkit` with a `device` (iPhone): Safari's engine, as on the phone.
+async function newPage(viewport = { width: 1366, height: 900 }, now = NOW, { browserType = null, device = null } = {}) {
   clockNow = now;
-  const ctx = await browser.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport });
+  if (browserType === webkit && !safari) safari = await webkit.launch();
+  const b = browserType === webkit ? safari : browser;
+  const ctx = await b.newContext({ ...(device || {}), locale: 'he-IL', timezoneId: 'Asia/Jerusalem', ...(viewport ? { viewport } : {}) });
   await ctx.clock.install({ time: now });
   await ctx.route('https://czncjzziqrqtezpwxxpz.supabase.co/**', withClientColumns(fakeSupabase, { clients: () => tables.clients, staff: () => staff }));
   const page = await ctx.newPage();
@@ -216,14 +222,7 @@ const CARD = '#availability';
 const shot = async (page, name, fullPage = false) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, fullPage }); };
 const text = (page, sel) => page.locator(sel).first().innerText();
 const texts = (page, sel) => page.locator(sel).allInnerTexts();
-const toastOf = (page) => page.locator('#toast.on').innerText();
 const noSideScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-const smallTargets = (page, sel) => page.evaluate((s) => [...document.querySelectorAll(s)].filter((el) => el.offsetParent && (el.getBoundingClientRect().height < 43.5 || el.getBoundingClientRect().width < 43.5))
-  .map((el) => `${el.textContent.trim().slice(0, 20)}:${Math.round(el.getBoundingClientRect().width)}x${Math.round(el.getBoundingClientRect().height)}`), sel);
-const day = (page, d) => page.locator(`${CARD} [data-day="2026-11-${String(d).padStart(2, '0')}"]`);
-const pick = (page, d) => page.locator(`${CARD} [data-pick="2026-11-${String(d).padStart(2, '0')}"]`);
-const pressed = (page) => page.locator(`${CARD} .av-grid [aria-pressed="true"]`).evaluateAll((els) => els.map((e) => +e.dataset.day.slice(8)));
-const lastCall = (name) => calls.filter((c) => c[name]).at(-1);
 const N = (d) => `2026-11-${String(d).padStart(2, '0')}`;
 let passed = 0;
 async function step(name, fn) {
@@ -236,407 +235,115 @@ async function step(name, fn) {
 }
 
 let exitCode = 0;
+const IPHONE = { browserType: webkit, device: devices['iPhone 13'] };
+const waitShootList = (page) => page.waitForFunction(() => (document.getElementById('sh-list')?.textContent || '').trim().length > 0);
 try {
-  await step('Eli on the 12th and on the 16th: the card is highlighted with the days left, then late', async () => {
-    const soon = await newPage({ width: 390, height: 844 }, dateIL(2026, 10, 12, 9));
-    await signIn(soon, 'shoot.html', 'eli');
-    await soon.locator(`${CARD} .av-card.is-soon`).waitFor();
-    assert.equal(await text(soon, `${CARD} .av-pill`), 'נשארו 3 ימים');
-    await soon.context().close();
-    const last = await newPage({ width: 390, height: 844 }, dateIL(2026, 10, 15, 9));
-    await signIn(last, 'shoot.html', 'eli');
-    assert.equal(await text(last, `${CARD} .av-pill`), 'היום המועד האחרון');
-    await last.context().close();
-    const late = await newPage({ width: 390, height: 844 }, dateIL(2026, 10, 16, 9));
-    await signIn(late, 'shoot.html', 'eli');
-    await late.locator(`${CARD} .av-card.is-late`).waitFor();
-    assert.equal(await text(late, `${CARD} .av-pill`), 'באיחור: המועד היה 15.10');
-    await shot(late, '390-eli-late');
-    await late.context().close();
+  await step('Eli (iPhone WebKit, Chrome 390 and 1366) on 12.10 and 20.10: no availability card on his shoot days page, and nothing is read for it', async () => {
+    for (const [name, vp, opts, now] of [
+      ['iphone-eli-shoot', null, IPHONE, dateIL(2026, 10, 12, 9)],
+      ['390-eli-shoot', { width: 390, height: 844 }, {}, dateIL(2026, 10, 20, 9)],
+      ['1366-eli-shoot', { width: 1366, height: 900 }, {}, dateIL(2026, 10, 20, 9)],
+    ]) {
+      const before = monthReads.length;
+      const page = await newPage(vp, now, opts);
+      await signIn(page, 'shoot.html#availability', 'eli');
+      await waitShootList(page);
+      await page.waitForTimeout(400); // the card used to come after the list
+      assert.equal(await page.locator(`${CARD}:not([hidden])`).count(), 0, name);
+      assert.equal(await page.locator(`${CARD} *`).count(), 0, name);
+      assert.doesNotMatch(await page.locator('#app').innerText(), /זמינות/, name);
+      assert.equal(monthReads.slice(before).filter((e) => e === 'eli@astrateg.test').length, 0, name);
+      assert.ok(await noSideScroll(page), name);
+      await shot(page, name, true);
+      await page.context().close();
+    }
   });
 
-  const eli = await newPage({ width: 390, height: 844 });
-  await signIn(eli, 'shoot.html', 'eli');
-
-  await step('Eli: one card above his shoot days, asking for November until 15.10, with the month as big days and no pink button', async () => {
-    await eli.locator(`${CARD}:not([hidden]) .av-card`).waitFor();
-    assert.equal(await text(eli, `${CARD} h2`), 'הזמינות שלך לנובמבר');
-    assert.equal(await text(eli, `${CARD} .av-pill`), 'למסור עד 15.10');
-    assert.equal(await eli.locator(`${CARD} .av-card.is-open`).count(), 1);
-    // Above the shoot days, under the page's head.
-    assert.ok(await eli.evaluate(() => !!(document.getElementById('availability').compareDocumentPosition(document.getElementById('sh-list')) & Node.DOCUMENT_POSITION_FOLLOWING)));
-    assert.equal(await eli.locator(`${CARD} .av-grid [data-day]`).count(), 30);
-    // November 2026 starts on a Sunday: no empty cell before the 1st.
-    assert.equal(await eli.locator(`${CARD} .av-grid .is-blank`).count(), 0);
-    assert.deepEqual(await texts(eli, `${CARD} .av-week span`), A.WEEKDAYS);
-    // The 12th has a shoot day: shown as taken, not a button.
-    assert.equal(await day(eli, 12).evaluate((e) => e.tagName), 'SPAN');
-    assert.equal(await day(eli, 12).getAttribute('aria-label'), 'יום ה׳ 12.11: קבוע יום צילום');
-    assert.match(await day(eli, 12).innerText(), /12\s*צילום/);
-    assert.equal(await day(eli, 3).getAttribute('aria-label'), 'יום ג׳ 3.11: לא פנוי');
-    assert.equal(await eli.locator(`${CARD} .btn-primary`).count(), 0);
-    assert.equal(await text(eli, '#av-submit'), 'מסירת הזמינות');
-    assert.equal(await eli.locator('#av-change').count(), 0); // nothing handed over yet to change
-    await shot(eli, '390-eli-ask', true);
+  await step('Lior on shoot.html (1366 and iPhone): only Eliel\'s folded line; Eli\'s old rows are not shown', async () => {
+    for (const [name, vp, opts] of [['1366-lior-shoot', { width: 1366, height: 900 }, {}], ['iphone-lior-shoot', null, IPHONE]]) {
+      const page = await newPage(vp, NOW, opts);
+      await signIn(page, 'shoot.html', 'lior');
+      await page.locator(`${CARD}:not([hidden]) ${ELIEL}`).waitFor();
+      assert.equal(await page.locator(`${CARD} ${ELI}`).count(), 0, name);
+      assert.deepEqual(await texts(page, `${CARD} ${ELIEL} summary > *`), ['הזמינות של אליאל', 'נובמבר: 2 ימים פנויים'], name);
+      assert.doesNotMatch(await page.locator(CARD).innerText(), /אלי[^א]|בלת״ם/, name);
+      assert.ok(await noSideScroll(page), name);
+      await shot(page, name, true);
+      await page.context().close();
+    }
   });
 
-  await step('Eli at 360px: no sideways scroll, every day and button at least 44px', async () => {
-    await eli.setViewportSize({ width: 360, height: 740 });
-    assert.equal(await noSideScroll(eli), true);
-    assert.deepEqual(await smallTargets(eli, `${CARD} button, ${CARD} .av-grid [data-day], ${CARD} label.av-none`), []);
-    await eli.setViewportSize({ width: 390, height: 844 });
-  });
-
-  await step('Eli: nothing marked is not a hand-over; "אין לי ימים פנויים בחודש הזה" is said, not left empty', async () => {
-    await eli.click('#av-submit');
-    assert.equal(await text(eli, '#av-msg'), A.TEXT.empty);
-    assert.equal(await eli.evaluate(() => document.activeElement?.id), 'av-msg');
-    assert.equal(calls.length, 0);
-    await eli.check('#av-none');
-    assert.equal(await text(eli, '#av-submit'), 'מסירה: אין ימים פנויים');
-    await eli.uncheck('#av-none');
-    assert.equal(await text(eli, '#av-submit'), 'מסירת הזמינות');
-  });
-
-  await step('Eli marks days; the marks survive a reload; he submits, and the card folds to one line', async () => {
-    for (const d of [3, 4, 5, 10]) await day(eli, d).click();
-    assert.deepEqual(await pressed(eli), [3, 4, 5, 10]);
-    assert.equal(await day(eli, 4).getAttribute('aria-label'), 'יום ד׳ 4.11: פנוי');
-    assert.equal(await text(eli, '#av-submit'), 'מסירת הזמינות · 4 ימים');
-    assert.equal(await eli.locator('#av-none').isDisabled(), true);
-    await eli.reload();
-    await eli.locator(`${CARD} .av-grid`).waitFor();
-    assert.deepEqual(await pressed(eli), [3, 4, 5, 10]);
-    assert.equal(calls.length, 0); // nothing is handed over before the submit
-    await shot(eli, '390-eli-marked', true);
-    await eli.click('#av-submit');
-    await eli.locator(`${CARD} .av-card.is-done`).waitFor();
-    assert.deepEqual(lastCall('photographer_submit').photographer_submit, { p_month: '2026-11-01', p_days: [N(3), N(4), N(5), N(10)], p_none: false });
-    assert.equal(await toastOf(eli), 'הזמינות לנובמבר נמסרה. עירית וליאור רואים אותה.');
-    assert.equal(await text(eli, `${CARD} h2`), 'הזמינות לנובמבר נמסרה');
-    assert.equal(await text(eli, `${CARD} .av-sum`), '4 ימים פנויים');
-    assert.deepEqual(await texts(eli, `${CARD} button`), ['עדכון', 'בלת״ם']);
-    assert.equal(await eli.locator(`${CARD} .av-grid`).count(), 0);
-    assert.deepEqual([months[0].person, months[0].by_person, months[0].by_email], ['eli', 'eli', 'eli@astrateg.test']);
-    assert.deepEqual(await smallTargets(eli, `${CARD} button`), []);
-    await shot(eli, '390-eli-done');
-  });
-
-  await step('Eli updates before the 15th: a day comes off, another is added', async () => {
-    await eli.click('#av-edit');
-    assert.equal(await text(eli, `${CARD} h2`), 'עדכון הזמינות לנובמבר');
-    assert.deepEqual(await pressed(eli), [3, 4, 5, 10]);
-    await day(eli, 10).click();
-    await day(eli, 20).click();
-    await eli.click('#av-submit');
-    await eli.locator(`${CARD} .av-card.is-done`).waitFor();
-    assert.deepEqual(lastCall('photographer_submit').photographer_submit.p_days, [N(3), N(4), N(5), N(20)]);
-    assert.equal(await toastOf(eli), 'הזמינות עודכנה.');
-    assert.equal(await text(eli, `${CARD} .av-sum`), '4 ימים פנויים');
-    // "ביטול" leaves it as it was.
-    await eli.click('#av-edit');
-    await day(eli, 25).click();
-    await eli.click('#av-cancel');
-    assert.deepEqual(months[0].days, [N(3), N(4), N(5), N(20)]);
-  });
-
-  await step('Eli reports an unexpected change: two consecutive days at most, a shoot day said, then it is off his free days and with the office', async () => {
-    await eli.click('#av-change');
-    assert.equal(await text(eli, `${CARD} h2`), 'בלת״ם: שינוי בזמינות');
-    assert.match(await text(eli, `${CARD} .av-lead`), /פעם אחת בחודש, עד 48 שעות/);
-    // His free days and the day a shoot day sits on.
-    assert.deepEqual(await texts(eli, `${CARD} .av-pick .av-n`), ['ג׳ 3.11', 'ד׳ 4.11', 'ה׳ 5.11', 'ה׳ 12.11', 'ו׳ 20.11']);
-    assert.equal(await eli.locator('#av-report').isDisabled(), true);
-    await pick(eli, 3).click();
-    // Not consecutive: refused in words, and not marked.
-    await pick(eli, 5).click();
-    assert.equal(await text(eli, '#av-msg'), A.TEXT.span);
-    assert.equal(await pick(eli, 5).getAttribute('aria-pressed'), 'false');
-    await pick(eli, 4).click();
-    assert.equal(await text(eli, '#av-report'), 'דיווח בלת״ם · 3.11–4.11');
-    // A third day: more than 48 hours.
-    await pick(eli, 5).click();
-    assert.equal(await text(eli, '#av-msg'), A.TEXT.span);
-    assert.match(await text(eli, '#av-msg'), /להתקשר לליאור/);
-    await pick(eli, 3).click();
-    await pick(eli, 4).click();
-    // The day with the shoot day: he is told what it means before it goes.
-    await pick(eli, 12).click();
-    assert.match(await text(eli, '#av-warn'), /ב־12\.11 קבוע יום צילום\. הדיווח מגיע מיד לעירית ולליאור; להתקשר לליאור גם עכשיו\./);
-    await shot(eli, '390-eli-change', true);
-    await pick(eli, 12).click();
-    assert.equal(await eli.locator('#av-warn').count(), 0);
-    await pick(eli, 4).click();
-    await pick(eli, 5).click();
-    assert.deepEqual(await smallTargets(eli, `${CARD} button`), []);
-    await eli.fill('#av-note', 'חתונה במשפחה');
-    await eli.click('#av-report');
-    await eli.locator(`${CARD} .av-card.is-done`).waitFor();
-    assert.deepEqual(lastCall('photographer_change').photographer_change, { p_days: [N(4), N(5)], p_note: 'חתונה במשפחה' });
-    assert.equal(await toastOf(eli), 'הבלת״ם על 4.11–5.11 דווח. עירית וליאור קיבלו הודעה.');
-    assert.equal(await text(eli, `${CARD} .av-sum`), '2 ימים פנויים');
-    assert.deepEqual(months[0].days, [N(3), N(20)]);
-    assert.deepEqual([changes[0].days, changes[0].shoot_days, changes[0].reported_month], [[N(4), N(5)], [], '2026-10-01']);
-  });
-
-  await step('Eli at the limit: a second change this month is not just refused, he is told to call Lior', async () => {
-    await eli.click('#av-change');
-    assert.equal(await text(eli, '#av-msg'), 'כבר דיווחת על בלת״ם החודש (4.11–5.11). בלת״ם אפשר פעם אחת בחודש. לשינוי נוסף: להתקשר לליאור.');
-    assert.equal(await eli.locator(`${CARD} .av-pick`).count(), 0);
-    assert.deepEqual(await texts(eli, `${CARD} button`), ['סגירה']);
-    await shot(eli, '390-eli-limit');
-    await eli.click('#av-cancel');
-    assert.equal(await text(eli, `${CARD} h2`), 'הזמינות לנובמבר נמסרה');
-    assert.equal(changes.length, 1);
-    await eli.context().close();
-  });
-
-  await step('Eli after the 15th: a free day no longer comes off through an update (only as an unexpected change); adding is open', async () => {
-    const late = await newPage({ width: 390, height: 844 }, dateIL(2026, 10, 20, 9));
-    await signIn(late, 'shoot.html', 'eli');
-    await late.locator(`${CARD} .av-card.is-done`).waitFor();
-    await late.click('#av-edit');
-    assert.match(await text(late, `${CARD} .hint`), /אחרי ה־15 בחודש יום פנוי יורד רק כבלת״ם/);
-    const before = calls.length;
-    // The day says it is held (aria-disabled), and a tap on it explains why.
-    assert.equal(await day(late, 3).getAttribute('aria-disabled'), 'true');
-    await day(late, 3).click({ force: true });
-    assert.equal(await text(late, '#av-msg'), A.TEXT.locked);
-    assert.deepEqual(await pressed(late), [3, 20]);
-    await day(late, 25).click();
-    await late.click('#av-submit');
-    await late.locator(`${CARD} .av-card.is-done`).waitFor();
-    assert.equal(calls.length, before + 1);
-    assert.deepEqual(months[0].days, [N(3), N(20), N(25)]);
-    // The database holds the same line when the screen is passed by.
-    const refused = await late.evaluate(async () => {
-      const { supabase } = await import('./app/supa.js');
-      const a = await supabase.rpc('photographer_submit', { p_month: '2026-11-01', p_days: ['2026-11-03'], p_none: false });
-      const b = await supabase.rpc('photographer_change', { p_days: ['2026-11-20'], p_note: null });
-      const c = await supabase.from('photographer_months').update({ days: [] }).eq('person', 'eli').select();
-      return [a.error?.message, b.error?.message, c.error?.code];
-    });
-    assert.deepEqual(refused, ['availability_locked', 'availability_change_used', '42501']);
-    assert.deepEqual(months[0].days, [N(3), N(20), N(25)]);
-    await late.context().close();
+  await step('Irit on prep.html#availability (1366 and iPhone): Eliel\'s card open, nothing of Eli\'s, and no words under "אלי הצלם"', async () => {
+    for (const [name, vp, opts] of [['1366-irit-prep', { width: 1366, height: 900 }, {}], ['iphone-irit-prep', null, IPHONE]]) {
+      const page = await newPage(vp, NOW, opts);
+      await signIn(page, 'prep.html#availability', 'irit');
+      await page.locator('#pp-shoots .pp-card').first().waitFor();
+      await page.locator(`${CARD}:not([hidden]) ${ELIEL}[open]`).waitFor();
+      assert.equal(await page.locator(`${CARD} ${ELI}`).count(), 0, name);
+      assert.equal(await page.locator(`${CARD} details`).count(), 1, name);
+      assert.deepEqual(await texts(page, `${CARD} ${ELIEL} summary > *`), ['הזמינות של אליאל', 'אוקטובר: עוד לא נמסרה', 'נובמבר: 2 ימים פנויים'], name);
+      assert.equal(await page.locator(`${CARD} .av-changes`).count(), 0, name); // Eli's old unexpected change
+      assert.deepEqual(await page.locator(`${CARD} #av-grid-eliel-2026-11 .is-free`).evaluateAll((els) => els.map((e) => +e.dataset.day.slice(8))), [10, 11], name);
+      await page.waitForTimeout(400);
+      assert.equal(await page.locator('[id$="p11-ok-photographer"] small').count(), 0, name);
+      assert.ok(await noSideScroll(page), name);
+      await shot(page, name, true);
+      await page.context().close();
+    }
   });
 
   const irit = await newPage({ width: 1366, height: 900 });
   await signIn(irit, `client.html?id=${dana.id}`, 'irit');
   const hint = '#ed-shoot-at + .av-hint';
-  const setDate = async (value) => { await irit.fill('#ed-shoot-at', value); await irit.locator(`${hint}:not([hidden])`).waitFor(); };
+  const fillDate = (value) => irit.fill('#ed-shoot-at', value);
+  const hintIs = (want) => irit.waitForFunction(([s, w]) => document.querySelector(s)?.textContent === w, [hint, want]);
+  const hintGone = () => irit.waitForFunction((s) => { const el = document.querySelector(s); return !el || el.hidden; }, hint);
 
-  await step('Irit sets a shoot date in the client card: next to the date, what Eli handed over for that day', async () => {
+  await step('Irit sets Eli\'s shoot day in the client card: no availability line and nothing asked; a day already taken is still said', async () => {
     await irit.click('#btn-edit');
-    assert.equal(await irit.locator(`${hint}:not([hidden])`).count(), 0); // no date yet: nothing to say
-    await setDate('2026-11-20T10:00');
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'אלי סימן את היום הזה כפנוי.', hint);
-    assert.match(await irit.locator(hint).getAttribute('class'), /is-free/);
-    await shot(irit, '1366-irit-hint-free');
-    await setDate('2026-11-10T10:00');
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'אלי לא סימן את היום הזה כפנוי.', hint);
-    assert.match(await irit.locator(hint).getAttribute('class'), /is-busy/);
-    await setDate('2026-11-04T10:00');
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'אלי דיווח בלת״ם על היום הזה: הוא לא פנוי.', hint);
-    await setDate('2026-11-12T10:00');
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'ביום הזה כבר קבוע יום צילום אחר.', hint);
+    await fillDate('2026-11-12T10:00');
+    await hintIs('ביום הזה כבר קבוע יום צילום אחר.'); // Ron's shoot day: a clash, not an availability
     assert.match(await irit.locator(hint).getAttribute('class'), /is-taken/);
-    await setDate('2026-12-08T10:00');
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent.startsWith('אלי עוד לא מסר זמינות לדצמבר. לוודא איתו לפני שסוגרים.'), hint);
-    assert.match(await irit.locator(hint).getAttribute('class'), /is-unknown/);
-    // "סימון זמינות במקומו" (the owner, 25.10.2026): Irit marks his December in his name, from right here.
-    assert.equal(await text(irit, `${hint} .av-mark`), 'סימון זמינות במקומו');
-    await irit.click(`${hint} .av-mark`);
-    await irit.locator('#dlg-avail-for[open]').waitFor();
-    assert.equal(await text(irit, '#av-for-h'), 'סימון זמינות במקומו של אלי');
-    await irit.locator('#dlg-avail-for [data-day="2026-12-08"]').click();
-    await irit.locator('#dlg-avail-for [data-day="2026-12-09"]').click();
-    await shot(irit, '1366-irit-mark-for-eli');
-    await irit.click('#dlg-avail-for #av-submit');
-    await irit.waitForFunction(() => !document.querySelector('#dlg-avail-for'));
-    const dec = A.monthRow(months, 'eli', '2026-12');
-    assert.deepEqual([dec.days, dec.by_person], [['2026-12-08', '2026-12-09'], 'irit']);
-    assert.deepEqual(lastCall('photographer_submit').photographer_submit, { p_month: '2026-12-01', p_days: ['2026-12-08', '2026-12-09'], p_none: false, p_person: 'eli' });
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'אלי סימן את היום הזה כפנוי.', hint);
-    assert.equal(await irit.locator('#dlg-edit[open]').count(), 1, 'the client card\'s dialog stays open under it');
-  });
-
-  await step('Irit picks a day he did not mark free: asked to confirm with a short reason; "ביטול" saves nothing', async () => {
-    await setDate('2026-11-10T10:00');
-    await irit.click('#ed-submit');
-    await irit.locator('#dlg-shoot-day[open]').waitFor();
-    assert.equal(await text(irit, '#av-dlg-h'), 'לקבוע את יום הצילום בכל זאת?');
-    assert.equal(await text(irit, '#dlg-shoot-day .av-dlg-when'), 'יום ג׳ 10.11 בשעה 10:00');
-    assert.deepEqual(await texts(irit, '#dlg-shoot-day .av-warn li'), ['אלי לא סימן את היום הזה כפנוי.']);
-    assert.equal(await irit.locator('#dlg-shoot-day .btn-primary').count(), 0);
-    await shot(irit, '1366-irit-reason');
-    // No reason: not accepted.
-    await irit.click('#av-reason-ok');
-    assert.equal(await irit.locator('#av-reason-err:not([hidden])').innerText(), 'לכתוב סיבה קצרה.');
-    await irit.click('#av-reason-cancel');
-    await irit.waitForFunction(() => !document.querySelector('#dlg-shoot-day') && document.activeElement?.id === 'ed-shoot-at');
-    assert.equal(await irit.locator('#dlg-edit[open]').count(), 1);
-    assert.equal(dana.shoot_at, null);
-    assert.equal(dateNotes.length, 0);
-  });
-
-  await step('Irit confirms the exception: saved, the reason is kept with the date change, and his approval is not ticked for her', async () => {
-    await irit.click('#ed-submit');
-    await irit.locator('#dlg-shoot-day[open]').waitFor();
-    await irit.fill('#av-reason', 'הלקוח יכול רק ביום הזה');
-    await irit.click('#av-reason-ok');
-    await irit.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
-    assert.equal(new Date(dana.shoot_at).toISOString(), dateIL(2026, 11, 10, 10).toISOString());
-    assert.deepEqual(dateNotes.map((n) => [n.p_client, n.p_field, n.p_round, n.p_note, n.by]), [
-      [dana.id, 'shoot_at', null, 'אושר למרות: אלי לא סימן את היום הזה כפנוי. סיבה: הלקוח יכול רק ביום הזה', 'irit@astrateg.test'],
-    ]);
-    assert.equal(calls.some((c) => c.check), false);
-    assert.equal(tables.protocol_checks.some((c) => c.item_key === 'p11.ok.photographer'), false);
-  });
-
-  await step('Irit moves it to a day he marked free: said in the hint, nothing asked, nothing more kept', async () => {
-    await irit.click('#btn-edit');
-    // The saved date of this very shoot is not "another shoot day".
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'אלי לא סימן את היום הזה כפנוי.', hint);
-    await setDate('2026-11-20T10:00');
-    await irit.waitForFunction((s) => document.querySelector(s)?.textContent === 'אלי סימן את היום הזה כפנוי.', hint);
+    await fillDate('2026-11-10T10:00'); // not in Eli's old November row
+    await hintGone();
+    await fillDate('2026-12-08T10:00'); // a month he never handed over
+    await hintGone();
+    assert.equal(await irit.locator('.av-mark').count(), 0);
+    await shot(irit, '1366-irit-eli-day');
+    await fillDate('2026-11-10T10:00');
     await irit.click('#ed-submit');
     await irit.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
-    assert.equal(dayKeyIL(new Date(dana.shoot_at)), N(20));
-    assert.equal(dateNotes.length, 1);
-    assert.equal(await irit.locator('#dlg-shoot-day').count(), 0);
-    assert.deepEqual(dialogs, []);
-    assert.equal(tables.protocol_checks.some((c) => c.item_key === 'p11.ok.photographer'), false);
-    // A day another shoot sits on is asked about too (Ron's 12.11).
-    await irit.click('#btn-edit');
-    await setDate('2026-11-12T10:00');
-    await irit.click('#ed-submit');
-    await irit.locator('#dlg-shoot-day[open]').waitFor();
-    assert.deepEqual(await texts(irit, '#dlg-shoot-day .av-warn li'), ['ביום הזה כבר קבוע יום צילום אחר.', 'אלי לא סימן את היום הזה כפנוי.']);
-    await irit.click('#av-reason-cancel');
-    await irit.keyboard.press('Escape');
-    assert.equal(dayKeyIL(new Date(dana.shoot_at)), N(20));
-  });
-
-  await step('Irit on "before the shoot day": the folded line, what he handed over, and the words under "אלי הצלם"', async () => {
-    await irit.goto(`${BASE}prep.html`);
-    await irit.locator(`${CARD}:not([hidden]) ${ELI}`).waitFor();
-    assert.equal(await irit.locator(`${CARD} details[open]`).count(), 0);
-    assert.deepEqual(await texts(irit, `${CARD} ${ELI} summary > *`), ['הזמינות של אלי', 'אוקטובר: עוד לא נמסרה', 'נובמבר: 3 ימים פנויים']);
-    // Eliel (25.10.2026), the second photographer: a card of his own, kept by the office.
-    assert.deepEqual((await texts(irit, `${CARD} ${ELIEL} summary > *`)).slice(0, 1), ['הזמינות של אליאל']);
-    assert.equal(await irit.locator(`${CARD} .btn-primary`).count(), 0);
-    // Under his name in each coordinator: what he handed over for that shoot's own day, never the tick.
-    await irit.waitForFunction(() => document.querySelectorAll('[id$="p11-ok-photographer"] small').length === 2);
-    assert.deepEqual((await texts(irit, '[id$="p11-ok-photographer"] small')).sort(), ['לא סימן את היום כפנוי', 'סימן את היום כפנוי']);
-    assert.deepEqual(await irit.locator('[id$="p11-ok-photographer"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-pressed'))), ['false', 'false']);
-    await irit.click(`${CARD} ${ELI} summary`);
-    await irit.locator(`${CARD} #av-grid-2026-11`).waitFor();
-    assert.deepEqual(await irit.locator(`${CARD} #av-grid-2026-11 .is-free`).evaluateAll((els) => els.map((e) => +e.dataset.day.slice(8))), [3, 20, 25]);
-    assert.deepEqual(await irit.locator(`${CARD} #av-grid-2026-11 .is-taken`).evaluateAll((els) => els.map((e) => +e.dataset.day.slice(8))), [12, 20]);
-    assert.deepEqual(await irit.locator(`${CARD} #av-grid-2026-11 .is-off`).evaluateAll((els) => els.map((e) => +e.dataset.day.slice(8))), [4, 5]);
-    assert.equal(await irit.locator(`${CARD} #av-grid-2026-11 button`).count(), 0); // read only
-    assert.match(await text(irit, `${CARD} .av-changes`), /בלת״ם: 4\.11–5\.11 · דווח .* · חתונה במשפחה/);
-    await shot(irit, '1366-irit-prep', true);
-  });
-
-  await step('Irit enters it in his name after a call: not held by his limits, and stamped as hers', async () => {
-    // "סימון זמינות במקומו" (the owner, 25.10.2026).
-    assert.equal(await text(irit, '#av-enter-2026-11'), 'עדכון במקומו');
-    assert.equal(await text(irit, '#av-enter-2026-10'), 'סימון זמינות במקומו');
-    await irit.click('#av-enter-2026-11');
-    assert.deepEqual(await pressed(irit), [3, 25]); // the 20th is free too, under the shoot day set on it
-    await day(irit, 25).click();
-    await day(irit, 26).click();
-    assert.equal(await text(irit, '#av-submit'), 'שמירה בשם אלי');
-    await irit.click('#av-submit');
-    await irit.waitForFunction(() => /הזמינות של אלי לנובמבר נשמרה\./.test(document.querySelector('#toast.on')?.innerText || ''));
-    assert.deepEqual(lastCall('photographer_submit').photographer_submit, { p_month: '2026-11-01', p_days: [N(3), N(20), N(26)], p_none: false, p_person: 'eli' });
-    assert.deepEqual([months[0].days, months[0].by_person], [[N(3), N(20), N(26)], 'irit']);
-    await irit.waitForFunction(() => /סומן ע״י עירית/.test(document.querySelector('#availability details[data-person="eli"]')?.innerText || ''));
-  });
-
-  await step('Eliel, who has no account: Irit marks his month in his name, stamped as hers', async () => {
-    await irit.click(`${CARD} ${ELIEL} summary`);
-    assert.equal(await text(irit, '#av-enter-eliel-2026-11'), 'סימון זמינות במקומו');
-    assert.equal(await irit.getAttribute('#av-enter-eliel-2026-11', 'aria-label'), 'סימון זמינות במקומו של אליאל · נובמבר');
-    await irit.click('#av-enter-eliel-2026-11');
-    // (Eli's November stays open beside it, read only: the days marked are in the grid being edited.)
-    await irit.locator(`#av-grid [data-day="${N(10)}"]`).click();
-    await irit.locator(`#av-grid [data-day="${N(11)}"]`).click();
-    assert.equal(await text(irit, '#av-submit'), 'שמירה בשם אליאל');
-    await irit.click('#av-submit');
-    await irit.waitForFunction(() => /הזמינות של אליאל לנובמבר נשמרה\./.test(document.querySelector('#toast.on')?.innerText || ''));
-    assert.deepEqual(lastCall('photographer_submit').photographer_submit, { p_month: '2026-11-01', p_days: [N(10), N(11)], p_none: false, p_person: 'eliel' });
-    const row = A.monthRow(months, 'eliel', '2026-11');
-    assert.deepEqual([row.days, row.by_person], [[N(10), N(11)], 'irit']);
-    await irit.waitForFunction(() => /סומן ע״י עירית/.test(document.querySelector('#availability details[data-person="eliel"]')?.innerText || ''));
-    assert.deepEqual(await texts(irit, `${CARD} ${ELIEL} summary > *`), ['הזמינות של אליאל', 'אוקטובר: עוד לא נמסרה', 'נובמבר: 2 ימים פנויים']);
-    await shot(irit, '1366-irit-eliel', true);
-    await irit.context().close();
-  });
-
-  await step('who sees it: Lior and the owner (and enter it in his name), Ofir (reads); Ilai and an editor see nothing', async () => {
-    for (const [who, enters] of [['lior', true], ['owner', true], ['ofir', false]]) {
-      const page = await newPage();
-      await signIn(page, 'shoot.html', who);
-      await page.locator(`${CARD}:not([hidden]) ${ELI}`).waitFor();
-      assert.match(await text(page, `${CARD} ${ELI} summary`), /הזמינות של אלי[\s\S]*נובמבר: 3 ימים פנויים/, who);
-      await page.click(`${CARD} ${ELI} summary`);
-      await page.locator(`${CARD} #av-grid-2026-11`).waitFor();
-      assert.equal(await page.locator('#av-enter-2026-11').count(), enters ? 1 : 0, who);
-      if (who === 'lior') await shot(page, '1366-lior-shoot', true);
-      await page.context().close();
-    }
-    for (const who of ['ilai', 'nadia']) {
-      const page = await newPage();
-      await signIn(page, 'shoot.html', who);
-      await page.waitForFunction(() => document.getElementById('state').textContent === '' || !document.getElementById('no-access').hidden);
-      assert.equal(await page.locator(`${CARD}:not([hidden])`).count(), 0, who);
-      assert.equal(await page.locator(`${CARD} *`).count(), 0, who);
-      const direct = await page.evaluate(async () => {
-        const { supabase } = await import('./app/supa.js');
-        const a = await supabase.from('photographer_months').select('person');
-        const b = await supabase.rpc('photographer_taken', { p_from: '2026-11-01', p_to: '2026-11-30' });
-        const c = await supabase.rpc('photographer_submit', { p_month: '2026-11-01', p_days: ['2026-11-07'], p_none: false, p_person: 'eli' });
-        return [a.data?.length, b.error?.code, c.error?.code];
-      });
-      assert.deepEqual(direct, [0, '42501', '42501'], who);
-      await page.context().close();
-    }
-    // Ilai's client card has no "עריכת פרטים" at all: he never reaches a shoot date to set.
-    const ilai = await newPage();
-    await signIn(ilai, `client.html?id=${dana.id}`, 'ilai');
-    await ilai.locator('#app:not([hidden]) h1').first().waitFor();
-    assert.equal(await ilai.locator('#btn-edit').count(), 0);
-    await ilai.context().close();
-    assert.deepEqual(months[0].days, [N(3), N(20), N(26)]);
-  });
-
-  await step('before the migration: no card, no line next to the date, and a date is saved as before', async () => {
-    tableMissing = true;
-    const e2 = await newPage({ width: 390, height: 844 });
-    await signIn(e2, 'shoot.html', 'eli');
-    await e2.waitForFunction(() => /אין ימי צילום בחודש הקרוב/.test(document.getElementById('sh-list').textContent));
-    assert.equal(await e2.locator(`${CARD}:not([hidden])`).count(), 0);
-    await e2.context().close();
-    const i2 = await newPage();
-    await signIn(i2, `client.html?id=${dana.id}`, 'irit');
-    await i2.click('#btn-edit');
-    await i2.fill('#ed-shoot-at', '2026-11-10T10:00');
-    await i2.click('#ed-submit');
-    await i2.waitForFunction(() => !document.querySelector('#dlg-edit[open]'));
     assert.equal(dayKeyIL(new Date(dana.shoot_at)), N(10));
-    assert.equal(await i2.locator('#dlg-shoot-day').count(), 0);
-    assert.equal(dateNotes.length, 1);
-    await i2.goto(`${BASE}prep.html`);
-    await i2.locator('#pp-shoots .pp-card').first().waitFor();
-    assert.equal(await i2.locator(`${CARD}:not([hidden])`).count(), 0);
-    await i2.context().close();
-    tableMissing = false;
+    assert.equal(await irit.locator('#dlg-shoot-day').count(), 0);
+    assert.equal(dateNotes.length, 0);
+    // A day another shoot of Eli's sits on is still asked about, and only that is said.
+    await irit.click('#btn-edit');
+    await hintGone(); // its own saved day is not "another shoot day"
+    await fillDate('2026-11-12T10:00');
+    await irit.click('#ed-submit');
+    await irit.locator('#dlg-shoot-day[open]').waitFor();
+    assert.deepEqual(await texts(irit, '#dlg-shoot-day .av-warn li'), ['ביום הזה כבר קבוע יום צילום אחר.']);
+    await irit.click('#av-reason-cancel');
+    await irit.waitForFunction(() => !document.querySelector('#dlg-shoot-day'));
   });
 
-  assert.deepEqual(calls.filter((c) => c.directWrite).map((c) => c.by), ['eli@astrateg.test']); // the one tried on purpose above
+  await step('Irit, a day Eliel films: his hint and "סימון זמינות במקומו" as before', async () => {
+    await irit.check('#ed-crew-solo');
+    await irit.check('#ed-photographer-eliel');
+    await fillDate('2026-11-11T10:00');
+    await hintIs('אליאל סימן את היום הזה כפנוי.');
+    await fillDate('2026-11-09T10:00');
+    await hintIs('אליאל לא סימן את היום הזה כפנוי.');
+    await fillDate('2026-12-08T10:00');
+    await irit.waitForFunction((s) => document.querySelector(s)?.textContent.startsWith('אליאל עוד לא מסר זמינות לדצמבר.'), hint);
+    assert.equal(await text(irit, `${hint} .av-mark`), 'סימון זמינות במקומו');
+    await shot(irit, '1366-irit-eliel-day');
+    await irit.keyboard.press('Escape');
+    await irit.context().close();
+    assert.equal(dayKeyIL(new Date(dana.shoot_at)), N(10));
+  });
+
+  assert.deepEqual(calls.filter((c) => c.photographer_submit || c.photographer_change), []);
   assert.deepEqual(dialogs, []);
   assert.deepEqual(errors, []);
   noCspViolations();
@@ -646,5 +353,6 @@ try {
   console.error(err);
 } finally {
   await browser.close();
+  await safari?.close();
 }
 process.exit(exitCode);
