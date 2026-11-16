@@ -206,3 +206,19 @@ test('Claude found a note not fixed: the assignee hears "עוד לא תוקן", 
   assert.equal(due({ staffTasks: [t], gfxChecks: [check], now, log: r.map((x) => ({ key: x.key })) }).filter((x) => x.rule === 'gfxFix').length, 0);
   assert.equal(due({ staffTasks: [{ ...t, status: 'done', done_at: '2026-11-17T07:20:00Z' }], gfxChecks: [check], now }).filter((x) => x.rule === 'gfxFix').length, 0);
 });
+
+test('the form\'s task: the gfx choice goes in the brief; Nirel keeps her brief beside it', async () => {
+  const { validateTask } = await import('../app/staff-tasks-logic.js');
+  const C = '11111111-1111-4111-8111-111111111111';
+  const a = validateTask({ assignee: 'ilai', body: 'להכין גרפיקות', clientId: C, gfxKind: 'make', gfxCount: '10' });
+  assert.deepEqual([a.ok, a.rpc, a.args.p_brief], [true, 'staff_task_create_brief', { gfx_kind: 'make', gfx_count: 10 }]);
+  const plain = validateTask({ assignee: 'ilai', body: 'להכין גרפיקות', clientId: C });
+  assert.deepEqual([plain.rpc, plain.args.p_brief], ['staff_task_create', undefined]);
+  const bad = validateTask({ assignee: 'ilai', body: 'להכין', clientId: C, gfxCount: '0' });
+  assert.deepEqual([bad.ok, bad.errors.gfxCount], [false, 'מספר בין 1 ל־200.']);
+  const brief = { problem: 'א', change: 'ב', keep: 'ג', result: 'ד' };
+  const n = validateTask({ assignee: 'nirel', body: 'לתקן', clientId: C, brief, gfxKind: 'fix' });
+  assert.deepEqual(n.args.p_brief, { ...brief, gfx_kind: 'fix' });
+  // Not a graphics person: the choice is not sent at all.
+  assert.equal(validateTask({ assignee: 'nadia', body: 'לערוך', clientId: C, gfxKind: 'make', gfxCount: '3' }).rpc, 'staff_task_create');
+});

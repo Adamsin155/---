@@ -383,6 +383,14 @@ test('tasks: Nirel needs her brief; the owner\'s own task is done, another\'s is
   const brief = { problem: 'א', change: 'ב', keep: 'ג', result: 'ד' };
   assert.equal((await call(w, 'owner', 'give_task', { person: 'ניראל', text: 'גרפיקה', brief, dry_run: false })).done, true);
   assert.equal(w.log.at(-1).path, '/rpc/staff_task_create_brief');
+  // A graphics task (17.11.2026): the kind and the number go in the brief; only for Ilai/Nirel on a client.
+  const gfx = await call(w, 'owner', 'give_task', { person: 'עילאי', text: 'להכין גרפיקות', client: 'רון', gfx_kind: 'make', gfx_count: 10, dry_run: true });
+  assert.match(gfx.preview, /סוג: להכין, 10 גרפיקות; הנודניק ייסגר לבד/);
+  assert.equal((await call(w, 'owner', 'give_task', { person: 'עילאי', text: 'להכין גרפיקות', client: 'רון', gfx_kind: 'make', gfx_count: 10, dry_run: false })).done, true);
+  assert.deepEqual([w.log.at(-1).path, w.log.at(-1).args.p_brief], ['/rpc/staff_task_create_brief', { gfx_kind: 'make', gfx_count: 10 }]);
+  assert.equal((await call(w, 'owner', 'give_task', { person: 'נדיה', text: 'לערוך', client: 'רון', gfx_kind: 'make', dry_run: true })).code, 'bad_input');
+  assert.equal((await call(w, 'owner', 'give_task', { person: 'עילאי', text: 'להכין', gfx_kind: 'make', dry_run: true })).code, 'bad_input');
+  assert.equal((await call(w, 'owner', 'give_task', { person: 'עילאי', text: 'להכין', client: 'רון', gfx_count: 0, dry_run: true })).code, 'bad_input');
   const other = await call(w, 'owner', 'close_task', { text: 'הסרטון של רון', dry_run: true });
   assert.match(other.preview, /תבוטל/);
   assert.equal((await call(w, 'owner', 'close_task', { task_id: ID.st1, dry_run: false })).done, true);

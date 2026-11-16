@@ -23,12 +23,13 @@
 //     "close" of a task are what the app does with them;
 //   - no phone, email or company number goes back: the contract's details are read from the system
 //     here and sent to create-quote, never shown; free text with an email or a long number is refused.
-import { PEOPLE, PROCESSES, CHARACTERIZERS, FORMER_PEOPLE, EDITORS, CLIENT_STATUS, TEAM_PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSilent } from '../_shared/app/protocol.js';
+import { PEOPLE, PROCESSES, CHARACTERIZERS, FORMER_PEOPLE, EDITORS, CLIENT_STATUS, TEAM_PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSilent, isGraphics } from '../_shared/app/protocol.js';
 import { clientState, blockers, isResolved, WAIT, WAITED, endWaitNote, roundsOf } from '../_shared/app/protocol-logic.js';
 import { guardOf, formOf, guardVerdict, ganttFacts, roundOfKey } from '../_shared/app/mark-guard-rules.js';
 import { GANTT_KINDS } from '../_shared/app/gantt-template.js';
 import { folderItemOf } from '../_shared/app/qa-logic.js';
 import { validateTask, ASSIGNEES } from '../_shared/app/staff-tasks-logic.js';
+import { GFX_LABEL } from '../_shared/app/gfx-auto-logic.js';
 import { shootDateConcerns, shootDateNote } from '../_shared/app/shoot-prep.js';
 import * as A from '../_shared/app/availability-logic.js';
 import { isChoice, soloOf, choiceOf, crewPatch, roundWithCrew } from '../_shared/app/shoot-crew.js';
@@ -397,9 +398,12 @@ async function giveTaskTool(ctx, a) {
   if (personalIn(body, ...Object.values(brief))) refuse(PERSONAL_WORDS, 'personal_details');
   let client = null;
   if (a.client !== undefined && a.client !== null && a.client !== '') client = await clientOf(ctx, a.client);
-  const v = validateTask({ assignee, body, clientId: client?.id || '', brief });
+  // A graphics task (17.11.2026; docs/ops.md, section 138): the kind and the number, as in the form.
+  if ((a.gfx_kind || a.gfx_count) && (!isGraphics(assignee) || !client)) refuse('סוג וכמה גרפיקות: רק במשימה לגרפיקאי/ת (עילאי, ניראל) על לקוח.', 'bad_input');
+  const v = validateTask({ assignee, body, clientId: client?.id || '', brief, gfxKind: a.gfx_kind || '', gfxCount: a.gfx_count ?? '' });
   if (!v.ok) refuse(Object.values(v.errors).join(' '), 'bad_input', { fields: Object.keys(v.errors) });
-  const preview = `${personName(assignee)} יקבל/תקבל משימה מיידית ("נודניק")${client ? ` על ${label(client)}` : ''}: "${v.args.p_body}". מרגע זה תגיע תזכורת לטלפון כל 30 דקות, בשעות העבודה, עד שיסמנו ״בוצע״ (או שתבטל/י).`;
+  const gfx = v.args.p_brief?.gfx_kind ? ` סוג: ${GFX_LABEL[v.args.p_brief.gfx_kind]}${v.args.p_brief.gfx_count ? `, ${v.args.p_brief.gfx_count} גרפיקות` : ''}; ${v.args.p_brief.gfx_kind === 'fix' ? 'ה־AI יבדוק את הגרפיקות החדשות מול ההערות' : 'הנודניק ייסגר לבד כשהגרפיקות יופיעו בדרייב או בגאנט'}.` : '';
+  const preview = `${personName(assignee)} יקבל/תקבל משימה מיידית ("נודניק")${client ? ` על ${label(client)}` : ''}: "${v.args.p_body}". מרגע זה תגיע תזכורת לטלפון כל 30 דקות, בשעות העבודה, עד שיסמנו ״בוצע״ (או שתבטל/י).${gfx}`;
   if (a.dry_run !== false) return { preview };
   await wrote(ctx.db.rpc(v.rpc, v.args));
   return { done: `המשימה נשלחה ל${personName(assignee)}${client ? ` (${label(client)})` : ''}.` };
@@ -660,6 +664,8 @@ export const WRITE_TOOLS = [
       properties: {
         person: str('To whom (Hebrew name or key; "הבעלים" for the owner).'), text: str('What to do (up to 500 characters).'), client: str('Optional: the client it is about.'),
         brief: { type: 'object', properties: { problem: { type: 'string' }, change: { type: 'string' }, keep: { type: 'string' }, result: { type: 'string' } }, additionalProperties: false, description: 'For Nirel only, all four.' },
+        gfx_kind: { type: 'string', enum: ['make', 'fix', 'schedule'], description: 'Optional, a graphics task to Ilai or Nirel on a client: make (להכין), fix (לתקן), schedule (לתזמן). It then closes by itself when the work shows.' },
+        gfx_count: { type: 'integer', minimum: 1, maximum: 200, description: 'Optional, with gfx_kind make or schedule: how many graphics.' },
         dry_run: DRY,
       },
       required: ['person', 'text', 'dry_run'], additionalProperties: false,

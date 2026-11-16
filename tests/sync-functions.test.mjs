@@ -107,7 +107,7 @@ const DEPLOY = {
   // and the owner's write tools (section 116) with the card's own rules.
   mcp: [
     '_shared/oauth-token.js',
-    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'contract-ai-logic.js', 'contract-summary.js', 'edit-count.js', 'fast-ladder.js', 'gantt-template.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'qa-logic.js', 'quote-doc.js', 'shell-rules.js', 'shoot-crew.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'team-rules.js', 'tz.js', 'year-logic.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'contract-ai-logic.js', 'contract-summary.js', 'edit-count.js', 'fast-ladder.js', 'gantt-template.js', 'gfx-auto-logic.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'qa-logic.js', 'quote-doc.js', 'shell-rules.js', 'shoot-crew.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'team-rules.js', 'tz.js', 'year-logic.js'),
     '_shared/cors.js',
     '_shared/drive.js',
     'ask/handler.js',
