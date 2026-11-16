@@ -266,7 +266,7 @@ function newForm() {
       ...GFX_KINDS.map(([k, l]) => h('label', { class: 'st-chip' },
         h('input', { type: 'radio', name: 'gfxKind', value: k, onclick: (e) => toggleKind(e.currentTarget) }), h('span', {}, l)))),
     countField,
-    h('p', { class: 'hint st-gfx-hint' }, GFX_HINT.make));
+    h('p', { class: 'st-gfx-hint' }, GFX_HINT.make));
   return h('form', { class: 'st-form', id: 'st-form', novalidate: true, 'aria-labelledby': 'st-form-h', onsubmit: (e) => { e.preventDefault(); send(e.currentTarget); } },
     h('h3', { id: 'st-form-h' }, 'נודניק חדש'),
     h('div', { class: 'field' },

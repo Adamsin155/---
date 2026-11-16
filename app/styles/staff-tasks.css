@@ -97,3 +97,4 @@
 .st-auto::before { content: '✓'; margin-inline-end: 6px; }
 .st-item.is-auto { box-shadow: inset 0 0 0 2px var(--ds-ok-soft); }
 .st-reopen { min-height: 44px; }
+.st-gfx-hint { margin: 0; color: var(--ds-muted); font-size: 14px; }
