@@ -235,6 +235,8 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
     }
   }
   // ── The photographer's free dates of next month (section 39) ──
+  // Since 16.11.2026 nobody hands it over himself (HANDS_OVER is empty: Eli no longer does,
+  // section 136), so neither line shows; Eliel's month is the office's own record.
   if (extra.availability && Array.isArray(extra.availability.months)) {
     const ask = askOf(now);
     const month = monthName(ask.month, now);
@@ -243,8 +245,8 @@ export function flowLines({ viewer, clients = [], checks = {}, stateOf, tasks = 
         text: `עוד לא מסרת את הזמינות שלך ל${month} (עד ה־${DEADLINE_DAY} בחודש)` });
     }
     // From the 16th the managers see who did not hand it in, and can enter it in his name.
-    if (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now)) {
-      const missing = PHOTOGRAPHERS.filter((p) => !monthRow(extra.availability.months, p, ask.month));
+    const missing = PHOTOGRAPHERS.filter((p) => !monthRow(extra.availability.months, p, ask.month));
+    if (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now) && missing.length) {
       add({ id: 'availability-missing', bucket: 'overdue', n: missing.length, rule: 'availabilityMissing', href: OFFICE_URL, cta: 'לזמינות',
         text: `${missing.map((p) => PEOPLE[p]?.name || p).join(', ')} עוד לא מסר זמינות ל${month}` });
     }
@@ -264,7 +266,7 @@ export function flowNeeds(viewer, now = new Date()) {
   if (QUOTE_LIST_VIEWERS.includes(me)) needs.push('unsigned');
   if (me === 'ofir') needs.push('liorShoot');
   if (me === 'ilai' || me === 'ofir' || me === 'amit') needs.push('metricool');
-  if (PHOTOGRAPHERS.includes(me) || (AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
+  if (PHOTOGRAPHERS.includes(me) || (PHOTOGRAPHERS.length && AVAILABILITY_MANAGERS.includes(me) && missingForManagers(now))) needs.push('availability');
   return needs;
 }
 

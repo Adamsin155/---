@@ -21,14 +21,20 @@ import { PEOPLE, PHOTOGRAPHERS as CREW, photographerOf } from './protocol.js';
 import { isBusinessDay, roundsOf, roundContext, parseDate, clientLabel } from './protocol-logic.js';
 import { partsIL, dateIL, dayKeyIL, addDaysIL } from './tz.js';
 
-// Whose availability is kept. The ONE list (with public.photographer_people() in the
-// migrations): a photographer is added here and there, and nothing else changes. Since
-// 25.10.2026 (the owner's decision) the second photographer, Eliel, is here too: he has no
-// account, so his month is a record the office fills in his name (ON_BEHALF).
-export const PHOTOGRAPHERS = ['eli', 'eliel'];
+// Whose availability is kept. Since 25.10.2026 (the owner's decision) the second
+// photographer, Eliel, is here: he has no account, so his month is a record the office
+// fills in his name (ON_BEHALF). Since 16.11.2026 (the owner: "להוריד את אלי ממסירת
+// הזמינות לגמרי"; docs/ops.md, section 136) Eli is not: he still films every shoot day as
+// before, but no month of his is asked for, shown, hinted at or reminded about. The
+// database (public.photographer_people()) still names him, with no migration: nothing in
+// the app offers it, and his old rows stay where they are, unread.
+export const PHOTOGRAPHERS = ['eliel'];
 // Who hands it over himself, signed in (his card, his reminders, the managers' "not handed
-// over yet" line): the photographers with an account.
-export const HANDS_OVER = ['eli'];
+// over yet" line): nobody since 16.11.2026 (it was Eli).
+export const HANDS_OVER = [];
+// Whether `person`'s free days are kept at all. Another photographer's day still says
+// when a shoot is already set on it, and nothing else.
+export const keepsAvailability = (person) => PHOTOGRAPHERS.includes(person);
 // Who reads it besides the photographer himself (public.can_read_availability).
 export const READERS = ['owner', 'irit', 'lior', 'ofir'];
 // Who is told (missing after the 15th, handed over, an unexpected change): the work
@@ -151,7 +157,8 @@ export function dayShortNote(st) {
   return st.changed ? 'דיווח בלת״ם על היום הזה' : 'לא סימן את היום כפנוי';
 }
 // What the office is asked to confirm, with a reason: a day he did not mark free in a
-// month he handed over, and a day that already has a shoot. A month not handed over
+// month he handed over (only for a photographer whose availability is kept), and a day
+// that already has a shoot (for any photographer). A month not handed over
 // yet is said in the hint only (his approval is still ticked by hand, as before).
 export function availabilityConcerns({ day, months = [], changes = [], taken = {}, own = null, people = PHOTOGRAPHERS, now = null }) {
   const out = [];
@@ -160,7 +167,7 @@ export function availabilityConcerns({ day, months = [], changes = [], taken = {
   for (const person of people) {
     const st = dayStatus({ day, person, months, changes, taken, own });
     if (st.status === 'taken') { if (!takenSaid) out.push('ביום הזה כבר קבוע יום צילום אחר.'); takenSaid = true; }
-    if (st.base === 'busy') out.push(dayHintText({ ...st, status: 'busy' }, now));
+    if (st.base === 'busy' && keepsAvailability(person)) out.push(dayHintText({ ...st, status: 'busy' }, now));
   }
   return out;
 }

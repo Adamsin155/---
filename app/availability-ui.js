@@ -1,6 +1,10 @@
 // The photographer's monthly availability on the screens (docs/ops.md, section 39;
 // the rules are app/availability-logic.js, the database enforces them:
 // supabase/migrations/20261016100000_photographer_availability.sql).
+// Since 16.11.2026 (the owner; docs/ops.md, section 136) Eli hands nothing over: his own
+// card, his line in the office's card and every hint about his days are gone (A.HANDS_OVER
+// is empty, A.PHOTOGRAPHERS is Eliel). On Eli's days the office still hears that another
+// shoot day is already set on the date, as before.
 //   mountAvailability(el, { me })   one mount point.
 //     The photographer (shoot.html): a compact card above his shoot days. Until next
 //     month is handed over: the month as a grid of big days, "אין לי ימים פנויים בחודש
@@ -363,21 +367,26 @@ const RANK = { taken: 3, busy: 2, unknown: 1, free: 0 };
 
 // The statuses of one day ('YYYY-MM-DD') for the photographer `who` (every photographer when
 // null); null when unknown here.
+// A photographer whose availability is not kept (Eli, 16.11.2026) has a status only when
+// another shoot day is already set on that day.
 export async function dayStatuses(day, { me, own = null, who = null } = {}) {
   if (!canSee(me) || isPhotographer(me) || !/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) return null;
   const data = await monthData(A.monthOfDay(day));
   const people = who ? [who] : A.PHOTOGRAPHERS;
-  return data ? people.map((person) => A.dayStatus({ day, person, ...data, taken: takenOf(data, person), own: ownDay(own) })) : null;
+  const sts = data ? people.map((person) => A.dayStatus({ day, person, ...data, taken: takenOf(data, person), own: ownDay(own) }))
+    .filter((st) => A.keepsAvailability(st.person) || st.status === 'taken') : [];
+  return sts.length ? sts : null;
 }
 // The photographer's next free days (this month and the next), for whoever picks a
-// shoot date: ['YYYY-MM-DD'], or null when nothing is known here.
-export async function freeDaysAhead({ me, now = new Date(), limit = 6 } = {}) {
-  if (!canSee(me) || isPhotographer(me)) return null;
+// shoot date: ['YYYY-MM-DD'], or null when nothing is known here (or `who` is a
+// photographer whose availability is not kept: Eli, 16.11.2026).
+export async function freeDaysAhead({ me, who = 'eli', now = new Date(), limit = 6 } = {}) {
+  if (!canSee(me) || isPhotographer(me) || !A.keepsAvailability(who)) return null;
   const month = dayKeyIL(now).slice(0, 7);
   const got = await Promise.all([monthData(month), monthData(A.addMonths(month, 1))]).catch(() => null);
   const known = (got || []).filter(Boolean);
   if (!known.length) return null;
-  return A.freeAhead({ months: known.flatMap((d) => d.months), taken: Object.assign({}, ...known.map((d) => d.taken)), now, limit });
+  return A.freeAhead({ person: who, months: known.flatMap((d) => d.months), taken: Object.assign({}, ...known.map((d) => takenOf(d, who))), now, limit });
 }
 
 // The line under a datetime-local input (its value is an Israel wall time). `own`: the
@@ -415,7 +424,7 @@ export function shootDayHint(input, { me, own = null, who = null } = {}) {
 // what he handed over for that shoot's own day. null until known (or when there is nothing to say).
 export async function photographerNote(shootAt, { me, who = 'eli' } = {}) {
   const d = shootAt ? parseDate(shootAt) : null;
-  if (!d || Number.isNaN(+d)) return null;
+  if (!d || Number.isNaN(+d) || !A.keepsAvailability(who)) return null;
   const sts = await dayStatuses(dayKeyIL(d), { me, own: d, who }).catch(() => null);
   return sts?.length ? A.dayShortNote(sts[0]) : null;
 }
