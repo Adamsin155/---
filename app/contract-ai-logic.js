@@ -23,6 +23,7 @@
 import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, STARS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS,
   MAX_DISCOUNT, MAX_DISCOUNT_PODCAST, maxDiscountFor, CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, packageId,
+  MAX_ALSO_INFLUENCERS, canAlsoBe, contractInfluencers, shownInfluencerText, infPlain,
 } from './catalog.js';
 import {
   emptySelection, reconcile, baseQuantities, computeTotals, normalizeSelection,
@@ -449,6 +450,18 @@ export function applyAiResult(current, result) {
   return { selection: next, marks, summary, skipped };
 }
 
+// The posts per influencer of a selection, as the "מולא אוטומטית" tag compares them: { id: { k: n } }
+// with n > 0, in the contract's order.
+export function postsMark(sel) {
+  const p = sel?.custom?.postsAt;
+  if (!isObject(p)) return {};
+  const out = {};
+  for (const id of contractInfluencers(sel)) {
+    for (const k of ['collabs', 'stories']) if (Number.isInteger(p[id]?.[k]) && p[id][k] > 0) (out[id] ??= {})[k] = p[id][k];
+  }
+  return out;
+}
+
 // Which "מולא אוטומטית" tags still hold: the keys of `marks` whose field still has the value the
 // result gave it (a field Irit changed by hand afterwards is hers).
 export function aiMarksOf(sel, marks) {
@@ -468,7 +481,10 @@ export function aiMarksOf(sel, marks) {
                     : kind === 'terms' ? c.terms === v
                       : kind === 'noinf' ? c.noInfluencer === true
                         : kind === 'incl' ? c.addonsIncluded === true
-                          : false;
+                          // Several influencers (16.11.2026): the list, and the posts at each.
+                          : kind === 'also' ? JSON.stringify(contractInfluencers(sel).slice(1)) === v
+                            : kind === 'posts' ? JSON.stringify(postsMark(sel)) === v
+                              : false;
     if (holds) out.add(key);
   }
   return out;
@@ -490,6 +506,8 @@ export function aiMarksOf(sel, marks) {
 export const FREE_MAX_DRAFTS = 3;
 export const FREE_MAX_QUESTIONS = 2;
 const FREE_INFLUENCERS = Object.keys(INFLUENCERS);
+// Who can be added next to the contract's influencer (16.11.2026): a named one, never "משפיען לבחירה".
+const ALSO_KEYS = FREE_INFLUENCERS.filter(canAlsoBe);
 const TIER_IDS = TIERS.map((t) => t.id);
 // What the text may change itself in a free contract (the monthly photographer's contents are
 // `monthlyContents`).
@@ -513,6 +531,7 @@ export function freeCatalogText() {
     '## Package types (only when the text says it: "פודקאסט"; "טלוויזיה" or "ערוץ 14" for social-tv; else null)', tiers,
     '## Additions at an influencer (only when the text asks for them)', addons,
     `## Semyon joining Natali's shoot day\n\`simeonJoin\`: ${FREE_ADDONS.simeonJoin.name}, at no cost; only with \`natali\`.`,
+    `## Several influencers in one contract\nUp to ${MAX_ALSO_INFLUENCERS} more influencers (\`alsoInfluencers\`: ${ALSO_KEYS.map((k) => `\`${k}\``).join(', ')}) next to the contract's own one (\`influencer\`, which decides the package). The document names them together ("${infPlain('simeon')} + ${infPlain('hatzel')}"), and the collabs and stories can be at each one (\`postsAt\`).`,
     '## Quantities', qty,
     `## Term\n${TERM_MONTHS} months unless the text says otherwise; ${CUSTOM_LIMITS.termMin}–${CUSTOM_LIMITS.termMax}.`,
   ].join('\n\n');
@@ -525,12 +544,15 @@ Do exactly what the text says, nothing more. Do not map the deal onto a catalog 
 - docType: "quote" when the text asks for "הצעת מחיר" or "הצעה", "agreement" when it asks for "חוזה" or "הסכם"; null when it does not say.
 - influencer: the key of the influencer the text names; "none" when it says there is none ("בלי משפיען", "ללא משפיענים") and also when it names none.
 - simeonJoin: true when the text names both Natali and Semyon ("נטלי וסמיון", "נטלי דדון וסמיון", "נטלי עם סמיון", "צילום עם סמיון" in a deal with Natali), in any order: then influencer is "natali" and Semyon is not written again as a special clause. Otherwise false.
+- alsoInfluencers: when the text names more than one influencer (other than Natali with Semyon, which is simeonJoin), the first one named is influencer and the others, in the order written, are alsoInfluencers ("מישל דניס סמיון והצל" is influencer "simeon" and alsoInfluencers ["hatzel"]; "מישל", "דניס" and "סמיון" are one influencer, simeon). Otherwise [].
+- influencerName: only when the text writes the influencers' name for the document in its own words, different from their names joined with " + " ("${infPlain('simeon')} + ${infPlain('hatzel')}"); else null.
+- postsAt: only when the text says at which influencer the collabs or stories are ("2 העלאות בקולאב בעמודים של מישל דניס וסמיון" is [{influencer: "simeon", collabs: 2, stories: null}]): one item per influencer named for them, collabs and stories as written (null when not said). An influencer not named there gets none. Otherwise [].
 - tier: only when the text says the kind of package; else null.
 - monthlyPrice: the monthly price written, in agorot (4,900 is 490000). It is the whole monthly price, with everything in the draft included. A price is before VAT unless the text says it includes VAT ("כולל מע״מ"; then priceIncludesVat is true and the number is given as written). Never compute or guess a price; null when none is written.
 - monthlyShoot: true when the text has a shoot or a photographer every month ("צילום כל חודש", "צלם חודשי"); monthlyContents: the contents a month written with it ("8 תכנים"), else null.
 - quantities: one {key, value} for each quantity the text states (the value for the whole contract). Nothing that was not written.
 - addons: only additions at the influencer that the text asks for.
-- months: only when the text states the term.
+- months: only when the text states the term ("חודש בחודשו" or "חודש לחודש" is 1).
 - extraLines: anything else that is sold ("2 דפי נחיתה" is {label: "דפי נחיתה", qty: 2}), with a monthly price only when the text gives that thing its own price. Without a price it is included in the monthly price.
 - specialClauses: short Hebrew clauses for anything agreed that is not a setting above (payment, exit terms). A total that only sums the quantities above ("84 תכנים סך הכל" with 48 videos and 36 graphics) is not a clause.
 - discount: a monthly discount before VAT in agorot, only when the text states one.
@@ -559,6 +581,9 @@ export const FREE_SCHEMA = object({
       docType: nullable({ type: 'string', enum: ['quote', 'agreement'] }),
       influencer: nullable({ type: 'string', enum: [...FREE_INFLUENCERS, 'none'] }),
       simeonJoin: { type: 'boolean' },
+      alsoInfluencers: { type: 'array', items: { type: 'string', enum: ALSO_KEYS } },
+      influencerName: nullable({ type: 'string' }),
+      postsAt: { type: 'array', items: object({ influencer: { type: 'string', enum: ALSO_KEYS }, collabs: nullable(INT), stories: nullable(INT) }) },
       tier: nullable({ type: 'string', enum: TIER_IDS }),
       monthlyPrice: nullable(INT),
       priceIncludesVat: { type: 'boolean' },
@@ -590,10 +615,43 @@ function checkFreeDraft(d, n, drop) {
     monthlyPrice: null, vatFrom: null,
     monthlyShoot: r.monthlyShoot === true, monthlyContents: null,
     quantities: {}, addons: [], months: null, extraLines: [], specialClauses: [], discount: null, client: {},
+    alsoInfluencers: [], influencerName: null, postsAt: {},
   };
   if (given(r.influencer) && r.influencer !== 'none') {
     if (FREE_INFLUENCERS.includes(r.influencer)) out.influencer = r.influencer;
     else at(`משפיען לא מוכר: ${cleanLine(r.influencer)}`);
+  }
+  // Several influencers (16.11.2026): named ones of the catalog, each once, next to a named influencer.
+  const also = Array.isArray(r.alsoInfluencers) ? r.alsoInfluencers : [];
+  for (const id of also) {
+    if (!canAlsoBe(id)) { at(`משפיען נוסף לא מוכר: ${cleanLine(id)}`); continue; }
+    if (out.influencer === 'none' || !canAlsoBe(out.influencer)) { at(`משפיען נוסף בלי משפיען ראשי בחוזה: ${INFLUENCERS[id].name}`); continue; }
+    if (id === out.influencer || out.alsoInfluencers.includes(id)) continue;
+    if (out.alsoInfluencers.length >= MAX_ALSO_INFLUENCERS) { at(`יותר מ־${MAX_ALSO_INFLUENCERS} משפיענים נוספים: ${INFLUENCERS[id].name} לא נוסף`); continue; }
+    out.alsoInfluencers.push(id);
+  }
+  // The influencers' name, only when it is not simply their names joined.
+  const typed = cleanLine(r.influencerName).replace(/[<>{}`]/g, '');
+  if (typed && out.influencer !== 'none') {
+    if (typed.length > CUSTOM_LIMITS.influencerName) at(`שם המשפיענים ארוך מ־${CUSTOM_LIMITS.influencerName} תווים: לא נכנס`);
+    else if (typed !== shownInfluencerText({ influencer: out.influencer, custom: { alsoInfluencers: out.alsoInfluencers } })) out.influencerName = typed;
+  }
+  // The collabs and stories at each influencer: [{influencer, collabs, stories}] from Claude;
+  // { id: { collabs?, stories? } } when it was checked once already.
+  const inContract = out.influencer === 'none' ? [] : [out.influencer, ...out.alsoInfluencers];
+  const postsList = Array.isArray(r.postsAt) ? r.postsAt
+    : isObject(r.postsAt) ? Object.entries(r.postsAt).map(([influencer, p]) => ({ influencer, ...(isObject(p) ? p : {}) })) : [];
+  for (const p of postsList) {
+    if (!isObject(p)) continue;
+    if (!inContract.includes(p.influencer)) { at(`קולאבים או סטורי אצל משפיען שלא בחוזה: ${INFLUENCERS[p.influencer]?.name || cleanLine(p.influencer)}`); continue; }
+    for (const k of ['collabs', 'stories']) {
+      if (!given(p[k])) continue;
+      const n = toInt(p[k]);
+      if (n === null) { at(`${qtyDef(k).name} אצל ${INFLUENCERS[p.influencer].name}: לא מספר`); continue; }
+      const c = Math.max(0, Math.min(qtyDef(k).max, n));
+      if (c !== n) at(`${qtyDef(k).name} אצל ${INFLUENCERS[p.influencer].name}: ${n} מחוץ לטווח, הוזן ${c}`);
+      out.postsAt[p.influencer] = { ...(out.postsAt[p.influencer] || {}), [k]: c };
+    }
   }
   // The catalog mode's checks for the parts both modes share.
   const { result: base, dropped } = validateAiResult({
@@ -666,7 +724,16 @@ export function applyFreeDraft(current, draft) {
     summary.push('משפיענים: בלי');
   } else {
     marks.package = packageId(tier, influencer);
-    summary.push(`משפיענים: ${INFLUENCERS[influencer].name} (${tierOf(tier).name})`);
+    // Several influencers (16.11.2026): the contract's own one decides the package.
+    const also = (d.alsoInfluencers || []).filter((id) => canAlsoBe(id) && id !== influencer);
+    if (also.length && canAlsoBe(influencer)) {
+      custom.alsoInfluencers = also;
+      marks.also = JSON.stringify(contractInfluencers({ influencer, custom }).slice(1));
+    }
+    summary.push(custom.alsoInfluencers
+      ? `משפיענים: ${shownInfluencerText({ influencer, custom })} (${tierOf(tier).name}, החבילה של ${INFLUENCERS[influencer].name})`
+      : `משפיענים: ${INFLUENCERS[influencer].name} (${tierOf(tier).name})`);
+    if (d.influencerName) summary.push(`שם המשפיענים בהצעה: ${d.influencerName}`);
   }
   // Natali and Semyon together (the owner, 1.11.2026): Natali's package with the switch on.
   if (d.simeonJoin) {
@@ -711,6 +778,19 @@ export function applyFreeDraft(current, draft) {
   const notWritten = none && !noAmount ? FREE_ZERO.filter((k) => !given(written[k]) && base[k] > 0).map((k) => qtyDef(k).name) : [];
   if (notWritten.length) summary.push(`לא נכתבו, ולכן לא בחוזה: ${notWritten.join(', ')}`);
   if (Object.keys(qty).length) custom.qty = qty;
+  // The collabs and stories at each influencer (16.11.2026): the engine sums them into the quantities.
+  if (!none && d.postsAt && Object.keys(d.postsAt).length) {
+    const all = contractInfluencers({ ...sel, custom });
+    const postsAt = Object.fromEntries(Object.entries(d.postsAt).filter(([id]) => all.includes(id)).map(([id, p]) => [id, { ...p }]));
+    if (Object.keys(postsAt).length) {
+      custom.postsAt = postsAt;
+      marks.posts = JSON.stringify(postsMark({ ...sel, custom }));
+      for (const k of ['collabs', 'stories']) {
+        const each = all.filter((id) => Number.isInteger(postsAt[id]?.[k])).map((id) => `${postsAt[id][k]} אצל ${infPlain(id)}`);
+        if (each.length) summary.push(`${qtyDef(k).name}: ${each.join(' · ')}`);
+      }
+    }
+  }
 
   const lines = (d.extraLines || []).map((l) => ({ label: l.label, ...(given(l.qty) ? { qty: l.qty } : {}), ...(given(l.monthly) ? { monthly: l.monthly } : {}) }));
   if (given(d.monthlyPrice)) {
@@ -744,7 +824,8 @@ export function applyFreeDraft(current, draft) {
     marks.discount = discount;
     summary.push(`הנחה: ${formatILS(discount)} לחודש לפני מע״מ`);
   }
-  // Always a custom contract: the switch is on, even when nothing differs.
-  sel = reconcile({ ...sel, custom }).selection;
+  // Always a custom contract: the switch is on, even when nothing differs. The influencers' name is
+  // one of the managers' "שינויים להצעה הזו" (state.edit.inf on the builder).
+  sel = reconcile({ ...sel, custom, ...(!none && d.influencerName ? { edit: { inf: d.influencerName } } : {}) }).selection;
   return { selection: sel, marks, summary, skipped, questions };
 }

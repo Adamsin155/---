@@ -138,7 +138,7 @@ export function renderQuoteDoc(model, meta = {}) {
     h('div', { class: 'qd-pkg' },
       h('div', {},
         h('div', { class: 'qd-pkg-name', dir: 'auto' }, pkg.tierName),
-        h('div', { class: 'qd-pkg-inf' }, pkg.influencer),
+        h('div', { class: 'qd-pkg-inf' }, pkg.shownInfluencer || pkg.influencer),
       ),
       h('div', { class: 'qd-pkg-price' }, money(pkg.monthly), h('small', {}, 'לחודש · לפני מע״מ')),
     ),
@@ -282,7 +282,7 @@ export function renderQuoteDoc(model, meta = {}) {
       h('h1', { class: 'qd-cover-title' }, w.cover?.title || title),
       h('div', { class: 'qd-cover-pkg', dir: 'auto' }, w.cover?.packageName || pkgName),
       // The influencer when the title does not name one ("משפיען לבחירה …", "בלי משפיענים").
-      !(w.cover?.title || '').includes(pkg.influencer) ? h('div', { class: 'qd-cover-inf' }, pkg.influencer) : null,
+      !(w.cover?.title || '').includes(pkg.shownInfluencer || pkg.influencer) ? h('div', { class: 'qd-cover-inf' }, pkg.shownInfluencer || pkg.influencer) : null,
       h('div', { class: 'qd-meta' },
         h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
         h('span', {}, formatDate(createdAt)),

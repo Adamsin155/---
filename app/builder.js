@@ -2,12 +2,13 @@ import {
   INFLUENCERS, TIERS, PACKAGES, PAID_ADDONS, FREE_ADDONS, SPEC_ROWS, SPECS, infLabel,
   VAT_RATE_PERCENT, TERM_MONTHS, DOC_TYPES, MAX_DISCOUNT, maxDiscountFor, packageId,
   CUSTOM_QTY, CUSTOM_LIMITS, MONTHLY_CONTENTS, validityWords,
+  infPlain, canAlsoBe, contractInfluencers, shownInfluencerText, MAX_ALSO_INFLUENCERS,
 } from './catalog.js';
 import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
   paidAddonAvailable, freeAddonAvailable,
   exceptionOf, normalizeSelection, baseQuantities,
-  effectiveQuantities,
+  effectiveQuantities, POST_KINDS,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { downloadPdf, pdfFileName } from './pdf-export.js';
@@ -113,7 +114,7 @@ function renderInfluencers() {
     return h('div', { class: 'inf' + (inf.choice ? ' inf-choice' : '') },
       h('input', {
         type: 'radio', name: 'influencer', id, value: inf.id, checked: on,
-        onchange: () => update({ influencer: inf.id }, { focus: id }),
+        onchange: () => update({ influencer: inf.id, ...(state.custom ? { custom: settlePosts(state.custom, { ...state, influencer: inf.id }) } : {}) }, { focus: id }),
       }),
       h('label', { for: id },
         h('span', { class: 'mono', 'aria-hidden': 'true' }, MONOGRAM[inf.id]),
@@ -180,10 +181,13 @@ function renderIncluded() {
   const tier = TIERS.find((t) => t.id === state.tier);
   // A custom contract (since 1.11.2026 every one, "בלי משפיענים" since 29.10.2026): what it itself includes, not the package it starts from.
   const none = state.custom?.noInfluencer === true;
-  const includes = customOn() ? currentModel().package.includes : PACKAGES[pid].includes;
+  const model = customOn() || state.edit?.inf ? currentModel() : null;
+  const includes = customOn() ? model.package.includes : PACKAGES[pid].includes;
+  // Several influencers, or a name typed for the quote (16.11.2026): the name the document shows.
+  const who = none ? 'בלי משפיענים' : model?.package.shownInfluencer || infLabel(state.influencer);
   $('included').replaceChildren(
     h('div', { class: 'included-head' },
-      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, none ? 'בלי משפיענים' : infLabel(state.influencer))),
+      h('span', { class: 'included-title' }, h('span', { class: 'nw' }, 'מה כלול ב־', h('bdi', {}, tier.short)), h('span', { class: 'k-sep' }, ' · '), h('span', { class: 'of' }, who)),
       h('span', { class: 'tag' }, customOn() ? 'כמו שנכתב בחוזה' : 'כמויות לשנה'),
     ),
     h('ul', {}, includes.map((i) => h('li', {},
@@ -304,7 +308,7 @@ function renderSummary() {
   const t = model.totals;
   const tier = TIERS.find((x) => x.id === state.tier);
   $('sum-pkg').textContent = model.package.shownName || tier.name;
-  $('sum-inf').textContent = model.package.influencer;
+  $('sum-inf').textContent = model.package.shownInfluencer || model.package.influencer;
 
   const line = (name, val, cls = '') => h('li', { class: cls },
     h('span', { class: 'name' }, name), h('span', { class: 'lead', 'aria-hidden': 'true' }), val);
@@ -448,7 +452,11 @@ function selectionToSend() {
   if (String(c.terms || '').trim()) custom.terms = c.terms;
   if (c.noInfluencer === true) custom.noInfluencer = true;
   if (c.addonsIncluded === true) custom.addonsIncluded = true;
+  // Several influencers and the collabs and stories at each (16.11.2026): checked by the engine.
+  if (Array.isArray(c.alsoInfluencers) && c.alsoInfluencers.length) custom.alsoInfluencers = c.alsoInfluencers;
+  if (c.postsAt && typeof c.postsAt === 'object') custom.postsAt = c.postsAt;
   if (e.packageName) custom.packageName = e.packageName;
+  if (e.influencerName) custom.influencerName = e.influencerName;
   return normalizeSelection({ ...rest, discount: 0, custom });
 }
 
@@ -464,6 +472,8 @@ function quoteEdit(edit) {
   if (Number.isInteger(edit.price) && edit.price >= 0 && edit.price <= CUSTOM_LIMITS.priceMax) out.price = edit.price;
   const name = String(edit.name ?? '').replace(NAME_STRIP, '').replace(/\s+/g, ' ').trim().slice(0, CUSTOM_LIMITS.packageName);
   if (name) out.packageName = name;
+  const inf = String(edit.inf ?? '').replace(NAME_STRIP, '').replace(/\s+/g, ' ').trim().slice(0, CUSTOM_LIMITS.influencerName);
+  if (inf) out.influencerName = inf;
   return out;
 }
 // The package's price typed for this quote, or undefined (the catalog's).
@@ -493,6 +503,11 @@ function renderQuoteEdit() {
   $('qe-price-was').textContent = changed ? `במחירון: ${formatILS(pkg.price)} · שונה להצעה הזו` : `כמו במחירון: ${formatILS(pkg.price)}`;
   if (document.activeElement !== $('qe-name')) $('qe-name').value = state.edit?.name || '';
   $('qe-name').placeholder = TIERS.find((t) => t.id === state.tier).name;
+  // The influencers' name (15.11.2026): not in a contract "בלי משפיענים".
+  $('qe-inf').closest('.field').hidden = state.custom?.noInfluencer === true;
+  if (document.activeElement !== $('qe-inf')) $('qe-inf').value = state.edit?.inf || '';
+  // The name the document shows without one typed (several influencers: joined).
+  $('qe-inf').placeholder = shownInfluencerText({ ...state, custom: { ...(state.custom || {}), influencerName: undefined } });
 }
 $('qe-price').addEventListener('input', (e) => {
   const pkg = PACKAGES[packageId(state.tier, state.influencer)];
@@ -506,7 +521,12 @@ $('qe-name').addEventListener('input', (e) => {
   update({ edit }, { focus: 'qe-name' });
 });
 // Leaving a field: it shows what counts (a price past the limit, a blank one back to the catalog's).
-for (const id of ['qe-price', 'qe-name']) $(id).addEventListener('blur', () => renderQuoteEdit());
+$('qe-inf').addEventListener('input', (e) => {
+  const edit = { ...(state.edit || {}) };
+  if (e.target.value.trim()) edit.inf = e.target.value.slice(0, CUSTOM_LIMITS.influencerName); else delete edit.inf;
+  update({ edit }, { focus: 'qe-inf' });
+});
+for (const id of ['qe-price', 'qe-name', 'qe-inf']) $(id).addEventListener('blur', () => renderQuoteEdit());
 // The most the discount field takes: 200 ₪ (800 ₪ in a podcast package, 28.10.2026), or the whole
 // monthly price in a custom contract.
 function discountMax() {
@@ -537,6 +557,96 @@ function customStepper(q, base) {
       h('button', { type: 'button', id: `${id}-inc`, 'aria-label': `הוספת ${q.name}`, disabled: value >= q.max, onclick: () => set(value + 1, `${id}-inc`) }, '+'),
     ),
     h('span', { class: 'was', id: `${id}-was` }, value !== base ? `בחבילה: ${base} · שונה` : `בחבילה: ${base}`),
+  );
+}
+
+/* ── Several influencers in one contract (the owner, 16.11.2026; docs/ops.md, section 135) ──
+   state.custom.alsoInfluencers: the influencers added next to the contract's own one (chips);
+   state.custom.postsAt: { [id]: { collabs, stories } }, the collabs and the stories at each one,
+   kept here with every influencer of the contract written out (zeros too) and qty.collabs /
+   qty.stories as their sums. The engine (normalizeSelection) keeps only what differs. */
+// The collabs or stories at one influencer now: written per influencer, else the contract's own
+// influencer has them all.
+function postsNow(custom, sel, id, k) {
+  const v = custom.postsAt?.[id]?.[k];
+  if (Number.isInteger(v)) return v;
+  if (contractInfluencers({ ...sel, custom }).some((x) => Number.isInteger(custom.postsAt?.[x]?.[k]))) return 0;
+  if (id !== sel.influencer) return 0;
+  return Number.isInteger(custom.qty?.[k]) ? custom.qty[k] : baseQuantities(sel)[k];
+}
+// The custom contract with its posts per influencer settled for `sel` (after a chip, a stepper or
+// another influencer): only the contract's influencers, the quantities their sums, and back to plain
+// quantities with one influencer left.
+function settlePosts(custom, sel) {
+  const all = contractInfluencers({ ...sel, custom });
+  const base = baseQuantities(sel);
+  const qty = { ...(custom.qty || {}) };
+  const posts = {};
+  for (const k of POST_KINDS) {
+    if (!all.some((id) => Number.isInteger(custom.postsAt?.[id]?.[k]))) continue;
+    const vals = all.map((id) => (Number.isInteger(custom.postsAt?.[id]?.[k]) ? custom.postsAt[id][k] : 0));
+    const sum = vals.reduce((a, b) => a + b, 0);
+    if (sum === base[k]) delete qty[k]; else qty[k] = sum;
+    if (all.length > 1) all.forEach((id, i) => { (posts[id] ??= {})[k] = vals[i]; });
+  }
+  const { postsAt, ...rest } = custom;
+  return { ...rest, qty, ...(Object.keys(posts).length ? { postsAt: posts } : {}) };
+}
+function setPosts(id, k, n, focus) {
+  const c = state.custom;
+  const all = contractInfluencers(state);
+  const v = clampInt(Number.isFinite(Number(n)) ? n : 0, 0, CUSTOM_QTY.find((q) => q.key === k).max);
+  const postsAt = { ...(c.postsAt || {}) };
+  for (const x of all) postsAt[x] = { ...(postsAt[x] || {}), [k]: x === id ? v : postsNow(c, state, x, k) };
+  update({ custom: settlePosts({ ...c, postsAt }, state) }, { focus });
+}
+function toggleAlso(id) {
+  const c = state.custom;
+  const now = contractInfluencers(state).slice(1);
+  const on = !now.includes(id);
+  // The posts at the contract's own influencer stay where they are when the first one is added.
+  const postsAt = { ...(c.postsAt || {}) };
+  if (on && now.length === 0) for (const k of POST_KINDS) postsAt[state.influencer] = { ...(postsAt[state.influencer] || {}), [k]: postsNow(c, state, state.influencer, k) };
+  if (!on) delete postsAt[id];
+  const alsoInfluencers = on ? [...now, id] : now.filter((x) => x !== id);
+  const next = { ...c, postsAt };
+  if (alsoInfluencers.length) next.alsoInfluencers = alsoInfluencers; else delete next.alsoInfluencers;
+  update({ custom: settlePosts(next, state) }, { focus: `also-${id}` });
+}
+function renderAlso() {
+  const c = state.custom;
+  // Not with "בלי משפיענים", and nobody next to "משפיען לבחירה".
+  const box = $('custom-also');
+  box.hidden = c.noInfluencer === true || !canAlsoBe(state.influencer);
+  if (box.hidden) return;
+  const now = contractInfluencers(state).slice(1);
+  $('custom-also-ai').hidden = !aiLive.has('also');
+  $('custom-also-chips').replaceChildren(...Object.keys(INFLUENCERS).filter((id) => canAlsoBe(id) && id !== state.influencer).map((id) => {
+    const on = now.includes(id);
+    return h('button', {
+      type: 'button', class: 'also-chip', id: `also-${id}`, 'aria-pressed': String(on),
+      disabled: !on && now.length >= MAX_ALSO_INFLUENCERS, onclick: () => toggleAlso(id),
+    }, infPlain(id));
+  }));
+}
+// With several influencers: one small stepper per influencer, for the collabs and for the stories.
+function postsTile(q) {
+  const all = contractInfluencers(state);
+  const byAi = aiLive.has('posts');
+  return h('div', { class: 'custom-q custom-per' + (byAi ? ' is-ai' : ''), role: 'group', 'aria-labelledby': `cp-${q.key}-h` },
+    h('span', { class: 'custom-per-h', id: `cp-${q.key}-h` }, q.key === 'collabs' ? 'קולאבים באינסטגרם, לפי משפיען' : 'סטורי, לפי משפיען', byAi ? aiTag() : null),
+    ...all.map((id) => {
+      const fid = `cp-${q.key}-${id}`;
+      const value = postsNow(state.custom, state, id, q.key);
+      return h('div', { class: 'custom-per-row' },
+        h('label', { for: fid }, infPlain(id)),
+        h('span', { class: 'stepper', dir: 'ltr' },
+          h('button', { type: 'button', id: `${fid}-dec`, 'aria-label': `הפחתת ${q.name} אצל ${infPlain(id)}`, disabled: value <= 0, onclick: () => setPosts(id, q.key, value - 1, `${fid}-dec`) }, '−'),
+          h('input', { id: fid, type: 'number', inputmode: 'numeric', min: 0, max: q.max, step: 1, value: String(value), onchange: (e) => setPosts(id, q.key, e.target.value === '' ? 0 : e.target.value, fid) }),
+          h('button', { type: 'button', id: `${fid}-inc`, 'aria-label': `הוספת ${q.name} אצל ${infPlain(id)}`, disabled: value >= q.max, onclick: () => setPosts(id, q.key, value + 1, `${fid}-inc`) }, '+'),
+        ),
+      );
+    }),
   );
 }
 
@@ -612,10 +722,12 @@ function renderCustom() {
   $('custom-incl-ai').hidden = !aiLive.has('incl');
   // "בלי משפיענים": nothing of an influencer to count.
   const noInf = state.custom.noInfluencer === true;
+  renderAlso();
+  const several = !noInf && contractInfluencers(state).length > 1;
   $('custom-qty').replaceChildren(...CUSTOM_QTY
     .filter((q) => !q.addon || state.paid.includes(q.addon))
     .filter((q) => !noInf || !['shootDays', 'collabs', 'stories'].includes(q.key))
-    .map((q) => customStepper(q, base[q.key])));
+    .map((q) => (several && POST_KINDS.includes(q.key) ? postsTile(q) : customStepper(q, base[q.key]))));
   const active = document.activeElement;
   if (active !== $('custom-price')) $('custom-price').value = String((Number.isInteger(state.custom.price) ? state.custom.price : pkg.price) / 100);
   if (active !== $('custom-term')) $('custom-term').value = String(Number.isInteger(state.custom.termMonths) ? state.custom.termMonths : TERM_MONTHS);
@@ -761,9 +873,11 @@ function loadDraft(i, { focus = true, apply = true } = {}) {
     syncCustomInputs();
   }
   const { lines, checks } = apply ? fillClient(x.draft.client) : { lines: [], checks: [] };
+  // The influencers' name is the managers' (create-quote refuses it from anyone else).
+  const infNote = !editor && x.draft.influencerName ? [`שם המשפיענים ״${x.draft.influencerName}״: רק המנהלים משנים אותו, ולכן בהצעה השמות מהרשימה.`] : [];
   renderAiResult({
     summary: [...(lines.length ? [`פרטי הלקוח: ${lines.join(' · ')}`] : []), ...summary],
-    check: [...aiDrafts.questions, ...questions, ...checks, ...skipped, ...aiDrafts.dropped].slice(0, 6),
+    check: [...aiDrafts.questions, ...questions, ...checks, ...skipped, ...infNote, ...aiDrafts.dropped].slice(0, 6),
     notes: aiDrafts.notes,
     kept: !!x.runId,
   });
@@ -948,6 +1062,7 @@ function restoreDraft(forDeal = null, forRevise = null) {
     state.edit = {
       ...(Number.isInteger(e.price) && e.price >= 0 && e.price <= CUSTOM_LIMITS.priceMax ? { price: e.price } : {}),
       ...(typeof e.name === 'string' && e.name.trim() ? { name: e.name.slice(0, CUSTOM_LIMITS.packageName) } : {}),
+      ...(typeof e.inf === 'string' && e.inf.trim() ? { inf: e.inf.slice(0, CUSTOM_LIMITS.influencerName) } : {}),
     };
     const a = draft.ai;
     ai = a && typeof a === 'object' && a.marks && typeof a.marks === 'object'

@@ -12,7 +12,7 @@
 //   draftLink()         the link: the choices in the part of the address after #, which browsers
 //                       never send to any server;
 //   draftFromHash()     the builder's way back: the same check again. The link is never trusted.
-import { CUSTOM_QTY, INFLUENCERS, TIERS, DOC_TYPES, CUSTOM_LIMITS } from './catalog.js';
+import { CUSTOM_QTY, INFLUENCERS, TIERS, DOC_TYPES, CUSTOM_LIMITS, canAlsoBe, MAX_ALSO_INFLUENCERS } from './catalog.js';
 import { validateSelection, buildQuoteModel, exceptionOf, normalizeSelection } from './pricing.js';
 import {
   validateAiResult, applyAiResult, validateFreeResult, applyFreeDraft, catalogText, freeCatalogText,
@@ -27,7 +27,7 @@ export const DRAFT_LINK_MAX = 12000;
 
 const COMMON = ['mode', 'docType', 'months', 'quantities', 'addons', 'monthlyPrice', 'priceIncludesVat', 'discount', 'extraLines', 'specialClauses'];
 const ONLY_CATALOG = ['package', 'removals', 'freeAddons', 'discountPercent'];
-const ONLY_FREE = ['influencer', 'tier', 'monthlyShoot', 'monthlyContents'];
+const ONLY_FREE = ['influencer', 'tier', 'monthlyShoot', 'monthlyContents', 'alsoInfluencers', 'postsAt'];
 const ALL_KEYS = [...COMMON, ...ONLY_CATALOG, ...ONLY_FREE];
 const REMOVABLE = CUSTOM_QTY.filter((q) => !q.min).map((q) => q.key);
 
@@ -55,6 +55,9 @@ export const DRAFT_SCHEMA = {
     tier: { type: 'string', enum: TIERS.map((t) => t.id), description: 'free mode: only when the deal says the kind of package.' },
     monthlyShoot: { type: 'boolean', description: 'free mode: a shoot or a photographer every month.' },
     monthlyContents: { ...INT, description: 'free mode: the contents a month written with monthlyShoot.' },
+    // Several influencers in one contract (16.11.2026; docs/ops.md, section 135).
+    alsoInfluencers: { type: 'array', items: { type: 'string', enum: Object.keys(INFLUENCERS).filter(canAlsoBe) }, description: `free mode: up to ${MAX_ALSO_INFLUENCERS} more influencers next to \`influencer\` (the first one named), when the deal names several.` },
+    postsAt: { type: 'array', items: { type: 'object', properties: { influencer: { type: 'string', enum: Object.keys(INFLUENCERS).filter(canAlsoBe) }, collabs: INT, stories: INT }, required: ['influencer'], additionalProperties: false }, description: 'free mode: the collabs and stories at each influencer, only when the deal says at whom.' },
   },
   additionalProperties: false,
 };
@@ -93,17 +96,18 @@ export function checkDraftInput(raw) {
   input.mode = mode;
   if (input.docType !== undefined && !DOC_TYPES[input.docType]) return { error: 'bad_input', fields: ['docType'] };
   if (mode === 'catalog' && !PACKAGE_KEYS.includes(input.package)) return { error: 'package_required', fields: ['package'] };
-  for (const k of ['quantities', 'removals', 'addons', 'freeAddons', 'extraLines', 'specialClauses']) {
+  for (const k of ['quantities', 'removals', 'addons', 'freeAddons', 'extraLines', 'specialClauses', 'alsoInfluencers', 'postsAt']) {
     if (input[k] !== undefined && !Array.isArray(input[k])) return { error: 'bad_input', fields: [k] };
   }
   // Inside a list too: only the schema's fields.
   const inner = [];
-  for (const [k, keys] of [['quantities', ['key', 'value']], ['freeAddons', ['key', 'value']], ['extraLines', ['label', 'qty', 'monthly']]]) {
+  for (const [k, keys] of [['quantities', ['key', 'value']], ['freeAddons', ['key', 'value']], ['extraLines', ['label', 'qty', 'monthly']], ['postsAt', ['influencer', 'collabs', 'stories']]]) {
     if (!input[k]) continue;
     if (input[k].some((x) => !isObject(x) || Object.keys(x).some((f) => !keys.includes(f)))) inner.push(k);
     else input[k] = pickItems(input[k], keys);
   }
   if (inner.length) return { error: 'unknown_field', fields: inner };
+  if ((input.alsoInfluencers || []).some((x) => typeof x !== 'string')) return { error: 'bad_input', fields: ['alsoInfluencers'] };
   const texts = [...(input.extraLines || []).map((l) => l.label), ...(input.specialClauses || [])];
   if (texts.some((t) => typeof t !== 'string')) return { error: 'bad_input', fields: ['extraLines', 'specialClauses'] };
   const personal = [];
@@ -184,7 +188,7 @@ export function draftAnswer(raw) {
     status: 'טיוטה בלבד: שום דבר לא נשמר ולא נשלח',
     next_step: 'פותחים את הקישור, בודקים, ממלאים את פרטי הלקוח, ויוצרים ושולחים במערכת כרגיל.',
     document: model.docTitle,
-    package: `${model.package.tierName} · ${model.package.influencer}`,
+    package: `${model.package.tierName} · ${model.package.shownInfluencer || model.package.influencer}`,
     months: model.termMonths,
     monthly_before_discount_ils: ils(t.monthlyList),
     monthly_discount_ils: ils(t.discount),
