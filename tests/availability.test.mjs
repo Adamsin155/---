@@ -8,13 +8,13 @@
 //     it is asked to confirm;
 //   - the limits as the database holds them: the lock after the 15th, taken days, the
 //     unexpected change (once a calendar month, two consecutive dates);
-//   - the rules (the block at the end of app/reminder-rules.js) through the engine: he
-//     is told on the 10th and rings twice, the managers get one line a business day
-//     from the 16th, an unexpected change rings them with the shoot days on it.
+//   - the rules (the block at the end of app/reminder-rules.js) through the engine: since
+//     16.11.2026 (the owner; docs/ops.md, section 136) Eli hands nothing over, so none of
+//     them fires (his reminders, the managers' line, a submit, an unexpected change).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as A from '../app/availability-logic.js';
-import { buildEnv, computeReminders, planDelivery, planDigests } from '../app/reminder-engine.js';
+import { computeReminders } from '../app/reminder-engine.js';
 import { RULE_BY_ID, RULES } from '../app/reminder-rules.js';
 import { PEOPLE } from '../app/protocol.js';
 import { dateIL, partsIL } from '../app/tz.js';
@@ -32,12 +32,14 @@ const month = (key, days, o = {}) => ({ person: 'eli', month: `${key}-01`, days,
 const client = (name, shootAt, o = {}) => ({ id: `c-${name}`, name, business: name, status: 'active', shoot_at: shootAt, rounds: [], deal_at: IL(2026, 6, 1).toISOString(), created_at: IL(2026, 6, 1).toISOString(), ...o });
 
 test('the lists: the photographers, who reads, who is told, who enters it in his name', () => {
-  // Eliel (25.10.2026): his month is kept too, marked by the office; only Eli hands it over himself.
-  assert.deepEqual(A.PHOTOGRAPHERS, ['eli', 'eliel']);
-  assert.deepEqual(A.HANDS_OVER, ['eli']);
-  for (const p of A.HANDS_OVER) assert.ok(PEOPLE[p], p);
+  // Eliel (25.10.2026): his month is kept, marked by the office. Eli (16.11.2026, the owner):
+  // no longer hands it over at all, so nobody hands it over himself.
+  assert.deepEqual(A.PHOTOGRAPHERS, ['eliel']);
+  assert.deepEqual(A.HANDS_OVER, []);
+  assert.deepEqual([A.keepsAvailability('eliel'), A.keepsAvailability('eli')], [true, false]);
+  assert.ok(PEOPLE.eli, 'Eli still has an account (he still films)');
   assert.ok(!PEOPLE.eliel, 'Eliel has no account: not a person of the team');
-  assert.deepEqual(A.PHOTOGRAPHERS.map(A.personName), ['אלי', 'אליאל']);
+  assert.deepEqual(['eli', 'eliel'].map(A.personName), ['אלי', 'אליאל']);
   assert.deepEqual(A.READERS, ['owner', 'irit', 'lior', 'ofir']);
   assert.deepEqual(A.MANAGERS, ['irit', 'lior']);
   assert.deepEqual(A.ON_BEHALF, ['owner', 'irit', 'lior', 'ofir']); // Ofir since 4.11.2026 (the managers)
@@ -96,10 +98,10 @@ test('the reminder days: the 15th and the business day before it, at 10:00; a cl
 });
 
 test('one day as the office sees it: free, taken, not free, not handed over; the saved date of the same shoot is not "taken"', () => {
-  const months = [month('2026-11', ['2026-11-03', '2026-11-12'])];
-  const changes = [{ id: 'x', person: 'eli', reported_at: IL(2026, 10, 20, 9).toISOString(), reported_month: '2026-10-01', days: ['2026-11-20'], shoot_days: [], note: null }];
+  const months = [month('2026-11', ['2026-11-03', '2026-11-12'], { person: 'eliel', by_person: 'lior' })];
+  const changes = [{ id: 'x', person: 'eliel', reported_at: IL(2026, 10, 20, 9).toISOString(), reported_month: '2026-10-01', days: ['2026-11-20'], shoot_days: [], note: null }];
   const taken = { '2026-11-12': 1, '2026-11-18': 2 };
-  const st = (day, own = null) => A.dayStatus({ day, person: 'eli', months, changes, taken, own });
+  const st = (day, own = null) => A.dayStatus({ day, person: 'eliel', months, changes, taken, own });
   assert.deepEqual([st('2026-11-03').status, st('2026-11-04').status, st('2026-12-04').status], ['free', 'busy', 'unknown']);
   assert.deepEqual([st('2026-11-12').status, st('2026-11-12').base], ['taken', 'free']);
   // The shoot being edited sits on the 12th itself: not taken by itself; two shoots on the 18th: still one other.
@@ -107,11 +109,11 @@ test('one day as the office sees it: free, taken, not free, not handed over; the
   assert.equal(st('2026-11-18', '2026-11-18').status, 'taken');
   assert.deepEqual([st('2026-11-20').status, st('2026-11-20').changed], ['busy', true]);
 
-  assert.equal(A.dayHintText(st('2026-11-03')), 'אלי סימן את היום הזה כפנוי.');
-  assert.equal(A.dayHintText(st('2026-11-04')), 'אלי לא סימן את היום הזה כפנוי.');
-  assert.equal(A.dayHintText(st('2026-11-20')), 'אלי דיווח בלת״ם על היום הזה: הוא לא פנוי.');
-  assert.equal(A.dayHintText(st('2026-12-04'), IL(2026, 10, 7)), 'אלי עוד לא מסר זמינות לדצמבר. לוודא איתו לפני שסוגרים.');
-  assert.equal(A.dayHintText(st('2026-11-12')), 'ביום הזה כבר קבוע יום צילום אחר (אלי סימן אותו כפנוי).');
+  assert.equal(A.dayHintText(st('2026-11-03')), 'אליאל סימן את היום הזה כפנוי.');
+  assert.equal(A.dayHintText(st('2026-11-04')), 'אליאל לא סימן את היום הזה כפנוי.');
+  assert.equal(A.dayHintText(st('2026-11-20')), 'אליאל דיווח בלת״ם על היום הזה: הוא לא פנוי.');
+  assert.equal(A.dayHintText(st('2026-12-04'), IL(2026, 10, 7)), 'אליאל עוד לא מסר זמינות לדצמבר. לוודא איתו לפני שסוגרים.');
+  assert.equal(A.dayHintText(st('2026-11-12')), 'ביום הזה כבר קבוע יום צילום אחר (אליאל סימן אותו כפנוי).');
   assert.deepEqual([A.dayShortNote(st('2026-11-03')), A.dayShortNote(st('2026-11-04')), A.dayShortNote(st('2026-12-04')), A.dayShortNote(st('2026-11-20'))],
     ['סימן את היום כפנוי', 'לא סימן את היום כפנוי', 'עוד לא מסר זמינות לחודש הזה', 'דיווח בלת״ם על היום הזה']);
 
@@ -119,12 +121,18 @@ test('one day as the office sees it: free, taken, not free, not handed over; the
   const concerns = (day, own = null) => A.availabilityConcerns({ day, months, changes, taken, own });
   assert.deepEqual(concerns('2026-11-03'), []);
   assert.deepEqual(concerns('2026-12-04'), []); // not handed over: said in the hint only
-  assert.deepEqual(concerns('2026-11-04'), ['אלי לא סימן את היום הזה כפנוי.']);
+  assert.deepEqual(concerns('2026-11-04'), ['אליאל לא סימן את היום הזה כפנוי.']);
   assert.deepEqual(concerns('2026-11-12'), ['ביום הזה כבר קבוע יום צילום אחר.']);
   assert.deepEqual(concerns('2026-11-12', '2026-11-12'), []);
-  assert.deepEqual(concerns('2026-11-18'), ['ביום הזה כבר קבוע יום צילום אחר.', 'אלי לא סימן את היום הזה כפנוי.']);
-  assert.equal(A.exceptionNote(concerns('2026-11-04'), '  הלקוח יכול רק אז '), 'אושר למרות: אלי לא סימן את היום הזה כפנוי. סיבה: הלקוח יכול רק אז');
+  assert.deepEqual(concerns('2026-11-18'), ['ביום הזה כבר קבוע יום צילום אחר.', 'אליאל לא סימן את היום הזה כפנוי.']);
+  assert.equal(A.exceptionNote(concerns('2026-11-04'), '  הלקוח יכול רק אז '), 'אושר למרות: אליאל לא סימן את היום הזה כפנוי. סיבה: הלקוח יכול רק אז');
   assert.ok(A.exceptionNote(['x'.repeat(600)], 'y').length <= 500);
+  // Eli (16.11.2026): his availability is not kept. Even with an old month of his in the rows,
+  // the office is asked only about a day that already has a shoot day.
+  const eliMonths = [month('2026-11', ['2026-11-03'])];
+  const eli = (day) => A.availabilityConcerns({ day, months: eliMonths, changes: [], taken, people: ['eli'] });
+  assert.deepEqual([eli('2026-11-03'), eli('2026-11-04'), eli('2026-12-04')], [[], [], []]);
+  assert.deepEqual(eli('2026-11-18'), ['ביום הזה כבר קבוע יום צילום אחר.']);
   assert.equal(A.freeSummary(months[0]), '2 ימים פנויים');
   assert.equal(A.freeSummary(month('2026-11', ['2026-11-03'])), 'יום פנוי אחד');
   assert.equal(A.freeSummary(month('2026-11', [], { none: true })), 'אין ימים פנויים');
@@ -224,107 +232,18 @@ function walk(w, moments, log = new Set()) {
   return out;
 }
 
-test('next month is not handed over: he is told quietly on the 10th and rings on the 14th and the 15th at 10:00; handing it over stops it', () => {
+test('since 16.11.2026 nobody hands it over himself: no reminder to Eli, no line to the managers, nothing on a submit or a change', () => {
   const none = { months: [], changes: [] };
-  const sent = walk(world(none), [IL(2026, 10, 1, 9), IL(2026, 10, 8, 9, 59), IL(2026, 10, 8, 10, 0), IL(2026, 10, 12, 10), IL(2026, 10, 14, 9, 59), IL(2026, 10, 14, 10, 0), IL(2026, 10, 15, 9, 59), IL(2026, 10, 15, 10, 0), IL(2026, 10, 15, 14)]);
-  assert.deepEqual(sent.map((r) => [r.step, r.person, r.level, at(r.now)]), [
-    ['d10', 'eli', 'quiet', '8.10 10:00'], ['d14', 'eli', 'ring', '14.10 10:00'], ['d15', 'eli', 'ring', '15.10 10:00'],
-  ]);
-  assert.deepEqual(sent.map((r) => r.title), ['עוד לא מסרת זמינות לנובמבר', 'זמינות לנובמבר: למסור עד ה־15 בחודש', 'היום המועד האחרון: זמינות לנובמבר']);
-  assert.ok(sent.every((r) => r.url === 'shoot.html#availability' && r.key.startsWith('availability:-:eli:2026-11:')));
-  // The rings go to his phone at once (inside the sending hours) and are not counted in the daily cap.
-  for (const r of sent.slice(1)) {
-    const [d] = planDelivery({ reminders: [r], now: r.now });
-    assert.deepEqual([d.channel, d.status, d.exempt], ['push', 'sent', 'clock']);
-  }
-  // Handed over on the 12th: nothing more, to anyone.
-  const handed = { months: [month('2026-11', ['2026-11-03'], { submitted_at: IL(2026, 10, 12, 9).toISOString() })], changes: [] };
-  const after = walk(world(handed), [IL(2026, 10, 14, 10), IL(2026, 10, 15, 10), IL(2026, 10, 18, 8, 30)]);
-  assert.deepEqual(after.filter((r) => r.rule !== 'availabilitySubmitted'), []);
-  // "No free day" said is handed over too.
-  assert.deepEqual(walk(world({ months: [month('2026-11', [], { none: true, submitted_at: IL(2026, 10, 1).toISOString() })], changes: [] }), [IL(2026, 10, 15, 10)]), []);
-  // Last month's row does not count for this month's question.
-  // (A log that starts on the 15th also meets the two earlier steps: they are recorded as stale, never sent late.)
-  const late = walk(world({ months: [month('2026-10', ['2026-10-20'], { submitted_at: IL(2026, 9, 10).toISOString() })], changes: [] }), [IL(2026, 10, 15, 10)]);
-  assert.deepEqual(planDelivery({ reminders: late, now: IL(2026, 10, 15, 10) }).map((r) => [r.step, r.status, r.reason]), [['d10', 'suppressed', 'stale'], ['d14', 'suppressed', 'stale'], ['d15', 'sent', null]]);
-  // Nobody on the staff list is a photographer: nothing.
-  assert.deepEqual(walk({ ...world(none), staff: STAFF.filter((s) => s.person !== 'eli') }, [IL(2026, 10, 15, 10), IL(2026, 10, 18, 8, 30)]), []);
+  // The whole month, the 10th, the 14th, the 15th and the managers' mornings from the 16th: nothing.
+  const moments = [IL(2026, 10, 8, 10), IL(2026, 10, 14, 10), IL(2026, 10, 15, 10), IL(2026, 10, 18, 8, 30), IL(2026, 10, 19, 8, 30)];
+  assert.deepEqual(walk(world(none), moments), []);
+  // An old row of his (handed over before the decision) or one entered for Eliel by the office: nobody hears.
+  const handed = { months: [month('2026-11', ['2026-11-03'], { submitted_at: IL(2026, 10, 7, 9, 2).toISOString() }), month('2026-11', ['2026-11-04'], { person: 'eliel', by_person: 'lior' })], changes: [] };
+  assert.deepEqual(walk(world(handed), [IL(2026, 10, 7, 9, 2), IL(2026, 10, 8, 9)]), []);
+  // An unexpected change row of his: no ring.
+  const change = { id: 'ch-1', person: 'eli', reported_at: IL(2026, 10, 20, 11, 0).toISOString(), reported_month: '2026-10-01', days: ['2026-11-12'], shoot_days: ['2026-11-12'], note: null };
+  assert.deepEqual(walk(world({ months: [], changes: [change] }, { clients: [client('פיצה רון', IL(2026, 11, 12, 10).toISOString())] }), [IL(2026, 10, 20, 11, 0)]), []);
   // The engine before the data is loaded (an older function): no case, no crash.
   const bare = world(none); delete bare.availability;
   assert.equal(ours(computeReminders({ ...bare, now: IL(2026, 10, 1, 9) })).length, 0);
-});
-
-test('a 15th on a weekend: the rings move to the business days before it, and the words say so', () => {
-  const sent = walk(world({ months: [], changes: [] }), [IL(2026, 8, 10, 10), IL(2026, 8, 12, 10), IL(2026, 8, 13, 10), IL(2026, 8, 14, 10), IL(2026, 8, 15, 10)]);
-  assert.deepEqual(sent.map((r) => [r.step, at(r.now)]), [['d10', '10.8 10:00'], ['d14', '12.8 10:00'], ['d15', '13.8 10:00']]);
-  assert.equal(sent[2].title, 'המועד האחרון ב־15 בחודש: למסור היום זמינות לספטמבר');
-  // With Yom HaAtzma'ut on the 12th (May 2027): Tuesday the 11th and Thursday the 13th.
-  const may = walk(world({ months: [], changes: [] }), [IL(2027, 5, 11, 10), IL(2027, 5, 12, 10), IL(2027, 5, 13, 10)]);
-  assert.deepEqual(may.filter((r) => r.level === 'ring').map((r) => [r.step, at(r.now)]), [['d14', '11.5 10:00'], ['d15', '13.5 10:00']]);
-});
-
-test('from the 16th the work manager and whoever sets shoot days get one line a business day, in the morning digest, until it is handed over', () => {
-  const none = { months: [], changes: [] };
-  // The 16th of October 2026 is a Friday: the first line is on Sunday the 18th.
-  const moments = [IL(2026, 10, 15, 18), IL(2026, 10, 16, 8, 30), IL(2026, 10, 17, 8, 30), IL(2026, 10, 18, 8, 29), IL(2026, 10, 18, 8, 30), IL(2026, 10, 18, 8, 31), IL(2026, 10, 18, 15), IL(2026, 10, 19, 8, 30), IL(2026, 10, 19, 12)];
-  const sent = walk(world(none), moments).filter((r) => r.rule === 'availabilityMissing');
-  assert.deepEqual(sent.map((r) => [r.person, r.level, at(r.now)]), [
-    ['irit', 'digest', '18.10 08:30'], ['lior', 'digest', '18.10 08:30'], ['irit', 'digest', '19.10 08:30'], ['lior', 'digest', '19.10 08:30'],
-  ]);
-  assert.equal(sent[0].title, 'אלי עוד לא מסר זמינות לנובמבר (המועד היה ה־15 בחודש)');
-  assert.equal(sent[0].url, 'prep.html#availability');
-  // It is queued for the digest of its morning, which carries it as a line.
-  const now = IL(2026, 10, 18, 8, 30);
-  const env = buildEnv({ ...world(none), now });
-  const fresh = computeReminders({ env }).filter((r) => r.rule === 'availabilityMissing');
-  const queued = planDelivery({ reminders: fresh, now }).map((r, i) => ({ ...r, id: i + 1, created_at: now.toISOString() }));
-  assert.ok(queued.every((r) => r.channel === 'digest' && r.status === 'queued'));
-  const digests = planDigests({ env, log: queued, active: new Set(fresh.map((r) => r.key)) }).filter((d) => d.key);
-  for (const who of ['irit', 'lior']) {
-    const d = digests.find((x) => x.person === who && x.kind === 'morning');
-    assert.ok(d.lines.includes('אלי עוד לא מסר זמינות לנובמבר (המועד היה ה־15 בחודש)'), who);
-  }
-  assert.equal(digests.some((d) => d.person === 'eli' && d.lines.join(' ').includes('זמינות')), false);
-  // Handed over a minute before the digest: the queued line is no longer true, and is left out.
-  const later = planDigests({ env, log: queued, active: new Set() });
-  assert.ok(later.every((d) => !d.key || !d.lines.join(' ').includes('זמינות')));
-  // The month ended without it: from the 1st the question is about the next month, and the line starts again on its 16th.
-  assert.deepEqual(walk(world(none), [IL(2026, 11, 1, 8, 30), IL(2026, 11, 2, 8, 30)]).filter((r) => r.rule === 'availabilityMissing'), []);
-});
-
-test('he handed it over: the two hear quietly, once; an entry in his name tells nobody', () => {
-  const w = world({ months: [month('2026-11', ['2026-11-03', '2026-11-04'], { submitted_at: IL(2026, 10, 7, 9, 2).toISOString() })], changes: [] });
-  const sent = walk(w, [IL(2026, 10, 7, 9, 2), IL(2026, 10, 7, 9, 3), IL(2026, 10, 8, 9)]);
-  assert.deepEqual(sent.map((r) => [r.rule, r.person, r.level, r.title]), [
-    ['availabilitySubmitted', 'irit', 'quiet', 'אלי מסר זמינות לנובמבר: 2 ימים פנויים'],
-    ['availabilitySubmitted', 'lior', 'quiet', 'אלי מסר זמינות לנובמבר: 2 ימים פנויים'],
-  ]);
-  const byLior = world({ months: [month('2026-11', ['2026-11-03'], { by_person: 'lior' })], changes: [] });
-  assert.deepEqual(walk(byLior, [IL(2026, 10, 7, 9, 5)]), []);
-});
-
-test('an unexpected change rings Irit and Lior at once, with the dates and the shoot days that sit on them', () => {
-  const change = { id: 'ch-1', person: 'eli', reported_at: IL(2026, 10, 20, 11, 0).toISOString(), reported_month: '2026-10-01', days: ['2026-11-13', '2026-11-12'], shoot_days: ['2026-11-12'], note: 'חתונה במשפחה' };
-  const w = world({ months: [month('2026-11', ['2026-11-03'], { submitted_at: IL(2026, 10, 1).toISOString() })], changes: [change] },
-    { clients: [client('פיצה רון', IL(2026, 11, 12, 10).toISOString()), client('קפה דנה', IL(2026, 11, 20, 10).toISOString())] });
-  const sent = walk(w, [IL(2026, 10, 20, 11, 0), IL(2026, 10, 20, 11, 1), IL(2026, 10, 21, 9)]);
-  assert.deepEqual(sent.map((r) => [r.rule, r.person, r.level, r.exempt, r.exception]), [
-    ['availabilityChange', 'irit', 'ring', 'urgent', true], ['availabilityChange', 'lior', 'ring', 'urgent', true],
-  ]);
-  assert.equal(sent[0].title, 'בלת״ם של אלי: 12.11–13.11 · קבוע יום צילום');
-  assert.equal(sent[0].body, 'קבוע יום צילום ב־12.11: פיצה רון. לתאם מחדש מול הלקוח והמשפיענים. הסיבה: חתונה במשפחה');
-  assert.equal(sent[0].url, 'prep.html#availability');
-  assert.deepEqual(planDelivery({ reminders: sent, now: IL(2026, 10, 20, 11, 0) }).map((r) => [r.channel, r.status]), [['push', 'sent'], ['push', 'sent']]);
-  // No shoot day on the dates: said so.
-  const free = walk(world({ months: [], changes: [{ ...change, id: 'ch-2', days: ['2026-11-25'], shoot_days: [], note: null }] }), [IL(2026, 10, 20, 11, 0)]).filter((r) => r.rule === 'availabilityChange');
-  assert.equal(free[0].title, 'בלת״ם של אלי: 25.11');
-  assert.equal(free[0].body, 'אין יום צילום קבוע בתאריכים האלה. הם ירדו מהימים הפנויים שלו.');
-  // Reported at night about a date weeks ahead: it waits for the sending hours (the morning digest).
-  const night = { ...change, id: 'ch-3', reported_at: IL(2026, 10, 20, 22, 0).toISOString() };
-  const far = walk(world({ months: [], changes: [night] }), [IL(2026, 10, 20, 22, 0)]).filter((r) => r.rule === 'availabilityChange');
-  assert.deepEqual(planDelivery({ reminders: far, now: IL(2026, 10, 20, 22, 0) }).map((r) => [r.channel, r.reason]), [['digest', 'quiet_hours'], ['digest', 'quiet_hours']]);
-  // About tomorrow: it rings now, at night too.
-  const soon = { ...change, id: 'ch-4', reported_at: IL(2026, 10, 20, 22, 0).toISOString(), days: ['2026-10-21'] };
-  const near = walk(world({ months: [], changes: [soon] }), [IL(2026, 10, 20, 22, 0)]).filter((r) => r.rule === 'availabilityChange');
-  assert.deepEqual(planDelivery({ reminders: near, now: IL(2026, 10, 20, 22, 0) }).map((r) => [r.channel, r.status]), [['push', 'sent'], ['push', 'sent']]);
 });

@@ -372,18 +372,15 @@ test('the photographers\' taken days: Eli\'s are not the days Eliel films, and E
   assert.deepEqual(takenFrom([soloEliel, base({ id: 'c3', shoot_at: '2026-10-21T10:00:00+03:00' })], 'eliel'), { '2026-10-15': 1 });
 });
 
-test('Eliel\'s month is kept, marked by the office: no card of his own, no reminder to him, no "not handed over" line', () => {
-  assert.deepEqual([A.PHOTOGRAPHERS, A.HANDS_OVER], [['eli', 'eliel'], ['eli']]);
-  const now = IL(2026, 10, 20, 10); // after the 15th: the managers' line
+test('Eliel\'s month is kept, marked by the office: no card of his own, no reminder to him, no "not handed over" line; Eli hands none over since 16.11.2026', () => {
+  assert.deepEqual([A.PHOTOGRAPHERS, A.HANDS_OVER], [['eliel'], []]);
+  const now = IL(2026, 10, 20, 10); // after the 15th: when the managers' line used to show
   const lines = (me) => flowLines({ viewer: { me, scope: 'office' }, clients: [], checks: {}, stateOf: () => ({ states: [] }), now, extra: { availability: { months: [], changes: [] } } })
     .filter((x) => String(x.id).startsWith('availability'));
-  const irit = lines('irit');
-  assert.equal(irit.length, 1);
-  assert.match(irit[0].text, /^אלי עוד לא מסר זמינות/);
-  assert.doesNotMatch(irit[0].text, /אליאל/);
-  // The reminders ring only a photographer with an account (Eli), never Eliel.
+  assert.deepEqual([lines('irit'), lines('lior'), lines('eli')], [[], [], []]);
+  // No availability reminder at all: not to Eli, never to Eliel, not to the managers.
   const w = world(withInf, { availability: { months: [], changes: [] } });
-  const rings = computeReminders({ ...w, now: IL(2026, 10, 15, 10), log: [] }).filter((r) => r.rule === 'availability');
-  assert.ok(rings.length > 0);
-  assert.ok(rings.every((r) => r.person === 'eli'));
+  for (const at of [IL(2026, 10, 15, 10), IL(2026, 10, 20, 8, 30)]) {
+    assert.deepEqual(computeReminders({ ...w, now: at, log: [] }).filter((r) => String(r.rule).startsWith('availability')), []);
+  }
 });

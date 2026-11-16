@@ -421,14 +421,16 @@ test('the shoot date is not asked of a client in landing, of imported history, o
   assert.equal(clientState(withDate, { ...closed, ...r2 }, now).states.find((s) => s.proc.id === 'r2-p11').complete, true);
 });
 
-test('the photographer\'s next free days: what he marked, from tomorrow, without the days a shoot is already set on', () => {
+test('the photographer\'s next free days (Eliel, whose month the office keeps; Eli hands none over since 16.11.2026): what was marked, from tomorrow, without the days a shoot is already set on', () => {
   const now = IL(2026, 10, 6, 10);
-  const months = [{ person: 'eli', month: '2026-10-01', days: ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-12', '2026-10-13', '2026-10-20'] }, { person: 'eli', month: '2026-11-01', days: ['2026-11-03'] }];
+  const months = [{ person: 'eliel', month: '2026-10-01', days: ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-12', '2026-10-13', '2026-10-20'] }, { person: 'eliel', month: '2026-11-01', days: ['2026-11-03'] }];
   assert.deepEqual(freeAhead({ months, taken: { '2026-10-12': 1 }, now }), ['2026-10-07', '2026-10-13', '2026-10-20', '2026-11-03']);
   assert.deepEqual(freeAhead({ months, taken: {}, now, limit: 2 }), ['2026-10-07', '2026-10-12']);
   // Nothing handed over: nothing is known (null), which is not "no free days" ([]).
   assert.equal(freeAhead({ months: [], now }), null);
-  assert.deepEqual(freeAhead({ months: [{ person: 'eli', month: '2026-10-01', days: ['2026-10-01'] }], now }), []);
+  assert.deepEqual(freeAhead({ months: [{ person: 'eliel', month: '2026-10-01', days: ['2026-10-01'] }], now }), []);
+  // Another photographer's rows are not his.
+  assert.equal(freeAhead({ months: [{ person: 'eli', month: '2026-10-01', days: ['2026-10-07'] }], now }), null);
 });
 
 // ── FIX 7: marks with nothing behind them ───────────────────────────────────

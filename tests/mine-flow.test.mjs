@@ -47,17 +47,16 @@ test('each queue with work gives one counted line, in its group, to its page', (
   const lior = byId(linesOf(db, 'lior'));
   // Protocol v9: the editor's assignment is Ofir's alone, so "מחכים לשיוך עורך" is not a line of Lior's.
   // No "paused" line since 5.11.2026: nothing stops the editing (an old pause is ignored).
-  assert.deepEqual(Object.keys(lior).sort(), ['access', 'availability-missing', 'campaigns', 'changes', 'landing-shoot', 'urgent-back']);
+  // No "not handed over" availability line since 16.11.2026: Eli hands nothing over (docs/ops.md, section 136).
+  assert.deepEqual(Object.keys(lior).sort(), ['access', 'campaigns', 'changes', 'landing-shoot', 'urgent-back']);
   assert.deepEqual([lior['urgent-back'].n, lior['urgent-back'].bucket, lior['urgent-back'].href], [COUNTS.urgentBack, 'urgent', 'decisions.html#ur-h']);
   assert.deepEqual([lior.access.n, lior.access.href], [COUNTS.broken, 'decisions.html#ac-h']);
   assert.deepEqual([lior.changes.n, lior.changes.href], [COUNTS.changes, 'decisions.html#cq-h']);
   assert.deepEqual([lior.campaigns.n, lior.campaigns.bucket, lior.campaigns.href], [1, 'today', 'decisions.html#cp-h']); // Tuesday: today
-  assert.deepEqual([lior['availability-missing'].bucket, lior['availability-missing'].href], ['overdue', 'prep.html#availability']);
-  assert.equal(lior['availability-missing'].text, 'אלי עוד לא מסר זמינות לנובמבר');
   assert.equal(lior['landing-shoot'].href, 'shoot.html');
 
   const irit = byId(linesOf(db, 'irit'));
-  assert.deepEqual(Object.keys(irit).sort(), ['availability-missing', 'landing-shoot']);
+  assert.deepEqual(Object.keys(irit).sort(), ['landing-shoot']);
   // 14's daily answer (p14.day) left the protocol in v13: no "מעקב לפני צילום" line for anybody.
   assert.equal(irit.followup, undefined);
   assert.equal(lior.followup, undefined);
@@ -74,12 +73,9 @@ test('each queue with work gives one counted line, in its group, to its page', (
   assert.deepEqual([yariv['landing-editing'].n, yariv['landing-editing'].href], [COUNTS.editing.landing, 'editor.html']);
   assert.equal(yariv['landing-editing'].text, `לקוח אחד בעריכה אצלך · ${LANDING_WORDS}`);
 
-  const eli = byId(linesOf(db, 'eli'));
-  assert.deepEqual(Object.keys(eli), ['availability']);
-  assert.deepEqual([eli.availability.bucket, eli.availability.href], ['overdue', 'shoot.html#availability']); // the 20th: after the 15th
-
   // Nothing of theirs is worked on another page without being an item of the list.
-  for (const me of ['ilai', 'nadia', 'nirel']) assert.deepEqual(linesOf(db, me), [], me);
+  // Eli too: no availability line since 16.11.2026 (the 20th: it used to be late).
+  for (const me of ['ilai', 'nadia', 'nirel', 'eli']) assert.deepEqual(linesOf(db, me), [], me);
 });
 
 test('the numbers are the numbers of the pages themselves', () => {
@@ -139,18 +135,17 @@ test('Lior on a shoot day: the exceptions pass to Ofir, and his list says so', (
   assert.deepEqual([line.n, line.bucket, line.href, line.text], [1, 'escalation', 'decisions.html#ex-h', 'ליאור ביום צילום: חריגה אחת עוברת אליך']);
 });
 
-test('the photographer is asked for next month by its phase', () => {
+test('since 16.11.2026 the photographer is not asked for next month, and nobody hears he did not hand it over', () => {
   const db = flowWorld({ landing: false, queues: false });
-  const at = (day) => byId(linesOf(db, 'eli', { now: new Date(`2026-10-${day}T10:00:00+03:00`) })).availability?.bucket;
-  assert.equal(at('05'), 'later');
-  assert.equal(at('12'), 'week');
-  assert.equal(at('14'), 'tomorrow');
-  assert.equal(at('15'), 'today');
-  assert.equal(at('16'), 'overdue');
-  // The managers hear of it from the 16th only.
-  assert.equal(byId(linesOf(db, 'irit', { now: new Date('2026-10-15T10:00:00+03:00') }))['availability-missing'], undefined);
+  for (const day of ['05', '12', '15', '16', '20']) {
+    const now = new Date(`2026-10-${day}T10:00:00+03:00`);
+    assert.equal(byId(linesOf(db, 'eli', { now })).availability, undefined, day);
+    for (const me of ['irit', 'lior']) assert.equal(byId(linesOf(db, me, { now }))['availability-missing'], undefined, `${me} ${day}`);
+  }
+  // Nothing is read for it either.
   assert.deepEqual(flowNeeds(viewerOf('irit'), new Date('2026-10-15T10:00:00+03:00')), ['messages', 'unsigned']);
-  assert.deepEqual(flowNeeds(viewerOf('irit'), NOW), ['messages', 'unsigned', 'availability']);
+  assert.deepEqual(flowNeeds(viewerOf('irit'), NOW), ['messages', 'unsigned']);
+  assert.deepEqual(flowNeeds(viewerOf('eli'), NOW), []);
 });
 
 test('a line never leads to a page its reader may not open, and each has one plain sentence', () => {
@@ -180,7 +175,7 @@ test('landing means no clock: its lines say so, sit apart, and name no reminder;
       }
     }
   }
-  assert.deepEqual([...seen].sort(), ['access', 'availability', 'availability-missing', 'campaigns', 'changes', 'exceptions', 'fixes', 'landing-assign', 'landing-editing', // (v13: no 'followup')
+  assert.deepEqual([...seen].sort(), ['access', 'campaigns', 'changes', 'exceptions', 'fixes', 'landing-assign', 'landing-editing', // (v13: no 'followup')
     'landing-qa', 'landing-shoot', 'urgent-back']);
   // A paused editing of a client in landing: no line either (5.11.2026).
   db.clients.find((c) => c.id === cid(14)).landing = true;
