@@ -5,6 +5,7 @@ import {
   VAT_RATE_PERCENT, TERM_MONTHS, INFLUENCERS, TIERS, PACKAGES,
   PAID_ADDONS, FREE_ADDONS, DOC_TYPES, SPECS, MAX_DISCOUNT, maxDiscountFor, packageId,
   CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar, infText, isChoice,
+  infPlain, MAX_ALSO_INFLUENCERS, canAlsoBe, contractInfluencers, shownInfluencerText,
 } from './catalog.js';
 import { PROVIDER, agreementSections, agreementWording, LEGAL_VERSION } from './legal.js';
 
@@ -114,6 +115,21 @@ export function validateSelection(sel) {
                 Plain text, up to CUSTOM_LIMITS.packageName characters, no markup. With
                 `price`, the two "שינויים להצעה הזו" of the builder; create-quote takes
                 them from the managers only (supabase/functions/create-quote/http.js).
+     influencerName the influencers' name as this document shows it (the owner, 15.11.2026), the
+                managers' too: on the cover, on the package, in the shoot day's line and in the
+                agreement's words.
+     alsoInfluencers [ids]: more influencers of the catalog in the same contract (the owner,
+                16.11.2026: "סמיון, מישל ודניס + הצל"), at most MAX_ALSO_INFLUENCERS, never
+                "משפיען לבחירה". The contract's own `influencer` still decides the package, the paid
+                add-ons and the shoot type of the client the signed agreement opens. The document
+                names them all, joined ("סמיון, מישל ודניס + הצל"), unless influencerName is typed.
+                Not the managers' only: any office user.
+     postsAt    { [influencerId]: { collabs?, stories? } }: the collabs and the stories at each
+                influencer of the contract ("2 העלאות בקולאב בעמודים של סמיון, מישל ודניס"). The
+                document lists one line per influencer, and qty.collabs / qty.stories are their sums
+                (so the system's counts, app/protocol-logic.js packageDeliverables, stay as they
+                are). Kept only when one beyond the contract's own influencer has some; else it is
+                simply qty.collabs / qty.stories.
    Types and ranges are strict (catalog.js CUSTOM_QTY, CUSTOM_LIMITS); the totals are
    always computed here, never taken from the caller. Whatever equals the built-in
    rule is dropped (normalizeSelection), so a contract without deviations is exactly a
@@ -125,7 +141,10 @@ const cleanLine = (v) => String(v ?? '').replace(BIDI, '').replace(/\s+/g, ' ').
 const cleanBlock = (v) => String(v ?? '').replace(BIDI, '').replace(/\r\n?/g, '\n').replace(/[^\S\n]+/g, ' ')
   .split('\n').map((l) => l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName', 'influencerName'];
+const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName', 'influencerName', 'alsoInfluencers', 'postsAt'];
+// What custom.postsAt counts per influencer.
+export const POST_KINDS = ['collabs', 'stories'];
+const qtyMax = (key) => CUSTOM_QTY.find((q) => q.key === key).max;
 // A name typed for the document: no markup and no control characters (it is drawn as text anyway).
 const NAME_BAD = /[<>{}\`\u0000-\u001f\u007f]/;
 // What an influencer brings to a package: none of it in a contract "בלי משפיענים".
@@ -177,6 +196,33 @@ function customErrors(sel, selectionOk) {
     if (typeof c.influencerName !== 'string' || name.length > CUSTOM_LIMITS.influencerName) errors.push('custom influencer name too long');
     else if (NAME_BAD.test(c.influencerName)) errors.push('custom influencer name has characters that are not allowed');
   }
+  // Several influencers (16.11.2026): catalog ids, never "משפיען לבחירה", each once. The contract's own
+  // influencer among them is simply dropped (normalizeSelection), as is the list with "בלי משפיענים".
+  const also = Array.isArray(c.alsoInfluencers) ? c.alsoInfluencers : [];
+  if (given(c.alsoInfluencers)) {
+    if (!Array.isArray(c.alsoInfluencers) || c.alsoInfluencers.length > MAX_ALSO_INFLUENCERS) errors.push(`custom also influencers: at most ${MAX_ALSO_INFLUENCERS}`);
+    else {
+      for (const id of c.alsoInfluencers) if (!canAlsoBe(id)) errors.push(`custom also influencer unknown: ${String(id).slice(0, 30)}`);
+      if (new Set(c.alsoInfluencers).size !== c.alsoInfluencers.length) errors.push('custom also influencers repeat');
+      if (isChoice(sel.influencer) && c.alsoInfluencers.length && c.noInfluencer !== true) errors.push('custom also influencers need a named influencer');
+    }
+  }
+  if (given(c.postsAt)) {
+    if (!isObject(c.postsAt)) errors.push('custom posts per influencer must be an object');
+    else {
+      const sums = { collabs: 0, stories: 0 };
+      for (const [id, p] of Object.entries(c.postsAt)) {
+        if (id !== sel.influencer && !also.includes(id)) { errors.push(`custom posts per influencer: not in the contract: ${String(id).slice(0, 30)}`); continue; }
+        if (!isObject(p) || Object.keys(p).some((k) => !POST_KINDS.includes(k))) { errors.push('custom posts per influencer are malformed'); continue; }
+        for (const k of POST_KINDS) {
+          if (!given(p[k])) continue;
+          if (!isWholeInRange(p[k], qtyMax(k))) errors.push(`custom posts per influencer out of range: ${k}`);
+          else sums[k] += p[k];
+        }
+      }
+      for (const k of POST_KINDS) if (sums[k] > qtyMax(k)) errors.push(`custom posts per influencer out of range: ${k}`);
+    }
+  }
   // The discount can never be more than the price it is taken from (a regular discount too, once
   // the price was lowered by hand).
   if (selectionOk && errors.length === 0 && (given(c.discount) ? c.discount : sel.discount || 0) > listPrice(sel)) errors.push('custom discount is more than the monthly price');
@@ -223,12 +269,31 @@ export function normalizeSelection(sel) {
   const base = baseQuantities(rest);
   const c = {};
   const qty = {};
+  const noInf = raw.noInfluencer === true;
+  // Several influencers (16.11.2026): the contract's own one and the unknown ones dropped; none with
+  // "בלי משפיענים" or next to "משפיען לבחירה".
+  const inContract = contractInfluencers({ ...rest, custom: { noInfluencer: noInf, alsoInfluencers: raw.alsoInfluencers } });
+  if (inContract.length > 1) c.alsoInfluencers = inContract.slice(1);
+  // The collabs and stories per influencer: their sum is the quantity; kept per influencer only when
+  // one beyond the contract's own influencer has some.
+  const rawQty = { ...(isObject(raw.qty) ? raw.qty : {}) };
+  const posts = {};
+  if (isObject(raw.postsAt) && inContract.length) {
+    for (const k of POST_KINDS) {
+      const vals = inContract.map((id) => { const v = raw.postsAt[id]?.[k]; return Number.isInteger(v) && v >= 0 ? v : null; });
+      if (vals.every((v) => v === null)) continue;
+      const n = vals.map((v) => v ?? 0);
+      rawQty[k] = n.reduce((a, b) => a + b, 0);
+      if (n.slice(1).some((v) => v > 0)) inContract.forEach((id, i) => { if (n[i] > 0) (posts[id] ??= {})[k] = n[i]; });
+    }
+  }
+  if (Object.keys(posts).length) c.postsAt = posts;
   for (const q of CUSTOM_QTY) {
-    const v = raw.qty?.[q.key];
+    const v = rawQty[q.key];
     if (Number.isInteger(v) && v !== base[q.key] && (!q.addon || rest.paid.includes(q.addon))) qty[q.key] = v;
   }
   // No influencer: nothing of one stays in the package.
-  if (raw.noInfluencer === true) {
+  if (noInf) {
     c.noInfluencer = true;
     for (const k of INF_QTY) { if (base[k] > 0) qty[k] = 0; else delete qty[k]; }
   }
@@ -251,7 +316,8 @@ export function normalizeSelection(sel) {
   if (shown && shown !== TIERS.find((t) => t.id === rest.tier)?.name) c.packageName = shown;
   // The influencers' name for this document (15.11.2026): dropped when empty or the catalog's own.
   const infShown = typeof raw.influencerName === 'string' ? cleanLine(raw.influencerName) : '';
-  if (infShown && infShown !== INFLUENCERS[rest.influencer]?.name) c.influencerName = infShown;
+  // Not with "בלי משפיענים", and not when it is the name the document shows anyway.
+  if (infShown && !noInf && infShown !== shownInfluencerText({ ...rest, custom: c })) c.influencerName = infShown;
   // A discount the seller may give anyway is a regular discount.
   if (Number.isInteger(raw.discount)) {
     if (raw.discount > maxDiscountFor(rest.tier)) { c.discount = raw.discount; rest.discount = 0; } else rest.discount = raw.discount;
@@ -289,9 +355,20 @@ export function exceptionOf(selection) {
   if (c.addonsIncluded) out.push({ kind: 'addonsIncluded', text: 'התוספות כלולות במחיר החודשי' });
   if (c.packageName) out.push({ kind: 'packageName', to: c.packageName, text: `שם החבילה בהצעה: ${c.packageName}` });
   if (c.influencerName) out.push({ kind: 'influencerName', to: c.influencerName, text: `שם המשפיענים בהצעה: ${c.influencerName}` });
+  if (c.alsoInfluencers) out.push({ kind: 'alsoInfluencers', to: [...c.alsoInfluencers], text: `משפיענים נוספים: ${c.alsoInfluencers.map(infPlain).join(' + ')}` });
+  for (const k of POST_KINDS) {
+    if (!postsPerInfluencer(sel, k)) continue;
+    const all = contractInfluencers(sel);
+    const each = all.filter((id) => c.postsAt[id]?.[k] > 0).map((id) => `${c.postsAt[id][k]} אצל ${infPlain(id)}`);
+    out.push({ kind: 'postsAt', key: k, to: Object.fromEntries(all.map((id) => [id, c.postsAt[id]?.[k] || 0])), text: `${k === 'collabs' ? 'קולאבים' : 'סטורי'} לפי משפיען: ${each.join(' · ')}` });
+  }
   return out;
 }
 export const isExceptional = (selection) => exceptionOf(selection).length > 0;
+
+// Whether a (normalized) selection lists its collabs or its stories per influencer (custom.postsAt).
+const postsPerInfluencer = (sel, kind) => isObject(sel?.custom?.postsAt)
+  && Object.values(sel.custom.postsAt).some((p) => Number.isInteger(p?.[kind]));
 
 // "מה כלול" with the quantities changed by hand and the added lines.
 function effectiveIncludes(sel) {
@@ -302,18 +379,30 @@ function effectiveIncludes(sel) {
   const out = [];
   const line = (q, n) => ({ qty: n, label: q.label(n, sel) });
   const infName = infText(sel.influencer);
+  // The influencers' name the document shows (several, or typed for the quote): in every line that
+  // names the influencer (the shoot day, the podcast), but not in a collab's or a story's (they are
+  // at the contract's own influencer, or listed per influencer).
+  const shown = shownInfluencerText(sel);
+  const named = (inc, q) => (shown && infName && shown !== infName && !(q && POST_KINDS.includes(q.key))
+    ? { ...inc, label: inc.label.replaceAll(infName, shown) } : inc);
+  // One line per influencer with some (custom.postsAt), in the contract's order.
+  const perInf = (q) => contractInfluencers(sel).filter((id) => c.postsAt[id]?.[q.key] > 0)
+    .map((id) => ({ qty: c.postsAt[id][q.key], label: q.labelAt(c.postsAt[id][q.key], id) }));
   for (const [i, inc] of PACKAGES[pid].includes.entries()) {
     const q = CUSTOM_QTY.find((x) => x.key === keys[i]);
     // No influencer: the lines of the influencer's day go (its crew, and anything in its name).
     if (c.noInfluencer && ((!q && inc.qty !== null) || (infName && inc.label.includes(infName)))) continue;
+    if (q && postsPerInfluencer(sel, q.key)) { seen.add(q.key); out.push(...perInf(q)); continue; }
     const v = q ? c.qty?.[q.key] : undefined;
-    if (!given(v)) { out.push(inc); continue; }
+    if (!given(v)) { out.push(named(inc, q)); continue; }
     seen.add(q.key);
     if (v > 0) out.push(line(q, v));
   }
   for (const q of CUSTOM_QTY) {
     const v = c.qty?.[q.key];
-    if (!q.label || seen.has(q.key) || !given(v) || v <= 0) continue;
+    if (!q.label || seen.has(q.key)) continue;
+    if (postsPerInfluencer(sel, q.key)) { out.push(...perInf(q)); continue; }
+    if (!given(v) || v <= 0) continue;
     out.push(line(q, v));
   }
   for (const l of c.lines || []) out.push({ qty: l.qty ?? null, label: l.label });
@@ -387,8 +476,10 @@ function agreementContext(sel, { tier, paid, free, totals, includes }) {
     // The name the managers gave the package for this document, or the catalog's.
     packageName: sel.custom?.packageName || tier.name,
     // "משפיען לבחירה": said as the one to be chosen, never as a name.
-    influencer: noInfluencer(sel) ? '' : sel.custom?.influencerName || infText(sel.influencer),
+    influencer: noInfluencer(sel) ? '' : shownInfluencerText(sel),
     noInfluencer: noInfluencer(sel),
+    // Several influencers in the contract (16.11.2026): the wording says them in the plural.
+    manyInfluencers: contractInfluencers(sel).length > 1,
     tier: sel.tier,
     influencerId: noInfluencer(sel) ? null : sel.influencer,
     // The old wording's numbers (app/legal.js agreementWording, LEGAL_VERSION 3).
@@ -470,7 +561,8 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
       influencer: noInfluencer(sel) ? NO_INFLUENCER : INFLUENCERS[sel.influencer].name,
       // The influencers' name this document shows (custom.influencerName, 15.11.2026); `influencer`
       // stays the catalog's for the office's lists.
-      ...(custom?.influencerName && !noInfluencer(sel) ? { shownInfluencer: custom.influencerName } : {}),
+      // With several influencers (custom.alsoInfluencers, 16.11.2026), their names joined.
+      ...(!noInfluencer(sel) && (custom?.influencerName || custom?.alsoInfluencers) ? { shownInfluencer: shownInfluencerText(sel) } : {}),
       monthly: price,
       term: price * term,
       includes,
@@ -501,7 +593,7 @@ export const NO_INFLUENCER = 'בלי משפיענים';
 // business (or name) when given; else nothing ("הצעת מחיר").
 function coverNameOf(sel, client) {
   const clean = (v) => String(v || '').replace(BIDI, '').replace(/\s+/g, ' ').trim();
-  if (!noInfluencer(sel) && sel.custom?.influencerName) return sel.custom.influencerName;
+  if (!noInfluencer(sel) && (sel.custom?.influencerName || sel.custom?.alsoInfluencers)) return shownInfluencerText(sel);
   if (!noInfluencer(sel) && !isChoice(sel.influencer)) return INFLUENCERS[sel.influencer].name;
   return clean(client.company) || clean(client.name);
 }

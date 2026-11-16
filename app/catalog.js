@@ -52,6 +52,34 @@ export const infText = (inf) => INFLUENCERS[inf]?.inText || INFLUENCERS[inf]?.na
 // The name on a picker's button ("משפיען לבחירה"; the others their name).
 export const infLabel = (inf) => INFLUENCERS[inf]?.label || INFLUENCERS[inf]?.name || '';
 export const isChoice = (inf) => INFLUENCERS[inf]?.choice === true;
+// An influencer's name in a list of several (16.11.2026: "סמיון, מישל ודניס + הצל"): the catalog's
+// name without what is in brackets ("הצל", not "הצל (יואב אליאסי)").
+export const infPlain = (inf) => INFLUENCERS[inf]?.label || String(INFLUENCERS[inf]?.name || '').replace(/\s*\([^)]*\)\s*$/, '');
+// Several influencers in one contract (the owner, 16.11.2026; selection.custom.alsoInfluencers, app/pricing.js):
+// at most this many next to the contract's own influencer.
+export const MAX_ALSO_INFLUENCERS = 4;
+// Who can be added next to the contract's own influencer: any named influencer of the catalog.
+export const canAlsoBe = (inf) => !!INFLUENCERS[inf] && !isChoice(inf);
+// The influencers of a contract, the contract's own first (selection.influencer: it decides the package,
+// the add-ons and the shoot day the signed agreement opens the client with), then the ones added by hand.
+// None in a contract "בלי משפיענים"; nobody next to "משפיען לבחירה".
+export function contractInfluencers(sel) {
+  if (!INFLUENCERS[sel?.influencer] || sel?.custom?.noInfluencer === true) return [];
+  const out = [sel.influencer];
+  const also = isChoice(sel.influencer) || !Array.isArray(sel.custom?.alsoInfluencers) ? [] : sel.custom.alsoInfluencers;
+  for (const id of also) if (canAlsoBe(id) && !out.includes(id) && out.length <= MAX_ALSO_INFLUENCERS) out.push(id);
+  return out;
+}
+// The influencers' name inside the document's sentences: the one typed for this quote
+// (custom.influencerName); else, with several, their names joined ("סמיון, מישל ודניס + הצל");
+// else the catalog's ("יום צילום ... עם X"). Empty in a contract "בלי משפיענים".
+export function shownInfluencerText(sel) {
+  if (sel?.custom?.noInfluencer === true) return '';
+  const typed = typeof sel?.custom?.influencerName === 'string' ? sel.custom.influencerName.trim() : '';
+  if (typed) return typed;
+  const all = contractInfluencers(sel);
+  return all.length > 1 ? all.map(infPlain).join(' + ') : infText(sel?.influencer);
+}
 // Niro Levi and "הצל" (Yoav Eliasi), the owner's decision of 28.10.2026: each exactly as Natali
 // Dadon. The same three packages with the same prices and quantities, the same paid add-ons (a
 // reel and a story at the influencer), and a shoot day that runs as hers (app/protocol.js
@@ -245,14 +273,22 @@ export const CUSTOM_QTY = [
   { key: 'videos', max: 200, name: 'סרטונים', base: (s) => s.videos,
     label: (n, sel) => (sel.tier === 'podcast' ? 'סרטוני פודקאסט' : 'סרטונים בבית העסק') },
   { key: 'graphics', max: 300, name: 'גרפיקות', base: (s) => s.graphics, label: () => 'גרפיקות' },
+  // With the influencers' name the document shows (several influencers, or a name typed for the quote).
   { key: 'shootDays', max: 12, name: 'ימי צילום עם המשפיענים', base: (s) => s.shootDays,
-    label: (n, sel) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} בבית העסק${isChoice(sel.influencer) ? ',' : ''} עם ${INF_NAME(sel.influencer)}` },
+    label: (n, sel) => {
+      const shown = shownInfluencerText(sel);
+      const own = shown === INF_NAME(sel.influencer);
+      return `${n === 1 ? 'יום צילום' : 'ימי צילום'} בבית העסק${own && isChoice(sel.influencer) ? ',' : ''} עם ${shown}`;
+    } },
   { key: 'photoDays', max: 12, name: 'ימי צילום עם צלם', base: (s, pkg) => (pkg.tier === 'podcast' ? 1 : 0),
     label: (n) => `${n === 1 ? 'יום צילום' : 'ימי צילום'} עם צלם בבית העסק, וידאו וסטילס` },
   { key: 'collabs', max: 24, name: 'קולאבים באינסטגרם', base: (s) => s.collabs,
-    label: (n, sel) => `${n === 1 ? 'קולאב' : 'קולאבים'} באינסטגרם אצל ${INF_NAME(sel.influencer)}` },
+    label: (n, sel) => `${n === 1 ? 'קולאב' : 'קולאבים'} באינסטגרם אצל ${INF_NAME(sel.influencer)}`,
+    // One line per influencer (custom.postsAt, 16.11.2026): "2 קולאבים באינסטגרם אצל הצל".
+    labelAt: (n, inf) => `${n === 1 ? 'קולאב' : 'קולאבים'} באינסטגרם אצל ${infPlain(inf)}` },
   { key: 'stories', max: 60, name: 'סטורי אצל המשפיענים', base: (s) => s.stories,
-    label: (n, sel) => `סטורי אצל ${INF_NAME(sel.influencer)}` },
+    label: (n, sel) => `סטורי אצל ${INF_NAME(sel.influencer)}`,
+    labelAt: (n, inf) => `סטורי אצל ${infPlain(inf)}` },
   { key: 'ch14', max: 12, name: 'אייטמים בערוץ 14', base: (s) => s.ch14,
     label: (n) => (n === 1 ? 'אייטם בערוץ 14' : 'אייטמים בערוץ 14') },
   { key: 'monthly', min: 1, max: 60, name: 'תכנים בחודש מהצלם החודשי', addon: 'photographer', base: () => MONTHLY_CONTENTS },

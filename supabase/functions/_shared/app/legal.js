@@ -39,7 +39,8 @@ const monthsText = (n) => (n === 1 ? 'חודש אחד' : `${n} חודשים`);
 /**
  * ctx: {
  *   termMonths, totals, tier ('podcast'|'social'|'social-tv'), packageName, influencer (the
- *   name inside a sentence), influencerId, noInfluencer (bool), shootDays, videos, graphics,
+ *   name inside a sentence), influencerId, noInfluencer (bool), manyInfluencers (bool: more than
+ *   one influencer in the contract, 16.11.2026), shootDays, videos, graphics,
  *   photographers, includes [{qty, label}] (the package's lines as the document lists them),
  *   and, only in a contract changed by hand: specialTerms (free text, one clause per line)
  * }
@@ -129,16 +130,19 @@ export function agreementWording(ctx) {
   const inf = ctx.noInfluencer ? '' : ctx.influencer;
   const days = ctx.shootDays || 0;
   const content = [];
+  // Several influencers in one contract (ctx.manyInfluencers, 16.11.2026): said in the plural.
+  const many = ctx.manyInfluencers === true;
+  const leading = many || ctx.influencerId === 'simeon' ? 'משפיעני רשת מובילים בישראל' : 'משפיען רשת מוביל בישראל';
   if (inf && !pod) {
     content.push(days > 1 ? `${days} ימי צילום מקצועיים ומרוכזים עם ${inf}` : `יום צילום מקצועי ומרוכז עם ${inf}`);
-    if (TAKES_PART[ctx.influencerId]) content.push(ctx.influencerId === 'simeon' ? 'משפיעני רשת מובילים בישראל' : 'משפיען רשת מוביל בישראל');
+    if (TAKES_PART[ctx.influencerId]) content.push(leading);
     const total = (ctx.videos || 0) + (ctx.graphics || 0);
     if (total) {
-      const verb = TAKES_PART[ctx.influencerId];
+      const verb = many ? 'ישתתפו' : TAKES_PART[ctx.influencerId];
       content.push(`${days > 1 ? 'בימי הצילום' : 'ביום הצילום'} יופקו ${total} תכנים חדשים ${verb ? `ש${inf} ${verb} בהם` : `בהשתתפות ${inf}`}`);
     }
   } else if (inf && TAKES_PART[ctx.influencerId]) {
-    content.push(ctx.influencerId === 'simeon' ? 'משפיעני רשת מובילים בישראל' : 'משפיען רשת מוביל בישראל');
+    content.push(leading);
   }
   if (ctx.videos) content.push(pod ? `${ctx.videos} סרטוני פודקאסט מקצועיים` : `${ctx.videos} סרטוני רילס מקוריים וטרנדיים לרשתות החברתיות`);
   if (ctx.graphics) content.push(`${ctx.graphics} גרפיקות בהתאמה אישית עם עיצוב מקצועי וממיר`);
