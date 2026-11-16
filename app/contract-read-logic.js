@@ -36,13 +36,14 @@ export const readTooBig = (media, bytes) => Number(bytes) > (media.kind === 'doc
 export const READ_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['business', 'company_id', 'contact_name', 'package_id', 'monthly_net', 'term_months', 'signed_on', 'notes'],
+  required: ['business', 'company_id', 'contact_name', 'package_id', 'monthly_net', 'total_net', 'term_months', 'signed_on', 'notes'],
   properties: {
     business: { type: 'string' },
     company_id: { type: 'string' },
     contact_name: { type: 'string' },
     package_id: { type: 'string', enum: ['', ...PACKAGE_IDS] },
     monthly_net: { type: 'integer' },
+    total_net: { type: 'integer' },
     term_months: { type: 'integer' },
     signed_on: { type: 'string' },
     notes: { type: 'array', items: { type: 'string' } },
@@ -61,6 +62,7 @@ export function readSystemPrompt() {
     'package_id: החבילה מהרשימה, לפי שם החבילה והמשפיען שכתובים בחוזה. "משפיען לבחירה" או "משפיען מרשימת המשפיענים של אסטרטג" הוא המשפיען choice. אם החבילה לא מתאימה לאף אחת: "".',
     PACKAGE_IDS.map(packageLine).join('\n'),
     'monthly_net: התמורה החודשית בשקלים לפני מע״מ, מספר שלם (אם כתוב רק כולל מע״מ, חלק ב־1.18 ועגל). term_months: מספר חודשי ההתחייבות.',
+    'total_net: רק כשבחוזה כתוב סכום כולל לכל התקופה ולא כתוב סכום חודשי: הסכום הכולל בשקלים לפני מע״מ (אם כתוב רק כולל מע״מ, חלק ב־1.18 ועגל), ואז monthly_net הוא 0. אחרת 0.',
     'signed_on: תאריך החתימה בפורמט YYYY-MM-DD. אם אין תאריך חתימה מפורש, תאריך המסמך; אם אין גם אותו: "".',
     'notes: עד 3 משפטים קצרים בעברית על מה שלא היה ברור או חסר (למשל "החתימה לא נראית במסמך"). אם הכול ברור: [].',
   ].join('\n');
@@ -95,6 +97,17 @@ export function validateReadResult(raw, now = new Date()) {
   if (monthly && (monthly < 1 || monthly > LIMITS.monthlyMax)) drop('monthly_net', 'המחיר שנקרא לא סביר');
   const term = int(r.term_months);
   if (term && (term < 1 || term > LIMITS.termMax)) drop('term_months', 'מספר החודשים שנקרא לא סביר');
+  // Only a total for the whole term (Ofir's contract, 16.11.2026): the monthly price is the total
+  // divided by the months, and the office is told so in the notes.
+  const total = int(r.total_net);
+  const termOk = term >= 1 && term <= LIMITS.termMax;
+  let fromTotal = null;
+  if (!monthly && total > 0 && termOk) {
+    const m = Math.round(total / term);
+    if (m >= 1 && m <= LIMITS.monthlyMax) fromTotal = m;
+  }
+  const notes = (Array.isArray(r.notes) ? r.notes : []).map((n) => clip(n, LIMITS.note)).filter(Boolean);
+  if (fromTotal) notes.unshift(clip(`בחוזה כתוב רק סכום כולל (${total.toLocaleString('en-US')} ₪ לפני מע״מ): המחיר לחודש חושב, חלקי ${term} חודשים. כדאי לבדוק.`, LIMITS.note));
   const day = String(r.signed_on ?? '').trim();
   if (day && !validDay(day, now)) drop('signed_on', 'תאריך החתימה שנקרא לא תקין');
   return {
@@ -103,10 +116,10 @@ export function validateReadResult(raw, now = new Date()) {
       company_id: company.length === 9 ? company : '',
       contact_name: clip(r.contact_name, LIMITS.contact),
       package_id: pkg,
-      monthly_net: monthly >= 1 && monthly <= LIMITS.monthlyMax ? monthly : null,
+      monthly_net: monthly >= 1 && monthly <= LIMITS.monthlyMax ? monthly : fromTotal,
       term_months: term >= 1 && term <= LIMITS.termMax ? term : null,
       signed_on: validDay(day, now) ? day : '',
-      notes: (Array.isArray(r.notes) ? r.notes : []).map((n) => clip(n, LIMITS.note)).filter(Boolean).slice(0, LIMITS.notes),
+      notes: notes.slice(0, LIMITS.notes),
     },
     dropped,
   };
