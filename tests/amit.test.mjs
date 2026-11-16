@@ -90,7 +90,7 @@ test('the people: Amit on the team, an own screen, a characterizer Irit can pick
 
 test('she is told everything and can be given work, as any employee (not silent like Shiel)', () => {
   assert.equal(isSilent('amit'), false);
-  assert.deepEqual(SILENT_PEOPLE, ['shiel']);
+  assert.deepEqual(SILENT_PEOPLE, ['shiel', 'gal']); // Gal, the bookkeeper (16.11.2026): no notifications either
   assert.ok(REMINDER_PEOPLE.has('amit'));
   assert.ok(ASSIGNEES().some((p) => p.key === 'amit'), 'staff tasks ("נודניק")');
   assert.ok(ASSIGNABLE_PEOPLE().some((p) => p.key === 'amit'), 'the card\'s tasks, decisions, the pass, prep');

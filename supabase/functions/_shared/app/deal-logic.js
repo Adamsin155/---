@@ -13,13 +13,13 @@
 import { infLabel, TIERS, INFLUENCERS, PAID_ADDONS, FREE_ADDONS, MAX_DISCOUNT, maxDiscountFor, DOC_TYPES, CUSTOM_QTY, CUSTOM_LIMITS, PACKAGES, packageId } from './catalog.js';
 import { emptySelection, reconcile, formatILS } from './pricing.js';
 import { addWorkingMinutes, parseDate } from './protocol-logic.js';
-import { isSales, PEOPLE } from './protocol.js';
+import { isSales, PEOPLE, oneScreenOf } from './protocol.js';
 
 // Sales land on their page, always (clients.html and the office's pages send them
 // there): they have no client work and see nothing of the clients.
 export const SALES_SCREEN = 'deal.html';
-// Natali's makeup artist (15.11.2026): her one screen, the same way.
-export const landingOf = (person) => (isSales(person) ? SALES_SCREEN : PEOPLE[person]?.makeup ? 'makeup.html' : null);
+// Natali's makeup artist (15.11.2026) and the bookkeeper (16.11.2026): their one screen, the same way.
+export const landingOf = (person) => (isSales(person) ? SALES_SCREEN : oneScreenOf(person));
 
 // The clock: 10 minutes of office time from the moment it was taken (while nobody took it, from
 // the moment the deal came in). While nobody took it, both ring again every DEAL_MINUTES.

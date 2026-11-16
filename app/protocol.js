@@ -284,7 +284,8 @@ export const pagesOwnerOf = (c) => PAGES_INSTEAD[characterizerOf(c)] || characte
 // Who gets no notification at all (the owner, 9.11.2026: Shiel): no push, no WhatsApp, no reminder,
 // no line in the owners' 19:00 table, and nobody is reminded instead when his own work is late
 // (app/reminder-engine.js, app/day-summary.js). Nor is anyone offered to give them a task.
-export const SILENT_PEOPLE = ['shiel'];
+// Gal, the bookkeeper (16.11.2026): nothing to be told of; her screen is a list to look at.
+export const SILENT_PEOPLE = ['shiel', 'gal'];
 export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 
 // What each person sees when they sign in. 'office': their own work first, plus

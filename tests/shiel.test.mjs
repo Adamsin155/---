@@ -73,7 +73,7 @@ test('the people: Shiel on the team, an own screen, a characterizer Irit can pic
   assert.ok(OFFICE_PERSONS.includes('shiel'));
   assert.deepEqual(FN_OFFICE, OFFICE_PERSONS);
   assert.notEqual(avatarFill('shiel'), avatarFill('nobody'), 'a colour of his own');
-  assert.deepEqual(SILENT_PEOPLE, ['shiel']);
+  assert.deepEqual(SILENT_PEOPLE, ['shiel', 'gal']); // Gal, the bookkeeper (16.11.2026): no notifications either
   assert.equal(isSilent('noam'), false);
 });
 

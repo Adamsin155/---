@@ -19,9 +19,9 @@ const GATED = SCREENS.filter((p) => p !== 'gantt.html');
 const GATE = '<script src="app/login-gate.js"></script>';
 const SHEET = '<link rel="stylesheet" href="app/styles/login.css">';
 
-test('the twenty-six pages keep one small form shell; the rest is built in one place', () => {
-  // 21 since the calendar page (calendar.html, 15.10.2026); 22 with "שאלו את המערכת" (ask.html, 29.10.2026); 23 with the Claude consent page (mcp-consent.html, 30.10.2026); 24 with "מעקב לקוחות" (tracking.html, 9.11.2026); 25 with "תשלומי לקוחות" (payments.html, 11.11.2026); 26 with "הימים שלי עם נטלי" (makeup.html, 15.11.2026).
-  assert.equal(WITH_FORM.length, 26);
+test('the twenty-seven pages keep one small form shell; the rest is built in one place', () => {
+  // 21 since the calendar page (calendar.html, 15.10.2026); 22 with "שאלו את המערכת" (ask.html, 29.10.2026); 23 with the Claude consent page (mcp-consent.html, 30.10.2026); 24 with "מעקב לקוחות" (tracking.html, 9.11.2026); 25 with "תשלומי לקוחות" (payments.html, 11.11.2026); 26 with "הימים שלי עם נטלי" (makeup.html, 15.11.2026); 27 with "לקוחות לחשבוניות" (bookkeeper.html, 16.11.2026).
+  assert.equal(WITH_FORM.length, 27);
   const shells = new Set();
   for (const page of SCREENS) {
     const html = read(page);

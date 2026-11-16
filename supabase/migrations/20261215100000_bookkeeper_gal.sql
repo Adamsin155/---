@@ -38,7 +38,7 @@ grant execute on function private.bookkeeper_people() to authenticated; -- read 
 --   'payments'  the deal written on "תשלומי לקוחות" (public.client_payments, the latest deal): the
 --               retainer (before VAT) × 1.18; the whole deal = amount, only when it is that monthly
 --               amount × whole months (then it is with VAT); otherwise no total ('unclear').
--- VAT is 18% (VAT_RATE_PERCENT in app/pricing.js; tests/bookkeeper-gal.test.mjs keeps them equal).
+-- VAT is 18% (VAT_RATE_PERCENT in app/catalog.js, used by app/pricing.js; tests/sql/bookkeeper-gal.test.mjs keeps them equal).
 -- Agorot. Nothing is guessed: what is not written stays null, with `why` saying what is missing.
 create or replace function private.bookkeeper_amounts(p_client uuid, p_quote uuid)
 returns table (monthly_agorot bigint, total_agorot bigint, months integer, source text, why text)
