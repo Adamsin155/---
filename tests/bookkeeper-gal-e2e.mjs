@@ -11,7 +11,7 @@
 //   3  Gal signed in on another page (owner.html, gantt.html, team.html): sent to hers (app/shell.js).
 //   4  Nadia (an editor) on bookkeeper.html: sent to her own home, the page not in her menu; the owner sees the list.
 // Run: node <a static server> . 8481 &  then  BASE_URL=http://localhost:8481/ node tests/bookkeeper-gal-e2e.mjs
-// SHOTS=1 SHOTS_OUT=<dir> also saves bookkeeper-390.png, bookkeeper-390-search.png, bookkeeper-1366.png,
+// SHOTS=1 SHOTS_OUT=<dir> also saves bookkeeper-390-top.png, bookkeeper-390-card-0..3.png, bookkeeper-390-search.png, bookkeeper-1366.png,
 // bookkeeper-1366-search.png, bookkeeper-owner-1366.png, bookkeeper-nadia-390.png.
 import { chromium, webkit, devices } from 'playwright';
 import assert from 'node:assert/strict';
@@ -124,7 +124,11 @@ await step('1  iPhone (WebKit): her one screen; the search typed key by key and 
   await galScreen(page);
   assert.equal(await page.evaluate(() => document.body.classList.contains('has-tabbar')), false, 'no bottom bar');
   assert.equal(await page.locator('a[href="clients.html#mine"]:visible, a[href="calendar.html"]:visible, a[href="ask.html"]:visible, a[href="gantt.html"]:visible').count(), 0);
-  if (SHOTS) await page.screenshot({ path: `${OUT}bookkeeper-390.png`, fullPage: true });
+  if (SHOTS) {
+    // The whole list is longer than a screenshot may be: the top, and the cards worth looking at.
+    await page.screenshot({ path: `${OUT}bookkeeper-390-top.png` });
+    for (const n of [0, 1, 2, 3]) await page.locator('.bk-card', { hasText: ROWS[n].business }).screenshot({ path: `${OUT}bookkeeper-390-card-${n}.png` });
+  }
   // The search, key by key.
   const q = page.locator('#bk-q');
   assert.equal(await q.evaluate((el) => parseFloat(getComputedStyle(el).fontSize) >= 16), true, 'no zoom on focus');
@@ -222,6 +226,9 @@ await step('4  an editor is sent home, the page not in her menu; the owner sees 
   const o = await signedIn(browser, { viewport: { width: 1366, height: 900 } }, 'owner', 'bookkeeper.html');
   await o.page.locator('#bk-0').waitFor();
   assert.equal(await o.page.locator('.bk-card').count(), ROWS.length);
+  await settle(o.page);
+  await o.page.locator('#login-block').waitFor({ state: 'hidden' }).catch(() => {});
+  await o.page.waitForTimeout(1500);
   if (SHOTS) await o.page.screenshot({ path: `${OUT}bookkeeper-owner-1366.png` });
   await o.ctx.close(); await browser.close();
 });

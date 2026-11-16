@@ -14,9 +14,10 @@
 .bk-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
 .bk-title { margin: 0; font-size: 19px; line-height: 1.3; overflow-wrap: anywhere; min-width: 0; }
 .bk-fields { margin: 0; display: grid; gap: 0; }
-.bk-row { display: grid; grid-template-columns: 8.6em minmax(0, 1fr); gap: 8px; align-items: center; padding: 3px 0; border-top: 1px solid var(--ds-line); min-height: 44px; }
+/* The label above its value, the value the whole width beside its copy button (a long name or email wraps less). */
+.bk-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; padding: 6px 0; border-top: 1px solid var(--ds-line); }
 .bk-row:first-child { border-top: 0; }
-.bk-label { color: var(--ds-muted); font-size: 14px; font-weight: 600; line-height: 1.3; }
+.bk-label { color: var(--ds-muted); font-size: 13px; font-weight: 600; line-height: 1.3; }
 .bk-cell { margin: 0; display: flex; align-items: center; gap: 6px; min-width: 0; justify-content: space-between; }
 .bk-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
 .bk-val { font-weight: 600; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
@@ -33,8 +34,10 @@
 .bk-note { margin: 0; padding: 8px 10px; border-radius: var(--ds-r-sm, 8px); background: var(--ds-amber-soft); color: var(--text); font-size: 14px; line-height: 1.45; }
 .bk-source { margin: 0; color: var(--ds-muted); font-size: 13px; }
 .bk-clip { position: fixed; inset-block-start: 0; inset-inline-start: 0; opacity: 0; pointer-events: none; }
-@media (max-width: 380px) {
-  .bk-row { grid-template-columns: 7.2em minmax(0, 1fr); }
-  .bk-card { padding: 12px; }
+@media (max-width: 380px) { .bk-card { padding: 12px; } }
+/* A wide screen with a mouse: the label beside its value and a smaller button, so a card is half as tall. */
+@media (min-width: 900px) and (hover: hover) {
+  .bk-row { grid-template-columns: 9.5em minmax(0, 1fr); gap: 10px; align-items: center; padding: 4px 0; }
+  .bk-copy { inline-size: 36px; block-size: 36px; }
 }
 @media (prefers-reduced-motion: reduce) { .bk-copy { transition: none; } .bk-copy:active { transform: none; } }
