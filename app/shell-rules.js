@@ -9,7 +9,7 @@
 // modules (tests/shell.test.mjs holds them equal for every role).
 // Screens only: what anyone may read or open is decided by the database and by each
 // page's own gate. No DOM here, so node can test it.
-import { PEOPLE, isSales, isMakeup } from './protocol.js';
+import { PEOPLE, isSales, isMakeup, isBookkeeper } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
 import { canAsk } from './ask-logic.js';
 import {
@@ -26,7 +26,7 @@ const seesAllClients = (v) => canSeeTable(v);
 const seesPayments = (v) => isOwnerView(v) || (known(v) && v.me === 'ofir');
 // The calendar page ("יומן", calendar.html; 15.10.2026): everyone with client work, not the
 // field sales (as seesCalendar in calendar-view.js).
-const seesCalendar = (v) => known(v) && v.scope !== 'sales' && v.scope !== 'makeup' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
+const seesCalendar = (v) => known(v) && v.scope !== 'sales' && v.scope !== 'makeup' && v.scope !== 'bookkeeper' && !isSales(v.me) && (v.scope === 'office' || !!v.me);
 // The pink "לקוח חדש" on clients.html (the owner, 20.10.2026; Lior and Ofir since
 // 27.10.2026): the owners, Irit, Lior and Ofir (processes 2–3 are Irit's; a signed agreement
 // opens its client by itself, app/client-open.js, and the field sales have no clients list).
@@ -76,6 +76,7 @@ export function officeScreens(viewer) {
 
 export const QUOTE_LABEL = 'הצעה חדשה והכנת חוזה';
 export const MAKEUP_ITEM = { id: 'makeup', href: 'makeup.html', label: 'הימים שלי עם נטלי' };
+export const BOOKKEEPER_ITEM = { id: 'bookkeeper', href: 'bookkeeper.html', label: 'לקוחות לחשבוניות' };
 const ASK_ITEM = { id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' };
 // Every screen this person may open, in the menu's order. The owners, Irit, Ofir and
 // Lior see this list in two parts, one profile at a time: profileMenu below.
@@ -85,6 +86,8 @@ export function menuOf(viewer) {
   if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, ASK_ITEM];
   // Natali's makeup artist (15.11.2026; docs/ops.md, section 133): her one screen, and nothing else.
   if (known(viewer) && isMakeup(me)) return [MAKEUP_ITEM];
+  // The bookkeeper (16.11.2026; docs/ops.md, section 137): her one screen, and nothing else.
+  if (known(viewer) && isBookkeeper(me)) return [BOOKKEEPER_ITEM];
   const list = [{ id: 'mine', href: MODES.mine.href, label: MODES.mine.label }];
   if (!known(viewer)) return list; // not identified: nothing is assumed
   const office = officeOf(viewer);
@@ -149,6 +152,7 @@ function unique(list) {
 export const homeLink = (viewer) => (known(viewer) && isSales(viewer.me)
   ? { href: 'deal.html', label: 'מעבר לעסקה חדשה' }
   : known(viewer) && isMakeup(viewer.me) ? { href: 'makeup.html', label: 'מעבר לימים שלי עם נטלי' }
+  : known(viewer) && isBookkeeper(viewer.me) ? { href: 'bookkeeper.html', label: 'מעבר ללקוחות לחשבוניות' }
     : { href: MODES.mine.href, label: 'מעבר להמשימות שלי' });
 
 // The person's home: the one answer to "where does this person start" (the owner's rule,

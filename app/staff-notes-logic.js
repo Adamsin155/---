@@ -22,7 +22,7 @@ export const personOfViewer = (viewer) => {
 export const canWriteNotes = (viewer) => WRITERS.includes(personOfViewer(viewer));
 // Whom a note can be written to: everyone on the team, in the team's order.
 // Not Natali's makeup artist (15.11.2026): her one screen has no place for a note.
-export const NOTE_PEOPLE = () => TEAM_PEOPLE().filter((p) => !p.makeup).map((p) => ({ key: p.key, name: p.name }));
+export const NOTE_PEOPLE = () => TEAM_PEOPLE().filter((p) => !p.makeup && !p.bookkeeper).map((p) => ({ key: p.key, name: p.name }));
 export const personName = (key) => (key === OWNER ? 'הבעלים' : PEOPLE[key]?.name || key || '');
 // Where the push opens: the person's first screen (the note is on every page).
 export const noteUrl = (person) => (isSales(person) ? 'deal.html' : 'clients.html#mine');
