@@ -1858,14 +1858,17 @@ export const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 //     dates and the shoot days that sit on them (urgent; on
 //     Lior's shoot day it goes to Ofir, decision 8). Up to two days ahead it rings
 //     outside the sending hours too; further ahead it waits for them.
+// Since 16.11.2026 (the owner; docs/ops.md, section 136) Eli hands nothing over: these
+// rules follow HANDS_OVER (who hands it over himself, signed in), which is now empty, so
+// none of them fires; Eliel's month is entered by the office and was never reminded about.
 import {
-  PHOTOGRAPHERS, MANAGERS as AVAIL_MANAGERS, DEADLINE_DAY as AVAIL_DAY, AVAILABILITY_URL, OFFICE_URL as AVAIL_OFFICE_URL,
+  HANDS_OVER, MANAGERS as AVAIL_MANAGERS, DEADLINE_DAY as AVAIL_DAY, AVAILABILITY_URL, OFFICE_URL as AVAIL_OFFICE_URL,
   askOf as availAsk, remindTimes as availTimes, missingForManagers, monthRow as availRow, monthName as availMonth, monthOfDay as availMonthOf,
   freeSummary, daysWords as availDays, dayShort as availDay, shootsByDay,
 } from './availability-logic.js';
 const availMissing = (env) => {
   const ask = availAsk(env.now);
-  return PHOTOGRAPHERS.filter((p) => env.hasStaff(p) && !availRow(env.availability?.months, p, ask.month))
+  return HANDS_OVER.filter((p) => env.hasStaff(p) && !availRow(env.availability?.months, p, ask.month))
     .map((p) => ({ id: `${p}:${ask.month}`, cid: null, who: p, month: ask.month, monthText: availMonth(ask.month, env.now) }));
 };
 const AVAILABILITY_RULES = [
@@ -1896,7 +1899,7 @@ const AVAILABILITY_RULES = [
   {
     id: 'availabilitySubmitted', event: 'הצלם מסר זמינות', procs: [],
     instances(env) {
-      return (env.availability?.months || []).filter((m) => PHOTOGRAPHERS.includes(m.person) && m.by_person === m.person && parseDate(m.submitted_at) && env.now - parseDate(m.submitted_at) < 2 * 864e5)
+      return (env.availability?.months || []).filter((m) => HANDS_OVER.includes(m.person) && m.by_person === m.person && parseDate(m.submitted_at) && env.now - parseDate(m.submitted_at) < 2 * 864e5)
         .map((m) => ({ id: `${m.person}:${availMonthOf(m.month)}`, cid: null, who: m.person, row: m, monthText: availMonth(availMonthOf(m.month), env.now), url: AVAIL_OFFICE_URL, anchors: { event: parseDate(m.submitted_at) } }));
     },
     steps: [
@@ -1907,7 +1910,7 @@ const AVAILABILITY_RULES = [
     id: 'availabilityChange', event: 'בלת״ם של הצלם', procs: [],
     instances(env) {
       const shoots = shootsByDay(env.clients);
-      return (env.availability?.changes || []).filter((c) => PHOTOGRAPHERS.includes(c.person) && parseDate(c.reported_at) && (c.days || []).length).map((c) => {
+      return (env.availability?.changes || []).filter((c) => HANDS_OVER.includes(c.person) && parseDate(c.reported_at) && (c.days || []).length).map((c) => {
         const days = c.days.map((d) => String(d).slice(0, 10)).sort();
         // What sits on them now, by client (a shoot day the office moved since is not named).
         const held = days.filter((d) => shoots.has(d)).map((d) => `${availDay(d)}: ${names(shoots.get(d))}`);
@@ -1948,6 +1951,7 @@ for (const r of AVAILABILITY_RULES) RULE_BY_ID.set(r.id, r);
 // the sending hours; a shoot day up to two days ahead is told at any hour (`ownHours`),
 // like a בלת״ם: he must not drive to a shoot that moved the evening before.
 import { shootCases } from './production.js';
+import { PHOTOGRAPHERS as CREW } from './protocol.js';
 export const SHOOT_SET = 'shootSet';
 const TOLD_KEY = /^shootSet:([^:]+):(((?:r\d+-)?p17b)@(.+?)(?:#\d+)?):(set|changed|cancelled)@([a-z]+)$/;
 // What one of this rule's log rows told, read from its key.
@@ -1963,7 +1967,9 @@ const SHOOT_SET_RULE = {
   instances(env) {
     const out = [];
     const soon = (d) => daysBetweenIL(env.now, d) <= 2;
-    for (const who of PHOTOGRAPHERS.filter((p) => env.hasStaff(p))) {
+    // Every photographer with an account (protocol.js's crew: whether or not he hands over
+    // an availability; Eli stopped on 16.11.2026 and is still told of every shoot day).
+    for (const who of Object.keys(CREW).filter((p) => env.hasStaff(p))) {
       const told = (env.shootTold || []).map(toldOf).filter((t) => t && t.person === who).sort((a, b) => a.id - b.id);
       const last = new Map(told.map((t) => [`${t.cid}:${t.proc}`, t])); // client and process → the latest row
       // What he had been told before a row (for "במקום…").

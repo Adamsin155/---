@@ -875,6 +875,30 @@ function shootCrewShown() {
   const crew = soloOf($('shoot-type').value);
   $('shoot-at-l').textContent = crew ? 'מתי הצילום? (שעת הצילום)' : 'מתי מגיעים המשפיענים?';
   shootHint?.refresh?.();
+  if (shootTarget && shootDlg.open) showFreeDays(shootTarget.g);
+}
+// The day's photographer's next free days, as chips. Only a photographer whose availability
+// is kept has them (Eliel; Eli hands none over since 16.11.2026): none for anyone else.
+async function showFreeDays(g) {
+  const who = soloOf($('shoot-type').value) || 'eli';
+  fill($('shoot-free'));
+  $('shoot-free').hidden = true;
+  try {
+    const A = await import('./availability-ui.js');
+    const free = await A.freeDaysAhead({ me, who });
+    if (shootTarget?.g !== g || !shootDlg.open || !free || (soloOf($('shoot-type').value) || 'eli') !== who) return;
+    fill($('shoot-free'), h('span', { class: 'hint' }, free.length ? 'הימים הפנויים הקרובים של הצלם:' : 'לצלם אין ימים פנויים שנמסרו בחודשיים הקרובים.'),
+      ...free.map((d) => h('button', {
+        type: 'button', class: 'chip', 'data-day': d,
+        onclick: () => {
+          const time = ($('shoot-at').value || '').slice(11, 16) || '10:00';
+          $('shoot-at').value = `${d}T${time}`;
+          $('shoot-at').dispatchEvent(new Event('change', { bubbles: true }));
+          $('shoot-at').focus();
+        },
+      }, dayShort(d))));
+    $('shoot-free').hidden = false;
+  } catch { /* the date can still be typed */ }
 }
 $('shoot-type').addEventListener('change', shootCrewShown);
 shootDlg.addEventListener('click', (e) => { if (e.target.closest('[data-close]') || e.target === shootDlg) shootDlg.close(); });
@@ -901,20 +925,8 @@ async function openShoot(g, focusId) {
     shootHint.id = 'shoot-avail';
     fill($('shoot-avail-slot'), shootHint);
     if ($('shoot-at').value) shootHint.refresh();
-    const free = await A.freeDaysAhead({ me });
-    if (shootTarget?.g !== g || !shootDlg.open || !free) return;
-    fill($('shoot-free'), h('span', { class: 'hint' }, free.length ? 'הימים הפנויים הקרובים של הצלם:' : 'לצלם אין ימים פנויים שנמסרו בחודשיים הקרובים.'),
-      ...free.map((d) => h('button', {
-        type: 'button', class: 'chip', 'data-day': d,
-        onclick: () => {
-          const time = ($('shoot-at').value || '').slice(11, 16) || '10:00';
-          $('shoot-at').value = `${d}T${time}`;
-          $('shoot-at').dispatchEvent(new Event('change', { bubbles: true }));
-          $('shoot-at').focus();
-        },
-      }, dayShort(d))));
-    $('shoot-free').hidden = false;
   } catch { /* the date can still be typed */ }
+  await showFreeDays(g);
 }
 $('shoot-form').addEventListener('submit', async (ev) => {
   ev.preventDefault();
