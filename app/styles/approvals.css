@@ -201,7 +201,7 @@ label .tag-ai, legend .tag-ai, h3 .tag-ai, .tile-title .tag-ai { margin-inline-s
 .custom-also small { font-size: 12.5px; color: var(--ds-muted); line-height: 1.5; }
 .custom-per { grid-column: 1 / -1; gap: 4px; }
 .custom-per-h { font-size: 14px; font-weight: 600; }
-.custom-per-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 4px 0; border-top: 1px solid var(--ds-line); }
+.custom-per-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--ds-line); }
 .custom-per-row:first-of-type { border-top: 0; }
 .custom-per-row label { font-size: 14px; font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
 .custom-per .stepper { grid-template-columns: 46px 60px 46px; height: 47px; }

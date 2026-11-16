@@ -634,7 +634,7 @@ function postsTile(q) {
   const all = contractInfluencers(state);
   const byAi = aiLive.has('posts');
   return h('div', { class: 'custom-q custom-per' + (byAi ? ' is-ai' : ''), role: 'group', 'aria-labelledby': `cp-${q.key}-h` },
-    h('span', { class: 'custom-per-h', id: `cp-${q.key}-h` }, `${q.name} לפי משפיען`, byAi ? aiTag() : null),
+    h('span', { class: 'custom-per-h', id: `cp-${q.key}-h` }, q.key === 'collabs' ? 'קולאבים באינסטגרם, לפי משפיען' : 'סטורי, לפי משפיען', byAi ? aiTag() : null),
     ...all.map((id) => {
       const fid = `cp-${q.key}-${id}`;
       const value = postsNow(state.custom, state, id, q.key);
