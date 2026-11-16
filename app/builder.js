@@ -449,6 +449,7 @@ function selectionToSend() {
   if (c.noInfluencer === true) custom.noInfluencer = true;
   if (c.addonsIncluded === true) custom.addonsIncluded = true;
   if (e.packageName) custom.packageName = e.packageName;
+  if (e.influencerName) custom.influencerName = e.influencerName;
   return normalizeSelection({ ...rest, discount: 0, custom });
 }
 
@@ -464,6 +465,8 @@ function quoteEdit(edit) {
   if (Number.isInteger(edit.price) && edit.price >= 0 && edit.price <= CUSTOM_LIMITS.priceMax) out.price = edit.price;
   const name = String(edit.name ?? '').replace(NAME_STRIP, '').replace(/\s+/g, ' ').trim().slice(0, CUSTOM_LIMITS.packageName);
   if (name) out.packageName = name;
+  const inf = String(edit.inf ?? '').replace(NAME_STRIP, '').replace(/s+/g, ' ').trim().slice(0, CUSTOM_LIMITS.influencerName);
+  if (inf) out.influencerName = inf;
   return out;
 }
 // The package's price typed for this quote, or undefined (the catalog's).
@@ -493,6 +496,10 @@ function renderQuoteEdit() {
   $('qe-price-was').textContent = changed ? `במחירון: ${formatILS(pkg.price)} · שונה להצעה הזו` : `כמו במחירון: ${formatILS(pkg.price)}`;
   if (document.activeElement !== $('qe-name')) $('qe-name').value = state.edit?.name || '';
   $('qe-name').placeholder = TIERS.find((t) => t.id === state.tier).name;
+  // The influencers' name (15.11.2026): not in a contract "בלי משפיענים".
+  $('qe-inf').closest('.field').hidden = state.custom?.noInfluencer === true;
+  if (document.activeElement !== $('qe-inf')) $('qe-inf').value = state.edit?.inf || '';
+  $('qe-inf').placeholder = INFLUENCERS[state.influencer]?.name || '';
 }
 $('qe-price').addEventListener('input', (e) => {
   const pkg = PACKAGES[packageId(state.tier, state.influencer)];
@@ -506,7 +513,12 @@ $('qe-name').addEventListener('input', (e) => {
   update({ edit }, { focus: 'qe-name' });
 });
 // Leaving a field: it shows what counts (a price past the limit, a blank one back to the catalog's).
-for (const id of ['qe-price', 'qe-name']) $(id).addEventListener('blur', () => renderQuoteEdit());
+$('qe-inf').addEventListener('input', (e) => {
+  const edit = { ...(state.edit || {}) };
+  if (e.target.value.trim()) edit.inf = e.target.value.slice(0, CUSTOM_LIMITS.influencerName); else delete edit.inf;
+  update({ edit }, { focus: 'qe-inf' });
+});
+for (const id of ['qe-price', 'qe-name', 'qe-inf']) $(id).addEventListener('blur', () => renderQuoteEdit());
 // The most the discount field takes: 200 ₪ (800 ₪ in a podcast package, 28.10.2026), or the whole
 // monthly price in a custom contract.
 function discountMax() {
@@ -948,6 +960,7 @@ function restoreDraft(forDeal = null, forRevise = null) {
     state.edit = {
       ...(Number.isInteger(e.price) && e.price >= 0 && e.price <= CUSTOM_LIMITS.priceMax ? { price: e.price } : {}),
       ...(typeof e.name === 'string' && e.name.trim() ? { name: e.name.slice(0, CUSTOM_LIMITS.packageName) } : {}),
+      ...(typeof e.inf === 'string' && e.inf.trim() ? { inf: e.inf.slice(0, CUSTOM_LIMITS.influencerName) } : {}),
     };
     const a = draft.ai;
     ai = a && typeof a === 'object' && a.marks && typeof a.marks === 'object'

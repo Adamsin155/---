@@ -181,7 +181,7 @@ test('the catalog: every package line that can be changed is known by its positi
     for (const q of CUSTOM_QTY) if (q.label && base[q.key] > 0) assert.ok(keys.includes(q.key), `${id} ${q.key}`);
     for (const k of ['videos', 'graphics', 'shootDays', 'collabs', 'stories', 'ch14']) assert.equal(base[k], SPECS[id][k]);
   }
-  assert.deepEqual(CUSTOM_LIMITS, { termMin: 1, termMax: 36, priceMax: 10000000, lines: 10, lineLabel: 120, lineQtyMax: 999, linePriceMax: 5000000, terms: 2000, packageName: 60 });
+  assert.deepEqual(CUSTOM_LIMITS, { termMin: 1, termMax: 36, priceMax: 10000000, lines: 10, lineLabel: 120, lineQtyMax: 999, linePriceMax: 5000000, terms: 2000, packageName: 60, influencerName: 60 });
 });
 
 test('the document: quantities, added lines and the term come from the customised values', () => {

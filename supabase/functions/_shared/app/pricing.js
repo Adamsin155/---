@@ -126,7 +126,7 @@ const cleanLine = (v) => String(v ?? '').replace(BIDI, '').replace(/\s+/g, ' ').
 const cleanBlock = (v) => String(v ?? '').replace(BIDI, '').replace(/\r\n?/g, '\n').replace(/[^\S\n]+/g, ' ')
   .split('\n').map((l) => l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName'];
+const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName', 'influencerName'];
 // A name typed for the document: no markup and no control characters (it is drawn as text anyway).
 const NAME_BAD = /[<>{}\`\u0000-\u001f\u007f]/;
 // What an influencer brings to a package: none of it in a contract "בלי משפיענים".
@@ -172,6 +172,11 @@ function customErrors(sel, selectionOk) {
     const name = typeof c.packageName === 'string' ? cleanLine(c.packageName) : '';
     if (typeof c.packageName !== 'string' || name.length > CUSTOM_LIMITS.packageName) errors.push('custom package name too long');
     else if (NAME_BAD.test(c.packageName)) errors.push('custom package name has characters that are not allowed');
+  }
+  if (given(c.influencerName)) {
+    const name = typeof c.influencerName === 'string' ? cleanLine(c.influencerName) : '';
+    if (typeof c.influencerName !== 'string' || name.length > CUSTOM_LIMITS.influencerName) errors.push('custom influencer name too long');
+    else if (NAME_BAD.test(c.influencerName)) errors.push('custom influencer name has characters that are not allowed');
   }
   // The discount can never be more than the price it is taken from (a regular discount too, once
   // the price was lowered by hand).
@@ -245,6 +250,9 @@ export function normalizeSelection(sel) {
   // The package's name for this document: dropped when empty or the catalog's own.
   const shown = typeof raw.packageName === 'string' ? cleanLine(raw.packageName) : '';
   if (shown && shown !== TIERS.find((t) => t.id === rest.tier)?.name) c.packageName = shown;
+  // The influencers' name for this document (15.11.2026): dropped when empty or the catalog's own.
+  const infShown = typeof raw.influencerName === 'string' ? cleanLine(raw.influencerName) : '';
+  if (infShown && infShown !== INFLUENCERS[rest.influencer]?.name) c.influencerName = infShown;
   // A discount the seller may give anyway is a regular discount.
   if (Number.isInteger(raw.discount)) {
     if (raw.discount > maxDiscountFor(rest.tier)) { c.discount = raw.discount; rest.discount = 0; } else rest.discount = raw.discount;
@@ -281,6 +289,7 @@ export function exceptionOf(selection) {
   if (c.noInfluencer) out.push({ kind: 'noInfluencer', text: 'בלי משפיענים' });
   if (c.addonsIncluded) out.push({ kind: 'addonsIncluded', text: 'התוספות כלולות במחיר החודשי' });
   if (c.packageName) out.push({ kind: 'packageName', to: c.packageName, text: `שם החבילה בהצעה: ${c.packageName}` });
+  if (c.influencerName) out.push({ kind: 'influencerName', to: c.influencerName, text: `שם המשפיענים בהצעה: ${c.influencerName}` });
   return out;
 }
 export const isExceptional = (selection) => exceptionOf(selection).length > 0;
@@ -379,7 +388,7 @@ function agreementContext(sel, { tier, paid, free, totals, includes }) {
     // The name the managers gave the package for this document, or the catalog's.
     packageName: sel.custom?.packageName || tier.name,
     // "משפיען לבחירה": said as the one to be chosen, never as a name.
-    influencer: noInfluencer(sel) ? '' : infText(sel.influencer),
+    influencer: noInfluencer(sel) ? '' : sel.custom?.influencerName || infText(sel.influencer),
     noInfluencer: noInfluencer(sel),
     tier: sel.tier,
     influencerId: noInfluencer(sel) ? null : sel.influencer,
@@ -460,6 +469,9 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
       // the catalog's: the office's lists and the client's card keep the real package.
       ...(custom?.packageName ? { shownName: custom.packageName } : {}),
       influencer: noInfluencer(sel) ? NO_INFLUENCER : INFLUENCERS[sel.influencer].name,
+      // The influencers' name this document shows (custom.influencerName, 15.11.2026); `influencer`
+      // stays the catalog's for the office's lists.
+      ...(custom?.influencerName && !noInfluencer(sel) ? { shownInfluencer: custom.influencerName } : {}),
       monthly: price,
       term: price * term,
       includes,
@@ -490,6 +502,7 @@ export const NO_INFLUENCER = 'בלי משפיענים';
 // business (or name) when given; else nothing ("הצעת מחיר").
 function coverNameOf(sel, client) {
   const clean = (v) => String(v || '').replace(BIDI, '').replace(/\s+/g, ' ').trim();
+  if (!noInfluencer(sel) && sel.custom?.influencerName) return sel.custom.influencerName;
   if (!noInfluencer(sel) && !isChoice(sel.influencer)) return INFLUENCERS[sel.influencer].name;
   return clean(client.company) || clean(client.name);
 }

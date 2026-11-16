@@ -277,4 +277,7 @@ export const CUSTOM_LIMITS = {
   terms: 2000,
   // The package's name as the document shows it, for this quote only (the owner, 9.11.2026).
   packageName: 60,
+  // The influencers' name as the document shows it, for this quote only (the owner, 15.11.2026:
+  // "סמיון, מישל ודניס + הצל" on the cover and on the package).
+  influencerName: 60,
 };

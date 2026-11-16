@@ -54,7 +54,7 @@ test('every quote is for the office: is_office decides, a staff login alone is n
 // Adam and Idan, Irit, Ofir, Lior); anyone else is refused. The values are checked by the engine and the
 // totals are always computed on the server.
 test('the price and the package name of one quote: the managers only, checked and recomputed', async () => {
-  assert.deepEqual(QUOTE_EDIT_KEYS, ['price', 'packageName']);
+  assert.deepEqual(QUOTE_EDIT_KEYS, ['price', 'packageName', 'influencerName']);
   const base = { ...emptySelection(), tier: 'social', influencer: 'niro' };
   assert.equal(editsQuote(base), false);
   assert.equal(editsQuote({ ...base, custom: { termMonths: 6 } }), false);
@@ -97,4 +97,33 @@ test('the price and the package name of one quote: the managers only, checked an
   assert.equal(m.package.tierName, 'Social all in one');
   assert.equal(m.package.shownName, 'ALL IN ONE');
   assert.equal(buildQuoteModel(base, {}).package.monthly, 390000);
+});
+
+// "שם המשפיענים בהצעה" (the owner, 15.11.2026: "סמיון, מישל ודניס + הצל" in the title): the managers
+// only, as the package's name; on the cover, on the package and in the agreement's words.
+test('the name of the influencers in one quote: shown on the cover and the package, the catalog unchanged', () => {
+  const base = { ...emptySelection(), docType: 'quote', tier: 'social', influencer: 'simeon' };
+  assert.equal(editsQuote({ ...base, custom: { influencerName: 'x' } }), true);
+  const ok = (custom) => validateSelection({ ...base, custom });
+  ok({ influencerName: 'סמיון, מישל ודניס + הצל' });
+  ok({ influencerName: 'א'.repeat(60) });
+  for (const bad of [{ influencerName: 'א'.repeat(61) }, { influencerName: '<b>' }, { influencerName: 7 }]) {
+    assert.throws(() => ok(bad), /custom influencer name/, JSON.stringify(bad));
+  }
+  // The catalog's own name and a blank one are dropped.
+  assert.equal(normalizeSelection({ ...base, custom: { influencerName: ' סמיון, מישל ודניס ' } }).custom, undefined);
+  assert.equal(normalizeSelection({ ...base, custom: { influencerName: '  ' } }).custom, undefined);
+  const sel = normalizeSelection({ ...base, custom: { influencerName: ' סמיון,  מישל ודניס + הצל ' } });
+  assert.deepEqual(sel.custom, { influencerName: 'סמיון, מישל ודניס + הצל' });
+  const m = buildQuoteModel(sel, {});
+  assert.equal(m.package.influencer, 'סמיון, מישל ודניס');
+  assert.equal(m.package.shownInfluencer, 'סמיון, מישל ודניס + הצל');
+  assert.equal(m.wording.cover.title, 'הצעת מחיר סמיון, מישל ודניס + הצל');
+  assert.equal(m.totals.monthlyNet, 390000);
+  // An agreement says it in its clauses too.
+  const a = buildQuoteModel({ ...sel, docType: 'agreement' }, { name: 'x' });
+  assert.ok(JSON.stringify(a.wording).includes('עם סמיון, מישל ודניס + הצל'));
+  // "בלי משפיענים": no name of influencers anywhere.
+  const none = buildQuoteModel(normalizeSelection({ ...base, custom: { influencerName: 'הצל', noInfluencer: true } }), {});
+  assert.equal(none.package.shownInfluencer, undefined);
 });

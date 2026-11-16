@@ -46,7 +46,7 @@ export async function callerIsOffice(rpc) {
 // price typed in "חוזה מותאם אישית" too (the same field). The engine (app/pricing.js) checks the
 // values themselves: the price 0 to 100,000 ₪, the name up to 60 characters with no markup, and the
 // totals are always computed from them on the server.
-export const QUOTE_EDIT_KEYS = ['price', 'packageName'];
+export const QUOTE_EDIT_KEYS = ['price', 'packageName', 'influencerName'];
 export const editsQuote = (sel) => !!sel?.custom && typeof sel.custom === 'object'
   && QUOTE_EDIT_KEYS.some((k) => sel.custom[k] !== undefined && sel.custom[k] !== null);
 export async function callerMayEditQuote(rpc) {
