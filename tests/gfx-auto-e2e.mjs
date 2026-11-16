@@ -165,6 +165,7 @@ async function signIn(page, who) {
   await page.click('#lg-submit');
   await page.locator('#app:not([hidden])').waitFor();
   await page.locator('#staff-tasks-card:not([hidden])').waitFor();
+  await page.waitForTimeout(1500); // the sign-in card fades out
 }
 const shot = async (page, name, sel = null) => {
   if (!SHOTS) return;
@@ -267,7 +268,8 @@ try {
     if (await page.getAttribute('#st-open-toggle', 'aria-expanded') !== 'true') await page.locator('#st-open-toggle').click();
     const open = page.locator('.st-item', { hasText: 'להכין גרפיקות לחנוכה' });
     assert.match(await open.locator('.st-gfx').innerText(), /להכין · 4 מתוך 10/);
-    await shot(page, 'gfx-irit-lists-1366', '#staff-tasks-card');
+    await page.locator('.st-item', { hasText: 'מוסך הדגמה- להכין עוד גרפיקות' }).scrollIntoViewIfNeeded();
+    await shot(page, 'gfx-irit-lists-1366');
   });
 
   await step('2 WebKit iPhone 13, Irit: the same form, the number typed key by key', async () => {
