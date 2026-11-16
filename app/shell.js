@@ -18,7 +18,7 @@ import { shellState, SHELL_KEY } from './shell-state.js';
 import './session-store.js'; // every page with the shell: a kept page belongs to one account (docs/ops.md, section 60)
 import { h } from './quote-doc.js';
 import { mountNoteBanner } from './staff-notes-ui.js';
-import { PEOPLE, scopeOf, isSilent } from './protocol.js';
+import { PEOPLE, scopeOf, isSilent, oneScreenOf } from './protocol.js';
 import { setMode, modeOf } from './manager-rules.js';
 import {
   menuOf, profileMenu, profileOf, profileSwitch, barOf, groupsOf, currentOf, inMenu, avatarFill, initialsOf, nameOf,
@@ -351,6 +351,10 @@ export async function mountShell(email) {
   // The entrance starts when the page is shown (it is built out of sight: data-boot, protocol-ui.js).
   whenShown(() => enterPage());
   const viewer = await viewerFor(email);
+  // Whoever has one screen and nothing else (Tal, 15.11.2026; Gal, 16.11.2026) is on it, whatever
+  // page was opened (a saved link, the address bar). The database answers them nothing elsewhere.
+  const one = viewer && !viewer.error ? oneScreenOf(viewer.me) : null;
+  if (one && location.pathname.split('/').pop() !== one) { location.replace(one); return; }
   build(viewer, email);
   remember(viewer, email);
 }
