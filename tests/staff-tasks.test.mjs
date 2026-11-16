@@ -457,7 +457,7 @@ test('the card\'s lists: mine (oldest first), what I gave (the owner: everyone\'
   assert.deepEqual([irit.mine.map((t) => t.id), irit.given.open.map((t) => t.id), irit.given.closed.map((t) => t.id)], [['c'], ['a'], ['e', 'd']]);
   const owner = taskLists(all, VIEW.owner, now);
   assert.deepEqual([owner.mine, owner.given.open.map((t) => t.id), owner.given.closed.map((t) => t.id)], [[], ['a', 'c', 'b'], ['e', 'd']]);
-  assert.deepEqual(taskLists(all, VIEW.unknown, now), { mine: [], given: { open: [], closed: [] } });
+  assert.deepEqual(taskLists(all, VIEW.unknown, now), { mine: [], auto: [], given: { open: [], closed: [] } });
   // Lior gives too since 21.10.2026: he sees what he gave, not what someone else gave.
   assert.deepEqual(taskLists([task({ id: 'g', created_by: 'lior', assignee: 'eli' }), task({ id: 'h', created_by: 'irit', assignee: 'eli' })], VIEW.lior, now).given.open.map((t) => t.id), ['g']);
 });

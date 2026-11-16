@@ -19,6 +19,8 @@ import {
   canGive, personOfViewer, ASSIGNEES, personName, validateTask, BODY_MAX, taskLists, nextNagAt, nextTaskAt, nagOpen, NAG_EVERY,
   needsBrief, NAG_BRIEF, BRIEF_MAX, briefLines,
 } from './staff-tasks-logic.js';
+import { GFX_KINDS, GFX_COUNT_MAX, isAuto, progressText } from './gfx-auto-logic.js';
+import { isGraphics } from './protocol.js';
 
 // The state of a "נודניק" as the sender reads it (STATUS_TEXT in the logic speaks of a task).
 const STATE_TEXT = { open: 'פתוח', done: 'בוצע', cancelled: 'בוטל' };
@@ -27,6 +29,9 @@ const STATE_TEXT = { open: 'פתוח', done: 'בוצע', cancelled: 'בוטל' }
 const BASE_COLS = 'id, created_at, created_by, created_by_email, assignee, body, client_id, client_name, status, done_at, done_by_email, cancelled_at';
 // The brief of a task for Nirel (protocol v10; the column comes with migration 20261024100000).
 const COLS = `${BASE_COLS}, brief, claimed_at`;
+// Graphics tasks that close by themselves (20261216100000_gfx_auto.sql): the kind, the number, the progress
+// and the system's line. Until that migration, without them.
+const GFX_COLS = `${COLS}, gfx_kind, gfx_count, gfx_done, auto_note`;
 // Before "אני על זה" (20261203100000_staff_task_claim.sql) the column is not there: with the brief only.
 const BRIEF_COLS = `${BASE_COLS}, brief`;
 const missing = (error) => ['42P01', 'PGRST205', 'PGRST204', '42703'].includes(error?.code);
@@ -51,7 +56,8 @@ let onCancel = () => {};
 // The tasks this login may read (its own, the ones it gave; the owner: all). null:
 // the table is not there yet (before the migration).
 export async function loadStaffTasks() {
-  let { data, error } = await supabase.from('staff_tasks').select(COLS).order('created_at', { ascending: false }).limit(300);
+  let { data, error } = await supabase.from('staff_tasks').select(GFX_COLS).order('created_at', { ascending: false }).limit(300);
+  if (error?.code === '42703') ({ data, error } = await supabase.from('staff_tasks').select(COLS).order('created_at', { ascending: false }).limit(300));
   // Until the migration adds the brief's column the tasks load without it (the card must not vanish).
   if (error?.code === '42703') ({ data, error } = await supabase.from('staff_tasks').select(BRIEF_COLS).order('created_at', { ascending: false }).limit(300));
   if (error?.code === '42703') ({ data, error } = await supabase.from('staff_tasks').select(BASE_COLS).order('created_at', { ascending: false }).limit(300));
@@ -79,6 +85,8 @@ function explain(err) {
   if (/task text is required/.test(msg)) return `כותבים מה צריך לעשות, עד ${BODY_MAX} תווים.`;
   if (/needs the full brief|invalid brief/.test(msg)) return 'משימה לניראל צריכה בריף מלא: הבעיה, מה לשנות, מה נשאר והתוצאה.';
   if (/client not found/.test(msg)) return 'הלקוח שנבחר לא נמצא. בחרו לקוח אחר או השאירו ריק.';
+  if (/graphics count|graphics kind/.test(msg)) return `כמה גרפיקות: מספר בין 1 ל־${GFX_COUNT_MAX}.`;
+  if (/not done/.test(msg)) return 'המשימה כבר פתוחה. הרשימה רועננה.';
   if (/not allowed|permission denied/.test(msg)) return 'אין לך הרשאה לפעולה הזו.';
   return errorText(err);
 }
@@ -90,7 +98,7 @@ async function act(rpc, t, btn, done) {
   if (error) {
     toast(explain(error));
     btn.disabled = false;
-    if (/not open|not found/.test(error.message || '')) await refreshStaffTasks();
+    if (/not open|not found|not done/.test(error.message || '')) await refreshStaffTasks();
     return;
   }
   toast(done);
@@ -101,8 +109,13 @@ async function act(rpc, t, btn, done) {
 
 async function send(form) {
   const brief = Object.fromEntries(NAG_BRIEF.map(([k]) => [k, form.elements[`brief-${k}`]?.value || '']));
-  const v = validateTask({ assignee: form.elements.assignee.value, body: form.elements.body.value, clientId: form.elements.client?.value || '', brief });
-  const fields = ['assignee', 'body', ...NAG_BRIEF.map(([k]) => `brief-${k}`)];
+  const gfxOn = !form.querySelector('#st-gfx')?.hidden;
+  const kind = gfxOn ? form.elements.gfxKind?.value || '' : '';
+  const v = validateTask({
+    assignee: form.elements.assignee.value, body: form.elements.body.value, clientId: form.elements.client?.value || '', brief,
+    gfxKind: kind, gfxCount: gfxOn && kind !== 'fix' ? form.elements.gfxCount?.value || '' : '',
+  });
+  const fields = ['assignee', 'body', ...NAG_BRIEF.map(([k]) => `brief-${k}`), 'gfxCount'];
   const errOf = (name) => v.errors[name.replace('brief-', 'brief.')];
   for (const k of fields) {
     const err = form.querySelector(`#st-${k}-err`);
@@ -132,6 +145,27 @@ function clearError(el) {
   if (err && !err.hidden) { err.hidden = true; err.textContent = ''; el.setAttribute('aria-invalid', 'false'); }
 }
 
+// The graphics choice shows for a graphics person once a client is chosen; "לתקן" has no number.
+const GFX_HINT = {
+  make: 'כשהגרפיקות יעלו לדרייב או יתוזמנו בגאנט, הנודניק ייסגר לבד.',
+  fix: 'כשיעלו גרפיקות חדשות לדרייב, ה־AI יבדוק אותן מול ההערות. הכול תוקן: הנודניק ייסגר לבד.',
+};
+let lastKind = '';
+function showGfx() {
+  const form = box?.querySelector('#st-form');
+  const fs = form?.querySelector('#st-gfx');
+  if (!fs) return;
+  fs.hidden = !(isGraphics(form.elements.assignee.value) && form.elements.client?.value);
+  const kind = form.querySelector('input[name="gfxKind"]:checked')?.value || '';
+  form.querySelector('.st-gfx-count').hidden = kind === 'fix';
+  fs.querySelector('.st-gfx-hint').textContent = kind === 'fix' ? GFX_HINT.fix : GFX_HINT.make;
+}
+// A chosen chip pressed again is unchosen (the choice stays optional).
+function toggleKind(input) {
+  if (lastKind === input.value) { input.checked = false; lastKind = ''; } else lastKind = input.value;
+  showGfx();
+}
+
 // ── The card ────────────────────────────────
 const stamp = (v) => formatWhen(new Date(v));
 const clientOf = (t) => (t.client_name ? [' · לקוח: ',
@@ -140,6 +174,29 @@ const clientOf = (t) => (t.client_name ? [' · לקוח: ',
 // The brief of a task (Nirel's): the four answers, under what to do.
 const briefOf = (t) => { const lines = briefLines(t); return lines.length ? h('dl', { class: 'st-brief' }, ...lines.flatMap(([l, v]) => [h('dt', {}, l), h('dd', { dir: 'auto' }, v)])) : null; };
 
+// A graphics task the giver typed (17.11.2026): "להכין · 4 מתוך 10", and that it closes by itself.
+function gfxLine(t) {
+  const p = progressText(t);
+  if (!p) return null;
+  const open = t.status === 'open';
+  const fix = t.gfx_kind === 'fix';
+  return h('p', { class: 'st-gfx' }, h('span', { class: 'st-gfx-k' }, p),
+    open ? h('span', { class: 'st-gfx-w' }, fix ? 'ה־AI בודק גרפיקות חדשות מול ההערות' : 'נסגר לבד כשהגרפיקות בדרייב או בגאנט') : null);
+}
+// "לפתוח מחדש" of a task the system closed: its assignee, whoever gave it, the owners and the managers.
+const reopenBtn = (t, label) => h('button', {
+  type: 'button', class: 'btn btn-ghost st-reopen', 'data-act': 'reopen', 'aria-label': `לפתוח מחדש: ${t.body.slice(0, 60)}`,
+  onclick: (e) => act('staff_task_reopen', t, e.currentTarget, label),
+}, 'לפתוח מחדש');
+// The assignee's: closed by the system lately, with what it saw.
+function autoItem(t) {
+  return h('article', { class: 'st-item is-auto', 'data-task': t.id, 'aria-labelledby': `sa-${t.id}` },
+    h('p', { class: 'st-auto' }, t.auto_note || 'נסגר אוטומטית'),
+    h('p', { class: 'st-body', id: `sa-${t.id}`, dir: 'auto' }, t.body),
+    h('p', { class: 'st-meta' }, `נשלח מ${personName(t.created_by)} · נסגר ${stamp(t.done_at)}`, clientOf(t)),
+    h('div', { class: 'st-acts' }, reopenBtn(t, 'נפתח מחדש. התזכורות חוזרות עד ״בוצע״.')));
+}
+
 function mineItem(t, now) {
   const next = nextTaskAt(t, now);
   const taken = !!t.claimed_at;
@@ -147,6 +204,7 @@ function mineItem(t, now) {
     h('p', { class: 'st-body', id: `st-${t.id}`, dir: 'auto' }, t.body),
     briefOf(t),
     h('p', { class: 'st-meta' }, `נשלח מ${personName(t.created_by)} · ${stamp(t.created_at)}`, clientOf(t)),
+    gfxLine(t),
     h('p', { class: 'st-next' }, taken ? `בטיפול אצלך מ־${stamp(t.claimed_at)}. תזכורת כל שעתיים עד ״בוצע״. הבאה: ${formatWhen(next, now)}.`
       : nagOpen(now) ? `תזכורת כל ${NAG_EVERY} דקות עד שמסמנים ״בוצע״ או ״אני על זה״. הבאה: ${formatWhen(next, now)}.` : `התזכורות יתחדשו ${formatWhen(next, now)}.`),
     h('div', { class: 'st-acts' },
@@ -162,13 +220,15 @@ function givenItem(t) {
   return h('article', { class: 'st-item', 'data-task': t.id, 'aria-labelledby': `sg-${t.id}` },
     h('div', { class: 'st-head' },
       h('strong', { class: 'st-who' }, personName(t.assignee)),
-      h('span', { class: `st-state is-${open && t.claimed_at ? 'taken' : t.status}` }, open && t.claimed_at ? 'בטיפול' : STATE_TEXT[t.status])),
+      h('span', { class: `st-state is-${open && t.claimed_at ? 'taken' : t.status}` }, open && t.claimed_at ? 'בטיפול' : isAuto(t) ? 'נסגר אוטומטית' : STATE_TEXT[t.status])),
+    isAuto(t) ? h('p', { class: 'st-auto' }, t.auto_note || 'נסגר אוטומטית') : null,
     h('p', { class: 'st-body', id: `sg-${t.id}`, dir: 'auto' }, t.body),
     briefOf(t),
+    gfxLine(t),
     h('p', { class: 'st-meta' },
       personOfViewer(viewer) !== t.created_by ? `שלח/ה ${personName(t.created_by)} · ` : '', `נשלח ${stamp(t.created_at)}`,
       open && t.claimed_at ? ` · ${personName(t.assignee)} סימן/ה ״אני על זה״ ${stamp(t.claimed_at)}` : '',
-      t.status === 'done' ? ` · בוצע ${stamp(t.done_at)}${byGiver(t) ? ` (${personOfViewer(viewer) === t.created_by ? 'סימנת בעצמך' : `סומן על ידי ${personName(t.created_by)}`})` : ''}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
+      t.status === 'done' ? ` · ${isAuto(t) ? 'נסגר' : 'בוצע'} ${stamp(t.done_at)}${byGiver(t) ? ` (${personOfViewer(viewer) === t.created_by ? 'סימנת בעצמך' : `סומן על ידי ${personName(t.created_by)}`})` : ''}` : '', t.status === 'cancelled' ? ` · בוטל ${stamp(t.cancelled_at)}` : '', clientOf(t)),
     open ? h('div', { class: 'st-acts' },
       // The giver marks it done herself (the owner, 9.11.2026): the reminders stop as on the assignee's "בוצע".
       personOfViewer(viewer) === t.created_by && t.assignee !== t.created_by ? h('button', {
@@ -179,7 +239,7 @@ function givenItem(t) {
       h('button', {
         type: 'button', class: 'btn btn-ghost', 'data-act': 'cancel',
         onclick: (e) => { if (window.confirm(`לבטל את הנודניק ל${personName(t.assignee)}? התזכורות ייעצרו והוא יסומן כמבוטל.`)) act('staff_task_cancel', t, e.currentTarget, 'הנודניק בוטל. התזכורות נעצרו.'); },
-      }, 'ביטול הנודניק')) : null);
+      }, 'ביטול הנודניק')) : isAuto(t) ? h('div', { class: 'st-acts' }, reopenBtn(t, `נפתח מחדש. התזכורות ל${personName(t.assignee)} חוזרות.`)) : null);
 }
 
 function newForm() {
@@ -191,11 +251,27 @@ function newForm() {
       h('label', { for: `st-brief-${k}` }, l),
       h('textarea', { class: 'input', id: `st-brief-${k}`, name: `brief-${k}`, rows: 2, maxlength: BRIEF_MAX, 'aria-describedby': `st-brief-${k}-err`, oninput: (e) => { if (e.currentTarget.value.trim()) clearError(e.currentTarget); } }),
       h('div', { class: 'err', id: `st-brief-${k}-err`, hidden: true }))));
+  // A graphics person on a client (17.11.2026): what kind of task, and how many graphics. Both optional.
+  const countField = h('div', { class: 'field st-gfx-count' },
+    h('label', { for: 'st-gfxCount' }, 'כמה גרפיקות'),
+    h('input', {
+      class: 'input', id: 'st-gfxCount', name: 'gfxCount', type: 'text', inputmode: 'numeric', pattern: '[0-9]*', maxlength: 3, autocomplete: 'off',
+      'aria-describedby': 'st-gfxCount-err',
+      oninput: (e) => { const v = e.currentTarget.value.replace(/\D+/g, ''); if (v !== e.currentTarget.value) e.currentTarget.value = v; clearError(e.currentTarget); },
+    }),
+    h('div', { class: 'err', id: 'st-gfxCount-err', hidden: true }));
+  const gfxBox = h('fieldset', { class: 'st-gfx-form', id: 'st-gfx', hidden: true },
+    h('legend', {}, 'גרפיקות (לא חובה)'),
+    h('div', { class: 'st-chips', role: 'radiogroup', 'aria-label': 'סוג המשימה' },
+      ...GFX_KINDS.map(([k, l]) => h('label', { class: 'st-chip' },
+        h('input', { type: 'radio', name: 'gfxKind', value: k, onclick: (e) => toggleKind(e.currentTarget) }), h('span', {}, l)))),
+    countField,
+    h('p', { class: 'hint st-gfx-hint' }, GFX_HINT.make));
   return h('form', { class: 'st-form', id: 'st-form', novalidate: true, 'aria-labelledby': 'st-form-h', onsubmit: (e) => { e.preventDefault(); send(e.currentTarget); } },
     h('h3', { id: 'st-form-h' }, 'נודניק חדש'),
     h('div', { class: 'field' },
       h('label', { for: 'st-assignee' }, 'למי'),
-      h('select', { class: 'input', id: 'st-assignee', name: 'assignee', required: true, 'aria-describedby': 'st-assignee-err', onchange: (e) => { clearError(e.currentTarget); briefBox.hidden = !needsBrief(e.currentTarget.value); } },
+      h('select', { class: 'input', id: 'st-assignee', name: 'assignee', required: true, 'aria-describedby': 'st-assignee-err', onchange: (e) => { clearError(e.currentTarget); briefBox.hidden = !needsBrief(e.currentTarget.value); showGfx(); } },
         h('option', { value: '' }, 'בחירת עובד/ת'), ...ASSIGNEES().filter((p) => !only || only.includes(p.key)).map((p) => h('option', { value: p.key, selected: only?.length === 1 }, p.name))),
       h('div', { class: 'err', id: 'st-assignee-err', hidden: true })),
     h('div', { class: 'field' },
@@ -210,7 +286,8 @@ function newForm() {
       h('label', { for: 'st-client' }, 'לקוח (לא חובה)'),
       // Typing narrows the list (by business or person); the chosen one stays in it.
       h('input', { class: 'input st-client-q', id: 'st-client-q', type: 'search', placeholder: 'חיפוש לקוח…', autocomplete: 'off', 'aria-label': 'חיפוש לקוח', 'aria-controls': 'st-client', oninput: (e) => filterClients(e.currentTarget.value) }),
-      h('select', { class: 'input', id: 'st-client', name: 'client' }, h('option', { value: '' }, 'בלי לקוח'), ...clients.map((c) => h('option', { value: c.id }, c.label)))) : null,
+      h('select', { class: 'input', id: 'st-client', name: 'client', onchange: () => showGfx() }, h('option', { value: '' }, 'בלי לקוח'), ...clients.map((c) => h('option', { value: c.id }, c.label)))) : null,
+    gfxBox,
     h('p', { class: 'hint' }, `העובד/ת יקבל/ו התראה מיד, ואז כל ${NAG_EVERY} דקות עד ״בוצע״, בימי עבודה 09:00–20:00.`),
     h('div', { class: 'st-acts' },
       h('button', { type: 'submit', class: 'btn st-send', id: 'st-send' }, 'שליחת הנודניק'),
@@ -227,6 +304,7 @@ function filterClients(q) {
   const shown = clients.filter((c) => words.every((w) => c.label.toLowerCase().includes(w)));
   fill(sel, h('option', { value: '' }, words.length && !shown.length ? 'אין לקוח בשם הזה' : 'בלי לקוח'), ...shown.map((c) => h('option', { value: c.id }, c.label)));
   sel.value = words.length && shown.length === 1 ? shown[0].id : shown.some((c) => c.id === keep) ? keep : '';
+  showGfx();
 }
 
 function render() {
@@ -234,8 +312,8 @@ function render() {
   if (formOnly) { fill(box, newForm()); return; }
   const now = new Date();
   const gives = canGive(viewer);
-  const { mine, given } = taskLists(tasks, viewer, now);
-  box.hidden = !gives && !mine.length;
+  const { mine, auto, given } = taskLists(tasks, viewer, now);
+  box.hidden = !gives && !mine.length && !auto.length;
   if (box.hidden) { fill(box); return; }
   box.classList.toggle('has-mine', mine.length > 0);
   // The giver's part is one quiet row ("שליחת נודניק" and how many are open): the lists
@@ -243,11 +321,13 @@ function render() {
   // (the simplicity pass of 6.10.2026). A task one got stays big: it is work to do now.
   const heading = h('h2', { id: 'staff-tasks-h', tabindex: '-1' }, mine.length ? `תזכורות שקיבלת (${mine.length})` : 'משימות לעובדים');
   box.classList.toggle('is-quiet', gives && !mine.length && !formOpen);
-  const newBtn = h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; render(); box.querySelector('#st-assignee')?.focus(); } }, 'שליחת נודניק');
+  const newBtn = h('button', { type: 'button', class: 'btn', id: 'st-new', onclick: async (e) => { e.currentTarget.disabled = true; await loadClients(); formOpen = true; lastKind = ''; render(); box.querySelector('#st-assignee')?.focus(); } }, 'שליחת נודניק');
   const none = given.open.length ? null : h('p', { class: 'hint st-empty' }, 'אין נודניקים פתוחים ששלחת.');
   fill(box,
     mine.length ? heading : null,
     ...mine.map((t) => mineItem(t, now)),
+    auto.length ? h('h3', { class: 'st-sub', id: 'st-auto-h' }, `נסגרו אוטומטית (${auto.length})`) : null,
+    ...auto.map(autoItem),
     gives ? [
       mine.length ? h('h3', { class: 'st-sub' }, 'משימות לעובדים') : null,
       ...(formOpen ? [mine.length ? null : heading, newForm(), none]
@@ -293,7 +373,9 @@ export async function mountStaffTaskForm(el, who, { people = null, changed = () 
   only = people;
   await loadClients();
   formOpen = true;
+  lastKind = '';
   render();
+  showGfx();
   return true;
 }
 
