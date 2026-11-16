@@ -11,7 +11,7 @@ import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { freshDatabase, as, migrationSql } from './pg.mjs';
-import { PHOTOGRAPHERS, READERS, ON_BEHALF, addMonths, monthKeyOf, monthDays, NOTE_MAX } from '../../app/availability-logic.js';
+import { READERS, ON_BEHALF, addMonths, monthKeyOf, monthDays, NOTE_MAX } from '../../app/availability-logic.js';
 import { dayKeyIL } from '../../app/tz.js';
 
 const MIGRATION = '20261016100000_photographer_availability.sql';
@@ -80,11 +80,11 @@ test('the migration has none of the words the production deploy tool refuses, an
 
 test('the lists are the app\'s: who is a photographer, who reads, who enters it in his name', async () => {
   // This migration names Eli; Eliel joins in 20261107100000_shoot_crew.sql (tests/sql/shoot-crew.test.mjs).
-  assert.deepEqual((await db.query('select public.photographer_people() as p')).rows[0].p, PHOTOGRAPHERS.filter((p) => p === 'eli'));
+  assert.deepEqual((await db.query('select public.photographer_people() as p')).rows[0].p, ['eli']); // the database still names Eli: no migration when the app stopped asking him (16.11.2026, docs/ops.md section 136)
   for (const who of Object.keys(PEOPLE)) {
     const person = PEOPLE[who] ?? 'owner';
     const r = (await q(who, "select public.can_read_availability('eli') as reads, public.can_manage_availability() as manages")).rows[0];
-    assert.equal(r.reads, READERS.includes(person) || PHOTOGRAPHERS.includes(person), `${who} reads`);
+    assert.equal(r.reads, READERS.includes(person) || person === 'eli', `${who} reads`);
     // This database stops at its own file: Ofir enters it too since 20261128100000_managers_all.sql (tests/sql/managers-all.test.mjs).
     assert.equal(r.manages, ON_BEHALF.filter((p) => p !== 'ofir').includes(person), `${who} manages`);
   }
@@ -160,7 +160,7 @@ test('who reads: Eli his own, the owner, Irit, Lior and Ofir all; Ilai, an edito
   await shootOn(d(FAR, 9));
   for (const who of [...Object.keys(PEOPLE), 'stranger']) {
     const person = PEOPLE[who] ?? (who === 'stranger' ? null : 'owner');
-    const reads = !!person && (READERS.includes(person) || PHOTOGRAPHERS.includes(person));
+    const reads = !!person && (READERS.includes(person) || person === 'eli');
     assert.equal((await q(who, 'select person from public.photographer_months')).rows.length, reads ? 1 : 0, `${who} months`);
     const taken = await q(who, 'select day::text, n from public.photographer_taken($1::date, $2::date)', [first(FAR), d(FAR, 28)]);
     if (reads) assert.deepEqual(taken.rows, [{ day: d(FAR, 9), n: 1 }], `${who} taken`);
