@@ -127,7 +127,7 @@ test('deadlines within the hour join the bar; end-of-day deadlines and waits do 
   assert.equal(soon('ofir', '2026-10-05T11:00:00+03:00').filter((x) => x.proc.id === 'p04').length, 1); // 60
   const list = soon('ofir', '2026-10-05T11:05:00+03:00');
   const p04 = list.find((x) => x.proc.id === 'p04');
-  assert.deepEqual([iso(p04.deadline), p04.state, p04.remaining, p04.office, p04.people, p04.what], [iso(at('2026-10-05T12:00:00+03:00')), 'running', 55 * 6e4, false, ['ofir'], 'ביצוע פגישת אפיון']);
+  assert.deepEqual([iso(p04.deadline), p04.state, p04.remaining, p04.office, p04.people, p04.what], [iso(at('2026-10-05T12:00:00+03:00')), 'running', 55 * 6e4, false, ['ofir', 'amit'], 'ביצוע פגישת אפיון']); // Amit shares 4 since 17.11.2026 (CHAR_PAIR)
   assert.ok(list.every((x) => x.people.includes('ofir')));
   assert.equal(soon('ilai', '2026-10-05T11:05:00+03:00').length, 0);
   // Ran out at 12:00: an hour in the bar, then only in "overdue".

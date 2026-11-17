@@ -121,7 +121,7 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   const waiters = real([
     ...items.filter((i) => !free.includes(i) || isAfter(i)).flatMap(owned),
     ...handoffTargets(s, client, checks, openKeys, { inside: false }).map((t) => t.person),
-    ...next.flatMap((x) => (x.claim ? [x.claim.person] : x.proc.owners)),
+    ...next.flatMap((x) => (x.claim ? [x.claim.person] : answersFor(x.proc.owners))),
   ]).filter((p) => !holders.includes(p));
   return { holders, waiters: holders.length ? waiters : [], clientTurn: false, fixing: !!fix || !!notes };
 }

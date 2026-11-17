@@ -57,7 +57,7 @@ test('8ב in the protocol: right after 8, Ofir\'s, in "אפיון", one new key,
   assert.equal(PROCESSES[i - 1].id, 'p08');
   assert.deepEqual([p.num, p.title, p.phase], ['8ב', 'העלאת ה־Highlights לרשתות', 'parallel']);
   // Since 1.11.2026 the client's characterizer's: Ofir or Noam, Noam when none was set, Ofir when Lior ran the meeting.
-  assert.deepEqual(['ofir', 'noam', null, 'lior'].map((characterizer) => p.owners({ characterizer })), [['ofir'], ['ofir'], ['ofir'], ['ofir']]);
+  assert.deepEqual(['ofir', 'noam', null, 'lior'].map((characterizer) => p.owners({ characterizer })), [['ofir', 'amit'], ['ofir', 'amit'], ['ofir', 'amit'], ['ofir', 'amit']]); // Amit shares it since 17.11.2026 (CHAR_PAIR)
   assert.deepEqual(p.items.map((x) => [x.key, x.label, !!x.optional]), [['p08b.posted', 'ה־Highlights הועלו לעמודי הלקוח ברשתות', false]]);
   assert.equal(p.what, 'אחרי שה־Highlights מוכנים, אופיר מעלה אותם לעמודי הלקוח ומסמן. חצי שעה מרגע שהוכנו.');
   assert.deepEqual([p.start, p.due], [{ from: 'p08' }, { from: 'p08', minutes: 30 }]);

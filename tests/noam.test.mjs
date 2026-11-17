@@ -98,7 +98,7 @@ test('the work of an old client still set to her is Ofir\'s', () => {
   assert.equal(characterizerOf(noams), 'ofir');
   assert.equal(pagesOwnerOf(noams), 'ofir');
   // (v14: 8ב left, one mark in 8.)
-  for (const id of ['p04', 'p06', 'p08']) assert.deepEqual(ownersOf(noams, id).filter((p) => p !== 'irit'), ['ofir'], id);
+  for (const id of ['p04', 'p06', 'p08']) assert.deepEqual(ownersOf(noams, id).filter((p) => p !== 'irit'), ['amit', 'ofir'], id); // Amit shares them since 17.11.2026 (CHAR_PAIR)
   assert.ok(ownersOf(noams, 'p05').includes('ofir'));
   assert.ok(!ownersOf(noams, 'p05').includes('noam'));
   assert.equal(lateRungOf('p08b', noams), 'ofir');

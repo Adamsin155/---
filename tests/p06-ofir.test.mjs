@@ -29,11 +29,11 @@ const client = { id: 'c1', name: 'מאפיית שחר', status: 'active', charac
 const itemsOf = (id) => PROCESSES.find((p) => p.id === id).items.filter((i) => !i.optional && !i.when).map((i) => i.key);
 
 test('the protocol: the whole of 6 is Ofir\'s; Lior keeps the broken logins; nothing of it is Ilai\'s', () => {
-  assert.deepEqual(P06.owners(client), ['ofir']);
+  assert.deepEqual(P06.owners(client), ['ofir', 'amit']); // Amit shares it since 17.11.2026 (CHAR_PAIR)
   const st = clientState(client, {}, IL(2026, 10, 20, 12));
   const p06 = st.states.find((s) => s.proc.id === 'p06');
   const by = Object.fromEntries(p06.proc.items.map((i) => [i.key, i.owners]));
-  for (const k of [...ACCESS_KEYS, ...PAGE_KEYS]) assert.deepEqual(by[k], ['ofir'], k);
+  for (const k of [...ACCESS_KEYS, ...PAGE_KEYS]) assert.deepEqual(by[k], ['ofir', 'amit'], k);
   assert.equal(by['p06.recovered'], undefined); // Lior's broken logins left the protocol in v12 (to nobody)
   assert.ok(!Object.values(by).flat().includes('ilai'));
   // Who owns an item is not a protocol version (app/protocol-versions.js): still 11, no new entry.

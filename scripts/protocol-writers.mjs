@@ -53,6 +53,10 @@ export const EXTRA_MARKS = {
   // marks (the end of the characterization, the form's logo, colors and materials: app/characterization.js,
   // app/intake.js); when all of them are resolved they pass p05.got.
   'p05.access': 'p05', 'p05.logo': 'p05', 'p05.colors': 'p05', 'p05.photos': 'p05', 'p05.videos': 'p05', 'p05.menu': 'p05',
+  // 17.11.2026 (docs/ops.md, section 139): "האפיון הסתיים" (p04.ended, intake.html#end) and the vault mark the
+  // same tap writes when the logins went into the vault (p05.vault, app/characterization.js endedChecks), by
+  // whoever runs the meeting. Until now only the office could (Amit's and Shiel's tap was refused).
+  'p04.ended': 'p04', 'p05.vault': 'p05',
 };
 
 export const EDITOR = '@editor'; // the editor of that shoot
@@ -92,6 +96,11 @@ export function writerRows() {
     const round = !!p.round;
     for (const i of p.items) rows.push({ key: i.key, proc: p.id, round, persons: tokens(i.owners || p.owners) });
     if (Array.isArray(p.owners) && p.owners.length > 1) rows.push({ key: `${p.id}.@claim`, proc: p.id, round, persons: tokens(p.owners) });
+    // Owners by the client (Ofir and Amit share 4, 5, 6 and 8: CHAR_PAIR, 17.11.2026): whoever shares one.
+    else if (typeof p.owners === 'function') {
+      const shared = union(...PROBES.map((c) => tokens([...p.owners(c)])).filter((l) => l.length > 1));
+      if (shared.length) rows.push({ key: `${p.id}.@claim`, proc: p.id, round, persons: shared });
+    }
     if (CLIENT_PROCS.includes(p.id) || BLOCKS.includes(p.id)) rows.push({ key: `${p.id}.@wait`, proc: p.id, round, persons: participants(p) });
     if (PAUSE_PROCS.includes(p.id)) rows.push({ key: `${p.id}.@pause`, proc: p.id, round, persons: union(tokens(p.owners), [EDITOR_FREE]) });
     rows.push({ key: `${p.id}.@part`, proc: p.id, round, persons: participants(p) });

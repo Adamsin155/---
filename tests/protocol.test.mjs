@@ -126,22 +126,22 @@ test('shoot type decides which shoot-day processes apply (v12: none of Lior\'s, 
 
 test('characterizer decides who takes the network access; no logo adds a logo task', () => {
   const p5 = (c) => applicableProcesses(c).find((p) => p.id === 'p05');
-  assert.deepEqual(p5({ characterizer: 'ofir' }).owners, ['ofir']);
+  assert.deepEqual(p5({ characterizer: 'ofir' }).owners, ['ofir', 'amit']); // Amit shares it since 17.11.2026 (CHAR_PAIR)
   assert.deepEqual(p5({}).owners, ['irit']); // no characterizer set: Irit takes the access from the client
   assert.deepEqual(p5({ characterizer: 'lior' }).owners, ['lior']);
-  assert.deepEqual(p5({ characterizer: 'noam' }).owners, ['ofir']); // Noam left on 10.11.2026: her old clients are Ofir's
+  assert.deepEqual(p5({ characterizer: 'noam' }).owners, ['ofir', 'amit']); // Noam left on 10.11.2026: her old clients are Ofir's
   const p6 = applicableProcesses({}).find((p) => p.id === 'p06');
   assert.equal(p6.items.find((i) => i.key === 'p06.recovered'), undefined); // v12: the broken logins left Lior, to nobody
   // The whole of 6 is Ofir's since 28.10.2026 (the owner), new networks too.
   // Ofir's whoever ran the meeting (Noam's too from 1.11 until she left on 10.11.2026).
   // v14 (Ofir: "לאחד"): 6 is one mark, p06.ok.
   assert.deepEqual(p6.items.map((i) => i.key), ['p06.ok']);
-  assert.deepEqual(p6.items[0].owners, ['ofir']);
-  assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p06').items[0].owners, ['ofir']);
-  assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p06').items[0].owners, ['ofir']);
+  assert.deepEqual(p6.items[0].owners, ['ofir', 'amit']);
+  assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p06').items[0].owners, ['ofir', 'amit']);
+  assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p06').items[0].owners, ['ofir', 'amit']);
   assert.deepEqual(applicableProcesses({ characterizer: 'lior' }).find((p) => p.id === 'p04').owners, ['lior']);
-  assert.deepEqual(applicableProcesses({}).find((p) => p.id === 'p04').owners, ['ofir']); // Ofir characterizes by default (Noam 1.11 to 10.11.2026)
-  assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p04').owners, ['ofir']);
+  assert.deepEqual(applicableProcesses({}).find((p) => p.id === 'p04').owners, ['ofir', 'amit']); // Ofir characterizes by default (Noam 1.11 to 10.11.2026)
+  assert.deepEqual(applicableProcesses({ characterizer: 'ofir' }).find((p) => p.id === 'p04').owners, ['ofir', 'amit']);
   assert.ok(p5({ has_logo: false }).items.some((i) => i.key === 'p05.newlogo' && i.owners[0] === 'ilai'));
   assert.ok(!p5({ has_logo: true }).items.some((i) => i.key === 'p05.newlogo'));
 });

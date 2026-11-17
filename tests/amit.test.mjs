@@ -261,7 +261,7 @@ test('who writes: Amit the items of 4, 5, 6 and 8; not the office\'s; Ofir every
     assert.equal(mayWrite({ person: 'amit', client: amits, key }), true, `amit ${key}`);
     assert.equal(mayWrite({ person: 'ofir', client: amits, key }), true, `ofir ${key}`);
   }
-  for (const key of ['p04.followup', 'p05.vault', 'p07.made', 'p07.ofir', 'p22a.assigned', 'p25.q.sound']) {
+  for (const key of ['p04.followup', 'p07.made', 'p07.ofir', 'p22a.assigned', 'p25.q.sound']) {
     assert.equal(mayWrite({ person: 'amit', client: amits, key }), false, `amit ${key}`);
   }
   assert.equal(mayWrite({ person: 'amit', client: amits, key: 'p04.saved', note: 'ייבוא' }), false, 'no imported history');
