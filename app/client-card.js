@@ -1955,7 +1955,14 @@ async function mark(key, state, focusId, note = null) {
     }
     // (The call's own dialog saves through here with its summary as the note: that is the mark itself.)
     if (verdict?.via === 'call' && note === null) { renderKeepingFocus(focusId); openCall(key); return false; }
-    if (verdict?.refuse) { renderKeepingFocus(focusId); toast(verdict.refuse); return false; }
+    if (verdict?.refuse) {
+      renderKeepingFocus(focusId);
+      // The box the tap ticked goes back to what is saved (a redraw that keeps the element keeps its tick).
+      const box = document.getElementById(focusId);
+      if (box?.type === 'checkbox') box.checked = checks[key]?.state === 'done';
+      toast(verdict.refuse);
+      return false;
+    }
   }
   const prev = checks[key];
   pending.add(key);
