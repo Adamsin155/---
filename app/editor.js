@@ -51,6 +51,7 @@ import { legacyCharBlock } from './legacy-char-ui.js';
 import { loadIntake } from './landing-data.js';
 import { withLandingEditors } from './landing-logic.js';
 import { videoWindow, videosGate as gateOf, videosLinkOf, driveLinkProblem } from './files-logic.js';
+import { checkDriveVideos } from './drive-guard.js';
 
 let me = null;
 let myEmail = '';
@@ -864,6 +865,18 @@ $('ready-form').addEventListener('submit', async (e) => {
   $('ready-link').setAttribute('aria-invalid', String(!!problem));
   if (problem) { $('ready-link').focus(); return; }
   $('ready-submit').disabled = true;
+  // "כל הסרטונים הועלו לדרייב" is taken only when the client's Drive has them (17.11.2026;
+  // app/drive-guard.js): asked before anything of the hand-off is marked, so a refusal leaves it all open.
+  const label = $('ready-submit').textContent;
+  $('ready-submit').textContent = 'בודקים בדרייב…';
+  const drive = await checkDriveVideos(job.client.id, `${job.pre}p24.drive`, { client: job.client });
+  $('ready-submit').textContent = label;
+  if (drive?.refuse) {
+    showErr('ready-err', drive.refuse);
+    $('ready-err').scrollIntoView({ block: 'nearest' }); // under the list: brought into sight
+    $('ready-submit').disabled = false;
+    return;
+  }
   try {
     // The checks of the material are confirmed here (v14); the notice to Ofir goes last.
     // The folder (24) is the editor's since 3.11.2026: the link pasted here is that folder.

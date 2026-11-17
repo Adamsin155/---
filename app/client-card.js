@@ -39,7 +39,9 @@ import {
 import { isShootMonthly, withShootMonthly } from './monthly-shoot.js';
 import { shootDays, planOf, withPlan, plannedFor } from './shoot-plan.js';
 import { companyIdValue, emailValue } from './client-contact.js';
-import { loadEditorProgress, loadEditorMonths } from './production-data.js';
+import { loadEditorProgress, loadEditorMonths, loadDriveCounts } from './production-data.js';
+import { sharedVideos } from './tracking-logic.js';
+import { fixLine } from './tracking-fix-logic.js';
 import { canAdminTeam } from './team-rules.js';
 import { activate as activateLanding } from './landing-data.js';
 import { TZ, dayKeyIL, addDaysIL, inputValueIL, fromInputIL } from './tz.js';
@@ -137,6 +139,7 @@ let delivFiles = null;     // deliverables uploaded as files (null: no such tabl
 let mcLine = null;         // the Metricool line's data (null: not loaded, or not for this viewer)
 let edited = null;         // how many videos each editor edited (office only; null: none readable)
 let editedMonth = null;    // a monthly client's numbers this month (office only; null: none readable)
+let driveRows = null;      // what came into the client's Drive, per day (office only; public.drive_daily)
 let legacy = null;         // the old system's signed documents (office only; null: none readable)
 let manual = {};           // the signed contracts uploaded by hand and confirmed: { fileId: row } (app/contract-read-ui.js)
 let legacyChar = null;     // the old system's characterization (null: none, or not readable)
@@ -211,7 +214,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, legacy, legacyChar, manual] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, driveRows, legacy, legacyChar, manual] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id)
         ? Promise.all([loadQuoteSummary(c.quote_id), loadQuoteToken(c.quote_id).catch(() => null)]).then(([q, token]) => (q ? { ...q, token } : q))
         : quote,
@@ -224,6 +227,7 @@ async function loadCard() {
       seesMetricool({ me, scope, error: viewerError }) ? loadMetricool(id).catch(() => null) : null,
       own() ? null : loadEditorProgress([id]).then((rows) => (rows ? progressMap(rows) : null)),
       own() || !isMonthly(c) ? null : loadEditorMonths([id], monthKey()).then((rows) => (rows ? monthMap(rows) : null)),
+      own() ? null : loadDriveCounts([id]),
       own() ? null : loadLegacyContracts(id),
       loadLegacyChar(id),
       // "קריאת חוזה חתום" (5.11.2026): what was confirmed for each contract file (none for whoever does not see the money).
@@ -659,17 +663,28 @@ async function openCardAssign() {
   }
 }
 
-// How many videos the editors edited (22.10.2026): "27/48", or "נדיה 8/10 · יריב 12/15";
-// a round's after the client's own. Only once an editor wrote a number. A monthly client:
-// this month's first, "5/12 החודש" (app/edit-count.js monthLine: its monthly round), then each
-// job's own (since 4.11.2026 the client's own shoot counts its own job, "צילום ראשון: 3/8").
+// How many videos were edited: the same number as the client's row in "מעקב לקוחות" (the owner,
+// 17.11.2026: "צריך שזה יהיה מסונכן עם התיק לקוח"; app/tracking-logic.js sharedVideos): what the
+// editors typed or the edited videos in the client's Drive since the deal, whichever is more, out of
+// the package; a monthly client: this month's, "5/12 החודש". A number Irit fixed by hand stands here
+// too, with its small "עודכן ביד" line. Under it, only when there is more than one part: each
+// shoot's and each editor's own typed number ("סבב 2: 3/8", "נדיה 8/10 · יריב 12/15").
 function editedFact() {
   if (!client) return null;
   const monthly = isMonthly(client);
+  const x = sharedVideos(client, { progress: edited ? Object.values(edited) : [], months: editedMonth ? Object.values(editedMonth) : [], drive: driveRows || [] });
+  if (!x.of && !x.done) return null;
   const shoots = edited ? [[client, null], ...roundsOf(client).map((r) => [roundContext(client, r), r.n])] : [];
-  const parts = [monthly ? monthLine(client, editedMonth) : null,
-    ...shoots.map(([ctx, n]) => { const t = editedLine(ctx, edited); return t && n ? `סבב ${n}: ${t}` : t && monthly ? `צילום ראשון: ${t}` : t; })].filter(Boolean);
-  return parts.length ? h('div', { class: 'fact', id: 'cc-edited' }, h('dt', {}, 'נערכו'), h('dd', { class: 'num' }, parts.join(' · '))) : null;
+  const lines = shoots.map(([ctx, n]) => [n, editedLine(ctx, edited)]).filter(([, t]) => t);
+  const month = monthly ? monthLine(client, editedMonth) : null;
+  const parts = [month, ...lines.map(([n, t]) => (n ? `סבב ${n}: ${t}` : monthly ? `צילום ראשון: ${t}` : t))].filter(Boolean);
+  const several = parts.length > 1 || parts.some((t) => t.includes(' · '));
+  return h('div', { class: 'fact', id: 'cc-edited' }, h('dt', {}, 'נערכו'),
+    h('dd', {},
+      h('span', { class: 'num', dir: 'ltr', id: 'cc-edited-n' }, x.of ? `${x.done}/${x.of}` : String(x.done)),
+      x.month ? ' החודש' : null,
+      x.fix ? h('span', { class: 'cc-edited-fix' }, fixLine(x.fix)) : null,
+      several ? h('span', { class: 'cc-edited-more' }, ...parts.flatMap((t, i) => [i ? ' · ' : null, h('span', { class: 'cc-edited-part' }, t)])) : null));
 }
 
 function nextFor(s) {
@@ -1940,7 +1955,14 @@ async function mark(key, state, focusId, note = null) {
     }
     // (The call's own dialog saves through here with its summary as the note: that is the mark itself.)
     if (verdict?.via === 'call' && note === null) { renderKeepingFocus(focusId); openCall(key); return false; }
-    if (verdict?.refuse) { renderKeepingFocus(focusId); toast(verdict.refuse); return false; }
+    if (verdict?.refuse) {
+      renderKeepingFocus(focusId);
+      // The box the tap ticked goes back to what is saved (a redraw that keeps the element keeps its tick).
+      const box = document.getElementById(focusId);
+      if (box?.type === 'checkbox') box.checked = checks[key]?.state === 'done';
+      toast(verdict.refuse);
+      return false;
+    }
   }
   const prev = checks[key];
   pending.add(key);
