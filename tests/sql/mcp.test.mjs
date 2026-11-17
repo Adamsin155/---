@@ -54,7 +54,8 @@ test('the file: the newest, only adds, and runs twice', async () => {
 test('the people in the file are app/mcp-logic.js\'s', () => {
   const lists = [...SQL.matchAll(/s\.person in \(([^)]*)\)/g)].map((m) => m[1].replace(/['\s]/g, '').split(','));
   assert.equal(lists.length, 4);
-  for (const l of lists) assert.deepEqual(l, MCP_PEOPLE);
+  // The file's own people (Irit was added after it: 20261218100000_mcp_irit.sql, tests/sql/mcp-irit.test.mjs).
+  for (const l of lists) assert.deepEqual(l, MCP_PEOPLE.filter((p) => p !== 'irit'));
 });
 
 test('seeded on for the owners, Lior and Ofir; nobody else', async () => {

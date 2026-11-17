@@ -18,6 +18,7 @@ import { DRAFT_TOOL, DRAFT_SCHEMA, DRAFT_PARAM, DRAFT_LINK_MAX, draftAnswer, dra
 import { validateSelection } from '../app/pricing.js';
 import { PAID_ADDONS } from '../app/catalog.js';
 import { fakeClient } from './fake-pgrest.mjs';
+import { MCP_WRITE_TOOLS } from '../supabase/functions/mcp/write-tools.js';
 
 const BASE = 'https://proj.supabase.co';
 const RESOURCE = `${BASE}/functions/v1/mcp`;
@@ -291,17 +292,36 @@ test('when Supabase cannot be asked: no entry, no details', async () => {
 });
 
 // ── Who ────────────────────────────────────────
-test('the rule of who: the owners, Lior and Ofir; anything unclear is a no', () => {
-  assert.deepEqual(MCP_PEOPLE, ['lior', 'ofir']);
+test('the rule of who: the owners, Lior, Ofir and Irit (17.11.2026); anything unclear is a no', () => {
+  assert.deepEqual(MCP_PEOPLE, ['lior', 'ofir', 'irit']);
   assert.equal(mayUseMcp({ office: true, person: null }), true);
   assert.equal(mayUseMcp({ office: true, person: 'lior' }), true);
   assert.equal(mayUseMcp({ office: true, person: 'ofir' }), true);
-  for (const x of [{ office: true, person: 'irit' }, { office: true, person: 'ilai' }, { office: false, person: null }, { office: false, person: 'lior' }, { office: 'true', person: null }, {}, undefined]) assert.equal(mayUseMcp(x), false, JSON.stringify(x));
+  assert.equal(mayUseMcp({ office: true, person: 'irit' }), true);
+  for (const x of [{ office: true, person: 'ilai' }, { office: true, person: 'amit' }, { office: false, person: null }, { office: false, person: 'lior' }, { office: false, person: 'irit' }, { office: 'true', person: null }, {}, undefined]) assert.equal(mayUseMcp(x), false, JSON.stringify(x));
+});
+
+test('Irit (17.11.2026): off until an owner switches her on; then she reads and drafts, and has no write tool', async () => {
+  const off = world();
+  const res = await post(off.handle, rpc('tools/list'), { token: tokenFor('irit') });
+  assert.equal(res.status, 403);
+  const { handle } = world({ on: ['owner', 'lior', 'ofir', 'irit'] });
+  const { result } = await (await post(handle, rpc('tools/list'), { token: tokenFor('irit') })).json();
+  const names = result.tools.map((t) => t.name);
+  assert.ok(names.includes(DRAFT_TOOL));
+  for (const t of MCP_WRITE_TOOLS) assert.ok(!names.includes(t.name), t.name);
+  const draft = await callTool(handle, 'irit', DRAFT_TOOL, { package: 'social-simeon', text: { clauses: [{ title: '{{1}}', items: ['ההתקשרות הינה לתקופה של 12 חודשים מיום העלאת התוכן הראשון.'] }, { title: '{{2}}', items: ['{{2.*}}'] }] } });
+  assert.equal(draft.isError, undefined);
+  const out = JSON.parse(textOf(draft));
+  assert.match(out.document_words, /1\.1 ההתקשרות הינה לתקופה של 12 חודשים מיום העלאת התוכן הראשון\./);
+  assert.match(out.link, /#mcp-draft=/);
+  const write = await callTool(handle, 'irit', MCP_WRITE_TOOLS[0].name, { dry_run: true });
+  assert.equal(write.isError, true);
 });
 
 test('anyone else: a clear refusal in Hebrew, even if the table had them on', async () => {
   const { handle } = world({ on: ['owner', 'lior', 'ofir', 'irit', 'anna', 'stranger'] });
-  for (const who of ['irit', 'anna', 'stranger']) {
+  for (const who of ['anna', 'stranger']) {
     for (const msg of [rpc('initialize', { protocolVersion: LATEST_VERSION }), rpc('tools/list'), rpc('tools/call', { name: 'team', arguments: {} })]) {
       const res = await post(handle, msg, { token: tokenFor(who) });
       assert.equal(res.status, 403, who);

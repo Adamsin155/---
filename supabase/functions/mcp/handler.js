@@ -12,7 +12,7 @@
 //     through the same tools and the same walls as "שאלו את המערכת" (../ask/tools.js, imported, never
 //     copied): no phone, email, address, notes, vault, logins, payroll; money only for sees_income()
 //     (the owners and the managers, 4.11.2026; sees_money(), the owners', before its migration);
-//   - who: the owners, Lior and Ofir (mayUseMcp in app/mcp-logic.js) AND switched on in public.mcp_access
+//   - who: the owners, Lior, Ofir and Irit (since 17.11.2026) (mayUseMcp in app/mcp-logic.js) AND switched on in public.mcp_access
 //     (public.mcp_allowed()), asked on every request, so switching someone off works at once. Anything
 //     unclear is a no; the answer holds a short code and never a database's words;
 //   - prepare_contract_draft writes nothing and sends nothing (app/mcp-draft.js);
