@@ -23,7 +23,7 @@
 // and the characterizer at the meeting (Ofir or Shiel, or Lior). No phone number of a client
 // is ever written into a feed, and no internal note: a title, a time, a place for
 // those who need it, and a link to the card (which asks to sign in).
-import { PEOPLE, SOLO, PASS_OWNER, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName, isStarDay, characterizerOf } from './protocol.js';
+import { PEOPLE, SOLO, PASS_OWNER, isEditorOf, isSolo, crewOf, eliFilms, crewWords, shootTypeName, isStarDay, characterizerOf, CHAR_PAIR } from './protocol.js';
 import { clientState, itemsOf, isResolved, roundsOf, roundContext, parseDate, isImported, isBusinessDay, weekKey, isDayEnd } from './protocol-logic.js';
 import { dayKeyIL, addDaysIL, atTimeIL, weekdayIL, partsIL, startOfDayIL, dayFromKeyIL, TZ } from './tz.js';
 
@@ -52,8 +52,9 @@ export function tokenFrom(url) {
 // ── Who gets what ─────────────────────────
 export const SHOOT_PEOPLE = new Set(['lior', 'eli', 'irit', OWNER]);
 export const ADDRESS_ON_SHOOT = new Set(['eli', 'lior', 'irit']);
-export const ADDRESS_ON_MEETING = new Set(['ofir', 'lior']);
-const OFFICE = new Set([OWNER, 'irit', 'lior', 'ofir', 'ilai']);
+export const ADDRESS_ON_MEETING = new Set(['ofir', 'lior', 'amit']); // Amit since 17.11.2026 (she runs meetings too)
+// Amit too since 17.11.2026: she shares the characterization of every client with Ofir (CHAR_PAIR).
+const OFFICE = new Set([OWNER, 'irit', 'lior', 'ofir', 'ilai', 'amit']);
 export const PAST_DAYS = 30;
 export const AHEAD_DAYS = 180;
 export const ELI_BACK = 7;
@@ -126,7 +127,9 @@ export function feedEvents({ person, clients = [], checks = {}, tasks = [], now 
     // The characterization meeting.
     const charAt = parseDate(c.char_at);
     const characterizer = characterizerOf(c);
-    if (inRange(charAt) && (isOwner || person === characterizer)) {
+    // Ofir and Amit share the characterization (17.11.2026): each sees the other's meetings too.
+    const pair = CHAR_PAIR.includes(person) && CHAR_PAIR.includes(characterizer);
+    if (inRange(charAt) && (isOwner || person === characterizer || pair)) {
       out.push({
         uid: `char-${c.id}@astrateg`, kind: 'char', client: c.id, title: `פגישת אפיון · ${c.name}`, start: charAt, minutes: 120,
         location: ADDRESS_ON_MEETING.has(person) ? c.address || '' : '',

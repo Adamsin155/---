@@ -282,6 +282,16 @@ export const characterizerOf = (c) => FORMER_PEOPLE[characterizedBy(c)] || chara
 // else could) or Shiel did (he does only the characterization, 9.11.2026), Ofir's.
 export const PAGES_INSTEAD = { lior: 'ofir', shiel: 'ofir' };
 export const pagesOwnerOf = (c) => PAGES_INSTEAD[characterizerOf(c)] || characterizerOf(c);
+// Ofir and Amit share the characterization (the owner, 17.11.2026: "the same permission as Ofir";
+// docs/ops.md, section 139). Wherever one of them owns a step of 4, 5, 6 or 8 of a client, the other
+// owns it too: both see it in their work, either marks it, either takes it ("אני על זה"). The client's
+// characterizer (clients.characterizer) stays first: the reminders go to them (characterizerOf,
+// pagesOwnerOf), and while nobody took the step only they are late for it (answersFor). Shiel's and
+// Lior's meetings stay theirs alone (Ofir has no part in them either).
+export const CHAR_PAIR = ['ofir', 'amit'];
+export const withPair = (list) => (list.some((p) => CHAR_PAIR.includes(p)) ? [...list, ...CHAR_PAIR.filter((p) => !list.includes(p))] : list);
+// Who answers for a step nobody took: the partner who was added by withPair is not late for it.
+export const answersFor = (owners = []) => (CHAR_PAIR.includes(owners[0]) ? owners.filter((p) => p === owners[0] || !CHAR_PAIR.includes(p)) : owners);
 // Who gets no notification at all (the owner, 9.11.2026: Shiel): no push, no WhatsApp, no reminder,
 // no line in the owners' 19:00 table, and nobody is reminded instead when his own work is late
 // (app/reminder-engine.js, app/day-summary.js). Nor is anyone offered to give them a task.
@@ -505,10 +515,10 @@ export const CALL_TOPICS = [
 ];
 
 // Owners may depend on the client (who ran the characterization, which editor was assigned).
-const characterizer = (c) => [characterizerOf(c)];
+const characterizer = (c) => withPair([characterizerOf(c)]);
 // Whoever characterizes takes the access in the meeting (Ofir, Shiel or Lior, whoever ran it);
 // before anyone was set, Irit gets it from the client.
-const accessOwners = (c) => (CHARACTERIZERS.includes(characterizerOf(c)) && c.characterizer ? [characterizerOf(c)] : ['irit']);
+const accessOwners = (c) => (CHARACTERIZERS.includes(characterizerOf(c)) && c.characterizer ? withPair([characterizerOf(c)]) : ['irit']);
 const editorOf = (c) => (c.editor ? editorsOf(c) : ['editor']);
 // A day like Natali's: hers, Niro's or that of "הצל" (28.10.2026).
 const isStar = (c) => isStarDay(c.shoot_type);
@@ -752,7 +762,7 @@ export const PROCESSES = [
     // not got, setting the pages up and Metricool (his since v11). Lior keeps the broken logins.
     // Ilai keeps his read of the vault: he still posts the graphics to the networks (7ב, 23ב).
     // Who owns an item needs no new protocol version (app/protocol-versions.js).
-    id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: (c) => [pagesOwnerOf(c)],
+    id: 'p06', num: '6', phase: 'onboarding', title: 'בדיקת הגישות וסידור הרשתות', owners: (c) => withPair([pagesOwnerOf(c)]),
     sla: 'עד 30 דקות מרגע קבלת הגישות',
     // v14: from the access (the vault, the client's form) or the characterizer's one mark of 5, whichever came first.
     start: { from: 'item:p05.access|p05.got' }, due: { from: 'item:p05.access|p05.got', minutes: 30 },
@@ -822,7 +832,7 @@ export const PROCESSES = [
   },
   {
     // v14 (Ofir: "לאחד"): 8 and 8ב are one mark, here; 8ב left. The upload is part of the two hours.
-    id: 'p08', num: '8', phase: 'parallel', title: 'הכנת Highlights', owners: (c) => [pagesOwnerOf(c)],
+    id: 'p08', num: '8', phase: 'parallel', title: 'הכנת Highlights', owners: (c) => withPair([pagesOwnerOf(c)]),
     sla: 'עד שעתיים לאחר האפיון, במקביל לגרפיקות',
     start: { from: 'charEnd' }, due: { from: 'charEnd', hours: 2 },
     what: 'מבצע האפיון (עמית או אופיר) מכין עד 4 Highlights לפי העסק והמידע מפגישת האפיון, ומעלה אותם לעמודי הלקוח ברשתות.',
@@ -833,7 +843,7 @@ export const PROCESSES = [
     ],
   },
   {
-    id: 'p08b', num: '8ב', phase: 'parallel', title: 'העלאת ה־Highlights לרשתות', owners: (c) => [pagesOwnerOf(c)], retired: 14,
+    id: 'p08b', num: '8ב', phase: 'parallel', title: 'העלאת ה־Highlights לרשתות', owners: (c) => withPair([pagesOwnerOf(c)]), retired: 14,
     sla: 'עד 30 דקות עבודה מרגע שה־Highlights הוכנו',
     // v7: the Highlights are ready (process 8 complete: prepared and saved): Ofir uploaded them; since 1.11.2026 the characterizer (Noam or Ofir).
     start: { from: 'p08' }, due: { from: 'p08', minutes: 30 },

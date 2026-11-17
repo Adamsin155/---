@@ -48,7 +48,7 @@
 //       overdue   true: a digest lists it with what is late
 //       title / body (inst, env) → text (plain Hebrew; the title is also the digest line)
 //       url       (inst, env) → where this step opens, when not the case's own page
-import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf, isSilent, GANTT_READY } from './protocol.js';
+import { PEOPLE, STAFF_PEOPLE, TEAM_PEOPLE, PROCESSES, WORK_HOURS, FAST_LADDER, SOLO, PASS_OWNER, editorsOf, editorNames, isSolo, eliFilms, starShort, characterizerOf, pagesOwnerOf, answersFor, isSilent, GANTT_READY } from './protocol.js';
 import { editingDaysOf } from './protocol-versions.js';
 import {
   isBusinessDay, addWorkingMinutes, parseDate, IMPORT_NOTE, isImported, pauseOf, workFloor,
@@ -1436,7 +1436,7 @@ export const RULES = [
           // On Ofir's fast ladder (protocol v9): Lior is told by the ladder itself, once, at its own moment.
           // (Also while its minutes wait for the end of his meeting, v10: then it is not in the late list at all.)
           if (chain?.fast || fastCaseOf(c, s, env.stateOf(c).states, i.checks, env.ofirMeetings || [])) continue;
-          const owners = s.claim ? [s.claim.person] : s.proc.owners;
+          const owners = s.claim ? [s.claim.person] : answersFor(s.proc.owners);
           out.push({ ...i, id: `${s.proc.id}@${s.dueAt.toISOString()}`, owners, anchors: { event: s.dueAt } });
         }
       }
@@ -2596,7 +2596,7 @@ export function waitNagWho(i, env) {
   const ok = (p) => !!p && p !== OWNER && REMINDER_PEOPLE.has(p);
   if (ok(setter)) return [setter];
   if (i.s.claim && ok(i.s.claim.person)) return [i.s.claim.person];
-  return i.proc.owners.filter(ok);
+  return answersFor(i.proc.owners).filter(ok);
 }
 const waitWhat = (i) => String(i.s.wait?.reason || '').replace(/\s+/g, ' ').trim() || i.proc.title;
 RULES.push({

@@ -22,7 +22,7 @@
 //             holds it and nobody is reminded. (A process marked "ממתין ללקוח" is not
 //             'overdue' at all, and a paused editing is left out here.)
 // Not asked of a client in landing (docs/ops.md, section 41).
-import { PROCESSES, FAST_LADDER } from './protocol.js';
+import { PROCESSES, FAST_LADDER, answersFor } from './protocol.js';
 import { isResolved, blockers, pauseOf, clientLabel, inLanding, addWorkingMinutes, businessDaysBetween, officeMsBetween, parseDate, endOfBusinessDay } from './protocol-logic.js';
 import { HANDOFFS } from './handoffs.js';
 import { ANSWER_CLOCKS } from './clocks.js';
@@ -77,7 +77,8 @@ function handoffTargets(s, client, checks, openKeys, { inside }) {
 // One late process: { holders, waiters, clientTurn, fixing }.
 export function chainOf(s, client, checks, states, tasks = [], now = new Date()) {
   const ctx = s.proc.ctx || client;
-  const owned = (i) => (s.claim && i.owners.join() === s.proc.owners.join() ? [s.claim.person] : i.owners);
+  // Ofir and Amit share the characterization (withPair): while neither took it, only the client's characterizer is late.
+  const owned = (i) => (s.claim && i.owners.join() === s.proc.owners.join() ? [s.claim.person] : answersFor(i.owners));
   let items = open(s, checks, now);
   // The client's turn: an approval that is the client's to give, with all it needs done.
   const turn = items.find((i) => CLIENT_TURN.has(baseKey(i.key)) && !blockers(i, ctx, checks)) || null;
@@ -111,7 +112,7 @@ export function chainOf(s, client, checks, states, tasks = [], now = new Date())
   const free = items.filter((i) => !blockers(i, ctx, checks) || (s.gap && s.gap.item.key === i.key));
   let holders = real(free.filter((i) => !isAfter(i)).flatMap(owned));
   // Everything open waits for a detail of the client that is still missing: the process's own people.
-  if (!free.length && items.length && items.every((i) => !(blockers(i, ctx, checks)?.items || []).length)) holders = real(s.claim ? [s.claim.person] : s.proc.owners);
+  if (!free.length && items.length && items.every((i) => !(blockers(i, ctx, checks)?.items || []).length)) holders = real(s.claim ? [s.claim.person] : answersFor(s.proc.owners));
   // The fix the client asked for is a task of its own (with its own due day): it carries
   // the lateness of whoever fixes, not this process as well.
   if (fix) holders = holders.filter((p) => p !== fix.owner);

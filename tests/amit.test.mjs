@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   PEOPLE, SCOPE, TEAM_PEOPLE, STAFF_PEOPLE, ASSIGNABLE_PEOPLE, PROCESSES, CHARACTERIZERS, DEFAULT_CHARACTERIZER,
-  SILENT_PEOPLE, isSilent, characterizerOf, pagesOwnerOf,
+  SILENT_PEOPLE, isSilent, characterizerOf, pagesOwnerOf, answersFor, CHAR_PAIR,
 } from '../app/protocol.js';
 import { applicableProcesses, clientState, openItemsFor, CHAR_ENDED, IMPORT_NOTE } from '../app/protocol-logic.js';
 import { handoffsFor, describeMark } from '../app/handoffs.js';
@@ -38,6 +38,7 @@ import { PERSONS, OFFICE_PERSONS as FN_OFFICE } from '../supabase/functions/staf
 import { OFFICE as METRICOOL_OFFICE, mayCall } from '../supabase/functions/metricool/sync.js';
 import { importKeys } from '../app/client-open.js';
 import { dateIL } from '../app/tz.js';
+import { feedEvents } from '../app/calendar-feed.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
 const src = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
@@ -98,17 +99,30 @@ test('she is told everything and can be given work, as any employee (not silent 
   assert.ok(ASK_PEOPLE.includes('amit'));
 });
 
-test('the owners: 4, 6 and 8 are the characterizer\'s; 5 when she ran the meeting; Shiel\'s and Lior\'s pages stay Ofir\'s', () => {
-  for (const [c, who] of [[amits, 'amit'], [ofirs, 'ofir']]) {
-    assert.deepEqual(ownersOf(c, 'p04').filter((p) => p !== 'irit'), [who], `${c.name} 4`);
-    assert.ok(ownersOf(c, 'p05').includes(who), `${c.name} 5`);
-    assert.deepEqual(ownersOf(c, 'p06'), [who], `${c.name} 6`);
-    assert.deepEqual(ownersOf(c, 'p08'), [who], `${c.name} 8`);
+test('the owners: Ofir and Amit share 4, 5, 6 and 8 of every client one of them owns (17.11.2026); Shiel\'s and Lior\'s meetings stay theirs', () => {
+  // The same characterization permission as Ofir (the owner, 17.11.2026; docs/ops.md, section 139).
+  for (const c of [amits, ofirs, noams]) {
+    assert.deepEqual(ownersOf(c, 'p04').filter((p) => p !== 'irit'), ['amit', 'ofir'], `${c.name} 4`);
+    assert.ok(ownersOf(c, 'p05').includes('amit') && ownersOf(c, 'p05').includes('ofir'), `${c.name} 5`);
+    assert.deepEqual(ownersOf(c, 'p06'), ['amit', 'ofir'], `${c.name} 6`);
+    assert.deepEqual(ownersOf(c, 'p08'), ['amit', 'ofir'], `${c.name} 8`);
   }
-  for (const c of [shiels, liors, nobodys, noams]) {
-    for (const id of ['p06', 'p08']) assert.deepEqual(ownersOf(c, id), ['ofir'], `${c.name} ${id}`);
-    assert.ok(!ownersOf(c, 'p05').includes('amit'));
+  // The client's characterizer stays first: the reminders and the lateness are theirs.
+  const first = (c, id) => { const p = applicableProcesses(c).find((x) => x.id === id); return (typeof p.owners === 'function' ? p.owners(c) : p.owners)[0]; };
+  assert.deepEqual(['p04', 'p06', 'p08'].map((id) => first(ofirs, id)), ['ofir', 'ofir', 'ofir']);
+  assert.deepEqual(['p04', 'p06', 'p08'].map((id) => first(amits, id)), ['amit', 'amit', 'amit']);
+  assert.deepEqual(answersFor(['ofir', 'amit']), ['ofir']);
+  assert.deepEqual(answersFor(['amit', 'ofir']), ['amit']);
+  assert.deepEqual(answersFor(['ilai', 'irit', 'ofir']), ['ilai', 'irit', 'ofir'], 'other shared steps are as before');
+  // Shiel's and Lior's clients: 6 and 8 are Ofir's, so Amit's too; 4 and 5 are the meeting's own person only.
+  for (const c of [shiels, liors, nobodys]) {
+    for (const id of ['p06', 'p08']) assert.deepEqual(ownersOf(c, id), ['amit', 'ofir'], `${c.name} ${id}`);
   }
+  assert.deepEqual(ownersOf(shiels, 'p04').filter((p) => p !== 'irit'), ['shiel']);
+  assert.deepEqual(ownersOf(liors, 'p04').filter((p) => p !== 'irit'), ['lior']);
+  for (const c of [shiels, liors]) assert.ok(!ownersOf(c, 'p05').includes('amit') && !ownersOf(c, 'p05').includes('ofir'), `${c.name} 5`);
+  // A client nobody was set for: 5 is Irit's (from the client), as before.
+  assert.ok(!ownersOf(nobodys, 'p05').includes('amit'));
   // Nothing else moved: the graphics' checks are Ofir's for her client too.
   const p07 = applicableProcesses(amits).find((p) => p.id === 'p07');
   assert.deepEqual(p07.items.find((i) => i.key === 'p07.ofir').owners, ['ofir']);
@@ -128,17 +142,61 @@ test('her work list: 4 and then 6 of her client; never 6 of Ofir\'s or Shiel\'s'
   const at = (c) => ({ ...c, char_at: IL(2026, 11, 16, 8, 30).toISOString() });
   const open = (who, c, ck = checks, t = now) => openItemsFor(who, at(c), ck, clientState(at(c), ck, t), t).map((e) => e.proc.id);
   assert.ok(open('amit', amits).includes('p04'));
-  assert.ok(!open('amit', ofirs).includes('p04'));
+  // 17.11.2026: Ofir's client's meeting is in her list too (and hers in his); Shiel's is his alone.
+  assert.ok(open('amit', ofirs).includes('p04'));
+  assert.ok(open('ofir', amits).includes('p04'));
+  assert.ok(!open('amit', shiels).includes('p04'));
   const after = { ...checks, 'p05.got': done('p05.got', IL(2026, 11, 16, 10, 30), 'amit@x') };
   for (const i of PROCESSES.find((p) => p.id === 'p04').items.filter((x) => !x.optional)) after[i.key] = done(i.key, IL(2026, 11, 16, 10, 30), 'amit@x');
   after[CHAR_ENDED] = done(CHAR_ENDED, IL(2026, 11, 16, 10, 30), 'amit@x');
   const t = IL(2026, 11, 16, 10, 40);
   assert.ok(open('amit', amits, after, t).includes('p06'));
   assert.ok(open('amit', amits, after, t).includes('p08'));
-  assert.ok(!open('ofir', amits, after, t).includes('p06'));
-  assert.ok(!open('amit', ofirs, after, t).includes('p06'));
-  assert.ok(!open('amit', shiels, after, t).includes('p06'));
+  assert.ok(open('ofir', amits, after, t).includes('p06'));
+  assert.ok(open('amit', ofirs, after, t).includes('p06'));
+  assert.ok(open('amit', ofirs, after, t).includes('p08'));
+  assert.ok(open('amit', shiels, after, t).includes('p06'));
   assert.ok(open('ofir', shiels, after, t).includes('p06'));
+});
+
+test('17.11.2026: Ofir\'s client: she sees it and either marks; the reminders and the lateness stay Ofir\'s', () => {
+  // The owner: "the same permission as Ofir in the characterization" (docs/ops.md, section 139).
+  assert.deepEqual(CHAR_PAIR, ['ofir', 'amit']);
+  const late = world(ofirs, IL(2026, 11, 9, 10)); // a week before: the meeting is long late
+  // Her work list has it (the client card's "שלי" and "המשימות שלי" read the same owners).
+  const env = buildEnv({ ...late, now: IL(2026, 11, 16, 9) });
+  const st = env.stateOf(late.client);
+  assert.ok(openItemsFor('amit', late.client, late.checks[late.client.id], st, IL(2026, 11, 16, 9)).some((e) => e.proc.id === 'p04'));
+  // The 19:00 table: the meeting is Ofir's to be late for, not hers (nobody took it).
+  const at19 = IL(2026, 11, 16, 19);
+  const e19 = buildEnv({ ...late, now: at19 });
+  const sum = daySummary({ clients: e19.clients, checksOf: e19.checksOf, stateOf: e19.stateOf, tasks: [], personOf: e19.personOf, now: at19 });
+  assert.ok(sum.rows.some((r) => r.person === 'ofir'), JSON.stringify(sum.rows));
+  assert.ok(!sum.rows.some((r) => r.person === 'amit'), JSON.stringify(sum.items.map((i) => [i.procId, i.who, i.cid])));
+  // The meeting's reminders: Ofir, as before; she is not rung for his meeting.
+  const rung = allWeek(world(ofirs, IL(2026, 11, 16, 10)), IL(2026, 11, 15, 18), 2);
+  assert.ok(rung.some((r) => r.rule === 'char' && r.person === 'ofir'));
+  assert.ok(!rung.some((r) => r.person === 'amit'), JSON.stringify(rung.filter((r) => r.person === 'amit').map((r) => r.key)));
+  // Once she takes 4 ("אני על זה"), it is hers: in the 19:00 table she is the one late for it (5 and 8 stay Ofir's).
+  const taken = world(ofirs, IL(2026, 11, 9, 10));
+  taken.checks[taken.client.id]['p04.claim'] = { ...done('p04.claim', IL(2026, 11, 9, 9), 'amit@x'), client_id: taken.client.id, note: 'amit' };
+  const t19 = buildEnv({ ...taken, now: at19 });
+  const sum2 = daySummary({ clients: t19.clients, checksOf: t19.checksOf, stateOf: t19.stateOf, tasks: [], personOf: t19.personOf, now: at19 });
+  const late4 = (x) => x.items.find((i) => i.procId === 'p04')?.who;
+  assert.deepEqual(late4(sum), ['ofir']);
+  assert.deepEqual(late4(sum2), ['amit'], JSON.stringify(sum2.items));
+  assert.equal(sum2.rows.find((r) => r.person === 'amit')?.late, 1);
+  // Marks: the writers go by the key, so she marks 4, 5, 6 and 8 of Ofir's client (the database too).
+  for (const key of ['p04.saved', 'p05.got', 'p06.ok', 'p08.ok']) assert.equal(mayWrite({ person: 'amit', client: ofirs, key }), true, key);
+  // The calendar: she sees Ofir's meetings (and he hers), with the address; never Shiel's.
+  const range = { from: IL(2026, 11, 15), until: IL(2026, 11, 20) };
+  const meet = (person, c) => feedEvents({ person, clients: [{ ...c, char_at: IL(2026, 11, 17, 10).toISOString(), address: 'רחוב 1' }], range, now: IL(2026, 11, 16, 9) }).filter((e) => e.kind === 'char');
+  assert.equal(meet('amit', ofirs).length, 1);
+  assert.equal(meet('amit', ofirs)[0].location, 'רחוב 1');
+  assert.match(meet('amit', ofirs)[0].description, /מבצע\/ת האפיון: אופיר/);
+  assert.equal(meet('ofir', amits).length, 1);
+  assert.equal(meet('amit', shiels).length, 0);
+  assert.equal(meet('ilai', ofirs).length, 0);
 });
 
 test('the hand-off of 5: to her for her client, never to herself; each record names its person', () => {
