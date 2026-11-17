@@ -75,6 +75,22 @@ export async function saveEditorMonth(clientId, edited, month) {
   return data;
 }
 
+// What came into the clients' Drive folders, per Israel day, folder and kind: the edited videos
+// and the graphics (public.drive_daily, counted by the drive-scan function; the office reads it).
+// The videos of "מעקב לקוחות" and of the card's "נערכו" count them (app/tracking-logic.js).
+// [] when it cannot be read: nothing in the Drive, never an error.
+export async function loadDriveCounts(clientIds = null) {
+  if (Array.isArray(clientIds) && !clientIds.length) return [];
+  try {
+    return await all(() => {
+      let q = supabase.from('drive_daily').select('client_id, day, folder, kind, files').in('kind', ['video', 'graphic']).gt('files', 0)
+        .order('client_id').order('day').order('folder').order('kind');
+      if (clientIds) q = q.in('client_id', clientIds);
+      return q;
+    });
+  } catch { return []; }
+}
+
 export async function loadWorkClients() {
   // With the second editor (editor2), once that migration is in.
   return withLanding(await e2Throws(() => all(() => supabase.from('clients').select(withE2(WORK_COLS))

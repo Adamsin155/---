@@ -2,10 +2,11 @@
 // (the owner, 30.10.2026; docs/ops.md, section 83). pg_cron calls it every 10 minutes
 // (public.drive_scan_tick) with the cron secret, compared inside the database. Deployed with
 // verify_jwt=false (supabase/config.toml). The work is in ./scan.js and ../_shared/drive.js.
+// With { backfill: true, after } in the body: the one-time back-scan of whole folders (17.11.2026).
 // The secret: GOOGLE_DRIVE_SERVICE_ACCOUNT (the robot account's JSON key).
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { serviceAccountOf, makeDrive } from '../_shared/drive.js';
-import { runScan } from './scan.js';
+import { runScan, runBackfill } from './scan.js';
 
 function serviceKey(): string {
   try {
@@ -20,7 +21,7 @@ const must = <T>(r: { data: T; error: unknown }): T => { if (r.error) throw r.er
 
 const store = {
   async targets() {
-    const clients = must(await admin.from('clients').select('id, links').in('status', ['active', 'ending'])) as { id: string; links: Record<string, string> | null }[];
+    const clients = must(await admin.from('clients').select('id, links, deal_at, created_at').in('status', ['active', 'ending'])) as { id: string; links: Record<string, string> | null; deal_at: string | null; created_at: string | null }[];
     const states = must(await admin.from('drive_scan_state').select('client_id, scanned_at')) as { client_id: string; scanned_at: string }[];
     const at = new Map(states.map((s) => [s.client_id, s.scanned_at]));
     return clients.filter((c) => c.links?.drive).map((c) => ({ ...c, scanned_at: at.get(c.id) || null }));
@@ -34,6 +35,31 @@ const store = {
   async state(row: unknown) {
     must(await admin.from('drive_scan_state').upsert(row, { onConflict: 'client_id' }));
   },
+  // What the folder proves (./scan.js autoStep; docs/ops.md, section 141): the client, its marks,
+  // its Drive counts (all days) and its content Gantt, read after this run's counts were saved.
+  async autoContext(clientId: string) {
+    const [client, checks, daily, gantt] = await Promise.all([
+      admin.from('clients').select('*').eq('id', clientId).maybeSingle(),
+      admin.from('protocol_checks').select('item_key, state, note, at, by_email').eq('client_id', clientId).limit(5000),
+      admin.from('drive_daily').select('day, folder, kind, files').eq('client_id', clientId).gt('files', 0).limit(10000),
+      admin.from('client_gantt').select('id, kind, key, day, time_il, num, link').eq('client_id', clientId).limit(5000),
+    ]);
+    return { client: must(client), checks: must(checks), daily: must(daily), gantt: must(gantt) };
+  },
+  // Inserted, never over a mark that exists (a person's "done" or "לא רלוונטי" stays); who and when
+  // come from the stamp trigger (by_email '' for the system, as p28.auto and p24.notify).
+  async addMarks(clientId: string, marks: { item_key: string; state: string; note: string }[]) {
+    const rows = must(await admin.from('protocol_checks')
+      .upsert(marks.map((m) => ({ client_id: clientId, ...m })), { onConflict: 'client_id,item_key', ignoreDuplicates: true })
+      .select('item_key')) as unknown[] | null;
+    return Array.isArray(rows) ? rows.length : 0;
+  },
+  // Only while the link is still empty (app/gantt-drive.js fillLink): never over a link put meanwhile.
+  async fillLink(clientId: string, id: string, link: string) {
+    const rows = must(await admin.from('client_gantt').update({ link }).eq('id', id).eq('client_id', clientId)
+      .or('link.is.null,link.eq.').select('id')) as unknown[] | null;
+    return Array.isArray(rows) && rows.length > 0;
+  },
 };
 
 Deno.serve(async (req) => {
@@ -45,7 +71,16 @@ Deno.serve(async (req) => {
   if (ok !== true) return json(401, { error: 'not_allowed' });
   const sa = serviceAccountOf(Deno.env.get('GOOGLE_DRIVE_SERVICE_ACCOUNT'));
   if (!sa) return json(503, { error: 'drive_not_connected' });
+  // { backfill: true, after?: <client id> }: the one-time back-scan of whole folders (./scan.js runBackfill),
+  // a part per call; the answer's `next` goes in the next call's `after`, until `done`. Same secret.
+  let body: { backfill?: boolean; after?: string | null } = {};
+  try { body = await req.json(); } catch { /* the cron sends {} */ }
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   try {
+    if (body?.backfill === true) {
+      const after = typeof body.after === 'string' && UUID.test(body.after) ? body.after : null;
+      return json(200, await runBackfill({ store, drive: makeDrive(sa), after, now: new Date() }));
+    }
     return json(200, await runScan({ store, drive: makeDrive(sa), now: new Date() }));
   } catch (e) {
     console.error('drive-scan failed', String((e as { code?: string })?.code || 'error'));

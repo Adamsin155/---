@@ -12,7 +12,7 @@ import {
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { downloadPdf, pdfFileName } from './pdf-export.js';
-// "נוסח חופשי" (17.11.2026; docs/ops.md, section 140): every part of the words edited in the preview.
+// "נוסח חופשי" (17.11.2026; docs/ops.md, section 142): every part of the words edited in the preview.
 import { textEditor } from './text-editor.js';
 import { textErrors } from './contract-text.js';
 import { iconSquare, headIcon, noteIcon } from './kit.js';
@@ -1194,7 +1194,7 @@ document.querySelectorAll('dialog').forEach((dlg) => {
   });
 });
 
-/* ── "עריכה" in the preview (the owner, 17.11.2026; docs/ops.md, section 140) ──
+/* ── "עריכה" in the preview (the owner, 17.11.2026; docs/ops.md, section 142) ──
    The office writes any part of the document's words: the cover, "מה כוללת החבילה", "פירוט החבילה"
    (the דגשים), the package's numbers and the clauses. Each part has an "עריכה" button in the preview;
    it opens the part's editor in place (app/text-editor.js). What is saved goes to state.custom.text

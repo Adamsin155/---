@@ -1,4 +1,4 @@
-// "נוסח חופשי" (the owner, 17.11.2026; docs/ops.md, section 140): every text part of a quote or an
+// "נוסח חופשי" (the owner, 17.11.2026; docs/ops.md, section 142): every text part of a quote or an
 // agreement written by hand (selection.custom.text, app/contract-text.js), from the builder, from
 // "הכנת חוזה עם AI" (free mode) and from Claude (prepare_contract_draft). Money is never typed, the
 // clause of the price keeps the computed number, the client's details never go into the words, and a

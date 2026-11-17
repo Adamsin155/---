@@ -18,7 +18,7 @@ import {
   validateAiResult, applyAiResult, validateFreeResult, applyFreeDraft, catalogText, freeCatalogText,
   PACKAGE_KEYS, QTY_KEYS, PAID_IDS, FREE_KEYS,
 } from './contract-ai-logic.js';
-// "נוסח חופשי" (17.11.2026; docs/ops.md, section 140): the document's own words in the draft too.
+// "נוסח חופשי" (17.11.2026; docs/ops.md, section 142): the document's own words in the draft too.
 import { TEXT_AI_PROPS, TEXT_AI_KEYS, TEXT_PART_NAMES, checkAiText, textRulesText, numberedText, resolveText, MONEY } from './contract-text.js';
 import { regularText, emptySelection } from './pricing.js';
 

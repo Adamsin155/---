@@ -1,4 +1,4 @@
-// "נוסח חופשי" in the browser (the owner, 17.11.2026; docs/ops.md, section 140), against an in-memory
+// "נוסח חופשי" in the browser (the owner, 17.11.2026; docs/ops.md, section 142), against an in-memory
 // fake of Supabase whose contract-ai answers free mode with a RECORDED answer for the seller's messy
 // text (tests/free-text-fixture.mjs; the real model is not called), checked by the real
 // app/contract-ai-logic.js as the function does, and whose create-quote validates and stores as the real one:

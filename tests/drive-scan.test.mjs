@@ -97,3 +97,79 @@ test('the listing with `since`: Google is asked for new files and every folder, 
   assert.ok(urls[0].includes(`(mimeType = '${FOLDER_MIME}' or createdTime > '2026-09-29T21:00:00.000Z')`));
   assert.equal(files.find((f) => f.mimeType === VIDEO).path, 'l1/l2/l3');
 });
+
+// ── The back-scan (17.11.2026; docs/ops.md, section 140) ──
+test('the back-scan: the whole folder, from the deal day, counts replaced never added, in parts by id', async () => {
+  const { runBackfill, dealDay } = await import('../supabase/functions/drive-scan/scan.js');
+  // A table with upsert on (client_id, day, folder, kind), as public.drive_daily.
+  const table = new Map();
+  const key = (r) => `${r.client_id}|${r.day}|${r.folder}|${r.kind}`;
+  table.set(key({ client_id: 'a', day: '2026-10-05', folder: 'סרטונים', kind: 'video' }), { client_id: 'a', day: '2026-10-05', folder: 'סרטונים', kind: 'video', files: 4 });
+  table.set(key({ client_id: 'a', day: '2026-10-06', folder: 'ישן', kind: 'video' }), { client_id: 'a', day: '2026-10-06', folder: 'ישן', kind: 'video', files: 2 }); // moved away since
+  table.set(key({ client_id: 'a', day: '2025-01-01', folder: 'סרטונים', kind: 'video' }), { client_id: 'a', day: '2025-01-01', folder: 'סרטונים', kind: 'video', files: 7 }); // before the deal: untouched
+  const states = [];
+  const store = {
+    targets: async () => [
+      { id: 'c', links: { drive: FOLDER }, deal_at: '2026-01-01T09:00:00+02:00' },
+      { id: 'a', links: { drive: FOLDER }, deal_at: '2026-03-01T09:00:00+02:00' },
+      { id: 'b', links: { drive: 'https://example.com/x' }, deal_at: null, created_at: '2026-10-01T00:00:00Z' },
+    ],
+    before: async (id, from) => [...table.values()].filter((r) => r.client_id === id && r.day >= from && r.files > 0),
+    save: async (rows) => { for (const r of rows) table.set(key(r), { ...r }); },
+    state: async (s) => states.push(s),
+  };
+  const asked = [];
+  const drive = { list: async (id, opts) => {
+    asked.push(opts);
+    return { truncated: false, files: [
+      { mimeType: VIDEO, path: 'סרטונים', createdTime: '2026-10-05T08:00:00Z' },
+      { mimeType: VIDEO, path: 'סרטונים', createdTime: '2026-10-05T09:00:00Z' },
+      { mimeType: VIDEO, path: 'סרטונים', createdTime: '2026-04-10T09:00:00Z' }, // before the 30-day window, after the deal
+      { mimeType: VIDEO, path: 'גלם', createdTime: '2026-04-10T09:00:00Z' },
+      { mimeType: VIDEO, path: 'סרטונים', createdTime: '2025-12-01T09:00:00Z' }, // before every deal
+    ] };
+  } };
+  assert.equal(dealDay({ deal_at: '2026-02-28T23:30:00Z' }), '2026-03-01');
+  assert.equal(dealDay({ deal_at: null, created_at: '2026-10-01T00:00:00Z' }), '2026-10-01');
+  // One client a call: a, then b, then c.
+  const one = await runBackfill({ store, drive, batch: 1 });
+  assert.deepEqual([one.clients, one.next, one.done, one.left], [1, 'a', false, 2]);
+  assert.deepEqual(asked[0], { maxDepth: 3, maxFiles: 5000 }, 'no window: the whole folder, the scan\'s depth and caps');
+  const a = (day, folder, kind = 'video') => table.get(key({ client_id: 'a', day, folder, kind }))?.files;
+  assert.equal(a('2026-10-05', 'סרטונים'), 2, 'replaced, not 4 + 2');
+  assert.equal(a('2026-10-06', 'ישן'), 0, 'gone from the folder: 0');
+  assert.equal(a('2026-04-10', 'סרטונים'), 1, 'older than the daily scan\'s window');
+  assert.equal(a('2026-04-10', 'גלם', 'raw'), 1);
+  assert.equal(a('2025-12-01', 'סרטונים'), undefined, 'before the deal day: not written');
+  assert.equal(a('2025-01-01', 'סרטונים'), 7, 'before the deal day: not touched');
+  const two = await runBackfill({ store, drive, batch: 1, after: one.next });
+  assert.deepEqual([two.failed, two.next, two.done], [1, 'b', false]);
+  assert.equal(states.find((s) => s.client_id === 'b').error, 'not_a_folder');
+  const three = await runBackfill({ store, drive, after: two.next });
+  assert.deepEqual([three.clients, three.next, three.done], [1, 'c', true]);
+  assert.equal(table.get(key({ client_id: 'c', day: '2025-12-01', folder: 'סרטונים', kind: 'video' })), undefined, 'c: its deal is 1.1.2026');
+  assert.equal(table.get(key({ client_id: 'c', day: '2026-10-05', folder: 'סרטונים', kind: 'video' })).files, 2);
+  // Again from the start: the same numbers (never twice).
+  const again = await runBackfill({ store, drive });
+  assert.equal(again.done, true);
+  assert.equal(a('2026-10-05', 'סרטונים'), 2);
+  assert.equal(a('2026-04-10', 'סרטונים'), 1);
+  // Past the last client: nothing to do.
+  assert.deepEqual((await runBackfill({ store, drive, after: 'c' })).done, true);
+});
+
+test('the back-scan: out of time it stops after a client and says where to go on', async () => {
+  const { runBackfill } = await import('../supabase/functions/drive-scan/scan.js');
+  const store = fakeStore([{ id: 'a', links: { drive: FOLDER } }, { id: 'b', links: { drive: FOLDER } }, { id: 'c', links: { drive: FOLDER } }]);
+  let t = 0;
+  const r = await runBackfill({ store, drive: { list: async () => { t += 100; return { files: [], truncated: false }; } }, clock: () => t, budgetMs: 150 });
+  assert.deepEqual([r.clients, r.next, r.done], [2, 'b', false]);
+});
+
+test('the back-scan: the same secret gate as the scan', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../supabase/functions/drive-scan/index.ts', import.meta.url), 'utf8');
+  const gate = src.indexOf("rpc('reminders_check_secret'");
+  const back = src.indexOf('runBackfill({');
+  assert.ok(gate > 0 && back > gate, 'the back-scan runs only after the cron secret was checked');
+});

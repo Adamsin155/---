@@ -40,7 +40,7 @@ export function sameKey(a, b) {
 // A client's finished videos, newest first: raw footage, graphics and documents left out.
 export function finishedVideos(files, max = VIDEOS_PER_CLIENT) {
   return (files || [])
-    .filter((f) => fileClass(f.mimeType, f.path) === 'video' && f.link)
+    .filter((f) => fileClass(f.mimeType, f.path, f.name) === 'video' && f.link)
     .sort((a, b) => String(b.createdTime || '').localeCompare(String(a.createdTime || '')))
     .slice(0, max)
     .map((f) => ({ name: f.name, link: f.link }));

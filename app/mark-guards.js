@@ -19,7 +19,13 @@
 // Refused only when the system KNOWS it is empty: a read that fails, a table that is
 // not there, a count that is not zero, all let the mark through. The finished videos
 // are in the client's Google Drive (the owner's decision of 7.10.2026): no guard asks
-// for an upload of a video.
+// for an upload of a video into the system.
+//
+// One exception, the other way round (the owner, 17.11.2026): "כל הסרטונים הועלו לדרייב"
+// (p24.drive, rN.p24.drive) is refused UNLESS the client's Drive folder is listed and holds
+// the shoot's edited videos; a check that cannot be made refuses too (app/drive-guard.js).
+// It is asked here so that a screen says it before its tick, and again in
+// app/protocol-data.js, where every write of it goes through.
 //
 // The browser asks; the database does not. A mark written past the screens (another
 // tool, an old tab) is not stopped: that needs a rule in the database, which was left
@@ -59,6 +65,10 @@ export async function checkMark(clientId, key) {
   // pre-shoot form, the scripts' link) is taken through that form, in the client card.
   const form = formOf(key);
   if (form) return { via: 'form', form };
+  if (/^(r\d+\.)?p24\.drive$/.test(String(key || ''))) {
+    const { checkDriveVideos } = await import('./drive-guard.js');
+    return checkDriveVideos(clientId, key);
+  }
   const guard = guardOf(key);
   if (!guard || guard === 'graphicsCount') return null;
   if (guard === 'callSummary') return { via: 'call' };

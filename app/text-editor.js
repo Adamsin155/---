@@ -1,4 +1,4 @@
-// "עריכה" in the builder's preview (the owner, 17.11.2026; docs/ops.md, section 140): one part of the
+// "עריכה" in the builder's preview (the owner, 17.11.2026; docs/ops.md, section 142): one part of the
 // document's words (the cover, "מה כוללת החבילה", "פירוט החבילה", the package's numbers, the clauses)
 // edited in place, a box per line, add and delete a line, "חזרה לנוסח הרגיל" to drop what was written.
 // What is saved is selection.custom.text[part] (app/contract-text.js): a line nobody changed stays a

@@ -1,4 +1,4 @@
-// "נוסח חופשי" (the owner, 17.11.2026; docs/ops.md, section 140): every text part of a quote or an
+// "נוסח חופשי" (the owner, 17.11.2026; docs/ops.md, section 142): every text part of a quote or an
 // agreement may be written by hand, the way the old system let Ofir write a contract from a messy
 // WhatsApp thread ("שיוכל לשנות הכל ושרירותי כמו שאופיר רשם"). Stored in the selection, as
 // selection.custom.text, so it is in the stored model and under the server-side hash; the same file

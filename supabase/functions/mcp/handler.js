@@ -324,7 +324,10 @@ async function callWrite({ userClient, owner, token, gateKey, deps, now, baseUrl
       return { ok: false, status: 0, data: null };
     }
   };
-  return runWrite({ db: guardWrite(userClient), now: () => new Date(now()), createQuote }, name, args);
+  // The Drive (read-only, names only): "כל הסרטונים הועלו לדרייב" is marked only when the folder has them.
+  const sa = serviceAccountOf(deps.env('GOOGLE_DRIVE_SERVICE_ACCOUNT'));
+  const drive = sa ? makeDrive(sa, { fetch: deps.fetch || globalThis.fetch }) : null;
+  return runWrite({ db: guardWrite(userClient), now: () => new Date(now()), createQuote, drive }, name, args);
 }
 
 // The owners only (11.11.2026): the folders inside one Drive folder (names and links), so the

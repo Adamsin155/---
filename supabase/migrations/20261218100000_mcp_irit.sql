@@ -1,4 +1,4 @@
--- Irit may be switched on for the Claude connector (the owner, 17.11.2026; docs/ops.md, section 140):
+-- Irit may be switched on for the Claude connector (the owner, 17.11.2026; docs/ops.md, section 142):
 -- the free-text contract drafts of prepare_contract_draft are for the owners, Ofir, Lior and Irit,
 -- the people who prepare contracts. Until now the connector's people were the owners, Lior and Ofir
 -- (supabase/migrations/20261121100000_mcp.sql).

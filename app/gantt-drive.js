@@ -14,31 +14,11 @@ import { dayKeyIL } from './tz.js';
 import { icon } from './kit.js';
 import { readFolderLink, withFolder } from './drive-folder.js';
 import { updateClient } from './protocol-data.js';
+import { listDriveFiles } from './drive-files.js';
 
 export const DRIVE_BUTTON = 'משיכת קישורים מהדרייב';
-const ERRORS = {
-  drive_not_connected: 'הדרייב עוד לא מחובר. אחרי שהבעלים יחבר אותו, הכפתור יעבוד.',
-  no_folder: 'אין קישור לתיקיית הדרייב בכרטיס הלקוח.',
-  not_a_folder: 'הקישור לדרייב בכרטיס אינו קישור לתיקייה.',
-  drive_auth: 'החיבור לדרייב נדחה. צריך לבדוק את ההגדרה.',
-  not_allowed: 'את הגאנט מעדכנים עילאי, עירית, אופיר, ליאור ובעל המשרד.',
-};
-const errorOf = (code, robot) => (code === 'drive_no_access'
-  ? `אין גישה לתיקייה. צריך לשתף אותה (צפייה) עם ${robot || 'חשבון הרובוט של אסטרטג'}.`
-  : ERRORS[code] || 'הדרייב לא ענה כרגע. נסו שוב בעוד רגע.');
-
-// The folder's files, or { error } in words.
-async function listFiles(clientId) {
-  const call = () => supabase.functions.invoke('drive', { body: { client_id: clientId } });
-  let { data, error } = await call();
-  if (error && error.context?.status === 401) { await supabase.auth.refreshSession().catch(() => null); ({ data, error } = await call()); }
-  if (error) {
-    let body = {};
-    try { body = await error.context.json(); } catch { /* no body */ }
-    return { error: errorOf(String(body.error || ''), body.robot) };
-  }
-  return Array.isArray(data?.files) ? { files: data.files } : { error: errorOf('') };
-}
+// The folder's files, or { error } in words (app/drive-files.js, shared with the check of step 24).
+const listFiles = (clientId) => listDriveFiles(clientId);
 
 // A new row for a dated file with no row of its kind within a day (11.11.2026; docs/ops.md,
 // section 128): planned, with the file's link. A number someone took meanwhile: the next one.

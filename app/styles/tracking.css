@@ -211,3 +211,14 @@
   .fx-dlg .dlg-foot { flex-direction: column-reverse; align-items: stretch; }
   .fx-dlg .fx-reset { margin: 0; }
 }
+
+/* "מעקב לקוחות": the two totals above the table, and the filter by person (17.11.2026). */
+.ct-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-block-end: 16px; }
+.ct-stats .ow-stat { grid-template-rows: auto 1fr auto; }
+.ct-stats .ow-stat .v { font-size: 34px; align-self: end; direction: rtl; white-space: nowrap; }
+.ct-stats .ct-stat-sub { font-size: 13px; color: var(--text-2); font-weight: 600; }
+@media (max-width: 640px) {
+  .ct-stats { gap: 8px; }
+  .ct-stats .ow-stat { padding: 12px; }
+  .ct-stats .ow-stat .v { font-size: clamp(20px, 6.2vw, 26px); }
+}
