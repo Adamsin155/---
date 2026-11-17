@@ -77,7 +77,8 @@ export const MODEL = 'claude-sonnet-5-5';
 // Irit does not wait (adaptive thinking is on by default on this model).
 export const EFFORT = 'medium';
 export const RATE_PER_MINUTE = 20;
-export const TIMEOUT_MS = 30000;
+// 60 s since 17.11.2026: free mode also writes the document's words (custom.text), a longer answer.
+export const TIMEOUT_MS = 60000;
 
 // The request to the Messages API (client.beta.messages.create): the system prompt is the same
 // on every call and is cached; the office's words come last. Server-side fallback ("default") is
