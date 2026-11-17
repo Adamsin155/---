@@ -23,6 +23,7 @@ globalThis.Node = Node;
 globalThis.document = { createElement: (t) => new Node(t), createTextNode: (t) => new Text(t) };
 
 const { renderQuoteDoc } = await import('../app/quote-doc.js');
+const { STAV, BASE, FAKE_CLIENT, FIVE, CL11, CL12, CL33, DETAILS, AI_TEXT, FAKE_ANSWER } = await import('./free-text-fixture.mjs');
 const { buildQuoteModel, emptySelection, validateSelection, normalizeSelection, exceptionOf, regularText } = await import('../app/pricing.js');
 const { textErrors, checkAiText, asRefs, TEXT_LIMITS } = await import('../app/contract-text.js');
 const { validateFreeResult, applyFreeDraft, FREE_SCHEMA, freeSystemPrompt } = await import('../app/contract-ai-logic.js');
@@ -34,58 +35,6 @@ const { QUOTE_EDIT_KEYS, editsQuote } = await import('../supabase/functions/crea
 const all = (n, pred, out = []) => { if (pred(n)) out.push(n); for (const k of n.kids || []) all(k, pred, out); return out; };
 const byClass = (doc, cls) => all(doc, (n) => String(n.className).split(' ').includes(cls));
 const stored = (m) => JSON.parse(JSON.stringify(m));
-// Stav's deal, as the seller closed it: Semyon, Michel, Denis and "הצל", 3,900 a month, 68 videos and 36
-// graphics (72 contents and 32 more). A fake business: never a real client in the repository.
-const FAKE_CLIENT = { name: '', company: 'קפה הדגמה בע״מ', companyId: '500000001', phone: '', email: '' };
-const BASE = { ...emptySelection(), docType: 'agreement', tier: 'social', influencer: 'simeon' };
-const STAV = { ...BASE, custom: { price: 390000, qty: { videos: 68, graphics: 36 }, alsoInfluencers: ['hatzel'] } };
-const FIVE = 'בכל חודש רשאי בעל העסק לשלוח לקבוצה עד 5 תכנים שצילם בעצמו. איש הסושיאל של אסטרטג יבחר יחד איתו את התכנים הטובים ביותר, ואסטרטג תערוך אותם ותעלה אותם לרשתות, באישורו של בעל העסק';
-const CL11 = 'ההתקשרות הינה לתקופה קצובה של 12 חודשים, אשר תחל ממועד העלאת התוכן הראשון לרשתות החברתיות';
-const CL12 = 'אסטרטג מתחייבת להתחיל בהעלאת התכנים לרשתות החברתיות עד 30 ימי עסקים מיום הצילום, בכפוף לאמור בסעיף 3';
-const CL33 = 'בכל חודש רשאי בעל העסק לשלוח לקבוצה עד 5 תכנים שצילם בעצמו; איש הסושיאל של אסטרטג יבחר יחד איתו את התכנים הטובים ביותר, ואסטרטג תערוך ותעלה אותם לרשתות החברתיות, באישורו של בעל העסק.';
-const DETAILS = [
-  'התשלום הוא חודשי, למשך כל תקופת ההתחייבות.',
-  'תחילת העלאת התכנים לרשתות החברתיות - עד 30 ימי עסקים מיום הצילום.',
-  '12 חודשי ההתקשרות נספרים מיום העלאת התוכן הראשון לרשתות.',
-  'לכל תוצר כלול סבב תיקון אחד במסגרת המחיר.',
-];
-// The words as the model is asked to give them (its schema's shape: "" and [] keep the regular words).
-const AI_TEXT = {
-  title: '', subtitle: 'ALL IN ONE · מישל, דניס, סמיון והצל (יואב אליאסי)', influencerLine: '', noInfluencerLine: true,
-  packageTitle: '',
-  packageGroups: [
-    { title: '{{1}}', items: [
-      'יום צילום מקצועי ומרוכז בבית העסק עם מישל, דניס, סמיון והצל (יואב אליאסי)',
-      '72 תכנים: 36 סרטוני רילס מקוריים וטרנדיים ו־36 גרפיקות בהתאמה אישית',
-      '32 סרטונים נוספים, מעבר ל־72 התכנים שבחבילה - סך הכל 104 תכנים',
-      FIVE,
-      // The client's business must never go into the words: this line is left out.
-      'החבילה מותאמת במיוחד לקפה הדגמה בע״מ',
-    ] },
-    { title: '{{2}}', items: ['{{2.*}}'] },
-    { title: '{{3}}', items: ['{{3.*}}'] },
-  ],
-  detailsTitle: 'דגשים',
-  details: [{ title: 'דגשים:', items: DETAILS }],
-  tiles: [{ n: '1', label: 'יום צילום' }, { n: '68', label: 'סרטונים' }, { n: '36', label: 'גרפיקות' }, { n: '104', label: 'תכנים' }],
-  clauses: [
-    { title: '{{1}}', items: [CL11, CL12, '{{1.2}}'] },
-    { title: '{{2}}', items: ['{{2.*}}'] },
-    { title: '{{3}}', items: ['{{3.1}}', '{{3.2}}', CL33] },
-    { title: '{{4}}', items: ['{{4.*}}'] },
-    { title: '{{5}}', items: ['{{5.*}}'] },
-    { title: '{{6}}', items: ['{{6.*}}'] },
-    { title: '{{7}}', items: ['{{7.*}}'] },
-  ],
-};
-// The recorded answer of free mode for the seller's text (see the header: written by hand).
-const FAKE_ANSWER = { drafts: [{
-  title: 'ALL IN ONE · סמיון והצל', docType: null, influencer: 'simeon', simeonJoin: false, alsoInfluencers: ['hatzel'],
-  influencerName: null, postsAt: [], tier: null, monthlyPrice: 390000, priceIncludesVat: false, monthlyShoot: false,
-  monthlyContents: null, quantities: [{ key: 'videos', value: 68 }, { key: 'graphics', value: 36 }], addons: [], months: null,
-  extraLines: [], specialClauses: [], discount: null, client: FAKE_CLIENT, text: AI_TEXT,
-}], questions: [], notes: null };
-
 const agreement = (sel, client = {}) => buildQuoteModel(sel, client);
 
 test('no words of its own: the model is key for key the regular one (and the parts equal to it are dropped)', () => {
