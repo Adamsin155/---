@@ -51,7 +51,7 @@ test('the process exists once, Ofir\'s, with the one new key', () => {
   assert.equal(p.length, 1);
   assert.deepEqual(p[0].items.map((i) => i.key), [KEY]);
   // Since 1.11.2026 the client's characterizer's (Ofir or Noam): Ofir for a client of his.
-  assert.deepEqual(p[0].owners({ characterizer: 'ofir' }), ['ofir']);
+  assert.deepEqual(p[0].owners({ characterizer: 'ofir' }), ['ofir', 'amit']); // Amit shares it since 17.11.2026 (CHAR_PAIR)
 });
 
 test('version 7: the function, the column default, a new client', async () => {

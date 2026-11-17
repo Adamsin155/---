@@ -12,6 +12,7 @@ import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { freshDatabase, as, migrationSql } from './pg.mjs';
+const ALL = '20261217100000_amit_all.sql';
 import { buildPayload, emptyForm } from '../../app/access-logic.js';
 import { sqlBlock, latestBlock, mayWrite } from '../../scripts/protocol-writers.mjs';
 
@@ -53,6 +54,7 @@ before(async () => {
   await db.exec(readFileSync(NOAM_CHECKS, 'utf8'));
   await db.exec(migrationSql(FILE));
   await db.exec(migrationSql(CHECKS));
+  await db.exec(migrationSql(ALL)); // the writers since 17.11.2026 (section 139): he ends his meeting, p05.vault
   Object.assign(users, await addPeople(db));
   ids.shiel = await addClient(db, 'מספרת שיאל', 'shiel');
   ids.noam = await addClient(db, 'קפה נעמה', 'noam');
@@ -66,7 +68,7 @@ test('the files: the first only replaces functions and writes the app\'s writers
     ['public.is_office', 'private.task_gives_access', 'public.access_form_submit']);
   // The writers block was written again by 20261208120000_protocol_v13.sql (9.11.2026), the latest since.
   // v14 (10.11.2026) after v13, and again when Noam left (10.11.2026).
-  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261214100000_amit.sql', true]); // Amit (15.11.2026) wrote it again
+  assert.deepEqual([latestBlock().file, latestBlock().block === sqlBlock()], ['20261217100000_amit_all.sql', true]); // Amit (15.11.2026) wrote it again, and again on 17.11.2026 (section 139)
   const checks = readFileSync(new URL(`../../supabase/migrations/${CHECKS}`, import.meta.url), 'utf8');
   assert.match(checks, /^-- WAITS FOR THE OWNER'S APPROVAL/);
   const taken = checks.replace(/--[^\n]*/g, '').match(/\b(drop|delete|truncate)\b[^\n]*/gi);
@@ -77,6 +79,7 @@ test('the files: the first only replaces functions and writes the app\'s writers
   await db.exec(sql);
   await db.exec(migrationSql(CHECKS));
   await db.exec(migrationSql(CHECKS));
+  await db.exec(migrationSql(ALL)); // the writers as they are since 17.11.2026
 });
 
 test('before the checks nothing of Shiel is stored; after them his row and his client are, and nothing that would tell him something', async () => {

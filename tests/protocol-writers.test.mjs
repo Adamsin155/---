@@ -28,7 +28,8 @@ test('the lists copied from browser modules are the same as there', () => {
   for (const k of Object.keys(EXTRA_MARKS)) {
     // The photographer's marks (the key of the raw material per script is a constant of production.js, which shoot.js writes); the editor's.
     // (v14: the old marks of 5 the characterization form still writes.)
-    const file = k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : /^p05\./.test(k) ? 'characterization.js' : 'editor.js';
+    // (17.11.2026: "האפיון הסתיים" is CHAR_ENDED in protocol-logic.js, which intake.js writes.)
+    const file = k === 'p04.ended' ? 'protocol-logic.js' : k === 'p18b.files' ? 'production.js' : /^p1[6789]/.test(k) ? 'shoot.js' : /^p05\./.test(k) ? 'characterization.js' : 'editor.js';
     assert.ok(src(file).includes(`'${k}'`), `${k} is written in ${file}`);
   }
 });
@@ -37,7 +38,8 @@ test('the lists copied from browser modules are the same as there', () => {
 // (p07.moved is written once, by the migration of protocol v9: no page writes it.)
 // (p13.left, protocol v10: Lior says that fixes remained after the Zoom.)
 // (p18.count, 25.10.2026: Lior's number of videos for a day without influencers.)
-const OFFICE_ONLY = new Set(['p04.ended', 'p07.moved', 'p13.left', 'p13.zoomat', 'p14.seen', 'p16.brief', 'p18.count', 'p18.quiet', 'p18.shot', 'p22.decision', 'p22a.reason', 'p22a.shift', 'p22a.todo', 'p35.opened']);
+// (p04.ended left this list on 17.11.2026: whoever runs the meeting writes it, docs/ops.md, section 139.)
+const OFFICE_ONLY = new Set(['p07.moved', 'p13.left', 'p13.zoomat', 'p14.seen', 'p16.brief', 'p18.count', 'p18.quiet', 'p18.shot', 'p22.decision', 'p22a.reason', 'p22a.shift', 'p22a.todo', 'p35.opened']);
 test('every mark an app page writes is an item, a known rule, a listed extra mark, or the office\'s', () => {
   const items = new Set(PROCESSES.flatMap((p) => p.items.map((i) => i.key)));
   const unknown = [];

@@ -72,7 +72,7 @@ test('who writes process 6: the office (Ofir among them), Ilai no more; the rest
   const insert = (who, key) => as(db, users[who], async (tx) => (await tx.query("insert into public.protocol_checks (client_id, item_key, state) values ($1, $2, 'done') returning item_key", [ids.ron, key])).rows.length).catch(() => 0);
   const p06 = PROCESSES.find((p) => p.id === 'p06');
   // Since 1.11.2026 the client's characterizer's (Ofir or Noam; tests/sql/noam.test.mjs): Ofir for a client of his.
-  assert.deepEqual(p06.owners({ characterizer: 'ofir' }), ['ofir']);
+  assert.deepEqual(p06.owners({ characterizer: 'ofir' }), ['ofir', 'amit']); // Amit shares it since 17.11.2026 (CHAR_PAIR)
   const keys = [...p06.items.map((i) => i.key), 'p06.claim', 'p06.wait', 'p06.handoff.ofir', 'p05.handoff.ofir', 'p05.newlogo', 'p07.made', 'p07b.posted'];
   const office = ['owner', 'irit', 'lior', 'ofir'];
   for (const key of keys) {
