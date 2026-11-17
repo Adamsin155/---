@@ -5330,4 +5330,6 @@ Claude יראה פסקה של "מה ישתנה". עונים "כן" ורק אז �
 
 **לעלייה לאוויר:** לפרוס את `drive-scan` (וכל הפונקציות שקוראות ל־`_shared/drive.js`: `drive`, `ask`, `mcp`, `gfx-auto`, `sales-samples`, כי הסיווג עבר ל־`app/drive-class.js`). אין מיגרציה ואין צורך לפרסם את האתר. צריך למזג יחד עם `fix/track-sync` (אותם קבצים `drive-class.js`, `drive-guard-logic.js`, `package-parts.js`, אותה שורת `ENTRIES`).
 
-**בדיקות:** `tests/drive-auto.test.mjs`, `tests/drive-scan.test.mjs`, `tests/sync-functions.test.mjs`.
+**הסריקה לאחור (סעיף 140, `{"backfill":true,"after":…}`) לא מסמנת:** היא רק כותבת את הספירות. קריאה אחת שלה לוקחת 25 תיקיות שלמות באותו תקציב זמן, ובזמן שהיא רצה הספירות של שאר הלקוחות עוד חלקיות; כל לקוח מסומן במעבר היומי הבא שלו (כשעתיים), מהספירות המלאות. אחרי המיזוג עם כלל שמות המצלמה (`CAMERA_NAME`) תוצאת הריצה היבשה לא השתנתה: הספירות ב־`drive_daily` סווגו בסריקה, והשמות לא נשמרים שם; בשני הלקוחות שיסומנו בהם הסרטונים נבדקו השמות ביד (באחד קובץ מצלמה אחד, ועדיין 24 מתוך 24).
+
+**בדיקות:** `tests/drive-auto.test.mjs`, `tests/drive-scan.test.mjs`, `tests/sync-functions.test.mjs`. `tests/drive-auto.test.mjs` גם בודק שהסריקה לאחור לא מסמנת ולא ממלאת קישורים.
