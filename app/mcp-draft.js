@@ -18,21 +18,37 @@ import {
   validateAiResult, applyAiResult, validateFreeResult, applyFreeDraft, catalogText, freeCatalogText,
   PACKAGE_KEYS, QTY_KEYS, PAID_IDS, FREE_KEYS,
 } from './contract-ai-logic.js';
+// "נוסח חופשי" (17.11.2026; docs/ops.md, section 140): the document's own words in the draft too.
+import { TEXT_AI_PROPS, TEXT_AI_KEYS, TEXT_PART_NAMES, checkAiText, textRulesText, numberedText, resolveText, MONEY } from './contract-text.js';
+import { regularText, emptySelection } from './pricing.js';
 
 export const DRAFT_TOOL = 'prepare_contract_draft';
 export const DRAFT_SITE = 'https://app.astrateg.tech/';
 export const DRAFT_PARAM = 'mcp-draft';
-// A long link is not a working link (and the longest allowed choices fit well under it).
-export const DRAFT_LINK_MAX = 12000;
+// A long link is not a working link (and the longest allowed choices fit well under it). 16,000 since
+// 17.11.2026: a draft with the document's own words (only the lines written differ from the regular ones).
+export const DRAFT_LINK_MAX = 16000;
 
-const COMMON = ['mode', 'docType', 'months', 'quantities', 'addons', 'monthlyPrice', 'priceIncludesVat', 'discount', 'extraLines', 'specialClauses'];
+const COMMON = ['mode', 'docType', 'months', 'quantities', 'addons', 'monthlyPrice', 'priceIncludesVat', 'discount', 'extraLines', 'specialClauses', 'text'];
 const ONLY_CATALOG = ['package', 'removals', 'freeAddons', 'discountPercent'];
 const ONLY_FREE = ['influencer', 'tier', 'monthlyShoot', 'monthlyContents', 'alsoInfluencers', 'postsAt'];
 const ALL_KEYS = [...COMMON, ...ONLY_CATALOG, ...ONLY_FREE];
 const REMOVABLE = CUSTOM_QTY.filter((q) => !q.min).map((q) => q.key);
 
 const INT = { type: 'integer' };
-const pair = (keys) => ({ type: 'object', properties: { key: { type: 'string', enum: keys }, value: INT }, required: ['key', 'value'], additionalProperties: false });
+const TEXT_HELP = {
+  title: 'The cover\'s title ("הסכם התקשרות" is the agreement\'s own).',
+  subtitle: 'The cover\'s second line, e.g. "ALL IN ONE · סמיון, מישל ודניס והצל".',
+  influencerLine: 'The cover\'s third line (the influencers).',
+  noInfluencerLine: 'true: no third line (when the subtitle names the influencers).',
+  packageTitle: 'The title of "מה כוללת החבילה".',
+  packageGroups: '"מה כוללת החבילה": [{title, items}], all its groups in order.',
+  detailsTitle: 'The title of "פירוט החבילה" ("דגשים" when the deal calls them so).',
+  details: '"פירוט החבילה" (the דגשים): [{title, items}]; the price line only as "{{1.1}}".',
+  tiles: 'The package\'s numbers as shown: [{n: "104", label: "תכנים"}], all of them.',
+  clauses: 'The agreement\'s chapters: [{title, items}], numbered by the system; must keep "{{2.1}}" (the price).',
+};
+const pair =(keys) => ({ type: 'object', properties: { key: { type: 'string', enum: keys }, value: INT }, required: ['key', 'value'], additionalProperties: false });
 // No field for who the client is, on purpose: the person fills that in on the builder.
 export const DRAFT_SCHEMA = {
   type: 'object',
@@ -58,6 +74,14 @@ export const DRAFT_SCHEMA = {
     // Several influencers in one contract (16.11.2026; docs/ops.md, section 135).
     alsoInfluencers: { type: 'array', items: { type: 'string', enum: Object.keys(INFLUENCERS).filter(canAlsoBe) }, description: `free mode: up to ${MAX_ALSO_INFLUENCERS} more influencers next to \`influencer\` (the first one named), when the deal names several.` },
     postsAt: { type: 'array', items: { type: 'object', properties: { influencer: { type: 'string', enum: Object.keys(INFLUENCERS).filter(canAlsoBe) }, collabs: INT, stories: INT }, required: ['influencer'], additionalProperties: false }, description: 'free mode: the collabs and stories at each influencer, only when the deal says at whom.' },
+    // The document's own words (17.11.2026): see "The document's own words" in the description.
+    text: {
+      type: 'object',
+      properties: Object.fromEntries(TEXT_AI_KEYS.map((k) => [k, { ...TEXT_AI_PROPS[k], description: TEXT_HELP[k] }])),
+      additionalProperties: false,
+      description: 'The document\'s own words, tidy formal Hebrew: only the parts the deal writes differently; a list replaces that whole part; "{{2.1}}" keeps a regular line. Never money, never the client\'s details.',
+    },
+    previous: { type: 'string', description: 'To change a draft already made by talking: its link (or the part after "#mcp-draft="). Then send only what changes; a field set to null goes back to the package\'s own, and in text a part you send replaces that part (send the whole list, from the previous answer\'s text, with the change).' },
   },
   additionalProperties: false,
 };
@@ -70,6 +94,10 @@ export function draftDescription() {
     'Set only what the deal says; everything else stays the package\'s own. Never put the client\'s name, business, id, phone, email or address in any field: those are typed on the builder only. Give the person the link and any "to_check" lines.',
     catalogText(),
     `# Free mode (a free-hand contract, exactly as written)\n${freeCatalogText()}`,
+    // The document's own words (17.11.2026), in both modes.
+    'The person may write the deal in messy words, as a seller writes on WhatsApp. Then set the choices from it and write the document\'s own words in text: tidy them into clean contract Hebrew lines, keep clauses 1.1 and 1.2 and the details (דגשים) saying the same thing, and never put the client\'s details in text.',
+    textRulesText(regularText({ ...emptySelection(), docType: 'agreement', tier: 'social', influencer: 'simeon' })),
+    '# Changing a draft by talking\nWhen the person asks to change a draft already made ("תוריד את השורה של הקולאב", "תשנה את סעיף 1.1 ל…"), call this tool again with previous: the draft\'s link, and only what changes. In text, a part you send replaces that whole part: take it from the previous answer\'s text (or document_words), change what was asked, and send all of it. Give the person the new link. Nothing is saved or sent: it is a draft until the person creates it on the builder.',
   ].join('\n\n');
   return DESCRIPTION;
 }
@@ -113,8 +141,46 @@ export function checkDraftInput(raw) {
   const personal = [];
   if ((input.extraLines || []).some((l) => PERSONAL.test(l.label))) personal.push('extraLines');
   if ((input.specialClauses || []).some((t) => PERSONAL.test(t))) personal.push('specialClauses');
+  // The document's own words (17.11.2026): only the schema's keys, text and lists of text.
+  if (input.text !== undefined) {
+    const t = input.text;
+    if (!isObject(t)) return { error: 'bad_input', fields: ['text'] };
+    const unknownText = Object.keys(t).filter((k) => !TEXT_AI_KEYS.includes(k)).map((k) => `text.${k.slice(0, 30)}`).slice(0, 10);
+    if (unknownText.length) return { error: 'unknown_field', fields: unknownText };
+    const strings = textStrings(t);
+    if (strings === null) return { error: 'bad_input', fields: ['text'] };
+    if (strings.some((x) => PERSONAL.test(x))) personal.push('text');
+    else if (strings.some((x) => MONEY.test(x))) return { error: 'money_in_text', fields: ['text'] };
+  }
   if (personal.length) return { error: 'personal_details', fields: personal };
   return { input };
+}
+
+// Every string of a draft's text, or null when its shape is wrong.
+function textStrings(t) {
+  const out = [];
+  const str = (v) => { if (typeof v !== 'string') throw new Error('shape'); out.push(v); };
+  try {
+    for (const k of ['title', 'subtitle', 'influencerLine', 'packageTitle', 'detailsTitle']) if (t[k] !== undefined && t[k] !== null) str(t[k]);
+    if (t.noInfluencerLine !== undefined && t.noInfluencerLine !== null && typeof t.noInfluencerLine !== 'boolean') return null;
+    for (const k of ['packageGroups', 'details', 'clauses']) {
+      if (t[k] === undefined || t[k] === null) continue;
+      if (!Array.isArray(t[k])) return null;
+      for (const g of t[k]) {
+        if (!isObject(g) || Object.keys(g).some((f) => !['title', 'items'].includes(f)) || !Array.isArray(g.items ?? [])) return null;
+        if (g.title !== undefined) str(g.title);
+        (g.items || []).forEach(str);
+      }
+    }
+    if (t.tiles !== undefined && t.tiles !== null) {
+      if (!Array.isArray(t.tiles)) return null;
+      for (const x of t.tiles) {
+        if (!isObject(x) || Object.keys(x).some((f) => !['n', 'label'].includes(f))) return null;
+        str(x.n ?? ''); str(x.label ?? '');
+      }
+    }
+  } catch { return null; }
+  return out;
 }
 
 export const DRAFT_ERRORS = {
@@ -124,12 +190,50 @@ export const DRAFT_ERRORS = {
   package_required: 'צריך לבחור חבילה מהקטלוג (package), או להכין חוזה חופשי (mode: free). אם לא ברור, לשאול.',
   personal_details: 'בטקסט יש מייל או מספר ארוך. פרטי הלקוח לא עוברים כאן: ממלאים אותם במחולל.',
   invalid_selection: 'הבחירות לא מסתדרות עם הקטלוג.',
-  too_long: 'הטיוטה ארוכה מדי לקישור. לקצר את התנאים המיוחדים.',
+  too_long: 'הטיוטה ארוכה מדי לקישור. לקצר את התנאים המיוחדים או את הנוסח.',
+  money_in_text: 'בנוסח יש סכום. סכומים לא נכתבים בנוסח: המחיר מחושב (monthlyPrice), ובסעיף המחיר נשאר "{{2.1}}".',
+  bad_previous: 'הקישור לטיוטה הקודמת לא תקין. אפשר להכין את הטיוטה מחדש.',
 };
+
+// A draft changed by talking (17.11.2026): the previous draft's link (or its part after "#mcp-draft=")
+// and only what changes. A field set to null goes back to the package's own; in text, each part sent
+// replaces that part (null or "" / [] puts its regular words back). { raw } or { error, fields }.
+export function withPrevious(raw) {
+  if (!isObject(raw) || raw.previous === undefined || raw.previous === null) return { raw };
+  const { previous, ...changes } = raw;
+  const s = typeof previous === 'string' ? previous.trim() : '';
+  const at = s.indexOf(`${DRAFT_PARAM}=`);
+  const param = at >= 0 ? s.slice(at + DRAFT_PARAM.length + 1) : s;
+  let before;
+  try {
+    if (!param || param.length > DRAFT_LINK_MAX || !/^[A-Za-z0-9_-]+$/.test(param)) throw new Error('bad');
+    before = checkDraftInput(fromParam(param));
+  } catch {
+    return { error: 'bad_previous', fields: ['previous'] };
+  }
+  if (before.error) return { error: 'bad_previous', fields: ['previous'] };
+  const merged = { ...before.input };
+  for (const [k, v] of Object.entries(changes)) {
+    if (k === 'text' && isObject(v)) {
+      const text = { ...(merged.text || {}) };
+      for (const [tk, tv] of Object.entries(v)) { if (tv === null) delete text[tk]; else text[tk] = tv; }
+      if (Object.keys(text).length) merged.text = text; else delete merged.text;
+    } else if (v === null) delete merged[k];
+    else merged[k] = v;
+  }
+  // Another mode: what belonged to the previous one only is left behind.
+  const mode = merged.mode || 'catalog';
+  const allowed = [...COMMON, ...(mode === 'free' ? ONLY_FREE : ONLY_CATALOG)];
+  for (const k of Object.keys(merged)) if (ALL_KEYS.includes(k) && !allowed.includes(k) && !(k in changes)) delete merged[k];
+  return { raw: merged };
+}
 
 // The choices through the same checks as the AI preparation, and then the pricing engine:
 // { selection, marks, summary, check, exceptions, model } or { error, fields, details }.
-export function draftOf(raw) {
+export function draftOf(given) {
+  const prev = withPrevious(given);
+  if (prev.error) return prev;
+  const { raw } = prev;
   const checked = checkDraftInput(raw);
   if (checked.error) return checked;
   const { mode, docType, ...choices } = checked.input;
@@ -141,9 +245,17 @@ export function draftOf(raw) {
     applied = applyFreeDraft(current, result.drafts[0]);
     check = [...applied.questions, ...applied.skipped, ...dropped.map((d) => d.text)];
   } else {
-    const { result, dropped } = validateAiResult(choices);
+    const { text: words, ...rest } = choices;
+    const { result, dropped } = validateAiResult(rest);
     applied = applyAiResult(current, result);
     check = [...result.questions, ...applied.skipped, ...dropped.map((d) => d.text)];
+    // The document's own words, checked as those of "הכנת חוזה עם AI" (app/contract-text.js).
+    const { text, notes } = checkAiText(words);
+    check.push(...notes);
+    if (text) {
+      applied.selection = { ...applied.selection, custom: { ...(applied.selection.custom || {}), text } };
+      applied.summary = [...applied.summary, `נוסח שנכתב: ${Object.keys(text).map((k) => TEXT_PART_NAMES[k]).join(', ')}`];
+    }
   }
   const { selection, marks, summary } = applied;
   // What the builder would send to create-quote (selectionToSend in app/builder.js): in a custom
@@ -181,7 +293,7 @@ export function draftAnswer(raw) {
   const d = draftOf(raw);
   if (d.error) return d;
   const link = draftLink(d.input);
-  if (link.length > DRAFT_LINK_MAX) return { error: 'too_long', fields: ['specialClauses'] };
+  if (link.length > DRAFT_LINK_MAX) return { error: 'too_long', fields: d.input.text ? ['text', 'specialClauses'] : ['specialClauses'] };
   const { model } = d;
   const t = model.totals;
   return {
@@ -200,8 +312,18 @@ export function draftAnswer(raw) {
     set: d.summary,
     differs_from_package: d.exceptions,
     to_check: d.check,
+    // The document's own words as stored ("{{2.1}}" a regular line) and the whole wording as the
+    // document shows it, numbered: what a change by talking starts from.
+    ...(d.input.text ? { text: d.input.text } : {}),
+    document_words: documentWords(d.toSend),
     link,
   };
+}
+
+// The document's words, numbered as the document shows them (with the draft's own words in them).
+function documentWords(sel) {
+  const regular = regularText(sel);
+  return numberedText({ ...regular, ...resolveText(sel.custom?.text, regular) });
 }
 
 // From the builder's address: { input } when the address holds a draft that passes the same check,

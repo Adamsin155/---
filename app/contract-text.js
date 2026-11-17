@@ -206,7 +206,7 @@ export function asRefs(regular) {
 export function numberedText(regular) {
   const list = (groups) => groups.map((g, i) => [`${i + 1}. ${g.title}`, ...g.items.map((x, j) => `  ${i + 1}.${j + 1} ${x}`)].join('\n')).join('\n');
   return [
-    `cover: title "${regular.cover.title}" · packageName "${regular.cover.packageName}" · influencer "${regular.cover.influencer}"`,
+    `cover: title "${regular.cover.title}" · subtitle "${regular.cover.packageName}" · influencerLine "${regular.cover.influencer}"`,
     `package (title "${regular.package.title}"):\n${list(regular.package.groups)}`,
     `details (title "${regular.details.title}"):\n${list(regular.details.groups)}`,
     `tiles: ${regular.tiles.map((t) => `${t.n} ${t.label}`).join(' · ')}`,
@@ -224,7 +224,7 @@ const GROUPS_SCHEMA = {
   items: { type: 'object', additionalProperties: false, required: ['title', 'items'], properties: { title: STR, items: { type: 'array', items: STR } } },
 };
 export const TEXT_AI_PROPS = {
-  title: STR, packageName: STR, influencerLine: STR, hideInfluencerLine: { type: 'boolean' },
+  title: STR, subtitle: STR, influencerLine: STR, noInfluencerLine: { type: 'boolean' },
   packageTitle: STR, packageGroups: GROUPS_SCHEMA, detailsTitle: STR, details: GROUPS_SCHEMA,
   tiles: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['n', 'label'], properties: { n: STR, label: STR } } },
   clauses: GROUPS_SCHEMA,
@@ -245,8 +245,8 @@ export function textFromAi(t) {
   const out = {};
   const cover = {};
   if (cleanText(s(t.title))) cover.title = s(t.title);
-  if (cleanText(s(t.packageName))) cover.packageName = s(t.packageName);
-  if (t.hideInfluencerLine === true) cover.influencer = '';
+  if (cleanText(s(t.subtitle))) cover.packageName = s(t.subtitle);
+  if (t.noInfluencerLine === true) cover.influencer = '';
   else if (cleanText(s(t.influencerLine))) cover.influencer = s(t.influencerLine);
   if (Object.keys(cover).length) out.cover = cover;
   for (const [part, title, groups] of [['package', 'packageTitle', 'packageGroups'], ['details', 'detailsTitle', 'details']]) {
@@ -340,7 +340,7 @@ The document has regular words, numbered below (for an agreement with Semyon, Mi
 - Money is never written in text: no ₪, no price, no total, no payment amount. The lines with the price are references only: clauses always keep "{{2.1}}", and the details' price line is "{{1.1}}".
 - Never write the client's name, business, company id (ח.פ), phone, email or address in text: those go to client only.
 - Keep the document consistent: the numbers in your lines are the contract's quantities; when the deal changes when the term or the uploads start, rewrite clauses 1.1 and 1.2, the clauses of chapter 3 that say the same, and the details lines, so that they all say the same thing; a rule the deal adds (for example contents the client sends himself) gets a clause of its own in the chapter it belongs to, and a line in the package when it is something the client gets. When you write clauses, agreed conditions go there and not in specialClauses.
-- packageGroups: "מה כוללת החבילה" (the title of each group, and its lines). details: "פירוט החבילה", the דגשים (detailsTitle "דגשים" when the deal calls them so). tiles: the package's numbers, all of them as they should be shown ({n: "104", label: "תכנים"}), only when the deal changes them or gives a total. title, packageName, influencerLine: the cover's lines (hideInfluencerLine true when packageName already names the influencers).
+- packageGroups: "מה כוללת החבילה" (the title of each group, and its lines). details: "פירוט החבילה", the דגשים (detailsTitle "דגשים" when the deal calls them so). tiles: the package's numbers, all of them as they should be shown ({n: "104", label: "תכנים"}), only when the deal changes them or gives a total. title, subtitle, influencerLine: the cover's three lines (noInfluencerLine true when the subtitle already names the influencers).
 
 ${numberedText(regular)}`;
 }
