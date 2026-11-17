@@ -38,6 +38,8 @@ import { draftOf, DRAFT_SCHEMA, DRAFT_ERRORS, DRAFT_SITE, PERSONAL } from '../_s
 import { DOC_TYPES, validityWords } from '../_shared/app/catalog.js';
 import { whatsappLink } from '../_shared/app/quote-doc.js';
 import { matchClient } from '../ask/tools.js';
+import { isDriveKey, driveVerdict, cannotCheck } from '../_shared/app/drive-guard-logic.js';
+import { folderIdOf } from '../_shared/drive.js';
 
 // ── What a connected app's token may do in the database, for an owner (the gate's lists) ──
 // tests/sql/mcp-write.test.mjs holds these equal to public.mcp_request_gate() in the migration.
@@ -111,7 +113,7 @@ async function wrote(query) {
 }
 
 // The client's columns these tools need (as the card reads them: never phone, notes or email here).
-const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, links, deliverables, rounds, editor, editor2, protocol_version, archived_at, landing, landed_at, landing_slot';
+const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, links, deliverables, rounds, editor, editor2, editor_split, protocol_version, archived_at, landing, landed_at, landing_slot';
 const CHECK_COLS = 'client_id, item_key, state, note, by_email, at';
 async function clientOf(ctx, words) {
   if (typeof words !== 'string' || !words.trim()) refuse('צריך שם של לקוח.', 'bad_input');
@@ -161,6 +163,26 @@ async function guardFactsOf(ctx, guard, clientId, key) {
   return null;
 }
 
+// The client's Drive folder listed now, its edited videos against what the shoot needs: null (fine),
+// or the sentence of the refusal (also when the check cannot be made).
+const DRIVE_WORDS = {
+  no_folder: 'אין קישור לתיקיית הדרייב בכרטיס הלקוח.', not_a_folder: 'הקישור לדרייב בכרטיס אינו קישור לתיקייה.',
+  not_connected: 'הדרייב עוד לא מחובר.', no_access: 'אין גישה לתיקייה: צריך לשתף אותה (צפייה) עם חשבון הרובוט של אסטרטג.',
+  auth: 'החיבור לדרייב נדחה. צריך לבדוק את ההגדרה.', failed: 'הדרייב לא ענה כרגע. נסו שוב בעוד רגע.',
+};
+async function driveCheck(ctx, client, key, now) {
+  const link = client.links?.drive;
+  const folder = folderIdOf(link);
+  if (!folder) return cannotCheck(link ? DRIVE_WORDS.not_a_folder : DRIVE_WORDS.no_folder);
+  if (!ctx.drive) return cannotCheck(DRIVE_WORDS.not_connected);
+  let got;
+  try { got = await ctx.drive.list(folder); } catch (e) {
+    return cannotCheck(e?.code === 'no_access' ? DRIVE_WORDS.no_access : e?.code === 'auth' ? DRIVE_WORDS.auth : DRIVE_WORDS.failed);
+  }
+  const v = driveVerdict(client, key, got, now);
+  return v.ok ? null : v.say;
+}
+
 async function markItem(ctx, a) {
   const state = a.state;
   if (!['done', 'na', 'clear'].includes(state)) refuse('state הוא done, na או clear.', 'bad_input');
@@ -193,6 +215,11 @@ async function markItem(ctx, a) {
       if (v?.refuse) refuse(v.refuse, 'guard');
     }
     if (guard === 'graphicsCount') warn.push('כדאי לוודא שכל הגרפיקות הועלו (במסך של עילאי נשאל על זה).');
+    // "כל הסרטונים הועלו לדרייב" (17.11.2026, as app/drive-guard.js): only once the client's folder has them.
+    if (isDriveKey(item.key)) {
+      const v = await driveCheck(ctx, client, item.key, now);
+      if (v) refuse(v, 'guard');
+    }
   } else if (state === 'na') {
     if (cur === 'na') refuse('הפריט כבר מסומן ״לא רלוונטי״. לא שיניתי כלום.', 'nothing_to_change');
     if (cur === 'done') refuse('הפריט מסומן ״בוצע״. קודם מבטלים את הסימון (state: clear).', 'is_done');

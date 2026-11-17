@@ -16,7 +16,8 @@ import { driveVerdict, isDriveKey, cannotCheck } from './drive-guard-logic.js';
 export { isDriveKey } from './drive-guard-logic.js';
 
 // The refusals' words on this check: who may look into the folder is not the Gantt's sentence.
-const WORDS = { ...ERRORS, not_allowed: 'את הדרייב של הלקוח בודקים העורך שלו, עילאי, עירית, אופיר, ליאור והבעלים.', no_client: 'הלקוח לא נמצא. רעננו את הדף.' };
+const WORDS = { ...ERRORS, not_allowed: 'את הדרייב של הלקוח בודקים העורך שלו, עילאי, עירית, אופיר, ליאור והבעלים.', no_client: 'הלקוח לא נמצא. רעננו את הדף.',
+  no_folder: 'אין קישור לתיקיית הדרייב בכרטיס הלקוח. מבקשים מעירית להוסיף אותו, ואז מסמנים.' };
 const KEEP_MS = 120e3;
 const passed = new Map(); // `${clientId}|${key}` → when the folder was found full
 

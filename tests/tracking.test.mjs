@@ -4,7 +4,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   inWork, editorText, videosOf, graphicsOf, shootDaysOf, complete, ratioText, shootDates, trackingRows, searchTracking, clientsWord, dayMonth,
+  sharedVideos, driveCountOf, dealDayOf,
 } from '../app/tracking-logic.js';
+import { withFix } from '../app/tracking-fix-logic.js';
 
 const NOW = new Date('2026-11-09T12:00:00+02:00');
 const done = (k) => ({ [k]: { item_key: k, state: 'done', note: null } });
@@ -31,6 +33,10 @@ test('the editor: the latest shoot that has one; two editors together; none', ()
   assert.equal(editorText(base({ editor: null })), '');
 });
 
+// A day of the client's Drive (public.drive_daily).
+const day = (d, files, kind = 'video', folder = 'סרטונים', id = 'c1') => ({ client_id: id, day: d, folder, kind, files });
+const v = (x) => ({ done: x.done, of: x.of, month: x.month });
+
 test('videos: the editors\' counter, summed over the shoots', () => {
   const c = base({ deliverables: { videos: 24, graphics: 20, shoot_days: 2 }, rounds: [{ n: 2, shoot_at: '2026-11-01T10:00:00+02:00', editor: 'anna' }] });
   const progress = [
@@ -39,40 +45,86 @@ test('videos: the editors\' counter, summed over the shoots', () => {
     { client_id: 'c2', editor: 'nadia', round: 1, edited: 9 },   // another client
     { client_id: 'c1', editor: 'yariv', round: 1, edited: 5 },   // not this shoot's editor any more
   ];
-  assert.deepEqual(videosOf(c, {}, progress, [], NOW), { done: 10, of: 24, month: false });
+  assert.deepEqual(videosOf(c, { progress }, NOW), { done: 10, of: 24, month: false, typed: 10, drive: 0 });
   // Nothing typed: 0 out of the package.
-  assert.deepEqual(videosOf(c, {}, [], [], NOW), { done: 0, of: 24, month: false });
-  // The progress table not readable (null): 0, never an error.
-  assert.deepEqual(videosOf(c, {}, null, null, NOW), { done: 0, of: 24, month: false });
+  assert.deepEqual(v(videosOf(c, {}, NOW)), { done: 0, of: 24, month: false });
+  // The tables not readable (null): 0, never an error.
+  assert.deepEqual(v(videosOf(c, { progress: null, months: null, drive: null }, NOW)), { done: 0, of: 24, month: false });
 });
 
-test('videos: a shoot whose editing is finished (p24.drive) counts its part, never above the package', () => {
-  const c = base({ deliverables: { videos: 25, shoot_days: 2 }, rounds: [{ n: 2, shoot_at: '2026-11-01T10:00:00+02:00', editor: 'anna' }] });
-  // The first shoot finished before the counter: its part, 13 (25 over 2 days, rounded up).
-  assert.equal(videosOf(c, done('p24.drive'), [], [], NOW).done, 13);
-  // Both finished: 13 + 13 = 26, but the package is 25.
-  assert.equal(videosOf(c, { ...done('p24.drive'), ...done('r2.p24.drive') }, [], [], NOW).done, 25);
+test('videos: "כל הסרטונים הועלו לדרייב" (p24.drive) adds nothing any more (the owner, 17.11.2026)', () => {
+  const c = base({ deliverables: { videos: 48, shoot_days: 1 }, editor: 'yariv' });
+  const progress = [{ client_id: 'c1', editor: 'yariv', round: 1, edited: 31 }];
+  const checks = { ...done('p24.drive'), ...done('r2.p24.drive') };
+  // ניקיון והיגיינה: the step was marked, the editor typed 31, the Drive has 31: 31 / 48, not 48 / 48.
+  const rows = trackingRows([c], { checks: { c1: checks }, progress, drive: [day('2026-10-20', 20), day('2026-11-04', 11)] }, NOW);
+  assert.equal(rows[0].videos.done, 31);
+  assert.equal(rows[0].videos.of, 48);
+  assert.equal(complete(rows[0].videos), false);
+  // Marked, and nothing typed or in the Drive: 0.
+  assert.equal(trackingRows([c], { checks: { c1: checks } }, NOW)[0].videos.done, 0);
+  // A monthly round's mark adds nothing either.
+  const m = base({ deliverables: { videos_month: 8 }, rounds: [{ n: 2, month: '2026-11', monthly: true, editor: 'nadia' }] });
+  assert.equal(trackingRows([m], { checks: { c1: done('r2.p24.drive') } }, NOW)[0].videos.done, 0);
+});
+
+test('videos: the edited videos in the Drive since the deal day, when more than typed; never above the package', () => {
+  const c = base({ deliverables: { videos: 36, shoot_days: 1 } }); // deal 1.8.2026
+  const drive = [
+    day('2026-07-31', 9),                        // before the deal: another package
+    day('2026-08-01', 4),                        // the deal day itself counts
+    day('2026-10-02', 10, 'video', 'ערוכים'),
+    day('2026-10-02', 30, 'raw', 'גלם יום 1'),   // footage
+    day('2026-10-03', 5, 'graphic', 'גרפיקות'),  // graphics
+    day('2026-10-04', 7, 'video', 'סרטונים', 'c2'), // another client
+  ];
+  assert.equal(dealDayOf(c), '2026-08-01');
+  assert.equal(driveCountOf(c, drive, 'video'), 14);
+  assert.deepEqual(videosOf(c, { drive }, NOW), { done: 14, of: 36, month: false, typed: 0, drive: 14 });
+  // Typed more than the Drive: the typed number.
+  assert.equal(videosOf(c, { drive, progress: [{ client_id: 'c1', editor: 'nadia', round: 1, edited: 20 }] }, NOW).done, 20);
+  // More in the Drive than the package (versions): the package.
+  assert.equal(videosOf(c, { drive: [day('2026-09-01', 50)] }, NOW).done, 36);
   // An editor who typed more than the package: shown as typed.
-  assert.equal(videosOf(c, done('p24.drive'), [{ client_id: 'c1', editor: 'nadia', round: 1, edited: 27 }], [], NOW).done, 27);
-  // Finished with a counter above its part: the counter.
-  assert.equal(videosOf(c, done('p24.drive'), [{ client_id: 'c1', editor: 'nadia', round: 1, edited: 15 }], [], NOW).done, 15);
-  // "Not relevant" is not finished.
-  assert.equal(videosOf(c, { 'p24.drive': { state: 'na' } }, [], [], NOW).done, 0);
-  // Two editors with a split: the shoot's part is their total.
-  const two = base({ editor2: 'yariv', editor_split: { nadia: 20, yariv: 16 } });
-  assert.equal(videosOf(two, done('p24.drive'), [], [], NOW).done, 36);
+  assert.equal(videosOf(c, { progress: [{ client_id: 'c1', editor: 'nadia', round: 1, edited: 40 }] }, NOW).done, 40);
+  // No package number: the Drive as it is.
+  assert.equal(videosOf(base({ deliverables: {} }), { drive: [day('2026-09-01', 50)] }, NOW).done, 50);
+  // Without a deal time: from the day the client was opened (Israel day).
+  const opened = base({ deal_at: null, created_at: '2026-09-30T22:30:00Z' }); // 1.10 in Israel
+  assert.equal(dealDayOf(opened), '2026-10-01');
+  assert.equal(driveCountOf(opened, [day('2026-09-30', 3), day('2026-10-01', 2)], 'video'), 2);
 });
 
-test('videos: a monthly client is this month\'s number', () => {
+test('videos: a monthly client is this month\'s number, the typed one or this month\'s Drive videos', () => {
   const c = base({ deliverables: { videos_month: 8, videos_month_except: { '2026-11': 12 } } });
   const months = [
     { client_id: 'c1', editor: 'nadia', month: '2026-11', edited: 4 },
     { client_id: 'c1', editor: 'yariv', month: '2026-11', edited: 1 },
     { client_id: 'c1', editor: 'nadia', month: '2026-10', edited: 8 },
   ];
-  assert.deepEqual(videosOf(c, {}, [], months, NOW), { done: 5, of: 12, month: true });
-  const round = base({ deliverables: { videos_month: 8 }, rounds: [{ n: 2, month: '2026-11', monthly: true, editor: 'nadia' }] });
-  assert.deepEqual(videosOf(round, done('r2.p24.drive'), [], months, NOW), { done: 8, of: 8, month: true });
+  assert.deepEqual(v(videosOf(c, { months }, NOW)), { done: 5, of: 12, month: true });
+  // This month's Drive videos only (October's do not count in November).
+  const drive = [day('2026-10-20', 8), day('2026-11-02', 4), day('2026-11-05', 3)];
+  assert.deepEqual(v(videosOf(c, { months, drive }, NOW)), { done: 7, of: 12, month: true });
+  assert.equal(videosOf(c, { months: [], drive: [day('2026-11-02', 40)] }, NOW).done, 12, 'never above the month');
+});
+
+test('videos: one shared number with a fix by hand, the same on the tracking row and the card', () => {
+  const c = base({ deliverables: { videos: 48, shoot_days: 1 }, editor: 'yariv' });
+  const data = { progress: [{ client_id: 'c1', editor: 'yariv', round: 1, edited: 31 }], drive: [day('2026-11-04', 31)] };
+  // The count as the page shows it now, kept with the fix (it stands while the count stays so).
+  const fixed = { ...c, deliverables: withFix(c.deliverables, 'videos', { done: 33, of: null }, { by: 'irit', at: '2026-11-09T09:00:00+02:00', auto: { done: 31, of: 48 } }) };
+  const card = sharedVideos(fixed, data, NOW);
+  const row = trackingRows([fixed], data, NOW)[0].videos;
+  assert.equal(card.done, 33);
+  assert.equal(card.of, 48);
+  assert.deepEqual(card.fix, { by: 'irit', at: '2026-11-09T09:00:00+02:00' });
+  assert.deepEqual({ done: row.done, of: row.of, fix: row.fix }, { done: card.done, of: card.of, fix: card.fix });
+  // Once the count moves (a new video in the Drive), the fix stops on both.
+  const moved = { ...data, drive: [day('2026-11-04', 32)] };
+  assert.equal(sharedVideos(fixed, moved, NOW).done, 32);
+  assert.equal(sharedVideos(fixed, moved, NOW).fix, undefined);
+  assert.equal(trackingRows([fixed], moved, NOW)[0].videos.done, 32);
 });
 
 test('graphics: 7ב is the first 9, 23ב all of them, the Gantt\'s "עלה" rows when more', () => {
@@ -89,6 +141,10 @@ test('graphics: 7ב is the first 9, 23ב all of them, the Gantt\'s "עלה" rows
   assert.deepEqual(graphicsOf(base({ deliverables: {} }), {}, 0), { done: 0, of: null });
   // The round's own marks do not exist for graphics: an r2. mark does not count.
   assert.deepEqual(graphicsOf(c, done('r2.p23b.posted'), 0), { done: 0, of: 36 });
+  // The graphics in the Drive since the deal day, when more (the highlight covers are not the package's).
+  const drive = [day('2026-09-01', 12, 'graphic', 'גרפיקות'), day('2026-09-01', 6, 'graphic', 'היילייטס'), day('2026-07-01', 5, 'graphic', 'גרפיקות')];
+  assert.deepEqual(graphicsOf(c, done('p07b.posted'), 0, drive), { done: 12, of: 36 });
+  assert.deepEqual(graphicsOf(c, done('p07b.posted'), 0, [day('2026-09-01', 99, 'graphic', 'גרפיקות')]), { done: 36, of: 36 });
 });
 
 test('shoot days: took place by date, out of the package, with the last and the next', () => {
