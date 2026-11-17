@@ -22,7 +22,7 @@
 import { PRICE_CLAUSE } from './legal.js';
 
 export const TEXT_LIMITS = {
-  line: 600, title: 160, groups: 8, items: 24, sections: 20, tiles: 12, tileN: 12, tileLabel: 40,
+  line: 600, title: 160, groups: 8, items: 24, sections: 20, tiles: 12, tileN: 12, tileLabel: 80,
   // All the text together (a draft link of Claude has to hold it: app/mcp-draft.js DRAFT_LINK_MAX).
   total: 9000,
 };
@@ -239,7 +239,8 @@ export const PERSONAL = /@|(?:\d[\s().\-‎‏]*){8,}/;
 // The model's shape onto custom.text (a custom.text given as it is passes through). Null: none.
 export function textFromAi(t) {
   if (!isObject(t)) return null;
-  if (TEXT_PARTS.some((k) => k in t)) return t;
+  // custom.text itself (checked once already): its own parts. tiles and clauses are the same in both.
+  if ('cover' in t || 'package' in t || isObject(t.details)) return t;
   const s = (v) => (typeof v === 'string' ? v : '');
   const list = (v) => (Array.isArray(v) && v.length ? v : null);
   const out = {};
