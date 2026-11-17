@@ -8,7 +8,9 @@ import {
   CUSTOM_QTY, INCLUDES_KEYS, CUSTOM_LIMITS, MONTHLY_CONTENTS, isStar, infText, isChoice,
   infPlain, MAX_ALSO_INFLUENCERS, canAlsoBe, contractInfluencers, shownInfluencerText,
 } from './catalog.js';
-import { PROVIDER, agreementSections, agreementWording, LEGAL_VERSION } from './legal.js';
+import { PROVIDER, baseSections, specialSections, agreementWording, LEGAL_VERSION } from './legal.js';
+// "נוסח חופשי" (17.11.2026): every text part written by hand (selection.custom.text).
+import { textErrors, normalizeText, resolveText, TEXT_PART_NAMES } from './contract-text.js';
 
 export function emptySelection() {
   return {
@@ -131,6 +133,9 @@ export function validateSelection(sel) {
                 (so the system's counts, app/protocol-logic.js packageDeliverables, stay as they
                 are). Kept only when one beyond the contract's own influencer has some; else it is
                 simply qty.collabs / qty.stories.
+     text       the text parts written by hand (the owner, 17.11.2026: "שיוכל לשנות הכל"): the cover,
+                "מה כוללת החבילה", "פירוט החבילה", the package's numbers and the agreement's clauses;
+                never money (app/contract-text.js). Any office user, as the rest of a custom contract.
    Types and ranges are strict (catalog.js CUSTOM_QTY, CUSTOM_LIMITS); the totals are
    always computed here, never taken from the caller. Whatever equals the built-in
    rule is dropped (normalizeSelection), so a contract without deviations is exactly a
@@ -142,7 +147,7 @@ const cleanLine = (v) => String(v ?? '').replace(BIDI, '').replace(/\s+/g, ' ').
 const cleanBlock = (v) => String(v ?? '').replace(BIDI, '').replace(/\r\n?/g, '\n').replace(/[^\S\n]+/g, ' ')
   .split('\n').map((l) => l.trim()).join('\n').replace(/\n{3,}/g, '\n\n').trim();
 const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName', 'influencerName', 'alsoInfluencers', 'postsAt'];
+const CUSTOM_KEYS = ['qty', 'price', 'discount', 'termMonths', 'lines', 'terms', 'noInfluencer', 'addonsIncluded', 'packageName', 'influencerName', 'alsoInfluencers', 'postsAt', 'text'];
 // What custom.postsAt counts per influencer.
 export const POST_KINDS = ['collabs', 'stories'];
 const qtyMax = (key) => CUSTOM_QTY.find((q) => q.key === key).max;
@@ -224,6 +229,8 @@ function customErrors(sel, selectionOk) {
       for (const k of POST_KINDS) if (sums[k] > qtyMax(k)) errors.push(`custom posts per influencer out of range: ${k}`);
     }
   }
+  // The words written by hand (17.11.2026): their shape, lengths, characters, no money.
+  if (given(c.text)) errors.push(...textErrors(c.text));
   // The discount can never be more than the price it is taken from (a regular discount too, once
   // the price was lowered by hand).
   if (selectionOk && errors.length === 0 && (given(c.discount) ? c.discount : sel.discount || 0) > listPrice(sel)) errors.push('custom discount is more than the monthly price');
@@ -323,6 +330,11 @@ export function normalizeSelection(sel) {
   if (Number.isInteger(raw.discount)) {
     if (raw.discount > maxDiscountFor(rest.tier)) { c.discount = raw.discount; rest.discount = 0; } else rest.discount = raw.discount;
   }
+  // The words written by hand: cleaned, and a part that shows the regular wording dropped.
+  if (isObject(raw.text)) {
+    const text = normalizeText(raw.text, docParts({ ...rest, custom: { ...c } }).regular);
+    if (text) c.text = text;
+  }
   return Object.keys(c).length ? { ...rest, custom: c } : rest;
 }
 
@@ -356,6 +368,7 @@ export function exceptionOf(selection) {
   if (c.addonsIncluded) out.push({ kind: 'addonsIncluded', text: 'התוספות כלולות במחיר החודשי' });
   if (c.packageName) out.push({ kind: 'packageName', to: c.packageName, text: `שם החבילה בהצעה: ${c.packageName}` });
   if (c.influencerName) out.push({ kind: 'influencerName', to: c.influencerName, text: `שם המשפיענים בהצעה: ${c.influencerName}` });
+  if (c.text) out.push({ kind: 'text', parts: Object.keys(c.text), text: `נוסח שנכתב ביד: ${Object.keys(c.text).map((k) => TEXT_PART_NAMES[k]).join(', ')}` });
   if (c.alsoInfluencers) out.push({ kind: 'alsoInfluencers', to: [...c.alsoInfluencers], text: `משפיענים נוספים: ${c.alsoInfluencers.map(infPlain).join(' + ')}` });
   for (const k of POST_KINDS) {
     if (!postsPerInfluencer(sel, k)) continue;
@@ -498,10 +511,9 @@ function agreementContext(sel, { tier, paid, free, totals, includes }) {
   };
 }
 
-// The quote model rendered on screen, in the client link and in exports.
-// Everything the client sees is stored in it, so the server-side hash covers it.
-export function buildQuoteModel(selection, client = {}, meta = {}) {
-  const sel = normalizeSelection(selection);
+// The parts of a (normalized) selection's document: what buildQuoteModel stores, and `regular`, the text
+// parts as the regular wording has them (what custom.text refers to and is compared with; app/contract-text.js).
+function docParts(sel, client = {}) {
   const pid = packageId(sel.tier, sel.influencer);
   const pkg = PACKAGES[pid];
   const tier = TIERS.find((t) => t.id === sel.tier);
@@ -524,10 +536,43 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
 
   const totals = computeTotals(sel);
   const docType = DOC_TYPES[sel.docType] || DOC_TYPES.quote;
-  // Bidi control characters could make the displayed name differ from the stored one.
-  const clean = (v) => String(v || '').replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, '').trim();
-  const price = packagePrice(sel);
   const includes = custom ? effectiveIncludes(sel) : pkg.includes;
+  const ctx = agreementContext(sel, { tier, paid, free, totals, includes });
+  const wording = agreementWording({ ...ctx, coverName: coverNameOf(sel, client), ...(docType.signable ? { coverTitle: docType.name } : {}) });
+  const base = baseSections(ctx);
+  const special = specialSections(ctx);
+  const shownInf = noInfluencer(sel) ? NO_INFLUENCER
+    : custom?.influencerName || custom?.alsoInfluencers ? shownInfluencerText(sel) : INFLUENCERS[sel.influencer].name;
+  const regular = {
+    cover: {
+      title: wording.cover.title,
+      packageName: wording.cover.packageName || tier.name,
+      // The cover's third line as app/quote-doc.js draws it: the influencer when the title does not name one.
+      influencer: wording.cover.title.includes(shownInf) ? '' : shownInf,
+    },
+    package: { title: wording.package.title, groups: wording.package.groups },
+    details: { title: wording.details.title, groups: wording.details.groups },
+    tiles: includes.filter((i) => i.qty !== null).map((i) => ({ n: String(i.qty), label: i.label })),
+    clauses: base,
+  };
+  return { pid, tier, term, custom, paid, free, totals, docType, includes, wording, base, special, regular };
+}
+
+// The quote model rendered on screen, in the client link and in exports.
+// Everything the client sees is stored in it, so the server-side hash covers it.
+export function buildQuoteModel(selection, client = {}, meta = {}) {
+  const sel = normalizeSelection(selection);
+  const { pid, tier, term, custom, paid, free, totals, docType, includes, base, special, regular, ...d } = docParts(sel, client);
+  // Bidi control characters could make the displayed name differ from the stored one.
+  const clean = (v) => String(v || '').replace(/[‎‏‪-‮⁦-⁩]/g, '').trim();
+  const price = packagePrice(sel);
+  // The text parts written by hand (custom.text, 17.11.2026): the document shows exactly them. A
+  // selection without them gives the model as before, key for key.
+  const parts = custom?.text ? resolveText(custom.text, regular) : {};
+  let wording = d.wording;
+  if (parts.cover) wording = { ...wording, cover: { ...wording.cover, title: parts.cover.title, packageName: parts.cover.packageName, influencer: parts.cover.influencer } };
+  if (parts.package) wording = { ...wording, package: parts.package };
+  if (parts.details) wording = { ...wording, details: parts.details };
   // A contract changed by hand: what was added to it, for the document.
   const extra = custom ? {
     custom: true,
@@ -574,17 +619,30 @@ export function buildQuoteModel(selection, client = {}, meta = {}) {
     termMonths: term,
     totals,
     terms: termsText(sel),
-    legal: docType.signable ? agreementSections(agreementContext(sel, { tier, paid, free, totals, includes })) : null,
+    // The clauses written by hand (custom.text.clauses) replace the seven chapters; "תנאים מיוחדים" stays last.
+    legal: docType.signable ? [...(parts.clauses || base), ...special] : null,
     // The words around the clauses (LEGAL_VERSION 3, the old system's): stored, so a sent or
     // signed document keeps them; app/quote-doc.js draws a model without them as before. Since
     // 9.11.2026 a price offer has them too (the owner: the quote in the old document's order),
     // with the cover's title ("הצעת מחיר נירו לוי").
-    wording: agreementWording({ ...agreementContext(sel, { tier, paid, free, totals, includes }), coverName: coverNameOf(sel, client), ...(docType.signable ? { coverTitle: docType.name } : {}) }),
+    wording,
+    // The package's numbers written by hand (custom.text.tiles): drawn instead of the counted lines of
+    // package.includes, which stay the system's counts.
+    ...(parts.tiles ? { tiles: parts.tiles } : {}),
     // The wording's version (app/legal.js): the stored text is what this document shows for good.
     legalVersion: docType.signable ? LEGAL_VERSION : null,
     selection: sel,
     ...extra,
   };
+}
+
+// The text parts of a selection's document as the regular wording has them (the builder's editors
+// start from them; "הכנת חוזה עם AI" and Claude see them numbered: app/contract-text.js numberedText).
+// The selection's own custom.text is left out.
+export function regularText(selection, client = {}) {
+  const sel = normalizeSelection(selection);
+  const { text, ...c } = sel.custom || {};
+  return docParts({ ...sel, custom: c }, client).regular;
 }
 
 export const NO_INFLUENCER = 'בלי משפיענים';

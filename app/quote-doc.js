@@ -132,6 +132,12 @@ export function renderQuoteDoc(model, meta = {}) {
   );
 
   const counted = pkg.includes.filter((i) => i.qty !== null);
+  // The package's numbers: written by hand (model.tiles, custom.text, 17.11.2026) or the counted lines.
+  const tiles = model.tiles || counted.map((i) => ({ n: String(i.qty), label: i.label }));
+  const tileGrid = () => h('div', { class: 'qd-grid' }, tiles.map((i) => h('div', { class: 'qd-cell' },
+    h('div', { class: 'qd-cell-n num' }, i.n),
+    h('div', { class: 'qd-cell-l' }, i.label),
+  )));
   const services = pkg.includes.filter((i) => i.qty === null);
   const pkgSection = h('section', { class: 'qd-section' },
     sectionHead('החבילה', model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'),
@@ -142,10 +148,7 @@ export function renderQuoteDoc(model, meta = {}) {
       ),
       h('div', { class: 'qd-pkg-price' }, money(pkg.monthly), h('small', {}, 'לחודש · לפני מע״מ')),
     ),
-    h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
-      h('div', { class: 'qd-cell-n num' }, String(i.qty)),
-      h('div', { class: 'qd-cell-l' }, i.label),
-    ))),
+    tileGrid(),
     services.length ? h('ul', { class: 'qd-checks' }, services.map((i) => h('li', {}, i.label))) : null,
   );
 
@@ -281,8 +284,11 @@ export function renderQuoteDoc(model, meta = {}) {
       ),
       h('h1', { class: 'qd-cover-title' }, w.cover?.title || title),
       h('div', { class: 'qd-cover-pkg', dir: 'auto' }, w.cover?.packageName || pkgName),
-      // The influencer when the title does not name one ("משפיען לבחירה …", "בלי משפיענים").
-      !(w.cover?.title || '').includes(pkg.shownInfluencer || pkg.influencer) ? h('div', { class: 'qd-cover-inf' }, pkg.shownInfluencer || pkg.influencer) : null,
+      // The influencer when the title does not name one ("משפיען לבחירה …", "בלי משפיענים"); a cover
+      // written by hand (custom.text, 17.11.2026) has its own line, or none.
+      w.cover && 'influencer' in w.cover
+        ? (w.cover.influencer ? h('div', { class: 'qd-cover-inf' }, w.cover.influencer) : null)
+        : !(w.cover?.title || '').includes(pkg.shownInfluencer || pkg.influencer) ? h('div', { class: 'qd-cover-inf' }, pkg.shownInfluencer || pkg.influencer) : null,
       h('div', { class: 'qd-meta' },
         h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
         h('span', {}, formatDate(createdAt)),
@@ -307,12 +313,9 @@ export function renderQuoteDoc(model, meta = {}) {
       groups(w.details.groups),
       hero,
       // The numbers of the package, as the old page's tiles under "פירוט החבילה".
-      counted.length ? [
+      tiles.length ? [
         h('h3', { class: 'qd-words-h' }, model.termMonths === 12 ? 'הכמויות בחבילה, לשנה:' : 'הכמויות בחבילה, לכל התקופה:'),
-        h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
-          h('div', { class: 'qd-cell-n num' }, String(i.qty)),
-          h('div', { class: 'qd-cell-l' }, i.label),
-        ))),
+        tileGrid(),
       ] : null);
     const notesWords = c.notes ? h('section', { class: 'qd-section' },
       sectionHead('הערות נוספות'), h('p', { class: 'qd-notes' }, c.notes)) : null;

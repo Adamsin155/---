@@ -14,9 +14,9 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const FUNCTIONS = join(ROOT, 'supabase/functions');
 
 test('shared copy covers pricing.js, the reminder engine and everything they import', () => {
-  assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'legal.js', 'pricing.js']);
+  assert.deepEqual(modules({ entries: ['pricing.js'] }), ['catalog.js', 'contract-text.js', 'legal.js', 'pricing.js']);
   assert.deepEqual(modules(), [
-    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-file.js', 'contract-read-logic.js', 'contract-summary.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'files-logic.js', 'gantt-auto.js', 'gantt-template.js', 'gcal-logic.js', 'gfx-auto-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
+    'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'calendar-feed.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-ai-logic.js', 'contract-end.js', 'contract-file.js', 'contract-read-logic.js', 'contract-summary.js', 'contract-text.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'files-logic.js', 'gantt-auto.js', 'gantt-template.js', 'gcal-logic.js', 'gfx-auto-logic.js', 'handoffs.js', 'health.js', 'holidays.js', 'ics.js', 'late-chain.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'metricool-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js',
     'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js',
     'shell-rules.js', 'shoot-crew.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'team-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js',
   ]);
@@ -96,7 +96,7 @@ const DEPLOY = {
   // videos; the Drive listing and the sites it answers, hand-written in _shared/.
   ask: [
     '_shared/oauth-token.js',
-    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'contract-summary.js', 'edit-count.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'shell-rules.js', 'shoot-prep.js', 'team-rules.js', 'tz.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'catalog.js', 'characterization.js', 'contract-summary.js', 'edit-count.js', 'health.js', 'holidays.js', 'contract-text.js', 'legal.js', 'manager-rules.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'shell-rules.js', 'shoot-prep.js', 'team-rules.js', 'tz.js'),
     '_shared/cors.js',
     '_shared/drive.js',
     'ask/handler.js',
@@ -107,7 +107,7 @@ const DEPLOY = {
   // and the owner's write tools (section 116) with the card's own rules.
   mcp: [
     '_shared/oauth-token.js',
-    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'contract-ai-logic.js', 'contract-summary.js', 'edit-count.js', 'fast-ladder.js', 'gantt-template.js', 'gfx-auto-logic.js', 'health.js', 'holidays.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'qa-logic.js', 'quote-doc.js', 'shell-rules.js', 'shoot-crew.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'team-rules.js', 'tz.js', 'year-logic.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'ask-guide.js', 'ask-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'contract-ai-logic.js', 'contract-summary.js', 'edit-count.js', 'fast-ladder.js', 'gantt-template.js', 'gfx-auto-logic.js', 'health.js', 'holidays.js', 'contract-text.js', 'legal.js', 'manager-rules.js', 'mark-guard-rules.js', 'mcp-draft.js', 'mcp-logic.js', 'messages-logic.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'qa-logic.js', 'quote-doc.js', 'shell-rules.js', 'shoot-crew.js', 'shoot-prep.js', 'staff-tasks-logic.js', 'team-rules.js', 'tz.js', 'year-logic.js'),
     '_shared/cors.js',
     '_shared/drive.js',
     'ask/handler.js',
@@ -137,13 +137,13 @@ const DEPLOY = {
   // "הכנת חוזה עם AI" (docs/ops.md, section 68): the prompt and the check of the answer, from app/.
   'contract-ai': [
     '_shared/oauth-token.js',
-    ...APP('catalog.js', 'contract-ai-logic.js', 'contract-file.js', 'contract-read-logic.js', 'legal.js', 'pricing.js'),
+    ...APP('catalog.js', 'contract-ai-logic.js', 'contract-file.js', 'contract-read-logic.js', 'contract-text.js', 'legal.js', 'pricing.js'),
     'contract-ai/handler.js',
     'contract-ai/index.ts',
   ],
   'create-quote': [
     '_shared/oauth-token.js',
-    ...APP('catalog.js', 'legal.js', 'pricing.js'),
+    ...APP('catalog.js', 'contract-text.js', 'legal.js', 'pricing.js'),
     'create-quote/http.js',
     'create-quote/index.ts',
   ],
@@ -157,7 +157,7 @@ const DEPLOY = {
   // contract-ai's reading of Claude's answer.
   'gfx-auto': [
     '_shared/oauth-token.js',
-    ...APP('catalog.js', 'contract-ai-logic.js', 'contract-file.js', 'contract-read-logic.js', 'gfx-auto-logic.js', 'legal.js', 'pricing.js', 'protocol.js', 'tz.js'),
+    ...APP('catalog.js', 'contract-ai-logic.js', 'contract-file.js', 'contract-read-logic.js', 'gfx-auto-logic.js', 'contract-text.js', 'legal.js', 'pricing.js', 'protocol.js', 'tz.js'),
     '_shared/drive.js',
     'contract-ai/handler.js',
     'gfx-auto/index.ts',
@@ -171,7 +171,7 @@ const DEPLOY = {
   ],
   reminders: [
     '_shared/oauth-token.js',
-    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'gantt-auto.js', 'gantt-template.js', 'gfx-auto-logic.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'edit-count.js', 'editor-auto.js', 'fast-ladder.js', 'gantt-auto.js', 'gantt-template.js', 'gfx-auto-logic.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'contract-text.js', 'legal.js', 'messages-logic.js', 'monthly-rounds.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'push-config.js', 'qa-logic.js', 'quote-doc.js', 'reminder-engine.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
     '_shared/wa-jako.js',
@@ -195,7 +195,7 @@ const DEPLOY = {
     'staff-admin/rules.js',
   ],
   'whatsapp-webhook': [
-    ...APP('qa-logic.js', 'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'gfx-auto-logic.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
+    ...APP('qa-logic.js', 'access-logic.js', 'access-nudge.js', 'approvals-logic.js', 'availability-logic.js', 'catalog.js', 'characterization.js', 'client-waits.js', 'clocks.js', 'contract-end.js', 'day-summary.js', 'deal-logic.js', 'fast-ladder.js', 'gfx-auto-logic.js', 'handoffs.js', 'holidays.js', 'late-chain.js', 'contract-text.js', 'legal.js', 'messages-logic.js', 'monthly-shoot.js', 'office-marks.js', 'pricing.js', 'production.js', 'protocol-logic.js', 'protocol-versions.js', 'protocol.js', 'quote-doc.js', 'reminder-rules.js', 'shoot-plan.js', 'shoot-prep.js', 'staff-notes-logic.js', 'staff-tasks-logic.js', 'status-rules.js', 'tz.js', 'unsigned-logic.js', 'wa-logic.js', 'wa-templates.js', 'year-logic.js', 'year-rules.js'),
     '_shared/wa-graph.js',
     '_shared/wa-jako-reply.js',
     '_shared/wa-jako.js',
@@ -247,9 +247,9 @@ test('--check logic reports stale, missing and extra copies; sync repairs them',
   try {
     const appDir = join(tmp, 'app');
     const outDir = join(tmp, 'out');
-    for (const rel of ['pricing.js', 'catalog.js', 'legal.js']) cpSync(join(APP_DIR, rel), join(appDir, rel));
+    for (const rel of ['pricing.js', 'catalog.js', 'legal.js', 'contract-text.js']) cpSync(join(APP_DIR, rel), join(appDir, rel));
     const opts = { appDir, outDir, entries: ['pricing.js'] };
-    assert.deepEqual(check(opts).missing, ['catalog.js', 'legal.js', 'pricing.js']);
+    assert.deepEqual(check(opts).missing, ['catalog.js', 'contract-text.js', 'legal.js', 'pricing.js']);
     sync(opts);
     assert.deepEqual(check(opts), { missing: [], stale: [], extra: [] });
 
@@ -258,7 +258,7 @@ test('--check logic reports stale, missing and extra copies; sync repairs them',
     assert.deepEqual(check(opts), { missing: [], stale: ['catalog.js'], extra: ['old.js'] });
     assert.deepEqual(sync(opts).removed, ['old.js']);
     assert.deepEqual(check(opts), { missing: [], stale: [], extra: [] });
-    assert.deepEqual(readdirSync(outDir).sort(), ['catalog.js', 'legal.js', 'pricing.js']);
+    assert.deepEqual(readdirSync(outDir).sort(), ['catalog.js', 'contract-text.js', 'legal.js', 'pricing.js']);
 
     writeFileSync(join(outDir, 'notes.js'), '// hand written\n');
     assert.throws(() => sync(opts), /not generated/);
