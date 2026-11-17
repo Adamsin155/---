@@ -61,6 +61,17 @@ export const RESTORED = {
 // The agreement's clauses: the old document's six, the platforms (7), and last, only for the
 // special terms of a contract typed by hand, "תנאים מיוחדים". [{ title, items: [text] }]; app/quote-doc.js numbers them 1.1, 1.2…
 export function agreementSections(ctx) {
+  return [...baseSections(ctx), ...specialSections(ctx)];
+}
+
+// The clause of the price (2.1 below): never typed by hand. Clauses written by hand
+// (selection.custom.text.clauses, 17.11.2026; app/contract-text.js) keep it by reference ("{{2.1}}"),
+// so its number is always the computed one.
+export const PRICE_CLAUSE = '{{2.1}}';
+
+// The seven chapters before the special terms: the regular wording that the clauses written by hand
+// refer to (app/contract-text.js).
+export function baseSections(ctx) {
   const n = ctx.termMonths;
   const R = RESTORED;
   const S = [
@@ -95,6 +106,12 @@ export function agreementSections(ctx) {
     ] },
     { title: 'פלטפורמות וחסימת חשבונות', items: [...R.platforms] },
   ];
+  return S;
+}
+
+// The last chapter, "תנאים מיוחדים", only for the special terms of a contract changed by hand.
+export function specialSections(ctx) {
+  const S = [];
   // Special terms, typed by hand for this client (a contract changed by hand). Always the last
   // chapter, so the ones above keep their numbers. The old document had none; said in its style.
   const special = String(ctx.specialTerms || '').split('\n').map((l) => l.trim()).filter(Boolean);

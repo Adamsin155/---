@@ -8,10 +8,13 @@ import {
   emptySelection, reconcile, computeTotals, buildQuoteModel, formatILS,
   paidAddonAvailable, freeAddonAvailable,
   exceptionOf, normalizeSelection, baseQuantities,
-  effectiveQuantities, POST_KINDS,
+  effectiveQuantities, POST_KINDS, regularText,
 } from './pricing.js';
 import { h, renderQuoteDoc, whatsappLink } from './quote-doc.js';
 import { downloadPdf, pdfFileName } from './pdf-export.js';
+// "נוסח חופשי" (17.11.2026; docs/ops.md, section 142): every part of the words edited in the preview.
+import { textEditor } from './text-editor.js';
+import { textErrors } from './contract-text.js';
 import { iconSquare, headIcon, noteIcon } from './kit.js';
 // "הכנת חוזה עם AI" (docs/ops.md, section 68): the result set on the builder, and its tags.
 // "בדיוק כמו שכתבתי (חוזה חופשי)" (29.10.2026; section 79): the text as custom contracts exactly as
@@ -455,6 +458,8 @@ function selectionToSend() {
   // Several influencers and the collabs and stories at each (16.11.2026): checked by the engine.
   if (Array.isArray(c.alsoInfluencers) && c.alsoInfluencers.length) custom.alsoInfluencers = c.alsoInfluencers;
   if (c.postsAt && typeof c.postsAt === 'object') custom.postsAt = c.postsAt;
+  // The document's own words ("עריכה" in the preview, or the AI's): checked by the engine.
+  if (c.text && typeof c.text === 'object') custom.text = c.text;
   if (e.packageName) custom.packageName = e.packageName;
   if (e.influencerName) custom.influencerName = e.influencerName;
   return normalizeSelection({ ...rest, discount: 0, custom });
@@ -1057,6 +1062,8 @@ function restoreDraft(forDeal = null, forRevise = null) {
     const { selection } = reconcile({ ...emptySelection(), ...draft.state, free: { ...emptySelection().free, ...draft.state.free } });
     state = selection;
     if (state.custom === null || typeof state.custom !== 'object') delete state.custom;
+    // The words written survive a refresh only as the engine takes them.
+    if (state.custom?.text !== undefined && textErrors(state.custom.text).length) { const { text, ...c } = state.custom; state.custom = c; }
     // "שינויים להצעה הזו": only a whole price in range and a name in text survive a refresh.
     const e = state.edit && typeof state.edit === 'object' ? state.edit : {};
     state.edit = {
@@ -1187,9 +1194,57 @@ document.querySelectorAll('dialog').forEach((dlg) => {
   });
 });
 
+/* ── "עריכה" in the preview (the owner, 17.11.2026; docs/ops.md, section 142) ──
+   The office writes any part of the document's words: the cover, "מה כוללת החבילה", "פירוט החבילה"
+   (the דגשים), the package's numbers and the clauses. Each part has an "עריכה" button in the preview;
+   it opens the part's editor in place (app/text-editor.js). What is saved goes to state.custom.text
+   (the custom contract: its switch turns on), the preview is drawn again, and the document, the
+   client's page and the PDF show exactly it. Money stays computed. */
+function drawPreview(focusPart = null) {
+  $('preview-body').replaceChildren(renderQuoteDoc(currentModel(), office ? { onEdit: openTextEditor } : {}));
+  if (focusPart) {
+    const btn = $('preview-body').querySelector(`.qd-edit[data-part="${focusPart}"]`);
+    btn?.scrollIntoView({ block: 'center' });
+    btn?.focus({ preventScroll: true });
+  }
+}
+function setText(part, value) {
+  if (!customOn()) setCustom(true);
+  const custom = { ...state.custom };
+  const text = { ...(custom.text || {}) };
+  if (value === undefined) delete text[part]; else text[part] = value;
+  if (Object.keys(text).length) custom.text = text; else delete custom.text;
+  update({ custom });
+  drawPreview(part);
+  toast(value === undefined ? 'חזר הנוסח הרגיל' : 'הנוסח נשמר');
+}
+function openTextEditor(part) {
+  const body = $('preview-body');
+  body.querySelector('.te')?.remove();
+  for (const el of body.querySelectorAll('[data-te-hidden]')) { el.style.display = ''; el.removeAttribute('data-te-hidden'); }
+  const btn = body.querySelector(`.qd-edit[data-part="${part}"]`);
+  const anchor = btn?.closest('.qd-section, .qd-cover');
+  if (!anchor) return;
+  const sel = selectionToSend();
+  const editor = textEditor({
+    part,
+    regular: regularText(sel, readClient()),
+    current: normalizeSelection(sel).custom?.text?.[part],
+    onSave: (value) => setText(part, value),
+    onReset: () => setText(part, undefined),
+    onCancel: () => drawPreview(part),
+  });
+  anchor.style.display = 'none';
+  anchor.setAttribute('data-te-hidden', '');
+  anchor.before(editor);
+  editor.fit();
+  editor.scrollIntoView({ block: 'start' });
+  editor.querySelector('input, textarea')?.focus({ preventScroll: true });
+}
+
 $('btn-preview').addEventListener('click', (e) => {
   if (!validateClient()) return;
-  $('preview-body').replaceChildren(renderQuoteDoc(currentModel()));
+  drawPreview();
   openDialog($('dlg-preview'), e.currentTarget);
   $('dlg-preview').querySelector('.close').focus();
 });

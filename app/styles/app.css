@@ -674,3 +674,69 @@ dialog.preview[open] { display: flex; flex-direction: column; }
 /* "חוזה חדש" beside the document switch (25.10.2026): quiet, 44px, red while it asks. */
 .btn-fresh { min-height: 44px; margin-top: 10px; }
 .btn-fresh.is-asking { color: var(--danger, #B42318); border-color: currentColor; }
+
+/* "עריכה" in the preview: the document's words written by hand (17.11.2026; app/text-editor.js).
+   Only on the builder: the document itself (quote.css, the PDF, the client's page) never has them. */
+.preview-body .qd-edit {
+  flex: none; margin-inline-start: auto; min-height: 36px; padding: 4px 14px; border: 1px solid var(--ds-line);
+  border-radius: var(--ds-r-pill); background: var(--ds-surface); color: var(--ds-navy); font: inherit; font-size: 14px;
+  font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.preview-body .qd-edit:hover { border-color: var(--ds-navy); }
+.preview-body .qd-edit:focus-visible { outline: 2px solid var(--ds-navy); outline-offset: 2px; }
+.preview-body .qd-cover .qd-edit { display: inline-flex; align-items: center; margin-top: 10px; }
+.preview-body .qd-words-h { display: flex; align-items: center; gap: 10px; }
+.te {
+  margin: 24px 0; padding: 16px; border: 2px solid var(--ds-navy); border-radius: var(--ds-r-card);
+  background: var(--ds-surface); color: var(--ds-ink); font-family: var(--ds-font-b); direction: rtl;
+}
+.te-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-bottom: 12px; }
+.te-head strong { font-size: 17px; }
+.te-hint { font-size: 13px; color: var(--ds-muted); }
+.te-input, .te-text {
+  box-sizing: border-box; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--ds-line);
+  border-radius: var(--ds-r-ctl); background: #fff; color: var(--ds-ink); font: inherit; font-size: 16px; line-height: 1.5;
+}
+.te-text { display: block; resize: vertical; overflow: hidden; }
+.te-input:focus, .te-text:focus { outline: 2px solid var(--ds-navy); outline-offset: 1px; border-color: var(--ds-navy); }
+.te-fields { display: grid; gap: 12px; }
+.te-field { display: grid; gap: 4px; font-size: 14px; font-weight: 600; }
+.te-ptitle { margin-bottom: 12px; font-weight: 600; }
+.te-groups { display: grid; gap: 14px; }
+.te-group { margin: 0; padding: 12px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-item); background: var(--ds-ground); min-width: 0; }
+.te-ghead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.te-gtitle { font-weight: 600; }
+.te-lines { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.te-line { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.te-line > .te-text, .te-line > .te-locked { flex: 1; }
+.te-num { flex: none; min-width: 2.4em; padding-top: 11px; font-size: 14px; color: var(--ds-muted); }
+.te-ghead .te-num { padding-top: 0; font-weight: 600; color: var(--ds-ink); }
+.te-locked { padding: 10px 12px; border: 1px dashed var(--ds-line); border-radius: var(--ds-r-ctl); background: var(--ds-soft); font-size: 15px; line-height: 1.5; }
+.te-locked small { display: block; margin-top: 2px; font-size: 12px; color: var(--ds-muted); }
+.te-del {
+  flex: none; min-width: 40px; min-height: 40px; padding: 0 10px; border: 1px solid var(--ds-line); border-radius: var(--ds-r-ctl);
+  background: #fff; color: var(--ds-ink); font: inherit; font-size: 18px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.te-del-group { font-size: 13px; white-space: nowrap; }
+.te-del:hover { border-color: var(--ds-hot); color: var(--ds-hot); }
+.te-add {
+  margin-top: 10px; min-height: 40px; padding: 6px 14px; border: 1px dashed var(--ds-navy); border-radius: var(--ds-r-pill);
+  background: transparent; color: var(--ds-navy); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.te-add-group { margin-top: 14px; }
+.te-tiles { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.te-tile { display: grid; grid-template-columns: 5.5em minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.te-actions .te-error { flex-basis: 100%; }
+.te-error { margin: 0; padding: 10px 12px; border-radius: var(--ds-r-ctl); background: #FDECEC; color: #8A1C1C; font-size: 14px; }
+.te-actions { position: sticky; bottom: -24px; display: flex; flex-wrap: wrap; gap: 8px; margin: 16px -16px -16px; padding: 12px 16px; border-top: 1px solid var(--ds-line); border-radius: 0 0 var(--ds-r-card) var(--ds-r-card); background: var(--ds-surface); }
+@media (max-width: 560px) {
+  /* The phone: the boxes as wide as they can be. */
+  .te { margin: 12px -4px; padding: 10px; }
+  .te-actions { gap: 6px; margin: 12px -10px -10px; padding: 10px; bottom: -8px; }
+  .te-actions .btn { flex: 1 1 auto; padding: 6px 10px; }
+  .te-group { padding: 8px; }
+  .te-line { gap: 4px; }
+  .te-num { min-width: 1.9em; font-size: 13px; }
+  .te-ghead { gap: 6px; }
+  .te-text, .te-input { padding: 8px 10px; }
+}

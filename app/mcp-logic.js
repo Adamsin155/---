@@ -6,8 +6,10 @@
 // the rule here only says who may ever be on it.
 
 // Besides the owners. A copy of the list in public.mcp_allowed() and public.mcp_set_access()
-// (supabase/migrations/20261121100000_mcp.sql; tests/sql/mcp.test.mjs holds them equal).
-export const MCP_PEOPLE = ['lior', 'ofir'];
+// (supabase/migrations/20261218100000_mcp_irit.sql; tests/sql/mcp-irit.test.mjs holds them equal).
+// Irit since 17.11.2026 (the free-text contract drafts; supabase/migrations/20261218100000_mcp_irit.sql): she
+// starts off, until an owner switches her on.
+export const MCP_PEOPLE = ['lior', 'ofir', 'irit'];
 // { office } from public.is_office(), { person } from public.my_person() (null for an owner, and
 // for anyone who is not staff). Anything unclear is a no.
 export const mayUseMcp = ({ office, person } = {}) => (office === true && person === null)

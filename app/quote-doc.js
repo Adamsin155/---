@@ -70,13 +70,17 @@ function party(label, lines) {
   );
 }
 
-function sectionHead(title, aside) {
-  return h('div', { class: 'qd-sec-head' }, h('h2', {}, title), aside ? h('span', { class: 'qd-aside' }, aside) : null);
+function sectionHead(title, aside, edit = null) {
+  return h('div', { class: 'qd-sec-head' }, h('h2', {}, title), aside ? h('span', { class: 'qd-aside' }, aside) : null, edit);
 }
 
 // meta: { number, createdAt, validUntil, docHash, logoSrc, signOnline,
 //         signature: { name, signedAt, png, hash, consent } }
 export function renderQuoteDoc(model, meta = {}) {
+  // The builder's preview only (meta.onEdit, 17.11.2026): an "עריכה" button at each part of the words. The
+  // document itself (the client's page, the PDF, the file) never has one.
+  const edit = (part) => (typeof meta.onEdit === 'function'
+    ? h('button', { type: 'button', class: 'qd-edit', 'data-part': part, onclick: () => meta.onEdit(part) }, 'עריכה') : null);
   const t = model.totals;
   const c = model.client;
   const pkg = model.package;
@@ -132,6 +136,12 @@ export function renderQuoteDoc(model, meta = {}) {
   );
 
   const counted = pkg.includes.filter((i) => i.qty !== null);
+  // The package's numbers: written by hand (model.tiles, custom.text, 17.11.2026) or the counted lines.
+  const tiles = model.tiles || counted.map((i) => ({ n: String(i.qty), label: i.label }));
+  const tileGrid = () => h('div', { class: 'qd-grid' }, tiles.map((i) => h('div', { class: 'qd-cell' },
+    h('div', { class: 'qd-cell-n num' }, i.n),
+    h('div', { class: 'qd-cell-l' }, i.label),
+  )));
   const services = pkg.includes.filter((i) => i.qty === null);
   const pkgSection = h('section', { class: 'qd-section' },
     sectionHead('החבילה', model.termMonths === 12 ? 'כמויות לשנה' : 'כמויות לכל התקופה'),
@@ -142,10 +152,7 @@ export function renderQuoteDoc(model, meta = {}) {
       ),
       h('div', { class: 'qd-pkg-price' }, money(pkg.monthly), h('small', {}, 'לחודש · לפני מע״מ')),
     ),
-    h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
-      h('div', { class: 'qd-cell-n num' }, String(i.qty)),
-      h('div', { class: 'qd-cell-l' }, i.label),
-    ))),
+    tileGrid(),
     services.length ? h('ul', { class: 'qd-checks' }, services.map((i) => h('li', {}, i.label))) : null,
   );
 
@@ -221,7 +228,7 @@ export function renderQuoteDoc(model, meta = {}) {
   // 9.11.2026 a price offer has them too (the owner: the quote in the old document's order).
   const w = model.wording || null;
   const legal = isAgreement && model.legal ? h('section', { class: 'qd-section qd-legal' },
-    sectionHead(w ? w.agreementTitle : 'תנאי ההסכם'),
+    sectionHead(w ? w.agreementTitle : 'תנאי ההסכם', null, w ? edit('clauses') : null),
     h('ol', { class: 'qd-clauses' }, model.legal.map((sec, i) => h('li', {},
       h('h3', {}, h('span', { class: 'num qd-cl-h' }, `${i + 1}.`), sec.title),
       h('ol', {}, sec.items.map((item, j) => h('li', {},
@@ -271,7 +278,8 @@ export function renderQuoteDoc(model, meta = {}) {
     // agreement's clauses (an agreement only), the signatures and the closing words.
     const pkgName = pkg.shownName || pkg.tierName;
     const groups = (list) => list.map((g) => [
-      h('h3', { class: 'qd-words-h' }, g.title),
+      // A group written by hand may have no title of its own (custom.text, 17.11.2026).
+      g.title ? h('h3', { class: 'qd-words-h' }, g.title) : null,
       h('ul', { class: 'qd-checks qd-words-list' }, g.items.map((i) => h('li', {}, i))),
     ]);
     const cover = h('header', { class: 'qd-cover' },
@@ -280,9 +288,13 @@ export function renderQuoteDoc(model, meta = {}) {
         h('span', { class: 'qd-type' }, isAgreement ? 'מסמך לחתימה' : 'לעיון'),
       ),
       h('h1', { class: 'qd-cover-title' }, w.cover?.title || title),
+      edit('cover'),
       h('div', { class: 'qd-cover-pkg', dir: 'auto' }, w.cover?.packageName || pkgName),
-      // The influencer when the title does not name one ("משפיען לבחירה …", "בלי משפיענים").
-      !(w.cover?.title || '').includes(pkg.shownInfluencer || pkg.influencer) ? h('div', { class: 'qd-cover-inf' }, pkg.shownInfluencer || pkg.influencer) : null,
+      // The influencer when the title does not name one ("משפיען לבחירה …", "בלי משפיענים"); a cover
+      // written by hand (custom.text, 17.11.2026) has its own line, or none.
+      w.cover && 'influencer' in w.cover
+        ? (w.cover.influencer ? h('div', { class: 'qd-cover-inf' }, w.cover.influencer) : null)
+        : !(w.cover?.title || '').includes(pkg.shownInfluencer || pkg.influencer) ? h('div', { class: 'qd-cover-inf' }, pkg.shownInfluencer || pkg.influencer) : null,
       h('div', { class: 'qd-meta' },
         h('span', {}, 'מס׳ ', h('b', { class: 'num', dir: 'ltr' }, number || 'טיוטה')),
         h('span', {}, formatDate(createdAt)),
@@ -297,22 +309,19 @@ export function renderQuoteDoc(model, meta = {}) {
       h('p', { class: 'qd-words-p' }, w.intro.after),
     );
     const pkgWords = h('section', { class: 'qd-section qd-words' },
-      sectionHead(w.package.title),
+      sectionHead(w.package.title, null, edit('package')),
       groups(w.package.groups),
     );
     const why = h('section', { class: 'qd-section qd-words' },
       sectionHead(w.why.title), h('p', { class: 'qd-words-p' }, w.why.text));
     const details = h('section', { class: 'qd-section qd-words' },
-      sectionHead(w.details.title),
+      sectionHead(w.details.title, null, edit('details')),
       groups(w.details.groups),
       hero,
       // The numbers of the package, as the old page's tiles under "פירוט החבילה".
-      counted.length ? [
-        h('h3', { class: 'qd-words-h' }, model.termMonths === 12 ? 'הכמויות בחבילה, לשנה:' : 'הכמויות בחבילה, לכל התקופה:'),
-        h('div', { class: 'qd-grid' }, counted.map((i) => h('div', { class: 'qd-cell' },
-          h('div', { class: 'qd-cell-n num' }, String(i.qty)),
-          h('div', { class: 'qd-cell-l' }, i.label),
-        ))),
+      tiles.length ? [
+        h('h3', { class: 'qd-words-h' }, model.termMonths === 12 ? 'הכמויות בחבילה, לשנה:' : 'הכמויות בחבילה, לכל התקופה:', edit('tiles')),
+        tileGrid(),
       ] : null);
     const notesWords = c.notes ? h('section', { class: 'qd-section' },
       sectionHead('הערות נוספות'), h('p', { class: 'qd-notes' }, c.notes)) : null;
