@@ -193,7 +193,11 @@ for (const [name, engine, size] of ENGINES) {
     await page.waitForTimeout(300);
     assert.equal(checkOf(db, N, 'p24.drive'), null);
     assert.equal(await page.locator('#i-p24-drive').isChecked(), false, 'the box stays empty');
+    // The mouse off the pill: on a desktop its hover look (a green ring and tick, the word still
+    // "סיימתי") is not a tick, and would read as one in the picture.
+    await page.mouse.move(5, 5);
     await page.waitForTimeout(250);
+    assert.equal(await page.locator('#i-p24-drive').evaluate((el) => getComputedStyle(el, '::after').content.includes('סיימתי') && !el.checked), true);
     await shot(page, `card-refused-tick-${name}`);
     // The Drive gets the rest: the same tick is taken.
     db.drive_files[N] = [...db.drive_files[N], ...files(17, 'סרטונים ערוכים')];
