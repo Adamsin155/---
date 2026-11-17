@@ -322,6 +322,16 @@ test('mark: the Gantt\'s old item is gone (v13); item 24 closes Ofir\'s folder t
   assert.ok(w.db.client_tasks[0].done_at, 'the folder task is closed with the item');
 });
 
+test('mark: "כל הסרטונים הועלו לדרייב" (p24.drive) is refused while the Drive cannot be checked (17.11.2026)', async () => {
+  const w = world();
+  const r = await call(w, 'owner', 'mark_protocol_item', { client: 'רון', item: 'p24.drive', state: 'done', dry_run: false });
+  assert.equal(r.code, 'guard', JSON.stringify(r));
+  assert.match(r.error, /^לא סומן: אי אפשר לבדוק עכשיו שכל הסרטונים בדרייב\. /);
+  assert.ok(!w.db.protocol_checks.some((x) => x.item_key === 'p24.drive'));
+  // The dry run says it too: nothing is offered that would be refused.
+  assert.equal((await call(w, 'owner', 'mark_protocol_item', { client: 'רון', item: 'p24.drive', state: 'done' })).code, 'guard');
+});
+
 test('update_client: only its fields; ended waits for process 35; cancelled needs a reason; editors and characterizers from the lists', async () => {
   const w = world();
   const u = (args) => call(w, 'owner', 'update_client', { client: 'רון', dry_run: false, ...args });

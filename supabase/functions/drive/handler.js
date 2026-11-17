@@ -18,6 +18,8 @@ import { serviceAccountOf, makeDrive, folderIdOf } from '../_shared/drive.js';
 import { corsHeaders } from '../_shared/cors.js';
 import { isOAuthToken } from '../_shared/oauth-token.js';
 
+export const LIST_DEPTH = 3;
+export const LIST_MAX = 2000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // The client's row as the caller reads it (row level security), with its editors. Before the
@@ -65,7 +67,9 @@ export function makeHandler(deps) {
     const sa = serviceAccountOf(deps.env('GOOGLE_DRIVE_SERVICE_ACCOUNT'));
     if (!sa) return json(503, { error: 'drive_not_connected' });
     try {
-      const { files, truncated } = await makeDrive(sa, { fetch: deps.fetch || globalThis.fetch }).list(folder);
+      // As deep and as many as the Drive scan (drive-scan: 3 levels, 5000 files) reads, within reason: the
+      // check of step 24 counts the edited videos of folders full of footage (17.11.2026).
+      const { files, truncated } = await makeDrive(sa, { fetch: deps.fetch || globalThis.fetch }).list(folder, { maxDepth: LIST_DEPTH, maxFiles: LIST_MAX });
       return json(200, {
         files: files.map((f) => ({ name: f.name, mimeType: f.mimeType, createdTime: f.createdTime, link: f.link, path: f.path })),
         truncated,

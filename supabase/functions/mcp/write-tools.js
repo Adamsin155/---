@@ -176,7 +176,7 @@ async function driveCheck(ctx, client, key, now) {
   if (!folder) return cannotCheck(link ? DRIVE_WORDS.not_a_folder : DRIVE_WORDS.no_folder);
   if (!ctx.drive) return cannotCheck(DRIVE_WORDS.not_connected);
   let got;
-  try { got = await ctx.drive.list(folder); } catch (e) {
+  try { got = await ctx.drive.list(folder, { maxDepth: 3, maxFiles: 2000 }); } catch (e) {
     return cannotCheck(e?.code === 'no_access' ? DRIVE_WORDS.no_access : e?.code === 'auth' ? DRIVE_WORDS.auth : DRIVE_WORDS.failed);
   }
   const v = driveVerdict(client, key, got, now);
