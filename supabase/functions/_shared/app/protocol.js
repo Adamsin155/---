@@ -235,7 +235,8 @@ export const PEOPLE = {
   // Amit (the owner's decision of 15.11.2026): exactly what Noam did, beside Ofir. The
   // characterization meetings (4), the logins taken there (5), checking them and setting the pages
   // up with Metricool (6) and the Highlights (8), of the clients Irit picks her for
-  // (clients.characterizer). A new client is still Ofir's (DEFAULT_CHARACTERIZER).
+  // (clients.characterizer). A new client is still Ofir's (DEFAULT_CHARACTERIZER). Since 17.11.2026 she
+  // shares all of it with Ofir on every client either of them owns (CHAR_PAIR below; docs/ops.md, section 139).
   amit: { key: 'amit', name: 'עמית', role: 'אפיונים, הקמת דפים ו־Highlights' },
   // Noam left the company (the owner, 10.11.2026); Ofir took over all her work (FORMER_PEOPLE).
   // She stays here only so the history still shows her name (old marks, notes, and old clients
