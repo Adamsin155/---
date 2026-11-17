@@ -10,6 +10,9 @@
 //   - the Gantt's index: the card "לקוחות שלא מחוברים ל־Metricool";
 //   - Irit's pickers "מי מבצע את האפיון?": "קביעת מועד" and the card's edit form offer עמית, אופיר,
 //     שיאל and ליאור; a client with nobody set stays Ofir's.
+//   - 17.11.2026 (section 139, "the same characterization permission as Ofir"): Ofir's client whose meeting
+//     was this morning is in her tasks, its card lets her mark 4 and take it ("אני על זה"), she opens its
+//     meeting's form, and the calendar shows Ofir's meetings to her too.
 // Run: node <static server> . 8791 &  then  BASE_URL=http://localhost:8791/ node tests/amit-e2e.mjs [outDir]
 import { chromium, webkit, devices } from 'playwright';
 import { watchCsp, noCspViolations } from './csp-watch.mjs';
@@ -67,8 +70,10 @@ const ENDING = client(4, 'מוסך מסיים', 'ending', 'ofir', { char_at: tom
 const ENDED = client(5, 'לקוח שהסתיים', 'ended', 'ofir');
 // No characterizer and no meeting yet, days after the deal: Irit's "קביעת מועד", on "באיחור".
 const FRESH = client(6, 'פיצה חדשה', 'active', null);
+// 17.11.2026: Ofir's client whose meeting was this morning (08:30): in her tasks too now (CHAR_PAIR).
+const OFIR_TODAY = client(7, 'בית קפה של אופיר', 'active', 'ofir', { char_at: minutesAgo(90), metricool_blog_id: '8', metricool_brand: 'בית קפה של אופיר', address: 'רחוב הדוגמה 1' });
 const tables = {
-  clients: [AMITS, OFIRS, SHIELS, ENDING, ENDED, FRESH],
+  clients: [AMITS, OFIRS, SHIELS, ENDING, ENDED, FRESH, OFIR_TODAY],
   client_access: [{ id: randomUUID(), client_id: AMITS.id, network: 'instagram', label: null, username: 'cake_user', status: 'new', linked: false, has_secret: true, note: null, updated_at: minutesAgo(30) }],
   client_access_links: [], protocol_checks: [], client_tasks: [], quotes: [], office_reviews: [], client_status_notes: [], protocol_log: [],
 };
@@ -152,14 +157,16 @@ const settled = (page) => page.waitForFunction(() => [...document.querySelectorA
 const shot = async (page, name) => { if (OUT) await page.screenshot({ path: `${OUT}/${name}.png`, animations: 'disabled' }); };
 
 for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, { width: 1366, height: 768 }]]) {
-  await step(`Amit (${tag}): her meeting in her tasks, not Ofir's work; the Metricool line; "גאנט תוכן" in her menu`, async () => {
+  await step(`Amit (${tag}): her meeting and Ofir's in her tasks; the Metricool line; "גאנט תוכן" in her menu`, async () => {
     const n = await newPage(viewport || undefined, { iphone });
     await signIn(n, 'clients.html#mine', 'amit@astrateg.test');
     await n.waitForFunction(() => !document.getElementById('tab-clients').hidden && document.getElementById('tab-clients').textContent === 'לקוחות', null, { timeout: 15000 });
     await n.waitForFunction(() => document.getElementById('mine-list')?.innerText.includes('קונדיטוריה של עמית'), null, { timeout: 15000 });
     const mine = await n.locator('#mine-list').innerText();
-    assert.ok(!mine.includes('מסעדה של אופיר'), 'only her own work');
-    assert.ok(!mine.includes('מספרה של שיאל'), 'Shiel\'s meeting is his');
+    // 17.11.2026: Ofir's meeting of this morning is hers to do too (CHAR_PAIR).
+    assert.ok(mine.includes('בית קפה של אופיר'), 'Ofir\'s client\'s characterization is in her list');
+    // Shiel's meeting (4) is his; its Highlights (8) are Ofir's, so hers too since 17.11.2026.
+    assert.doesNotMatch(mine, /מספרה של שיאל\s*\n\s*4 ·/, 'Shiel\'s meeting is his');
     await n.locator('#mine-list a[href="gantt.html#not-connected"]').first().waitFor({ timeout: 15000 });
     assert.match(mine + await n.locator('#mine-list').innerText(), /מחכים לחיבור ל־Metricool|מחכה לחיבור ל־Metricool/);
     assert.ok(await n.locator('a[href^="gantt.html"]').count() > 0, 'the Gantt in her menu');
@@ -169,7 +176,7 @@ for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, {
     await n.click('#tab-clients');
     await n.waitForSelector('#client-list a, #client-list li');
     const t = await n.locator('#client-list').innerText();
-    for (const name of ['קונדיטוריה של עמית', 'מסעדה של אופיר', 'מספרה של שיאל', 'מוסך מסיים', 'פיצה חדשה']) assert.ok(t.includes(name), name);
+    for (const name of ['קונדיטוריה של עמית', 'מסעדה של אופיר', 'מספרה של שיאל', 'מוסך מסיים', 'פיצה חדשה', 'בית קפה של אופיר']) assert.ok(t.includes(name), name);
     assert.ok(!t.includes('לקוח שהסתיים'), 'not the ended');
     assert.ok(await noSideScroll(n));
     await settled(n); await shot(n, `amit-02-clients-${tag}`);
@@ -215,6 +222,46 @@ for (const [tag, iphone, viewport] of [['iphone', true, null], ['1366', false, {
     assert.ok(!card.includes('מסעדה של אופיר'), 'a connected client is not listed');
     assert.ok(await noSideScroll(n));
     await settled(n); await shot(n, `amit-06-gantt-metricool-${tag}`);
+    await n.context().close();
+  });
+  await step(`Amit (${tag}): Ofir's client's card: she can tick 4 and take it ("אני על זה"); no money on it`, async () => {
+    const n = await newPage(viewport || undefined, { iphone });
+    await signIn(n, `client.html?id=${OFIR_TODAY.id}#p04`, 'amit@astrateg.test');
+    await n.waitForSelector('#p04', { timeout: 15000 });
+    await settled(n);
+    const sec = n.locator('#p04');
+    await sec.scrollIntoViewIfNeeded();
+    const text = await sec.innerText();
+    assert.match(text, /ביצוע פגישת אפיון/);
+    assert.match(text, /אני על זה/, 'the claim line: the step is shared by Ofir and Amit');
+    assert.ok(await sec.locator('.cbx:not(:disabled)').count() > 0, 'she can tick an item of 4');
+    assert.ok(await noSideScroll(n));
+    await shot(n, `amit-09-ofir-card-p04-${tag}`);
+    const before = calls.length;
+    await sec.locator('button', { hasText: 'אני על זה' }).first().click();
+    await n.waitForTimeout(500);
+    const wrote = calls.slice(before).filter((c) => c.POST === 'protocol_checks' || c.PATCH === 'protocol_checks');
+    assert.ok(wrote.some((c) => JSON.stringify(c.body).includes('p04.claim') && JSON.stringify(c.body).includes('amit')), JSON.stringify(calls.slice(before)));
+    assert.doesNotMatch(await n.locator('body').innerText(), /₪/, 'no money on the card');
+    await n.context().close();
+  });
+  await step(`Amit (${tag}): the meeting's form of Ofir's client opens for her`, async () => {
+    const n = await newPage(viewport || undefined, { iphone });
+    await signIn(n, `intake.html?id=${OFIR_TODAY.id}#end`, 'amit@astrateg.test');
+    await n.waitForFunction(() => !document.getElementById('app')?.hidden && document.body.innerText.includes('כתובת העסק'), null, { timeout: 15000 });
+    assert.ok(await noSideScroll(n));
+    await settled(n); await shot(n, `amit-10-ofir-meeting-${tag}`);
+    await n.context().close();
+  });
+  await step(`Amit (${tag}): the calendar shows Ofir's meetings to her`, async () => {
+    const n = await newPage(viewport || undefined, { iphone });
+    await signIn(n, 'calendar.html', 'amit@astrateg.test');
+    await n.waitForFunction(() => document.body.innerText.includes('בית קפה של אופיר'), null, { timeout: 15000 });
+    const body = await n.locator('body').innerText();
+    assert.ok(body.includes('קונדיטוריה של עמית'), 'her own meeting');
+    // (Shiel's meeting stays his: tests/amit.test.mjs. His client's Highlights deadline is hers now, as it is Ofir's.)
+    assert.ok(await noSideScroll(n));
+    await settled(n); await shot(n, `amit-11-calendar-${tag}`);
     await n.context().close();
   });
   await step(`Irit (${tag}): "קביעת מועד" offers עמית, אופיר, שיאל and ליאור; a client with nobody set stays Ofir's`, async () => {
