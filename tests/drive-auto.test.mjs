@@ -8,7 +8,7 @@ import { driveMarks, ganttFills, countDaily, NOTES, RAW_STEP, AUTO_PREFIX } from
 import { neededFor } from '../app/drive-guard-logic.js';
 import { editorReadyKeys } from '../app/editor-auto.js';
 import { fastCases } from '../app/fast-ladder.js';
-import { runScan, autoStep } from '../supabase/functions/drive-scan/scan.js';
+import { runScan, runBackfill, autoStep } from '../supabase/functions/drive-scan/scan.js';
 import { dateIL } from '../app/tz.js';
 
 const IL = (y, m, d, h = 0, mi = 0) => dateIL(y, m, d, h, mi);
@@ -191,4 +191,15 @@ test('the scan: after the counts, the marks and the fills, from the same listing
   const stats3 = { marked: 0, linked: 0, autoFailed: 0 };
   await autoStep({ store: { }, clientId: 'c1', files: [], now, stats: stats3 });
   assert.deepEqual(stats3, { marked: 0, linked: 0, autoFailed: 0 });
+});
+
+test('the back-scan never marks: it writes the counts only; the next daily pass marks from them', async () => {
+  const checks = Object.entries(assigned()).map(([item_key, v]) => ({ item_key, ...v }));
+  const st = store({ client: { ...base, deal_at: base.deal_at, created_at: base.deal_at }, checks, daily: [vids(12)] });
+  const files = [{ name: '15.11 רילס.mp4', mimeType: 'video/mp4', createdTime: '2026-11-14T10:00:00Z', link: 'https://drive.google.com/file/d/a/view', path: 'סרטונים' }];
+  const stats = await runBackfill({ store: st, drive: { list: async () => ({ files, truncated: false }) }, now });
+  assert.equal(stats.clients, 1);
+  assert.ok(st.saved.length > 0);
+  assert.deepEqual(st.added, []);
+  assert.deepEqual(st.filled, []);
 });

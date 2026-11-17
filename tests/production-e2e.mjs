@@ -187,6 +187,13 @@ async function fakeSupabase(route) {
   const me = staffOf(who);
   const now = serverNow();
   if (p === '/rest/v1/rpc/is_staff') return json(200, !!me);
+  // The drive function (17.11.2026, app/drive-guard.js): the client's folder holds every video of
+  // its package, so "כל הסרטונים הועלו לדרייב" is taken as before (its refusal: tests/track-sync-e2e.mjs).
+  if (p === '/functions/v1/drive') {
+    const c = me && db.clients.find((x) => x.id === JSON.parse(route.request().postData() || '{}').client_id);
+    if (!c || !sees(me, c)) return json(404, { error: 'no_client' });
+    return json(200, { truncated: false, files: Array.from({ length: Math.max(60, Number(c.deliverables?.videos) || 0) }, (_, i) => ({ name: `${i + 1}.mp4`, mimeType: 'video/mp4', createdTime: now, link: null, path: 'סרטונים' })) });
+  }
   // Storage: a signed link only for a file of a client this person sees (the bucket's read policy).
   const sign = /^\/storage\/v1\/object\/sign\/client-files\/(.+)$/.exec(p);
   if (sign) {

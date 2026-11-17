@@ -8,7 +8,7 @@ import { generateKeyPairSync, createVerify } from 'node:crypto';
 import {
   folderIdOf, serviceAccountOf, signedAssertion, makeDrive, summarize, kindOf, SCOPE, TOKEN_URL, MAX_FILES,
 } from '../supabase/functions/_shared/drive.js';
-import { makeHandler } from '../supabase/functions/drive/handler.js';
+import { makeHandler, editsClient } from '../supabase/functions/drive/handler.js';
 import { dateOfName, fileType, fileKind, matchFiles, linkable } from '../app/drive-links.js';
 import { fakeClient } from './fake-pgrest.mjs';
 
@@ -105,11 +105,11 @@ test('the listing: every page, the subfolders, a folder not shared', async () =>
 
 // ── The drive function ─────────────────────────
 const CLIENT = { id: '11111111-1111-4111-8111-111111111111', links: { drive: 'https://drive.google.com/drive/folders/root0000000' } };
-function driveRig({ edit = true, sa = JSON.stringify(SA), client = CLIENT } = {}) {
+function driveRig({ edit = true, sa = JSON.stringify(SA), client = CLIENT, person = null } = {}) {
   const tree = { root0000000: [vid('a', '15.11 רילס.mp4', '2026-11-10T10:00:00Z')] };
   const handle = makeHandler({
     env: (n) => ({ SUPABASE_URL: 'https://x', SUPABASE_ANON_KEY: 'anon', GOOGLE_DRIVE_SERVICE_ACCOUNT: sa })[n],
-    createClient: () => fakeClient({ clients: client ? [client] : [] }, { rpc: { can_edit_gantt: edit } }),
+    createClient: () => fakeClient({ clients: client ? [client] : [] }, { rpc: { can_edit_gantt: edit, my_person: person } }),
     fetch: fakeGoogle(tree).fetch,
   });
   return (body) => handle(new Request('https://x/functions/v1/drive', { method: 'POST', headers: { Authorization: 'Bearer t', origin: 'https://app.astrateg.tech' }, body: JSON.stringify(body) }));
@@ -126,6 +126,31 @@ test('the drive function: Gantt editors only, a client they read, the robot set'
   assert.equal((await driveRig({ client: null })({ client_id: CLIENT.id })).status, 404, 'a client the caller cannot read');
   assert.equal((await (await driveRig({ client: { ...CLIENT, links: {} } })({ client_id: CLIENT.id })).json()).error, 'no_folder');
   assert.equal((await (await driveRig({ sa: '' })({ client_id: CLIENT.id })).json()).error, 'drive_not_connected');
+});
+
+// 17.11.2026: the client's editor lists its folder too (to mark "כל הסרטונים הועלו לדרייב", which
+// is taken only when the folder has the videos; app/drive-guard.js). Still read-only, still as the caller.
+test('the drive function: the client\'s own editor (main, second, a round\'s) lists its folder; another editor does not', async () => {
+  const mine = { ...CLIENT, editor: 'yariv', editor2: 'nadia', rounds: [{ n: 2, editor: 'anna' }] };
+  for (const person of ['yariv', 'nadia', 'anna']) {
+    const r = await driveRig({ edit: false, person, client: mine })({ client_id: CLIENT.id });
+    assert.equal(r.status, 200, person);
+    assert.deepEqual((await r.json()).files.map((f) => f.name), ['15.11 רילס.mp4']);
+  }
+  const other = await driveRig({ edit: false, person: 'moran', client: mine })({ client_id: CLIENT.id });
+  assert.equal(other.status, 403);
+  assert.equal((await other.json()).error, 'not_allowed');
+  // Not staff (no person), or a client the caller cannot read (row level security): refused.
+  assert.equal((await driveRig({ edit: false, person: null, client: mine })({ client_id: CLIENT.id })).status, 403);
+  assert.equal((await driveRig({ edit: false, person: 'yariv', client: null })({ client_id: CLIENT.id })).status, 403);
+  // A connected app's token: refused before anything is read.
+  const handle = makeHandler({ env: () => '', createClient: () => { throw new Error('not reached'); } });
+  const claims = Buffer.from(JSON.stringify({ sub: 'u1', client_id: 'claude-app' })).toString('base64url');
+  const oauth = await handle(new Request('https://x/functions/v1/drive', { method: 'POST', headers: { Authorization: `Bearer h.${claims}.s` }, body: '{}' }));
+  assert.equal(oauth.status, 403);
+  assert.equal(editsClient(mine, 'anna'), true);
+  assert.equal(editsClient(mine, ''), false);
+  assert.equal(editsClient(null, 'yariv'), false);
 });
 
 // ── The date at the start of a name ────────────

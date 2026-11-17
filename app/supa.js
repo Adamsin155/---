@@ -368,6 +368,8 @@ export function quoteLink(token) {
 
 // Human-readable Hebrew message for common failures.
 export function explainError(err) {
+  // A refusal the app itself words (app/drive-guard.js: the Drive does not have the videos yet).
+  if (typeof err?.say === 'string' && err.say) return err.say;
   const msg = String(err?.message || err || '');
   if (/Invalid login credentials/i.test(msg)) return 'האימייל או הסיסמה שגויים.';
   if (/rate limit|security purposes|only request this/i.test(msg)) return 'נשלחו יותר מדי בקשות. נסו שוב בעוד כמה דקות.';

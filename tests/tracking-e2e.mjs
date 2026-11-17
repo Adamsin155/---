@@ -1,7 +1,8 @@
 // "מעקב לקוחות" (tracking.html; the owner, 9.11.2026, for Irit) in the browser, against the office of
 // tests/flow-world.mjs (Tuesday 20.10.2026, 10:00 in Israel; invented names), with six clients of
 // its own:
-//   קפה דנה       everything done: 36/36 videos (the editing finished before the counter),
+//   קפה דנה       everything done: 36/36 videos (all 36 edited videos are in its Drive since the deal;
+//                 its "כל הסרטונים הועלו לדרייב" adds nothing of its own since 17.11.2026),
 //                 36/36 graphics (7ב and 23ב), 1/1 shoot day, "אחרון: 10.9"
 //   מוסך אבי      two editors typing 8 and 4 (12/42), the first 9 graphics up (9/42), 1/2 shoot
 //                 days, "אחרון: 1.10 · הבא: 5.11"
@@ -61,6 +62,15 @@ function office() {
   ];
   const mark = (id, key, note = null) => db.protocol_checks.push({ client_id: id, item_key: key, state: 'done', note, by_email: emailOf('ilai'), at: '2026-10-01T09:00:00+03:00' });
   mark(DANA, 'p24.drive', 'ייבוא');
+  // Its Drive (public.drive_daily): 36 edited videos since the deal day; footage and an older package do not count.
+  db.drive_daily = [
+    { client_id: DANA, day: '2026-09-20', folder: 'סרטונים ערוכים', kind: 'video', files: 20 },
+    { client_id: DANA, day: '2026-09-25', folder: 'סרטונים ערוכים', kind: 'video', files: 16 },
+    { client_id: DANA, day: '2026-09-10', folder: 'גלם יום 1', kind: 'raw', files: 40 },
+    { client_id: DANA, day: '2026-07-01', folder: 'סרטונים', kind: 'video', files: 5 },
+  ];
+  // The long name's step 24 is marked, with nothing typed and nothing in the Drive: 0, not its part.
+  mark(LONG, 'p24.drive');
   mark(DANA, 'p07b.posted', 'ייבוא');
   mark(DANA, 'p23b.posted');
   mark(AVI, 'p07b.posted');
@@ -136,6 +146,8 @@ async function numbers(page) {
   assert.match(await text(cell(page, ELIOR, 2)), /3 \/ 8 החודש/);
   assert.match(await text(cell(page, ELIOR, 3)), /2 \/ 20/);
   assert.match(await text(cell(page, ELIOR, 1)), /אנה/);
+  // The long name: step 24 marked, nothing typed or in the Drive: 0 / 36 (no bump since 17.11.2026).
+  assert.match(await text(cell(page, LONG, 2)), /0 \/ 36/);
   // The client opens its card.
   assert.equal(await page.locator(`#ct-${DANA} td:first-child a`).getAttribute('href'), `client.html?id=${DANA}`);
 }

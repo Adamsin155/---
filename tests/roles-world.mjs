@@ -239,6 +239,21 @@ export function makeFake(db, { now = () => NOW.toISOString() } = {}) {
       ];
       return json(200, { state: 'ok', scope: 'gallery', business: 'חן קוסמטיקה', expiresAt: '2027-10-11T09:00:00Z', ttl: 3600, files });
     }
+    // The drive function (17.11.2026): "כל הסרטונים הועלו לדרייב" is taken only when the client's
+    // folder has the videos (app/drive-guard.js). db.drive_files[clientId]: that folder's listing, or
+    // { error, status } for a refusal. A client without one: a folder with every video of the package,
+    // so the screens that mark it elsewhere in the tests go on as before.
+    if (p === '/functions/v1/drive') {
+      if (!me) return json(401, { error: 'not_signed_in' });
+      const c = db.clients.find((x) => x.id === body?.client_id);
+      if (!c) return json(404, { error: 'no_client' });
+      const own = db.drive_files?.[c.id];
+      if (own?.error) return json(own.status || 409, { error: own.error });
+      const files = own || Array.from({ length: Math.max(60, Number(c.deliverables?.videos) || 0) }, (_, i) => ({
+        name: `${i + 1}.mp4`, mimeType: 'video/mp4', createdTime: now(), link: `https://drive.google.com/file/d/f${i}/view`, path: 'סרטונים',
+      }));
+      return json(200, { files, truncated: false });
+    }
     if (p.startsWith('/storage/v1/object/sign/')) {
       if (req.method() === 'POST') return json(200, { signedURL: `${p.replace('/storage/v1', '')}?token=t` });
       const hue = (Number(/pic-(\d+)/.exec(p)?.[1] || 0) * 47) % 360;
