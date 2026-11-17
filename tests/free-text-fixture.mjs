@@ -55,7 +55,7 @@ export const AI_TEXT = {
     { title: '{{3}}', items: ['{{3.*}}'] },
   ],
   detailsTitle: 'דגשים',
-  details: [{ title: 'דגשים:', items: DETAILS }],
+  details: [{ title: '', items: DETAILS }],
   tiles: [{ n: '1', label: 'יום צילום' }, { n: '68', label: 'סרטונים' }, { n: '36', label: 'גרפיקות' }, { n: '104', label: 'תכנים' }],
   clauses: [
     { title: '{{1}}', items: [CL11, CL12, '{{1.2}}'] },

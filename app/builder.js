@@ -1237,6 +1237,7 @@ function openTextEditor(part) {
   anchor.style.display = 'none';
   anchor.setAttribute('data-te-hidden', '');
   anchor.before(editor);
+  editor.fit();
   editor.scrollIntoView({ block: 'start' });
   editor.querySelector('input, textarea')?.focus({ preventScroll: true });
 }

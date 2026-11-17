@@ -54,7 +54,8 @@ function problemWords(errors) {
   return 'הנוסח לא נשמר. בודקים את השורות ומנסים שוב.';
 }
 
-const grow = (el) => { el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; };
+// A box as tall as its words (only once it is on the page: before that it has no height to measure).
+const grow = (el) => { if (!el.isConnected) return; el.style.height = 'auto'; el.style.height = `${el.scrollHeight + 2}px`; };
 
 // part: 'cover' | 'package' | 'details' | 'tiles' | 'clauses'; regular: regularText() of the contract;
 // current: what custom.text has for this part now (or undefined).
@@ -114,7 +115,7 @@ export function textEditor({ part, regular, current, onSave, onReset, onCancel }
             part === 'clauses' ? h('span', { class: 'te-num num' }, `${gi + 1}.${ii + 1}`) : null,
             locked
               ? h('div', { class: 'te-locked' }, h('span', {}, it.text), h('small', {}, 'מחושב אוטומטית'))
-              : h('textarea', { class: 'te-text', rows: '2', dir: 'auto', maxlength: String(TEXT_LIMITS.line), 'aria-label': `שורה ${ii + 1}`,
+              : h('textarea', { class: 'te-text', rows: '1', dir: 'auto', maxlength: String(TEXT_LIMITS.line), 'aria-label': `שורה ${ii + 1}`,
                 oninput: (e) => { it.ref = null; it.text = e.target.value; grow(e.target); } }, it.text),
             keep ? null : h('button', { type: 'button', class: 'te-del', 'aria-label': `מחיקת שורה ${ii + 1}`, onclick: () => { g.items.splice(ii, 1); draw(); } }, '×'));
         })),
@@ -150,8 +151,9 @@ export function textEditor({ part, regular, current, onSave, onReset, onCancel }
     h('div', { class: 'te-head' }, h('strong', {}, `עריכה: ${PART_TITLES[part]}`),
       h('span', { class: 'te-hint' }, part === 'clauses' ? 'המספור מתעדכן לבד. סעיף המחיר מחושב.' : 'סכומים מחושבים אוטומטית.')),
     body,
-    error,
+    // The refusal sits on the bar of the buttons, where the eyes are when saving.
     h('div', { class: 'te-actions' },
+      error,
       h('button', { type: 'button', class: 'btn btn-primary btn-sm te-save', onclick: () => {
         const value = collect();
         const errors = textErrors({ [part]: value });
@@ -162,5 +164,7 @@ export function textEditor({ part, regular, current, onSave, onReset, onCancel }
       h('button', { type: 'button', class: 'btn btn-sm te-cancel', onclick: () => onCancel() }, 'ביטול'),
       current ? h('button', { type: 'button', class: 'btn btn-ghost btn-sm te-reset', onclick: () => onReset() }, 'חזרה לנוסח הרגיל') : null),
   );
+  // Called once the editor is on the page.
+  box.fit = () => { for (const ta of box.querySelectorAll('textarea')) grow(ta); };
   return box;
 }

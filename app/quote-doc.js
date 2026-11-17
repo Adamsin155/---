@@ -278,7 +278,8 @@ export function renderQuoteDoc(model, meta = {}) {
     // agreement's clauses (an agreement only), the signatures and the closing words.
     const pkgName = pkg.shownName || pkg.tierName;
     const groups = (list) => list.map((g) => [
-      h('h3', { class: 'qd-words-h' }, g.title),
+      // A group written by hand may have no title of its own (custom.text, 17.11.2026).
+      g.title ? h('h3', { class: 'qd-words-h' }, g.title) : null,
       h('ul', { class: 'qd-checks qd-words-list' }, g.items.map((i) => h('li', {}, i))),
     ]);
     const cover = h('header', { class: 'qd-cover' },
