@@ -34,6 +34,31 @@ const store = {
   async state(row: unknown) {
     must(await admin.from('drive_scan_state').upsert(row, { onConflict: 'client_id' }));
   },
+  // What the folder proves (./scan.js autoStep; docs/ops.md, section 141): the client, its marks,
+  // its Drive counts (all days) and its content Gantt, read after this run's counts were saved.
+  async autoContext(clientId: string) {
+    const [client, checks, daily, gantt] = await Promise.all([
+      admin.from('clients').select('*').eq('id', clientId).maybeSingle(),
+      admin.from('protocol_checks').select('item_key, state, note, at, by_email').eq('client_id', clientId).limit(5000),
+      admin.from('drive_daily').select('day, folder, kind, files').eq('client_id', clientId).gt('files', 0).limit(10000),
+      admin.from('client_gantt').select('id, kind, key, day, time_il, num, link').eq('client_id', clientId).limit(5000),
+    ]);
+    return { client: must(client), checks: must(checks), daily: must(daily), gantt: must(gantt) };
+  },
+  // Inserted, never over a mark that exists (a person's "done" or "לא רלוונטי" stays); who and when
+  // come from the stamp trigger (by_email '' for the system, as p28.auto and p24.notify).
+  async addMarks(clientId: string, marks: { item_key: string; state: string; note: string }[]) {
+    const rows = must(await admin.from('protocol_checks')
+      .upsert(marks.map((m) => ({ client_id: clientId, ...m })), { onConflict: 'client_id,item_key', ignoreDuplicates: true })
+      .select('item_key')) as unknown[] | null;
+    return Array.isArray(rows) ? rows.length : 0;
+  },
+  // Only while the link is still empty (app/gantt-drive.js fillLink): never over a link put meanwhile.
+  async fillLink(clientId: string, id: string, link: string) {
+    const rows = must(await admin.from('client_gantt').update({ link }).eq('id', id).eq('client_id', clientId)
+      .or('link.is.null,link.eq.').select('id')) as unknown[] | null;
+    return Array.isArray(rows) && rows.length > 0;
+  },
 };
 
 Deno.serve(async (req) => {

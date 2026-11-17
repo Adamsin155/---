@@ -4,6 +4,8 @@
 // Only counts, folder names and days are written: no file name, no link, no content.
 import { folderIdOf, fileClass, kindOf } from '../_shared/drive.js';
 import { addDaysIL, atTimeIL, dayKeyIL } from '../_shared/app/tz.js';
+import { clientState } from '../_shared/app/protocol-logic.js';
+import { driveMarks, ganttFills } from '../_shared/app/drive-auto-logic.js';
 
 export const WINDOW_DAYS = 30;
 export const BATCH = 8;
@@ -34,15 +36,40 @@ export function mergeRows(clientId, fresh, before) {
   return [...fresh, ...gone].map((r) => ({ client_id: clientId, ...r }));
 }
 
+// What the folder just listed proves (docs/ops.md, section 141; app/drive-auto-logic.js): the
+// protocol's marks of 24, 7 and 23 the Drive shows, inserted never over a mark that exists, and
+// the content Gantt's empty links, filled only while empty. Read from the database after this
+// run's counts were saved (no second Drive listing). Never throws: a failure is counted, and the
+// next pass over the client tries again. Without the store's methods (an older store), nothing.
+export async function autoStep({ store, clientId, files, now, stats }) {
+  if (!store.autoContext) return;
+  try {
+    const ctx = await store.autoContext(clientId);
+    if (!ctx?.client) return;
+    const checks = {};
+    for (const r of ctx.checks || []) checks[r.item_key] = r;
+    const marks = driveMarks({ client: ctx.client, checks, state: clientState(ctx.client, checks, now), daily: ctx.daily || [], folderOk: true, now });
+    if (marks.length) stats.marked += await store.addMarks(clientId, marks.map(({ item_key, state, note }) => ({ item_key, state, note })));
+    for (const f of ganttFills(ctx.client, ctx.gantt || [], files, now)) {
+      if (await store.fillLink(clientId, f.id, f.link)) stats.linked += 1;
+    }
+  } catch (e) {
+    stats.autoFailed += 1;
+    console.error('drive-scan: the Drive marks were not written', String(e?.code || e?.name || 'error').slice(0, 40));
+  }
+}
+
 // store: { targets() → [{ id, links, scanned_at }], before(clientId, fromDay) → rows,
-//          save(rows), state({ client_id, scanned_at, error, files, partial }) }
+//          save(rows), state({ client_id, scanned_at, error, files, partial }),
+//          and for the marks (optional): autoContext(clientId) → { client, checks, daily, gantt },
+//          addMarks(clientId, marks) → how many were written, fillLink(clientId, id, link) → written? }
 export async function runScan({ store, drive, now = new Date(), clock = () => Date.now(), batch = BATCH, budgetMs = BUDGET_MS }) {
   const started = clock();
   const since = atTimeIL(addDaysIL(now, -WINDOW_DAYS), 0);
   const fromDay = dayKeyIL(since);
   const all = await store.targets();
   const queue = [...all].sort((a, b) => String(a.scanned_at || '').localeCompare(String(b.scanned_at || ''))).slice(0, batch);
-  const stats = { clients: 0, files: 0, failed: 0 };
+  const stats = { clients: 0, files: 0, failed: 0, marked: 0, linked: 0, autoFailed: 0 };
   for (const c of queue) {
     if (clock() - started > budgetMs) break;
     const folder = folderIdOf(c.links?.drive);
@@ -61,6 +88,7 @@ export async function runScan({ store, drive, now = new Date(), clock = () => Da
       await store.state({ client_id: c.id, scanned_at: at, error: null, files: n, partial: !!truncated });
       stats.clients += 1;
       stats.files += n;
+      await autoStep({ store, clientId: c.id, files, now, stats });
     } catch (e) {
       // A client that fails moves to the back of the line, and the page names it as not counted.
       await store.state({ client_id: c.id, scanned_at: at, error: String(e?.code || 'error').slice(0, 40), files: 0, partial: false });
