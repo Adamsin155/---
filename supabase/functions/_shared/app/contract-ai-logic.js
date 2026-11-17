@@ -28,8 +28,10 @@ import {
 } from './catalog.js';
 import {
   emptySelection, reconcile, baseQuantities, computeTotals, normalizeSelection,
-  paidAddonAvailable, freeAddonAvailable, formatILS,
+  paidAddonAvailable, freeAddonAvailable, formatILS, regularText,
 } from './pricing.js';
+// "נוסח חופשי" (17.11.2026): the document's own words from the deal (selection.custom.text).
+import { TEXT_AI_SCHEMA, checkAiText, textRulesText, TEXT_PART_NAMES } from './contract-text.js';
 
 // The longest text the office may send (the database keeps it with the run).
 export const AI_TEXT_MAX = 2000;
@@ -569,6 +571,8 @@ export function freeSystemPrompt() {
     '# What a custom contract can hold',
     freeCatalogText(),
     FREE_RULES,
+    // The regular words, numbered, of one agreement (the same text on every call: cached).
+    textRulesText(regularText({ ...emptySelection(), docType: 'agreement', tier: 'social', influencer: 'simeon' })),
   ].join('\n\n');
   return FREE_PROMPT;
 }
@@ -597,6 +601,8 @@ export const FREE_SCHEMA = object({
       specialClauses: { type: 'array', items: { type: 'string' } },
       discount: nullable(INT),
       client: CLIENT_SCHEMA,
+      // The document's own words (17.11.2026): null, or every key ("" and [] keep the regular words).
+      text: nullable(TEXT_AI_SCHEMA),
     }),
   },
   questions: { type: 'array', items: { type: 'string' } },
@@ -616,7 +622,7 @@ function checkFreeDraft(d, n, drop) {
     monthlyPrice: null, vatFrom: null,
     monthlyShoot: r.monthlyShoot === true, monthlyContents: null,
     quantities: {}, addons: [], months: null, extraLines: [], specialClauses: [], discount: null, client: {},
-    alsoInfluencers: [], influencerName: null, postsAt: {},
+    alsoInfluencers: [], influencerName: null, postsAt: {}, text: null,
   };
   if (given(r.influencer) && r.influencer !== 'none') {
     if (FREE_INFLUENCERS.includes(r.influencer)) out.influencer = r.influencer;
@@ -671,6 +677,10 @@ function checkFreeDraft(d, n, drop) {
     months: base.months, monthlyPrice: base.monthlyPrice, discount: base.discount, quantities: base.quantities,
     extraLines: base.extraLines, specialClauses: base.specialClauses, client: base.client,
   });
+  // The document's own words: never the client's details, never money (app/contract-text.js).
+  const words = checkAiText(r.text, base.client);
+  out.text = words.text;
+  for (const n of words.notes) at(n);
   if (out.monthlyShoot && given(r.monthlyContents)) {
     const def = qtyDef('monthly');
     const m = toInt(r.monthlyContents);
@@ -816,6 +826,12 @@ export function applyFreeDraft(current, draft) {
     custom.terms = d.specialClauses.join('\n');
     marks.terms = custom.terms;
     for (const c of d.specialClauses) summary.push(`תנאי מיוחד: ${c}`);
+  }
+  // The document's own words (17.11.2026): the parts written, the rest the regular words.
+  if (d.text) {
+    custom.text = d.text;
+    marks.text = JSON.stringify(d.text);
+    summary.push(`נוסח שנכתב מהטקסט: ${Object.keys(d.text).map((k) => TEXT_PART_NAMES[k]).join(', ')}`);
   }
   if (given(d.discount)) {
     const list = computeTotals(normalizeSelection({ ...sel, discount: 0, custom: { ...custom } })).monthlyList;

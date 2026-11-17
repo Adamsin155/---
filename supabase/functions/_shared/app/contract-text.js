@@ -214,3 +214,134 @@ export function numberedText(regular) {
     `clauses:\n${list(regular.clauses)}`,
   ].join('\n\n');
 }
+
+/* ── The text parts from "הכנת חוזה עם AI" and from Claude (prepare_contract_draft) ──
+   Their shape for a model (structured outputs: one union-typed parameter, "" and [] for "the regular
+   words"), its mapping onto custom.text, and the check of what came back: a line with the client's
+   details or with money is left out, a reference to the clause of the price is put back when missing. */
+const STR = { type: 'string' };
+const GROUPS_SCHEMA = {
+  type: 'array',
+  items: { type: 'object', additionalProperties: false, required: ['title', 'items'], properties: { title: STR, items: { type: 'array', items: STR } } },
+};
+export const TEXT_AI_PROPS = {
+  title: STR, packageName: STR, influencerLine: STR, hideInfluencerLine: { type: 'boolean' },
+  packageTitle: STR, packageGroups: GROUPS_SCHEMA, detailsTitle: STR, details: GROUPS_SCHEMA,
+  tiles: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['n', 'label'], properties: { n: STR, label: STR } } },
+  clauses: GROUPS_SCHEMA,
+};
+export const TEXT_AI_KEYS = Object.keys(TEXT_AI_PROPS);
+// For an API schema (all keys required).
+export const TEXT_AI_SCHEMA = { type: 'object', additionalProperties: false, required: TEXT_AI_KEYS, properties: TEXT_AI_PROPS };
+
+// An email, or a number as long as a phone or a company id.
+export const PERSONAL = /@|(?:\d[\s().\-‎‏]*){8,}/;
+
+// The model's shape onto custom.text (a custom.text given as it is passes through). Null: none.
+export function textFromAi(t) {
+  if (!isObject(t)) return null;
+  if (TEXT_PARTS.some((k) => k in t)) return t;
+  const s = (v) => (typeof v === 'string' ? v : '');
+  const list = (v) => (Array.isArray(v) && v.length ? v : null);
+  const out = {};
+  const cover = {};
+  if (cleanText(s(t.title))) cover.title = s(t.title);
+  if (cleanText(s(t.packageName))) cover.packageName = s(t.packageName);
+  if (t.hideInfluencerLine === true) cover.influencer = '';
+  else if (cleanText(s(t.influencerLine))) cover.influencer = s(t.influencerLine);
+  if (Object.keys(cover).length) out.cover = cover;
+  for (const [part, title, groups] of [['package', 'packageTitle', 'packageGroups'], ['details', 'detailsTitle', 'details']]) {
+    const p = {};
+    if (cleanText(s(t[title]))) p.title = s(t[title]);
+    if (list(t[groups])) p.groups = t[groups];
+    if (Object.keys(p).length) out[part] = p;
+  }
+  if (list(t.tiles)) out.tiles = t.tiles;
+  if (list(t.clauses)) out.clauses = t.clauses;
+  return Object.keys(out).length ? out : null;
+}
+
+// What came back, made safe: { text (custom.text or null), notes: [Hebrew] }. `client`: the details
+// the same answer gave for the client's fields ({ name, company, companyId, phone, email }); a line
+// with any of them is left out too. Never throws.
+export function checkAiText(raw, client = {}) {
+  const notes = [];
+  const t = textFromAi(raw);
+  if (!t) return { text: null, notes };
+  const who = Object.values(isObject(client) ? client : {}).map((v) => cleanText(v)).filter((v) => v.length >= 3);
+  const fix = (v, max) => cleanText(String(v ?? '').replace(/[<>`\u0000-\u001f\u007f‎‏‪-‮⁦-⁩]/g, ' ')).slice(0, max);
+  let personal = 0;
+  let money = 0;
+  // A plain line: '' when it is left out.
+  const line = (v, max) => {
+    if (typeof v !== 'string') return '';
+    if (isItemRef(v) || isTitleRef(v)) return v.trim();
+    const x = fix(v, max).replace(/[{}]/g, '');
+    if (PERSONAL.test(x) || who.some((w) => x.includes(w))) { personal += 1; return ''; }
+    if (MONEY.test(x)) { money += 1; return ''; }
+    return x;
+  };
+  const groups = (list, max) => (Array.isArray(list) ? list : []).slice(0, max).filter(isObject).map((g) => ({
+    title: line(g.title, TEXT_LIMITS.title),
+    items: (Array.isArray(g.items) ? g.items : []).slice(0, TEXT_LIMITS.items).map((x) => line(x, TEXT_LIMITS.line)).filter(Boolean),
+  })).filter((g) => g.title || g.items.length);
+  const out = {};
+  if (isObject(t.cover)) {
+    const cover = {};
+    for (const k of COVER_KEYS) {
+      if (typeof t.cover[k] !== 'string') continue;
+      const x = line(t.cover[k], TEXT_LIMITS.title);
+      if (x || (k === 'influencer' && !cleanText(t.cover[k]))) cover[k] = x;
+    }
+    if (Object.keys(cover).length) out.cover = cover;
+  }
+  for (const part of ['package', 'details']) {
+    if (!isObject(t[part])) continue;
+    const p = {};
+    const title = line(t[part].title, TEXT_LIMITS.title);
+    if (title) p.title = title;
+    const g = groups(t[part].groups, TEXT_LIMITS.groups);
+    if (g.length) p.groups = g;
+    if (Object.keys(p).length) out[part] = p;
+  }
+  if (Array.isArray(t.tiles)) {
+    const tiles = t.tiles.slice(0, TEXT_LIMITS.tiles).filter(isObject)
+      .map((x) => ({ n: line(x.n, TEXT_LIMITS.tileN), label: line(x.label, TEXT_LIMITS.tileLabel) })).filter((x) => x.label);
+    if (tiles.length) out.tiles = tiles;
+  }
+  if (Array.isArray(t.clauses)) {
+    const c = groups(t.clauses, TEXT_LIMITS.sections);
+    if (c.length) {
+      // The clause of the price is always the computed one: put back when it was left out.
+      if (!c.some((g) => g.items.some((x) => keepsPrice(x)))) {
+        if (c.length >= 2) c[1].items.unshift(PRICE_CLAUSE);
+        else c.push({ title: '{{2}}', items: [PRICE_CHAPTER] });
+        notes.push('סעיף המחיר נשאר כמו בנוסח הרגיל (המחיר מחושב).');
+      }
+      out.clauses = c;
+    }
+  }
+  if (personal) notes.push(personal === 1 ? 'שורה עם פרטי הלקוח לא נכנסה לנוסח: הפרטים נכנסים רק לפרטי הלקוח.' : `${personal} שורות עם פרטי הלקוח לא נכנסו לנוסח: הפרטים נכנסים רק לפרטי הלקוח.`);
+  if (money) notes.push(money === 1 ? 'שורה עם סכום לא נכנסה לנוסח: המחיר מחושב.' : `${money} שורות עם סכום לא נכנסו לנוסח: המחיר מחושב.`);
+  // The engine's own check, part by part: a part it refuses is left out.
+  for (const k of Object.keys(out)) {
+    const e = textErrors({ [k]: out[k] });
+    if (e.length) { delete out[k]; notes.push(`${TEXT_PART_NAMES[k]}: הנוסח לא נכנס (${e[0]}).`); }
+  }
+  if (Object.keys(out).length && textErrors(out).length) return { text: null, notes: [...notes, 'הנוסח ארוך מדי ולא נכנס.'] };
+  return { text: Object.keys(out).length ? out : null, notes };
+}
+
+// How the prompt and the tool explain the text parts (with the regular words, numbered).
+export function textRulesText(regular) {
+  return `# The document's own words (text)
+The document has regular words, numbered below (for an agreement with Semyon, Michel and Denis, 12 months; the numbers inside them follow each contract). When the deal asks for words of its own (a condition, a promise, a rule, "תכתוב את זה בצורה מסודרת", "תוסיף לדגשים", a different start of the term or of the uploads, lines to add or remove), write them in text; otherwise leave every part of text empty ("" or []).
+- Rewrite the seller's messy words into clean, formal contract Hebrew: full sentences, correct spelling, no slang, no WhatsApp style, the influencers by their names.
+- Each list you give replaces the whole regular list of that part, in your order. To keep a regular line as it is, write only its reference: "{{2.1}}" (group 2, line 1), "{{3.*}}" (all the lines of group 3); "{{2}}" as a group's title keeps its regular title. The clauses are numbered by the system (1.1, 1.2…): never write numbers in front of a clause.
+- Money is never written in text: no ₪, no price, no total, no payment amount. The lines with the price are references only: clauses always keep "{{2.1}}", and the details' price line is "{{1.1}}".
+- Never write the client's name, business, company id (ח.פ), phone, email or address in text: those go to client only.
+- Keep the document consistent: the numbers in your lines are the contract's quantities; when the deal changes when the term or the uploads start, rewrite clauses 1.1 and 1.2, the clauses of chapter 3 that say the same, and the details lines, so that they all say the same thing; a rule the deal adds (for example contents the client sends himself) gets a clause of its own in the chapter it belongs to, and a line in the package when it is something the client gets. When you write clauses, agreed conditions go there and not in specialClauses.
+- packageGroups: "מה כוללת החבילה" (the title of each group, and its lines). details: "פירוט החבילה", the דגשים (detailsTitle "דגשים" when the deal calls them so). tiles: the package's numbers, all of them as they should be shown ({n: "104", label: "תכנים"}), only when the deal changes them or gives a total. title, packageName, influencerLine: the cover's lines (hideInfluencerLine true when packageName already names the influencers).
+
+${numberedText(regular)}`;
+}
