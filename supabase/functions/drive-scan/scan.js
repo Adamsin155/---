@@ -17,7 +17,7 @@ export function dayRows(files) {
   const map = new Map();
   for (const f of files || []) {
     if (kindOf(f.mimeType) === 'folder' || !f.createdTime) continue;
-    const row = { day: dayKeyIL(new Date(f.createdTime)), folder: String(f.path || '').trim().slice(0, FOLDER_LEN), kind: fileClass(f.mimeType, f.path) };
+    const row = { day: dayKeyIL(new Date(f.createdTime)), folder: String(f.path || '').trim().slice(0, FOLDER_LEN), kind: fileClass(f.mimeType, f.path, f.name) };
     const k = `${row.day}|${row.folder}|${row.kind}`;
     if (!map.has(k)) map.set(k, { ...row, files: 0 });
     map.get(k).files += 1;

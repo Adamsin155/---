@@ -24,10 +24,20 @@ export function kindOf(mimeType) {
 export const GRAPHIC_FOLDER = /גרפיק|היילייט/;
 export const READY_FOLDER = /סופי|מוכנ|ערוכ|סגיר|מתוקן/;
 export const RAW_FOLDER = /גלם|מצלמה|רחפן|בירול|יום צילום|ראיונות|מאחורי הקלעים/;
-export function fileClass(mimeType, path) {
+// A video still named as the camera or the drone wrote it ("C6397.MP4", "DJI_20260623104354_0131_D.MP4",
+// "P1028411.MP4", "GX010023.MP4", "MVI_1234.MOV", "DSC05339.MP4"): footage, wherever it lies (17.11.2026:
+// live folders kept footage at the root, or in a folder named after the business, which the folder
+// rule alone counted as edited videos). An edited video gets a name of its own; in a folder that says
+// "סופי" / "מוכנ" / "ערוכ"… it is edited whatever its name.
+export const CAMERA_NAME = /^(?:C\d{4}|DJI_\d{6,}\w*|P\d{7}|GX\d{6}|GH\d{6}|GOPR\d{4}|MVI_\d{4}|DSC\d{5}|MAH\d{5}|PXL_\d{8}_\d+\w*)\.(?:mp4|mov|mts|m4v)$/i;
+//   name: the file's name (optional: without it only the folder decides, as before).
+export function fileClass(mimeType, path, name = '') {
   const p = String(path || '');
   const k = kindOf(mimeType);
-  if (k === 'video') return !READY_FOLDER.test(p) && RAW_FOLDER.test(p) ? 'raw' : 'video';
+  if (k === 'video') {
+    if (READY_FOLDER.test(p)) return 'video';
+    return RAW_FOLDER.test(p) || CAMERA_NAME.test(String(name || '').trim()) ? 'raw' : 'video';
+  }
   if (GRAPHIC_FOLDER.test(p)) return 'graphic';
   if (k === 'image' && (RAW_FOLDER.test(p) || /תמונות/.test(p))) return 'raw';
   return 'other';

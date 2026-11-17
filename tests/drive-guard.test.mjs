@@ -87,12 +87,21 @@ test('the verdict and its words: refused below the need, taken at it', () => {
 
 test('the app and the functions class the files with one rule', () => {
   // The functions' copy (node scripts/sync-functions.mjs) answers the same for every folder kind.
-  for (const [m, p] of [['video/mp4', ''], ['video/mp4', 'גלם'], ['video/mp4', 'גלם/סופי'], ['image/jpeg', 'תמונות'], ['image/png', 'היילייטס'], ['application/pdf', ''], ['application/vnd.google-apps.folder', '']]) {
-    assert.equal(shared.fileClass(m, p), fileClass(m, p));
+  for (const [m, p, n] of [['video/mp4', '', 'C6397.MP4'], ['video/mp4', ''], ['video/mp4', 'גלם'], ['video/mp4', 'גלם/סופי'], ['image/jpeg', 'תמונות'], ['image/png', 'היילייטס'], ['application/pdf', ''], ['application/vnd.google-apps.folder', '']]) {
+    assert.equal(shared.fileClass(m, p, n), fileClass(m, p, n));
     assert.equal(shared.kindOf(m), kindOf(m));
   }
   assert.equal(fileClass('video/mp4', 'גלם יום 1'), 'raw');
   assert.equal(fileClass('video/mp4', 'גלם יום 1/סופי'), 'video');
   assert.equal(fileClass('video/mp4', ''), 'video');
   assert.equal(fileClass('image/png', 'גרפיקות'), 'graphic');
+  // A video named as the camera wrote it is footage, at the root or in a folder with no word for it;
+  // in a "מוכנים" / "סופי" folder it is edited whatever its name.
+  for (const n of ['C6397.MP4', 'DJI_20260623104354_0131_D.MP4', 'P1028411.MP4', 'GX010023.MP4', 'MVI_1234.MOV', 'DSC05339.mp4', 'PXL_20260101_123456789.mp4']) {
+    assert.equal(fileClass('video/mp4', '', n), 'raw', n);
+    assert.equal(fileClass('video/mp4', 'הארי משקאות', n), 'raw', n);
+  }
+  assert.equal(fileClass('video/mp4', 'סרטונים מוכנים', 'C7685.mp4'), 'video');
+  for (const n of ['1', '36.MOV', 'סרטון 27 - אווירה.mp4', '0423(11).mp4', 'C12.mp4']) assert.equal(fileClass('video/mp4', '', n), 'video', n);
+  assert.equal(editedOnDrive([{ name: 'C6580.MP4', mimeType: 'video/mp4', createdTime: '2026-11-04T10:00:00Z', path: '' }, { name: '1', mimeType: 'video/mp4', createdTime: '2026-11-04T10:00:00Z', path: '' }], base()), 1);
 });

@@ -54,7 +54,7 @@ export function editedOnDrive(files, client, { month = null } = {}) {
   const from = dealDayOf(client);
   let n = 0;
   for (const f of files || []) {
-    if (fileClass(f?.mimeType, f?.path) !== 'video') continue;
+    if (fileClass(f?.mimeType, f?.path, f?.name) !== 'video') continue;
     const t = Date.parse(f.createdTime || '');
     if (!Number.isFinite(t)) continue;
     const day = dayKeyIL(new Date(t));
