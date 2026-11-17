@@ -174,7 +174,19 @@ export async function loadCheck(clientId, key) {
   return data || null;
 }
 
+// "כל הסרטונים הועלו לדרייב" (p24.drive, rN.p24.drive) is written as done only once the client's
+// Drive really has the videos (the owner, 17.11.2026; app/drive-guard.js): every screen writes its
+// marks through the two functions below, so the check is here, once. Refused: a thrown error whose
+// `say` is the sentence to show (app/supa.js explainError), and nothing is written.
+const DRIVE_MARK = /^(r\d+\.)?p24\.drive$/;
+async function driveGuard(clientId, keys, state) {
+  if (state !== 'done' || !keys.some((k) => DRIVE_MARK.test(k))) return;
+  const { guardDriveMarks } = await import('./drive-guard.js');
+  await guardDriveMarks(clientId, keys, state);
+}
+
 export async function setCheck(clientId, key, state, note = null) {
+  await driveGuard(clientId, [key], state);
   const { data, error } = await supabase.from('protocol_checks')
     .upsert({ client_id: clientId, item_key: key, state, note }, { onConflict: 'client_id,item_key' })
     .select(CHECK_COLS).single();
@@ -184,6 +196,7 @@ export async function setCheck(clientId, key, state, note = null) {
 
 // Several items in one request: all are saved or none are.
 export async function setChecksBulk(clientId, keys, state, note = null) {
+  await driveGuard(clientId, keys, state);
   const { data, error } = await supabase.from('protocol_checks')
     .upsert(keys.map((k) => ({ client_id: clientId, item_key: k, state, note })), { onConflict: 'client_id,item_key' })
     .select(CHECK_COLS);
@@ -194,6 +207,7 @@ export async function setChecksBulk(clientId, keys, state, note = null) {
 // Marks the system writes (app/editor-auto.js): inserted, never written over a mark that exists.
 // Returns only the rows this call wrote ([] when another writer was first).
 export async function addChecksOnce(clientId, keys, state, note = null) {
+  await driveGuard(clientId, keys, state);
   const { data, error } = await supabase.from('protocol_checks')
     .upsert(keys.map((k) => ({ client_id: clientId, item_key: k, state, note })), { onConflict: 'client_id,item_key', ignoreDuplicates: true })
     .select(CHECK_COLS);

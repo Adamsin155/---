@@ -3,29 +3,41 @@
 // up on the networks and the shoot days that took place. Pure, no DOM (tests/tracking.test.mjs);
 // the page is app/tracking.js. Read-only: nothing here is marked or saved, and no money is read.
 //
-// Where each number comes from (docs/ops.md, section 122):
-//   videos     the editors' own counter, "נערכו 7/25" (public.editor_progress, per client, shoot
-//              round and editor; app/edit-count.js), summed over the client's shoots. A shoot whose
-//              editing is finished (its "כל הסרטונים הועלו לדרייב", p24.drive, is done) counts at
-//              least its part of the package, so a client edited before the counter existed
-//              (1.11.2026) is not shown as 0. Out of: deliverables.videos.
-//              A monthly client (deliverables.videos_month) is shown for this Israel month:
-//              public.editor_progress_month, out of the month's number ("החודש").
+// Where each number comes from (docs/ops.md, sections 122 and 140):
+//   videos     the same number as "נערכו" on the client's card (app/client-card.js; the owner,
+//              17.11.2026: "צריך שזה יהיה מסונכן עם התיק לקוח"): the larger of
+//                - the editors' own counter, "נערכו 7/25" (public.editor_progress, per client, shoot
+//                  round and editor; app/edit-count.js), summed over the client's shoots, and
+//                - the edited videos that came into the client's Drive folder since the deal day
+//                  (public.drive_daily, kind 'video': the drive-scan function's count; footage is
+//                  'raw' and does not count), never above the package.
+//              Out of: deliverables.videos. A monthly client (deliverables.videos_month) is shown for
+//              this Israel month: public.editor_progress_month and this month's Drive videos, out of
+//              the month's number ("החודש"). Until 17.11.2026 a shoot whose "כל הסרטונים הועלו
+//              לדרייב" (p24.drive) was marked counted its whole part: 49 of 105 clients showed more
+//              than the Drive held. The mark no longer counts; it is taken only once the Drive has
+//              the videos (app/drive-guard-logic.js).
+//              A number fixed by hand (app/tracking-fix-logic.js) stands on both screens alike
+//              (sharedVideos).
 //   graphics   the protocol's own marks: "9 הגרפיקות שאושרו הועלו לרשתות" (7ב, p07b.posted) is 9,
 //              "יתרת הגרפיקות שאושרו הועלו לרשתות או תוזמנו" (23ב, p23b.posted) is all of them; or the
-//              content Gantt's graphic rows marked "עלה" (posted), when they are more. Out of:
-//              deliverables.graphics. (The Gantt alone would say 0 for everyone: on 9.11.2026 no
-//              graphic row of it was "עלה", while 81 clients had 7ב and 30 had 23ב.)
+//              content Gantt's graphic rows marked "עלה" (posted), or the graphics in the client's
+//              Drive since the deal day (public.drive_daily, kind 'graphic', the highlight covers
+//              left out), whichever is more. Out of: deliverables.graphics. (The Gantt alone would
+//              say 0 for everyone: on 9.11.2026 no graphic row of it was "עלה", while 81 clients
+//              had 7ב and 30 had 23ב.)
 //   shoot days the shoot-day table's own count (app/shoot-table.js shootHistory): a shoot day took
 //              place once its date is behind today, or a mark says so. Out of: deliverables.shoot_days
 //              + photo_days. With the last one that took place and the next one set.
-import { PEOPLE, editorsOf, shareOf } from './protocol.js';
-import { roundsOf, roundContext, isMonthlyRound, clientLabel } from './protocol-logic.js';
-import { videosPerDay } from './production.js';
+import { PEOPLE, editorsOf } from './protocol.js';
+import { roundsOf, roundContext, clientLabel } from './protocol-logic.js';
 import { isMonthly, monthKey, monthTargetOf } from './edit-count.js';
 import { shootHistory } from './shoot-table.js';
 import { partsIL } from './tz.js';
 import { fixOf, applyCount, applyShootCount } from './tracking-fix-logic.js';
+import { shootsOf, shootPart, dealDayOf } from './package-parts.js';
+
+export { shootsOf, shootPart, dealDayOf };
 
 // The clients in work: active, or in their last month ("ending"); also those still in landing
 // (a client in landing is a client for every list; docs/ops.md, section 41). Not the ended ones.
@@ -33,13 +45,6 @@ export const inWork = (c) => c?.status === 'active' || c?.status === 'ending';
 
 const whole = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
 const isDone = (checks, key) => checks?.[key]?.state === 'done';
-
-// The client's shoots, the first one (its own) and every shoot round; a monthly editing round is
-// not a shoot (app/monthly-rounds.js).
-export function shootsOf(client) {
-  return [{ ctx: client, pre: '', n: 1 },
-    ...roundsOf(client).filter((r) => !isMonthlyRound(r)).map((r) => ({ ctx: roundContext(client, r), pre: `r${r.n}.`, n: Number(r.n) }))];
-}
 
 // Who edits now: the editors of the latest shoot (or monthly round) that has one, "נדיה + יריב";
 // '' when nobody was assigned yet.
@@ -49,51 +54,68 @@ export function editorText(client) {
   return last ? editorsOf(last).map((e) => PEOPLE[e]?.name || e).join(' + ') : '';
 }
 
-// One shoot's part of the package: the two editors' split when there is one, else the package's
-// videos over its shoot days (as the editor's card says).
-function shootPart(ctx) {
-  const eds = editorsOf(ctx);
-  const s = eds.length === 2 ? shareOf(ctx, eds[0]) : null;
-  return s ? s.total : videosPerDay(ctx);
+// How many files of a kind ('video', 'graphic') came into the client's Drive from the deal day on;
+// `month` ('YYYY-MM'): only that Israel month. drive: rows of public.drive_daily { client_id, day,
+// folder, kind, files } (null: not readable, which counts as nothing). The highlight covers (their
+// folder says "היילייט") are Ofir's work, not the package's graphics (as app/gfx-auto-logic.js).
+const HIGHLIGHTS = /היילייט/u;
+export function driveCountOf(client, drive, kind, { month = null } = {}) {
+  const from = dealDayOf(client);
+  let n = 0;
+  for (const r of drive || []) {
+    if (r?.client_id !== client?.id || r.kind !== kind) continue;
+    if (kind === 'graphic' && HIGHLIGHTS.test(String(r.folder || ''))) continue;
+    const d = String(r.day || '').slice(0, 10);
+    if ((from && d < from) || (month && d.slice(0, 7) !== month)) continue;
+    n += Number(r.files) || 0;
+  }
+  return n;
 }
 
-// { done, of, month } — `of` null when the package has no number; `month` true for a monthly client.
+const capped = (n, of) => (of ? Math.min(n, of) : n);
+
+// { done, of, month, typed, drive } — `of` null when the package has no number; `month` true for a
+// monthly client; `typed`: what the editors typed; `drive`: the edited videos in the Drive.
 //   progress: rows of public.editor_progress { client_id, editor, round, edited } (null: not readable);
-//   months: rows of public.editor_progress_month of this month (null: not readable).
-export function videosOf(client, checks = {}, progress = [], months = [], now = new Date()) {
+//   months: rows of public.editor_progress_month of this month (null: not readable);
+//   drive: rows of public.drive_daily (null: not readable).
+export function videosOf(client, { progress = [], months = [], drive = [] } = {}, now = new Date()) {
   if (isMonthly(client)) {
     const key = monthKey(now);
     const of = monthTargetOf(client, key);
-    let done = (months || []).filter((r) => r.client_id === client.id && r.month === key).reduce((t, r) => t + (Number(r.edited) || 0), 0);
-    const round = roundsOf(client).find((r) => isMonthlyRound(r) && r.month === key);
-    if (round && isDone(checks, `r${round.n}.p24.drive`) && of) done = Math.max(done, of);
-    return { done, of, month: true };
+    const typed = (months || []).filter((r) => r.client_id === client.id && r.month === key).reduce((t, r) => t + (Number(r.edited) || 0), 0);
+    const inDrive = driveCountOf(client, drive, 'video', { month: key });
+    return { done: Math.max(typed, capped(inDrive, of)), of, month: true, typed, drive: inDrive };
   }
   const of = whole(client?.deliverables?.videos);
   let typed = 0;
-  let finished = 0;
-  for (const { ctx, pre, n } of shootsOf(client)) {
+  for (const { ctx, n } of shootsOf(client)) {
     const eds = editorsOf(ctx);
-    const count = (progress || []).filter((r) => r.client_id === client.id && (Number(r.round) || 1) === n && eds.includes(r.editor))
+    typed += (progress || []).filter((r) => r.client_id === client.id && (Number(r.round) || 1) === n && eds.includes(r.editor))
       .reduce((t, r) => t + (Number(r.edited) || 0), 0);
-    typed += count;
-    finished += isDone(checks, `${pre}p24.drive`) ? Math.max(count, shootPart(ctx) || 0) : count;
   }
-  // What the editors typed always shows as it is; the finished shoots never add more than the package.
-  const done = of ? Math.max(typed, Math.min(of, finished)) : finished;
-  return { done, of, month: false };
+  // What the editors typed always shows as it is; the Drive never adds more than the package.
+  const inDrive = driveCountOf(client, drive, 'video');
+  return { done: Math.max(typed, capped(inDrive, of)), of, month: false, typed, drive: inDrive };
+}
+
+// The one videos number of the tracking row and of the client card's "נערכו": the count, with a
+// number fixed by hand on it (app/tracking-fix-logic.js applyCount: `fix` says who and when).
+export function sharedVideos(client, data = {}, now = new Date()) {
+  return applyCount(videosOf(client, data, now), fixOf(client, 'videos'), { month: isMonthly(client) ? monthKey(now) : null });
 }
 
 // The graphics are made once per package (7 and 23 are not shoot-round processes).
 export const FIRST_GRAPHICS = 9;
-// { done, of }. posted: how many of the client's Gantt graphic rows are "עלה".
-export function graphicsOf(client, checks = {}, posted = 0) {
+// { done, of }. posted: how many of the client's Gantt graphic rows are "עלה"; drive: rows of
+// public.drive_daily (the client's graphics in the Drive since the deal day).
+export function graphicsOf(client, checks = {}, posted = 0, drive = []) {
   const of = whole(client?.deliverables?.graphics);
   let marks = 0;
   if (isDone(checks, 'p23b.posted')) marks = of ?? FIRST_GRAPHICS;
   else if (isDone(checks, 'p07b.posted')) marks = of ? Math.min(FIRST_GRAPHICS, of) : FIRST_GRAPHICS;
   const gantt = Number(posted) || 0;
-  return { done: Math.max(marks, of ? Math.min(gantt, of) : gantt), of };
+  return { done: Math.max(marks, capped(gantt, of), capped(driveCountOf(client, drive, 'graphic'), of)), of };
 }
 
 // { done, of, last, next } — last: the latest shoot day that took place (a Date, or null);
@@ -119,8 +141,8 @@ export function shootDates(s) {
 }
 
 // One row per client in work, by the client's name.
-//   data: { checks: { clientId: { itemKey: row } }, progress, months, posted: { clientId: n } }
-export function trackingRows(clients, { checks = {}, progress = [], months = [], posted = {} } = {}, now = new Date()) {
+//   data: { checks: { clientId: { itemKey: row } }, progress, months, posted: { clientId: n }, drive }
+export function trackingRows(clients, { checks = {}, progress = [], months = [], posted = {}, drive = [] } = {}, now = new Date()) {
   return (clients || []).filter(inWork).map((c) => {
     const cs = checks[c.id] || {};
     // A number fixed by hand stands in place of the count (app/tracking-fix-logic.js).
@@ -128,8 +150,8 @@ export function trackingRows(clients, { checks = {}, progress = [], months = [],
       id: c.id,
       label: clientLabel(c),
       editor: editorText(c),
-      videos: applyCount(videosOf(c, cs, progress, months, now), fixOf(c, 'videos'), { month: isMonthly(c) ? monthKey(now) : null }),
-      graphics: applyCount(graphicsOf(c, cs, posted[c.id] || 0), fixOf(c, 'graphics')),
+      videos: sharedVideos(c, { progress, months, drive }, now),
+      graphics: applyCount(graphicsOf(c, cs, posted[c.id] || 0, drive), fixOf(c, 'graphics')),
       shoots: applyShootCount(shootDaysOf(c, cs, now), fixOf(c, 'shoots')),
     };
   }).sort((a, b) => a.label.localeCompare(b.label, 'he'));

@@ -14,6 +14,9 @@
 // Plain JavaScript with fetch passed in (and WebCrypto, which Deno and node both have), so node
 // tests it whole (tests/drive.test.mjs). The key is never logged and never returned.
 
+import { FOLDER_MIME, kindOf } from './app/drive-class.js';
+
+export { FOLDER_MIME };
 export const SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly';
 // Reading a file's content (17.11.2026, the gfx-auto function's check of a fix task, docs/ops.md
 // section 138): only a reader made with { scope: READ_SCOPE } may download, and only that function
@@ -22,7 +25,6 @@ export const SCOPE = 'https://www.googleapis.com/auth/drive.metadata.readonly';
 export const READ_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 export const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 export const FILES_URL = 'https://www.googleapis.com/drive/v3/files';
-export const FOLDER_MIME = 'application/vnd.google-apps.folder';
 export const TIMEOUT_MS = 12000;
 // At most this many files from one client (all the subfolders together), two folder levels down.
 export const MAX_FILES = 400;
@@ -186,30 +188,9 @@ export function makeDrive(sa, { fetch = globalThis.fetch, now = () => Date.now()
   return { email: sa.email, list, download };
 }
 
-// What kind of file, by its type: 'folder', 'video', 'image', 'doc', 'other'.
-export function kindOf(mimeType) {
-  const m = String(mimeType || '');
-  if (m === FOLDER_MIME) return 'folder';
-  if (m.startsWith('video/')) return 'video';
-  if (m.startsWith('image/')) return 'image';
-  if (m.startsWith('application/vnd.google-apps.') || m === 'application/pdf' || m.startsWith('text/')) return 'doc';
-  return 'other';
-}
-
-// What a file is to the office, by its type and the name of its folder (the folders are not
-// uniform: "סרטונים מוכנים", "גלם יום 1/סופי", "יום צילום 3"…): 'graphic' (not a video, in a
-// graphics or highlights folder), 'raw' (footage and photos of a shoot), 'video', 'other'.
-const GRAPHIC_FOLDER = /גרפיק|היילייט/;
-const READY_FOLDER = /סופי|מוכנ|ערוכ|סגיר|מתוקן/;
-const RAW_FOLDER = /גלם|מצלמה|רחפן|בירול|יום צילום|ראיונות|מאחורי הקלעים/;
-export function fileClass(mimeType, path) {
-  const p = String(path || '');
-  const k = kindOf(mimeType);
-  if (k === 'video') return !READY_FOLDER.test(p) && RAW_FOLDER.test(p) ? 'raw' : 'video';
-  if (GRAPHIC_FOLDER.test(p)) return 'graphic';
-  if (k === 'image' && (RAW_FOLDER.test(p) || /תמונות/.test(p))) return 'raw';
-  return 'other';
-}
+// What kind of file ('folder', 'video', 'image', 'doc', 'other') and what it is to the office
+// ('graphic', 'raw', 'video', 'other'): app/drive-class.js, shared with the app (17.11.2026).
+export { kindOf, fileClass } from './app/drive-class.js';
 
 // The listing, summed up: counts by kind, and the files themselves (no folders), newest first,
 // with `since` (an ISO date) keeping only what was added from then on.

@@ -32,7 +32,8 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   editor-auto.js                     reminders (the editor's hand-off to Ofir, p24.notify, once the editing is all marked)
 //   mark-guard-rules.js, gantt-template.js, shoot-crew.js  mcp (the owner's write tools: the card's guards, the shoot's crew)
 //   gfx-auto-logic.js                  gfx-auto and reminders (graphics tasks that close by themselves, 17.11.2026)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js', 'gfx-auto-logic.js'];
+//   drive-class.js                     _shared/drive.js (what a Drive file is: an edited video, footage, a graphic; 17.11.2026)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js', 'gfx-auto-logic.js', 'drive-class.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
