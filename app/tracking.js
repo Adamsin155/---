@@ -7,9 +7,10 @@
 // A number is fixed by hand (10.11.2026): Irit and the owners tap it; Ilai the graphics only;
 // Lior and Ofir read (app/tracking-fix-logic.js, the dialogs app/tracking-fix.js). Nothing of
 // money is read (the work columns only, as the editors' pages read them).
-// The counting: app/tracking-logic.js; docs/ops.md, section 122.
+// The counting: app/tracking-logic.js; docs/ops.md, sections 122 and 140 (the videos are the same
+// number as the client card's "נערכו": typed, or the edited videos in the Drive, whichever is more).
 import { loadChecks, loadDirectory } from './protocol-data.js';
-import { loadWorkClients, loadEditorProgress, loadEditorMonths } from './production-data.js';
+import { loadWorkClients, loadEditorProgress, loadEditorMonths, loadDriveCounts } from './production-data.js';
 import { loadPostedGraphics } from './gantt-data.js';
 import { monthKey, isMonthly } from './edit-count.js';
 import { $, fill, h, errorText, mountSession, directory, viewerOf } from './protocol-ui.js';
@@ -38,11 +39,12 @@ async function doLoad() {
   const now = new Date();
   try {
     // The counters and the Gantt are extras: a table that cannot be read counts as nothing typed.
-    const [clients, checks, progress, months, posted] = await Promise.all([
+    const [clients, checks, progress, months, posted, drive] = await Promise.all([
       loadWorkClients(), loadChecks(),
       loadEditorProgress().catch(() => null), loadEditorMonths(null, monthKey(now)).catch(() => null), loadPostedGraphics(),
+      loadDriveCounts(),
     ]);
-    rows = trackingRows(clients, { checks, progress, months, posted }, now);
+    rows = trackingRows(clients, { checks, progress, months, posted, drive }, now);
     clientsById = new Map(clients.map((c) => [c.id, c]));
     if (!onlyFirstTab(viewer)) showShoots(clients, checks, now);
   } catch (err) {
