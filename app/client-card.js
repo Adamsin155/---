@@ -684,7 +684,7 @@ function editedFact() {
       h('span', { class: 'num', dir: 'ltr', id: 'cc-edited-n' }, x.of ? `${x.done}/${x.of}` : String(x.done)),
       x.month ? ' החודש' : null,
       x.fix ? h('span', { class: 'cc-edited-fix' }, fixLine(x.fix)) : null,
-      several ? h('span', { class: 'cc-edited-more' }, parts.join(' · ')) : null));
+      several ? h('span', { class: 'cc-edited-more' }, ...parts.flatMap((t, i) => [i ? ' · ' : null, h('span', { class: 'cc-edited-part' }, t)])) : null));
 }
 
 function nextFor(s) {

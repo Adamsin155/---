@@ -29,9 +29,9 @@
 //   shoot days the shoot-day table's own count (app/shoot-table.js shootHistory): a shoot day took
 //              place once its date is behind today, or a mark says so. Out of: deliverables.shoot_days
 //              + photo_days. With the last one that took place and the next one set.
-import { PEOPLE, editorsOf } from './protocol.js';
+import { PEOPLE, editorsOf, shareOf } from './protocol.js';
 import { roundsOf, roundContext, clientLabel } from './protocol-logic.js';
-import { isMonthly, monthKey, monthTargetOf } from './edit-count.js';
+import { isMonthly, monthKey, monthTargetOf, editTarget } from './edit-count.js';
 import { shootHistory } from './shoot-table.js';
 import { partsIL } from './tz.js';
 import { fixOf, applyCount, applyShootCount } from './tracking-fix-logic.js';
@@ -153,6 +153,7 @@ export function trackingRows(clients, { checks = {}, progress = [], months = [],
       videos: sharedVideos(c, { progress, months, drive }, now),
       graphics: applyCount(graphicsOf(c, cs, posted[c.id] || 0, drive), fixOf(c, 'graphics')),
       shoots: applyShootCount(shootDaysOf(c, cs, now), fixOf(c, 'shoots')),
+      editors: editorsOfClient(c),
     };
   }).sort((a, b) => a.label.localeCompare(b.label, 'he'));
 }
@@ -163,3 +164,73 @@ const plain = (s) => String(s || '').toLocaleLowerCase('he').replace(/\s+/g, ' '
 export const searchTracking = (rows, q) => { const t = plain(q); return t ? rows.filter((r) => plain(r.label).includes(t)) : rows; };
 // "12 לקוחות" / "לקוח אחד".
 export const clientsWord = (n) => (n === 1 ? 'לקוח אחד' : `${n} לקוחות`);
+
+// ── The totals above the table, and the filter by person (the owner, 17.11.2026) ──
+// "סרטונים נערכו X מתוך Y" and "גרפיקות הועלו X מתוך Y": the sums of the rows as they are shown (a
+// number fixed by hand included; a monthly client: this month's). Counted:
+//   videos    a client once its first shoot day took place (the shoot-day column says 1 or more);
+//   graphics  every client in work (from the signing: graphics are sometimes made before the shoot).
+// A client whose package has no number (`of` null) is left out of both sums, so X never counts
+// what Y does not. The filter: "כולם"; an editor (only the clients they edit; the videos are theirs,
+// below); "עילאי" (the graphic designer: every client, the graphics only).
+export const DESIGNER = 'ilai';
+
+// Everyone who edits the client: its own shoot's editors and every round's.
+export function editorsOfClient(client) {
+  const all = [client, ...roundsOf(client).map((r) => roundContext(client, r))];
+  return [...new Set(all.flatMap((x) => editorsOf(x)))];
+}
+
+// The choices of the filter: { key, label } — '' is "כולם", then the editors of the clients in
+// work by name, then Ilai.
+export function personChoices(clients) {
+  const eds = [...new Set((clients || []).filter(inWork).flatMap(editorsOfClient))]
+    .sort((a, b) => (PEOPLE[a]?.name || a).localeCompare(PEOPLE[b]?.name || b, 'he'));
+  return [{ key: '', label: 'כולם' }, ...eds.map((e) => ({ key: e, label: PEOPLE[e]?.name || e })), { key: DESIGNER, label: `${PEOPLE[DESIGNER]?.name || 'עילאי'} (גרפיקה)` }];
+}
+// The rows the table shows for a person ('' / Ilai: all of them).
+export const rowsForPerson = (rows, person) => (!person || person === DESIGNER ? rows : rows.filter((r) => (r.editors || []).includes(person)));
+
+// One editor's own videos of a client: { done, of }. The only editor of the client: the row's own
+// number (the Drive and a fix by hand with it). With another editor (a second editor, or another
+// round's): what this editor typed, against their part (the split, else the shoot's part); the
+// Drive is not split between them.
+export function editorVideos(client, person, row, { progress = [], months = [] } = {}, now = new Date()) {
+  const eds = editorsOfClient(client);
+  if (!eds.includes(person)) return { done: 0, of: 0 };
+  if (eds.length === 1) return { done: row.done, of: row.of };
+  if (isMonthly(client)) {
+    const key = monthKey(now);
+    const done = (months || []).filter((r) => r.client_id === client.id && r.month === key && r.editor === person).reduce((t, r) => t + (Number(r.edited) || 0), 0);
+    return { done, of: shareOf(client, person)?.mine ?? monthTargetOf(client, key) };
+  }
+  let done = 0;
+  let of = 0;
+  for (const { ctx, n } of shootsOf(client)) {
+    if (!editorsOf(ctx).includes(person)) continue;
+    done += (progress || []).filter((r) => r.client_id === client.id && (Number(r.round) || 1) === n && r.editor === person).reduce((t, r) => t + (Number(r.edited) || 0), 0);
+    of += editTarget(ctx, person) || 0;
+  }
+  return { done, of: of || null };
+}
+
+// The totals: { videos: { done, of, clients } | null, graphics: … | null } — null for a total the
+// filter does not show (an editor: the videos only; Ilai: the graphics only).
+//   rows: trackingRows(...); clients: the same clients; data: the same data.
+export function trackingTotals(rows, clients, data = {}, person = '', now = new Date()) {
+  const byId = new Map((clients || []).map((c) => [c.id, c]));
+  const sum = () => ({ done: 0, of: 0, clients: 0 });
+  const add = (t, x) => { if (!x?.of) return; t.done += Number(x.done) || 0; t.of += x.of; t.clients += 1; };
+  const videos = person === DESIGNER ? null : sum();
+  const graphics = person && person !== DESIGNER ? null : sum();
+  for (const r of rowsForPerson(rows, person)) {
+    if (videos && (r.shoots?.done || 0) >= 1) {
+      const c = byId.get(r.id);
+      add(videos, person && c ? editorVideos(c, person, r.videos, data, now) : r.videos);
+    }
+    if (graphics) add(graphics, r.graphics);
+  }
+  return { videos, graphics };
+}
+// "31 מתוך 48".
+export const totalText = (t) => `${t.done} מתוך ${t.of}`;

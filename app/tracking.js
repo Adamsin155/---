@@ -14,7 +14,8 @@ import { loadWorkClients, loadEditorProgress, loadEditorMonths, loadDriveCounts 
 import { loadPostedGraphics } from './gantt-data.js';
 import { monthKey, isMonthly } from './edit-count.js';
 import { $, fill, h, errorText, mountSession, directory, viewerOf } from './protocol-ui.js';
-import { trackingRows, searchTracking, complete, ratioText, shootDates, clientsWord } from './tracking-logic.js';
+import { trackingRows, searchTracking, complete, ratioText, shootDates, clientsWord, personChoices, rowsForPerson, trackingTotals, totalText } from './tracking-logic.js';
+import { iconSquare } from './kit.js';
 import { canOpenTracking, onlyFirstTab, canFix, canFixKind, fixLine } from './tracking-fix-logic.js';
 import { canAssignFromCard } from './card-assign-logic.js';
 import { openCountFix } from './tracking-fix.js';
@@ -25,6 +26,9 @@ let rows = [];
 let clientsById = new Map();
 let viewer = null;
 let q = '';
+let person = ''; // the filter by person: '' is everyone
+let allClients = [];
+let data = {};
 let lastLoad = 0;
 const cardUrl = (id) => `client.html?id=${encodeURIComponent(id)}`;
 
@@ -44,7 +48,10 @@ async function doLoad() {
       loadEditorProgress().catch(() => null), loadEditorMonths(null, monthKey(now)).catch(() => null), loadPostedGraphics(),
       loadDriveCounts(),
     ]);
-    rows = trackingRows(clients, { checks, progress, months, posted, drive }, now);
+    data = { checks, progress, months, posted, drive };
+    allClients = clients;
+    rows = trackingRows(clients, data, now);
+    fillPeople();
     clientsById = new Map(clients.map((c) => [c.id, c]));
     if (!onlyFirstTab(viewer)) showShoots(clients, checks, now);
   } catch (err) {
@@ -94,9 +101,33 @@ function row(r) {
     countCell(r, 'graphics', 'גרפיקות הועלו', r.graphics),
     countCell(r, 'shoots', 'ימי צילום', r.shoots, dates.length ? h('span', { class: 'ct-dates' }, ...dates.map((t) => h('span', {}, t))) : null));
 }
+// The filter's choices: everyone, the editors of the clients in work, Ilai (the one kept when it is still there).
+function fillPeople() {
+  const choices = personChoices(allClients);
+  if (!choices.some((c) => c.key === person)) person = '';
+  fill($('ct-person'), choices.map((c) => h('option', { value: c.key, selected: c.key === person }, c.label)));
+  $('ct-person').value = person;
+}
+// The two totals above the table (app/tracking-logic.js trackingTotals): the videos of the clients
+// that had a shoot day, the graphics of all of them; an editor sees their videos, Ilai the graphics.
+function tile(name, tone, label, t) {
+  return h('li', { class: 'ow-stat ct-stat' },
+    h('span', { class: 'ow-stat-h' }, iconSquare(name, tone, { size: 'sm' }), h('span', { class: 'k' }, label)),
+    h('strong', { class: 'v ds-num' }, totalText(t)),
+    h('span', { class: 'ct-stat-sub' }, t.clients === 1 ? 'לקוח אחד' : `${t.clients} לקוחות`));
+}
+function renderTotals() {
+  const t = trackingTotals(rows, allClients, data, person, new Date());
+  const who = person && person !== 'ilai' ? ` · ${$('ct-person').selectedOptions[0]?.textContent || ''}` : '';
+  fill($('ct-stats'), [
+    t.videos ? tile('video', 'blue', `סרטונים נערכו${who}`, t.videos) : null,
+    t.graphics ? tile('image', 'purple', 'גרפיקות הועלו', t.graphics) : null,
+  ].filter(Boolean));
+}
 function render() {
   if ($('ct-q').value !== q) $('ct-q').value = q;
-  const shown = searchTracking(rows, q);
+  renderTotals();
+  const shown = searchTracking(rowsForPerson(rows, person), q);
   fill($('ct-body'), shown.length ? shown.map(row)
     : [h('tr', { class: 'ct-none' }, h('td', { class: 'mt-empty', colspan: '5' }, rows.length ? 'אין לקוח בשם הזה.' : 'אין לקוחות בעבודה.'))]);
   $('ct-count').textContent = shown.length === rows.length ? clientsWord(rows.length) : `${clientsWord(shown.length)} מתוך ${rows.length}`;
@@ -143,6 +174,7 @@ setView(location.hash.slice(1) || saved());
 
 // ── Boot ────────────────────────────────────
 $('ct-q').addEventListener('input', (e) => { q = e.currentTarget.value; render(); });
+$('ct-person').addEventListener('change', (e) => { person = e.currentTarget.value; render(); });
 $('btn-refresh').addEventListener('click', () => load());
 document.addEventListener('visibilitychange', () => { if (!document.hidden && lastLoad && Date.now() - lastLoad > 60e3) load(); });
 

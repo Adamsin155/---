@@ -873,6 +873,7 @@ $('ready-form').addEventListener('submit', async (e) => {
   $('ready-submit').textContent = label;
   if (drive?.refuse) {
     showErr('ready-err', drive.refuse);
+    $('ready-err').scrollIntoView({ block: 'nearest' }); // under the list: brought into sight
     $('ready-submit').disabled = false;
     return;
   }

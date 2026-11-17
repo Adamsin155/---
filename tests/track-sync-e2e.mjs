@@ -133,6 +133,28 @@ for (const [name, engine, size] of ENGINES) {
     assert.match(await text(videos(M)), /^10 \/ 24/);
     await noOverflow(page);
     await shot(page, `tracking-row-${name}`, { fullPage: true });
+    // The totals above the table: the videos of the clients that had a shoot day, the graphics of all.
+    const stats = async () => (await page.locator('#ct-stats li').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
+    assert.deepEqual(await stats(), ['סרטונים נערכו 61 מתוך 114 3 לקוחות', 'גרפיקות הועלו 27 מתוך 74 3 לקוחות']);
+    await page.locator('#ct-stats').scrollIntoViewIfNeeded();
+    await shot(page, `tracking-totals-${name}`);
+    // Yariv: his clients; מוסך אבי counts his own 4 of his 10.
+    await page.selectOption('#ct-person', 'yariv');
+    assert.deepEqual(await stats(), ['סרטונים נערכו · יריב 45 מתוך 82 3 לקוחות']);
+    assert.equal(await page.locator('#ct-body tr[data-id]').count(), 3);
+    await noOverflow(page);
+    await shot(page, `tracking-filter-yariv-${name}`, { fullPage: true });
+    // Nadia: only מוסך אבי, her 8 of 11.
+    await page.selectOption('#ct-person', 'nadia');
+    assert.deepEqual(await stats(), ['סרטונים נערכו · נדיה 8 מתוך 11 לקוח אחד']);
+    assert.deepEqual(await page.locator('#ct-body tr[data-id]').evaluateAll((trs) => trs.map((t) => t.dataset.id)), [AVI]);
+    // Ilai: every client, the graphics only.
+    await page.selectOption('#ct-person', 'ilai');
+    assert.deepEqual(await stats(), ['גרפיקות הועלו 27 מתוך 74 3 לקוחות']);
+    assert.equal(await page.locator('#ct-body tr[data-id]').count(), 3);
+    await shot(page, `tracking-filter-ilai-${name}`);
+    await page.selectOption('#ct-person', '');
+    assert.equal((await stats()).length, 2);
     for (const [id, want, more] of [[N, '31/48', null], [AVI, '20/42', /נדיה 8\/11 · יריב 4\/10 · סבב 2: 3\/21/]]) {
       const card = await signedIn(engine, 'irit', db, { ...size, path: `client.html?id=${id}`, wait: '#cc-edited' });
       const page = card.page;

@@ -190,3 +190,57 @@ test('the search: any part of the business or the contact', () => {
   assert.deepEqual(searchTracking(rows, '').length, 3);
   assert.deepEqual(searchTracking(rows, 'אין כזה'), []);
 });
+
+// ── The totals above the table and the filter by person (the owner, 17.11.2026) ──
+test('the totals: videos of the clients that had a shoot day, graphics of all; fixes and months as shown', async () => {
+  const { personChoices, rowsForPerson, trackingTotals, totalText, editorsOfClient } = await import('../app/tracking-logic.js');
+  const shot = '2026-09-10T11:00:00+03:00';
+  const clients = [
+    base({ id: 'a', business: 'א', editor: 'yariv', shoot_at: shot, deliverables: { videos: 48, graphics: 20, shoot_days: 1 } }),
+    // Two editors with a split, a second shoot by Anna.
+    base({ id: 'b', business: 'ב', editor: 'nadia', editor2: 'yariv', editor_split: { nadia: 11, yariv: 10 }, shoot_at: shot,
+      rounds: [{ n: 2, shoot_at: '2026-10-20T10:00:00+03:00', editor: 'anna' }], deliverables: { videos: 42, graphics: 30, shoot_days: 2 } }),
+    // No shoot day yet: its videos are not counted, its graphics are.
+    base({ id: 'c', business: 'ג', editor: 'nadia', shoot_at: '2026-12-01T10:00:00+02:00', deliverables: { videos: 24, graphics: 12, shoot_days: 1 } }),
+    // A monthly client: this month's.
+    base({ id: 'd', business: 'ד', editor: 'yariv', shoot_at: shot, deliverables: { videos_month: 8, graphics: 10, shoot_days: 1 } }),
+    // No package number: out of the sums.
+    base({ id: 'e', business: 'ה', editor: 'yariv', shoot_at: shot, deliverables: {} }),
+  ];
+  const data = {
+    progress: [
+      { client_id: 'a', editor: 'yariv', round: 1, edited: 31 },
+      { client_id: 'b', editor: 'nadia', round: 1, edited: 8 }, { client_id: 'b', editor: 'yariv', round: 1, edited: 4 }, { client_id: 'b', editor: 'anna', round: 2, edited: 3 },
+      { client_id: 'c', editor: 'nadia', round: 1, edited: 5 },
+      { client_id: 'e', editor: 'yariv', round: 1, edited: 9 },
+    ],
+    months: [{ client_id: 'd', editor: 'yariv', month: '2026-11', edited: 3 }],
+    // b's Drive has 20: the client's row says 20, but no editor of it is given the Drive.
+    drive: [day('2026-10-01', 20, 'video', 'סרטונים', 'b'), day('2026-10-01', 7, 'graphic', 'גרפיקות', 'c')],
+    checks: { a: done('p07b.posted') },
+  };
+  const rows = trackingRows(clients, data, NOW);
+  assert.deepEqual(editorsOfClient(clients[1]), ['nadia', 'yariv', 'anna']);
+  const all = trackingTotals(rows, clients, data, '', NOW);
+  // Videos: a 31/48, b 20/42, d 3/8 (c had no shoot day; e has no number).
+  assert.deepEqual(all.videos, { done: 54, of: 98, clients: 3 });
+  // Graphics: a 9/20, b 0/30, c 7/12, d 0/10.
+  assert.deepEqual(all.graphics, { done: 16, of: 72, clients: 4 });
+  assert.equal(totalText(all.videos), '54 מתוך 98');
+  // Yariv: his own clients; b is his typed 4 of his 10 (the Drive is not his), a and d whole.
+  assert.deepEqual(rowsForPerson(rows, 'yariv').map((r) => r.id), ['a', 'b', 'd', 'e']);
+  assert.deepEqual(trackingTotals(rows, clients, data, 'yariv', NOW), { videos: { done: 38, of: 66, clients: 3 }, graphics: null });
+  // Nadia: b's 8 of 11; c had no shoot day.
+  assert.deepEqual(trackingTotals(rows, clients, data, 'nadia', NOW).videos, { done: 8, of: 11, clients: 1 });
+  // Anna: b's second shoot, 3 of its 21.
+  assert.deepEqual(trackingTotals(rows, clients, data, 'anna', NOW).videos, { done: 3, of: 21, clients: 1 });
+  // Ilai: every client, the graphics only.
+  assert.equal(rowsForPerson(rows, 'ilai').length, 5);
+  assert.deepEqual(trackingTotals(rows, clients, data, 'ilai', NOW), { videos: null, graphics: all.graphics });
+  // A fix by hand counts as the row shows it.
+  const fixed = clients.map((c) => (c.id === 'a' ? { ...c, deliverables: withFix(c.deliverables, 'videos', { done: 40 }, { by: 'irit', auto: { done: 31, of: 48 } }) } : c));
+  assert.equal(trackingTotals(trackingRows(fixed, data, NOW), fixed, data, '', NOW).videos.done, 63);
+  // The filter's choices: everyone, the editors by name, Ilai.
+  assert.deepEqual(personChoices(clients).map((c) => c.key), ['', 'anna', 'yariv', 'nadia', 'ilai']);
+  assert.equal(personChoices(clients).at(-1).label, 'עילאי (גרפיקה)');
+});
