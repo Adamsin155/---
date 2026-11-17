@@ -10,6 +10,7 @@
 import { PEOPLE, TEAM_PEOPLE, WORK_HOURS, isSales, isSilent, BRIEF_REQUIRED, BRIEF_MUST, BRIEF_FIELDS } from './protocol.js';
 import { isBusinessDay, erevOn } from './protocol-logic.js';
 import { atTimeIL, dayKeyIL, addDaysIL } from './tz.js';
+import { gfxChoice, recentAuto } from './gfx-auto-logic.js';
 
 const OWNER = 'owner';
 const MIN = 6e4;
@@ -46,14 +47,23 @@ export const BRIEF_MAX = 500;
 // The four fields of the form, in the brief's order: [key, label].
 export const NAG_BRIEF = BRIEF_FIELDS.filter(([k]) => BRIEF_MUST.includes(k));
 // → { ok, errors: { assignee?, body?, 'brief.<key>'? }, rpc, args }: the function to call and its arguments.
-export function validateTask({ assignee = '', body = '', clientId = '', brief = {} } = {}) {
+// A graphics task (17.11.2026; app/gfx-auto-logic.js): `gfxKind` (make / fix / schedule) and
+// `gfxCount`, both optional, for a graphics person on a client; they go in the brief
+// (public.staff_task_create_brief keeps them in their own columns).
+export function validateTask({ assignee = '', body = '', clientId = '', brief = {}, gfxKind = '', gfxCount = '' } = {}) {
   const errors = {};
   const text = String(body).replace(/\r\n?/g, '\n').trim();
   if (!ASSIGNEES().some((p) => p.key === assignee)) errors.assignee = 'בוחרים למי המשימה.';
   if (!text) errors.body = 'כותבים מה צריך לעשות.';
   else if (text.length > BODY_MAX) errors.body = `עד ${BODY_MAX} תווים (עכשיו ${text.length}).`;
   const args = { p_assignee: assignee, p_body: text, p_client: isUuid(clientId) ? clientId : null };
-  if (!needsBrief(assignee)) return { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create', args };
+  const gfx = gfxChoice({ assignee, clientId: args.p_client, kind: gfxKind, count: gfxCount });
+  Object.assign(errors, gfx.errors);
+  const hasGfx = Object.keys(gfx.value).length > 0;
+  if (!needsBrief(assignee)) {
+    return hasGfx ? { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create_brief', args: { ...args, p_brief: gfx.value } }
+      : { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create', args };
+  }
   const clean = {};
   for (const [k] of NAG_BRIEF) {
     const v = String(brief?.[k] ?? '').replace(/\r\n?/g, '\n').trim();
@@ -61,7 +71,7 @@ export function validateTask({ assignee = '', body = '', clientId = '', brief = 
     else if (v.length > BRIEF_MAX) errors[`brief.${k}`] = `עד ${BRIEF_MAX} תווים (עכשיו ${v.length}).`;
     else clean[k] = v;
   }
-  return { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create_brief', args: { ...args, p_brief: clean } };
+  return { ok: !Object.keys(errors).length, errors, rpc: 'staff_task_create_brief', args: { ...args, p_brief: { ...clean, ...gfx.value } } };
 }
 // The brief of a task as lines to show: [[label, text], …] (none: an ordinary task).
 export const briefLines = (task) => NAG_BRIEF.map(([k, l]) => [l, String(task?.brief?.[k] ?? '').trim()]).filter(([, v]) => v);
@@ -155,12 +165,15 @@ export const KEEP_DAYS = 7;
 //      owner: everyone's), newest first; closed ones for KEEP_DAYS }.
 export function taskLists(tasks = [], viewer = null, now = new Date()) {
   const me = personOfViewer(viewer);
-  if (!me) return { mine: [], given: { open: [], closed: [] } };
+  if (!me) return { mine: [], auto: [], given: { open: [], closed: [] } };
   const mine = tasks.filter((t) => t.assignee === me && t.status === 'open').sort((a, b) => byNewest(b, a));
+  // Closed by the system lately (17.11.2026): its line and "לפתוח מחדש", for AUTO_SHOW_DAYS.
+  const auto = tasks.filter((t) => t.assignee === me && recentAuto(t, now)).sort((a, b) => new Date(b.done_at) - new Date(a.done_at));
   const gave = canGive(viewer) ? tasks.filter((t) => me === OWNER || t.created_by === me) : [];
   const since = now.getTime() - KEEP_DAYS * 864e5;
   return {
     mine,
+    auto,
     given: {
       open: gave.filter((t) => t.status === 'open').sort(byNewest),
       closed: gave.filter((t) => t.status !== 'open' && new Date(t.done_at || t.cancelled_at || t.created_at) >= since)
