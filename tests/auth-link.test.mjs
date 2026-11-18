@@ -81,5 +81,5 @@ test('signing out clears the drafts kept in the browser, and keeps the preferenc
   assert.match(src('app/dashboard.js'), /\$\('btn-logout'\)\.addEventListener\('click', async \(\) => \{ resetMode\(\); forgetPlace\(\); await signOutHere\(\); await boot\(\); \}\);/);
   const supa = src('app/supa.js');
   assert.match(supa, /supabase\.rpc\('push_unsubscribe', \{ p_endpoint: sub\.endpoint \}\)/);
-  assert.ok(supa.indexOf('forgetPushDevice().catch') < supa.indexOf('await supabase.auth.signOut();'), 'the device is removed while the session still exists');
+  assert.ok(supa.indexOf('forgetPushDevice().catch') < supa.indexOf("await supabase.auth.signOut({ scope: 'local' });"), 'the device is removed while the session still exists');
 });
