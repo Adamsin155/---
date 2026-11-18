@@ -215,7 +215,8 @@ test('the sale through the contract-ai function (a fake of Claude in its real sh
   assert.deepEqual([d.influencer, d.alsoInfluencers, d.influencerName, d.postsAt, d.months, d.monthlyPrice], ['simeon', ['hatzel'], null, { simeon: { collabs: 2 } }, 1, 490000]);
   const a = applyFreeDraft({ ...emptySelection(), docType: 'agreement' }, d);
   assert.deepEqual(a.skipped, []);
-  assert.deepEqual(a.questions, []);
+  // Videos and graphics not written stay as in the package, and say so (18.11.2026).
+  assert.deepEqual(a.questions, ['סרטונים: לא נכתבו בטקסט, ולכן 25 כמו בחבילה. לבדוק.', 'גרפיקות: לא נכתבו בטקסט, ולכן 35 כמו בחבילה. לבדוק.']);
   assert.ok(a.summary.includes('משפיענים: סמיון, מישל ודניס + הצל (Social all in one, החבילה של סמיון, מישל ודניס)'), a.summary.join(' | '));
   assert.ok(a.summary.includes('קולאבים באינסטגרם: 2 אצל סמיון, מישל ודניס'), a.summary.join(' | '));
   assert.ok(a.summary.includes('תקופה: חודש אחד'));

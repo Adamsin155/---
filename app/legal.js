@@ -71,6 +71,9 @@ export const PRICE_CLAUSE = '{{2.1}}';
 
 // The seven chapters before the special terms: the regular wording that the clauses written by hand
 // refer to (app/contract-text.js).
+// A way of paying other than the system's (the owner, 18.11.2026).
+export const PAY_WAY = /(?<![\u05d0-\u05ea])(?:ב|ב?ה|ו|ש)?(?:הוראת\s*קבע|העבר(?:ה|ות)\s*(?:בנקאי(?:ת|ות)|לחשבון|בנקאיות)|צ['׳"]?קים|צ['׳]ק|שיקים|כרטיס\s*אשראי|אשראי|מזומן|ביט|פייבוקס)(?![\u05d0-\u05ea])|\b(?:paybox|bit)\b/i;
+
 export function baseSections(ctx) {
   const n = ctx.termMonths;
   const R = RESTORED;
@@ -81,7 +84,11 @@ export function baseSections(ctx) {
     ] },
     { title: 'התמורה ותנאי תשלום', items: [
       `התמורה עבור החבילה הינה ${money(ctx.totals.monthlyNet)} לחודש + מע״מ כחוק, למשך ${monthsText(n)}.`,
-      'התשלום יתבצע באמצעות מערכת פיימנט בלבד, בחיוב חודשי שוטף, ללא תפיסת מסגרת.',
+      // A way of paying written in the special terms (הוראת קבע, העברה, שיקים…) decides it, not
+      // "פיימנט בלבד" (the owner, 18.11.2026): the two never stand side by side.
+      PAY_WAY.test(String(ctx.specialTerms || ''))
+        ? 'התשלום יתבצע בחיוב חודשי שוטף, באופן המפורט בפרק התנאים המיוחדים.'
+        : 'התשלום יתבצע באמצעות מערכת פיימנט בלבד, בחיוב חודשי שוטף, ללא תפיסת מסגרת.',
       n === 1
         ? 'הלקוח מתחייב בזאת לתשלום מלוא התשלום החודשי, גם אם יבחר להפסיק את פעילותו העסקית או את השימוש בתוצרים בטרם עת. אי עמידה בתשלום תעמיד את מלוא החוב לפירעון מיידי.'
         : `הלקוח מתחייב בזאת לתשלום מלוא ${n} התשלומים החודשיים, גם אם יבחר להפסיק את פעילותו העסקית או את השימוש בתוצרים בטרם עת. אי עמידה באחד התשלומים תעמיד את מלוא יתרת החוב לפירעון מיידי.`,
@@ -207,7 +214,9 @@ export function agreementWording(ctx) {
           'ניהול פרסום ממומן של בית העסק ברשתות החברתיות.',
           'שיפור הנראות של העמודים העסקיים ברשתות החברתיות.',
         ] },
-      ],
+      // A heading with nothing under it is not printed (the owner, 18.11.2026): a contract of a
+      // monthly photographer only has no videos, graphics or shoot days to list.
+      ].filter((g) => g.items.length),
     },
     why: {
       title: 'למה לבחור בנו',
