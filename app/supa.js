@@ -357,7 +357,9 @@ export async function signOutHere() {
   await Promise.race([forgetPushDevice().catch(() => {}), new Promise((done) => { setTimeout(done, 3000); })]);
   clearDeviceDrafts();
   clearKept(); // what this tab kept of the account's lists, and its menu (docs/ops.md, section 60)
-  await supabase.auth.signOut();
+  // This device only (the owner, 18.11.2026): a global sign-out also ended the person's connection
+  // to Claude (the MCP OAuth session) and their other devices.
+  await supabase.auth.signOut({ scope: 'local' });
   clearKept(); // and whatever an answer on its way put back meanwhile
 }
 
