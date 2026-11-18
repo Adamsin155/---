@@ -785,6 +785,12 @@ export function applyFreeDraft(current, draft) {
   }
   const byDefault = noAmount ? FREE_ZERO.filter((k) => FREE_DEFAULT[k] > 0).map((k) => `${FREE_DEFAULT[k]} ${qtyDef(k).name}`) : [];
   if (byDefault.length) summary.push(`לא נכתבה כמות, ולכן כמו בחבילה: ${byDefault.join(' ו־')}`);
+  // With an influencer, videos and graphics not written stay as in the package: said, so it is checked
+  // (the owner, 18.11.2026; it was kept quietly).
+  if (!none) {
+    const kept = ['videos', 'graphics'].filter((k) => !given(written[k]) && base[k] > 0);
+    for (const k of kept) questions.push(`${qtyDef(k).name}: לא נכתבו בטקסט, ולכן ${base[k]} כמו בחבילה. לבדוק.`);
+  }
   const notWritten = none && !noAmount ? FREE_ZERO.filter((k) => !given(written[k]) && base[k] > 0).map((k) => qtyDef(k).name) : [];
   if (notWritten.length) summary.push(`לא נכתבו, ולכן לא בחוזה: ${notWritten.join(', ')}`);
   if (Object.keys(qty).length) custom.qty = qty;

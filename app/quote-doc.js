@@ -278,7 +278,7 @@ export function renderQuoteDoc(model, meta = {}) {
     // כוללת חבילת …", "למה לבחור בנו", "פירוט החבילה" (with our numbers and price table), the
     // agreement's clauses (an agreement only), the signatures and the closing words.
     const pkgName = pkg.shownName || pkg.tierName;
-    const groups = (list) => list.map((g) => [
+    const groups = (list) => list.filter((g) => g.items?.length).map((g) => [
       // A group written by hand may have no title of its own (custom.text, 17.11.2026).
       g.title ? h('h3', { class: 'qd-words-h' }, g.title) : null,
       h('ul', { class: 'qd-checks qd-words-list' }, g.items.map((i) => h('li', {}, i))),
