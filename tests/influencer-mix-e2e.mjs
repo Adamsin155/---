@@ -63,7 +63,7 @@ function createQuote(body, me, json) {
   if (c && (c.price !== undefined || c.packageName !== undefined) && !isManager(me)) {
     return json(403, { error: 'not allowed: only the managers change the price or the package name' });
   }
-  if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
+  if (!body.client?.name?.trim() && !body.client?.company?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
   const exceptions = exceptionOf(selection);
   const model = buildQuoteModel(selection, body.client);
   const q = {

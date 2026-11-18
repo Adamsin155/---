@@ -57,7 +57,7 @@ async function fakeSupabase(route) {
     if (!(req.headers().authorization || '').includes(JWT)) return json(401, { error: 'not signed in' });
     if (staleOnce) { staleOnce = false; return json(401, { error: 'not signed in' }); }
     try { validateSelection(body.selection); } catch (e) { return json(400, { error: e.message }); }
-    if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
+    if (!body.client?.name?.trim() && !body.client?.company?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
     if (body.selection?.docType !== 'quote' && (!body.client?.companyId?.trim() || !body.client?.address?.trim())) return json(400, { error: 'company id and address required' }); // as create-quote (31.10.2026)
     const q = {
       id: randomUUID(), token: randomUUID(), number: `AST-2026-${String(++seq).padStart(4, '0')}`,
@@ -195,11 +195,13 @@ await step('switch Natali → Simeon removes Natali items + join, explains', asy
   assert.equal(await page.locator('#free-simeonStories').inputValue(), '3', 'stories stay valid for simeon');
 });
 
-await step('preview/PDF/link of an agreement require client name', async () => {
+await step('preview/PDF/link of an agreement require the business name or the client name (18.11.2026)', async () => {
   await page.locator('#btn-preview').click();
-  assert.ok(await page.locator('#c-name-err').isVisible());
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'c-name');
+  assert.ok(await page.locator('#c-company-err').isVisible());
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'c-company');
+  if (OUT) await page.locator('#client-form').screenshot({ path: `${OUT}/01b-client-form-business.png` });
   await page.locator('#c-name').fill('   ');
+  await page.locator('#c-company').fill('   ');
   let downloads = 0;
   const count = () => { downloads += 1; };
   page.on('download', count);
@@ -208,21 +210,35 @@ await step('preview/PDF/link of an agreement require client name', async () => {
   page.off('download', count);
   assert.equal(downloads, 0);
   assert.equal(await page.evaluate(() => window.__printed || 0), 0);
-  assert.ok(await page.locator('#c-name-err').isVisible());
+  assert.ok(await page.locator('#c-company-err').isVisible());
+  assert.equal(await page.locator('label[for="c-name"] .req').count(), 0, 'the client name is never required');
+});
+
+await step('an agreement with only the business name opens (the owner, 18.11.2026)', async () => {
+  await page.locator('#c-company').fill('קפה דוגמה');
+  await page.locator('#c-companyid').fill('514729938');
+  await page.locator('#btn-preview').click();
+  const dlg = page.locator('#dlg-preview');
+  await dlg.waitFor({ state: 'visible' });
+  assert.ok(await page.locator('#c-company-err').isHidden());
+  assert.match(await dlg.innerText(), /קפה דוגמה/);
+  await page.keyboard.press('Escape');
+  await page.locator('#c-company').fill('');
+  await page.locator('#c-companyid').fill('');
 });
 
 await step('a price offer needs no client details: the preview opens with no name and no "לכבוד" (29.10.2026)', async () => {
   await page.locator('#doc-switch [data-doc="quote"]').click();
-  assert.equal(await page.locator('label[for="c-name"] .req').isVisible(), false, 'no asterisk on the name');
+  assert.equal(await page.locator('#c-company-req').isVisible(), false, 'no asterisk on the business');
   await page.locator('#c-name').fill('');
   await page.locator('#btn-preview').click();
   const dlg = page.locator('#dlg-preview');
   await dlg.waitFor({ state: 'visible' });
-  assert.equal(await page.locator('#c-name-err').isVisible(), false);
+  assert.equal(await page.locator('#c-company-err').isVisible(), false);
   assert.doesNotMatch(await dlg.innerText(), /לכבוד/);
   await page.keyboard.press('Escape');
   await page.locator('#doc-switch [data-doc="agreement"]').click();
-  assert.equal(await page.locator('label[for="c-name"] .req').isVisible(), true, 'an agreement needs the name');
+  assert.equal(await page.locator('#c-company-req').isVisible(), true, 'an agreement needs the business (or the name)');
 });
 
 const nasty = 'דנה "הלקוחה" <img src=x onerror=alert(1)> & שות\'';

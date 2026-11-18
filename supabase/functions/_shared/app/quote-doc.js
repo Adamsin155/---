@@ -119,7 +119,8 @@ export function renderQuoteDoc(model, meta = {}) {
     // A price offer may go without the client's details (29.10.2026): then there is no "לכבוד".
     (c.name || c.company || c.companyId || c.address || c.phone || c.email) ? party('לכבוד', [
       h('div', { class: 'qd-party-name qd-client' }, c.name || c.company || '—'),
-      c.company ? h('div', {}, c.company) : null,
+      // Only the business (the owner, 18.11.2026): its name once, not twice.
+      c.company && c.name ? h('div', {}, c.company) : null,
       c.companyId ? h('div', {}, 'ח.פ ', h('span', { class: 'num', dir: 'ltr' }, c.companyId)) : null,
       c.address ? h('div', { dir: 'auto' }, c.address) : null,
       c.phone ? h('div', { dir: 'ltr', class: 'qd-ltr num' }, c.phone) : null,

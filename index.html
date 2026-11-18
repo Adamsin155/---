@@ -254,13 +254,13 @@
         <div class="block-body">
           <form class="form-grid" id="client-form" novalidate>
             <div class="field">
-              <label for="c-name">שם הלקוח<span class="req" aria-hidden="true">*</span></label>
-              <input class="input" id="c-name" name="name" autocomplete="name" required maxlength="120" aria-describedby="c-name-err" placeholder="לדוגמה: דנה לוי">
-              <div class="err" id="c-name-err" hidden>יש למלא את שם הלקוח כדי להפיק הצעה.</div>
+              <label for="c-name">שם הלקוח</label>
+              <input class="input" id="c-name" name="name" autocomplete="name" maxlength="120" placeholder="לדוגמה: דנה לוי">
             </div>
             <div class="field">
-              <label for="c-company">שם העסק</label>
-              <input class="input" id="c-company" name="company" autocomplete="organization" maxlength="120">
+              <label for="c-company">שם העסק<span class="req" id="c-company-req" aria-hidden="true">*</span></label>
+              <input class="input" id="c-company" name="company" autocomplete="organization" maxlength="120" aria-describedby="c-company-err">
+              <div class="err" id="c-company-err" hidden>בחוזה יש למלא שם עסק (או שם לקוח).</div>
             </div>
             <div class="field">
               <label for="c-companyid">ח.פ / ע.מ<span class="req" id="c-companyid-req" aria-hidden="true">*</span></label>

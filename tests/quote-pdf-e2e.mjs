@@ -67,7 +67,7 @@ function createQuote(body, me, json) {
   if (c && (c.price !== undefined || c.packageName !== undefined) && !isManager(me)) {
     return json(403, { error: 'not allowed: only the managers change the price or the package name' });
   }
-  if (!body.client?.name?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
+  if (!body.client?.name?.trim() && !body.client?.company?.trim() && body.selection?.docType !== 'quote') return json(400, { error: 'client name required' });
   const exceptions = exceptionOf(selection);
   const model = buildQuoteModel(selection, body.client);
   const q = {
@@ -246,7 +246,7 @@ try {
     await owner.evaluate(() => { window.__printed = 0; window.print = () => { window.__printed += 1; }; });
     await downloadOf(owner, '#btn-pdf', 'quote-builder-chrome');
     assert.equal(await owner.evaluate(() => window.__printed), 0, 'no print dialog');
-    assert.ok(await owner.locator('#c-name-err').isHidden());
+    assert.ok(await owner.locator('#c-company-err').isHidden());
   });
 
   await step('Ctrl+P on a price offer with no name draws the offer, not "יש למלא את שם הלקוח"', async () => {
@@ -279,10 +279,10 @@ try {
     let downloads = 0;
     owner.on('download', () => { downloads += 1; });
     await owner.locator('#btn-pdf').click();
-    assert.ok(await owner.locator('#c-name-err').isVisible());
+    assert.ok(await owner.locator('#c-company-err').isVisible());
     await owner.waitForTimeout(1500);
     assert.equal(downloads, 0);
-    await owner.locator('#c-name').fill('דנה כהן');
+    await owner.locator('#c-company').fill('דנה כהן בע״מ');
     await owner.locator('#c-companyid').fill('514729938');
     await downloadOf(owner, '#btn-pdf', 'agreement-builder-chrome', { kind: 'הסכם התקשרות' });
     await owner.locator('#btn-link').click();

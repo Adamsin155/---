@@ -54,7 +54,8 @@ function cleanClient(raw: Record<string, unknown> = {}, agreement = true) {
     if (value.length > max) throw new Error(`${key} too long`);
     out[key] = value;
   }
-  if (!out.name && agreement) throw new Error('client name required');
+  // The business name is enough (the owner, 18.11.2026): the name or the business.
+  if (!out.name && !out.company && agreement) throw new Error('client name required');
   if (!out.companyId && agreement) throw new Error('client company id required');
   if (out.companyId && !/^[0-9][0-9-]{3,18}$/.test(out.companyId)) throw new Error('invalid company id');
   return out;
@@ -140,7 +141,7 @@ Deno.serve(async (req) => {
   const admin = createClient(url, serviceKey());
   if (revise) {
     const { data: revised, error: reviseError } = await admin.rpc('quote_revise', {
-      p_id: revise, p_model: model, p_client_name: client.name,
+      p_id: revise, p_model: model, p_client_name: client.name || client.company,
       p_monthly_gross: model.totals.monthlyGross, p_term_gross: model.totals.termGross,
       p_exceptions: exceptions, p_by_email: user.email,
     });
@@ -163,7 +164,7 @@ Deno.serve(async (req) => {
     .from('quotes')
     .insert({
       model,
-      client_name: client.name,
+      client_name: client.name || client.company,
       monthly_gross_agorot: model.totals.monthlyGross,
       term_gross_agorot: model.totals.termGross,
       created_by: user.id,
