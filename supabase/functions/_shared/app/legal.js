@@ -72,8 +72,18 @@ export const PRICE_CLAUSE = '{{2.1}}';
 
 // The seven chapters before the special terms: the regular wording that the clauses written by hand
 // refer to (app/contract-text.js).
-// A way of paying other than the system's (the owner, 18.11.2026).
-export const PAY_WAY = /(?<![\u05d0-\u05ea])(?:ב|ב?ה|ו|ש)?(?:הוראת\s*קבע|העבר(?:ה|ות)\s*(?:בנקאי(?:ת|ות)|לחשבון|בנקאיות)|צ['׳"]?קים|צ['׳]ק|שיקים|כרטיס\s*אשראי|אשראי|מזומן|ביט|פייבוקס)(?![\u05d0-\u05ea])|\b(?:paybox|bit)\b/i;
+// The way of paying, as the person wrote it (the owner, 18.11.2026: "צ'קים, פיימנט או כל דבר אחר"):
+// a special term that names a way of paying is clause 2.2 itself, and leaves the special terms.
+export const PAY_WAY = /(?<![א-ת])(?:ב|ב?ה|ו|ש)?(?:הוראת\s*קבע|העבר(?:ה|ות)(?:\s*(?:בנקאי(?:ת|ות)|לחשבון))?|צ['׳"]?קים|צ['׳]ק|שיקים|כרטיס\s*אשראי|אשראי|מזומן|ביט|פייבוקס|פיימנט|פייפאל)(?![א-ת])|\b(?:paybox|bit|paypal|payment)\b|^ה?תשלום\s+(?:יתבצע\s+|יהיה\s+)?ב/i;
+const termLines = (ctx) => String(ctx.specialTerms || '').split('\n').map((l) => l.trim()).filter(Boolean);
+export const payTermOf = (ctx) => termLines(ctx).find((l) => PAY_WAY.test(l)) || null;
+// The written words made a sentence of clause 2.2: "התשלום בצ'קים" as is; "צ'קים" → "התשלום יתבצע
+// באמצעות צ'קים."; "במזומן" → "התשלום יתבצע במזומן.".
+export function paySentence(line) {
+  const t = String(line).trim().replace(/[.\s]+$/, '');
+  const said = /תשלום|ישולם|ישלם|משלם/.test(t) ? t : /^ב(?=[א-ת'"׳])/.test(t) ? `התשלום יתבצע ${t}` : `התשלום יתבצע באמצעות ${t}`;
+  return `${said}.`;
+}
 
 export function baseSections(ctx) {
   const n = ctx.termMonths;
@@ -85,10 +95,9 @@ export function baseSections(ctx) {
     ] },
     { title: 'התמורה ותנאי תשלום', items: [
       `התמורה עבור החבילה הינה ${money(ctx.totals.monthlyNet)} לחודש + מע״מ כחוק, למשך ${monthsText(n)}.`,
-      // A way of paying written in the special terms (הוראת קבע, העברה, שיקים…) decides it, not
-      // "פיימנט בלבד" (the owner, 18.11.2026): the two never stand side by side.
-      PAY_WAY.test(String(ctx.specialTerms || ''))
-        ? 'התשלום יתבצע בחיוב חודשי שוטף, באופן המפורט בפרק התנאים המיוחדים.'
+      // The way of paying written for this client, exactly (the owner, 18.11.2026); else the system's.
+      payTermOf(ctx)
+        ? paySentence(payTermOf(ctx))
         : 'התשלום יתבצע באמצעות מערכת פיימנט בלבד, בחיוב חודשי שוטף, ללא תפיסת מסגרת.',
       n === 1
         ? 'הלקוח מתחייב בזאת לתשלום מלוא התשלום החודשי, גם אם יבחר להפסיק את פעילותו העסקית או את השימוש בתוצרים בטרם עת. אי עמידה בתשלום תעמיד את מלוא החוב לפירעון מיידי.'
@@ -122,7 +131,9 @@ export function specialSections(ctx) {
   const S = [];
   // Special terms, typed by hand for this client (a contract changed by hand). Always the last
   // chapter, so the ones above keep their numbers. The old document had none; said in its style.
-  const special = String(ctx.specialTerms || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  // The way of paying is clause 2.2 (above), not said again here.
+  const pay = payTermOf(ctx);
+  const special = termLines(ctx).filter((l) => l !== pay);
   if (special.length) {
     S.push({ title: 'תנאים מיוחדים', items: [
       'בכל סתירה בין תנאי מיוחד לבין סעיף אחר בהסכם זה, יגבר התנאי המיוחד, אך ורק במידה שנקבעה בו במפורש.',

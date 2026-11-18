@@ -7,12 +7,19 @@ import { draftOf } from '../app/mcp-draft.js';
 
 const paymentLine = (m) => m.legal.find((s) => s.title === 'התמורה ותנאי תשלום').items[1];
 
-test('a way of paying in the special terms replaces "פיימנט בלבד"; other terms leave it', () => {
+test('the way of paying written for the client is clause 2.2, as written, and leaves the special terms', () => {
   const base = { mode: 'free', influencer: 'natali', quantities: [{ key: 'videos', value: 30 }, { key: 'graphics', value: 30 }], monthlyPrice: 320000 };
+  const special = (m) => m.legal.find((s) => s.title === 'תנאים מיוחדים')?.items || [];
   const bank = draftOf({ ...base, specialClauses: ['ללא Highlights', 'התשלום בהוראת קבע'] }).model;
-  assert.doesNotMatch(paymentLine(bank), /פיימנט/);
-  assert.match(paymentLine(bank), /התנאים המיוחדים/);
-  for (const terms of [['ללא Highlights'], ['ביטול בהודעה של 30 יום'], []]) {
+  assert.equal(paymentLine(bank), 'התשלום בהוראת קבע.');
+  assert.ok(special(bank).includes('ללא Highlights'));
+  assert.ok(!special(bank).includes('התשלום בהוראת קבע'), 'not said twice');
+  assert.equal(paymentLine(draftOf({ ...base, specialClauses: ["צ'קים"] }).model), "התשלום יתבצע באמצעות צ'קים.");
+  assert.equal(paymentLine(draftOf({ ...base, specialClauses: ['פיימנט'] }).model), 'התשלום יתבצע באמצעות פיימנט.');
+  assert.equal(paymentLine(draftOf({ ...base, specialClauses: ['במזומן'] }).model), 'התשלום יתבצע במזומן.');
+  const only = draftOf({ ...base, specialClauses: ['התשלום בהוראת קבע'] }).model;
+  assert.equal(special(only).length, 0, 'no chapter of special terms left with nothing in it');
+  for (const terms of [['ללא Highlights'], ['ביטול בהודעה של 30 יום'], ['התשלום יתחיל בחודש הבא'], []]) {
     const m = draftOf({ ...base, ...(terms.length ? { specialClauses: terms } : {}) }).model;
     assert.match(paymentLine(m), /מערכת פיימנט בלבד/, terms.join(','));
   }
