@@ -411,14 +411,14 @@ function renderDocType() {
   document.querySelectorAll('#doc-switch [data-doc]').forEach((b) => {
     b.setAttribute('aria-checked', String(b.dataset.doc === state.docType));
   });
-  // A price offer needs no client details (the owner, 29.10.2026); an agreement needs the name.
-  $('c-name').required = signable;
+  // A price offer needs no client details (the owner, 29.10.2026); an agreement needs the business
+  // name or the client's name, the business name is enough (the owner, 18.11.2026).
   for (const id of ['c-companyid']) {
     $(id).required = signable;
     $(`${id}-req`).hidden = !signable;
   }
-  document.querySelector('label[for="c-name"] .req').hidden = !signable;
-  if (!signable) { $('c-name').setAttribute('aria-invalid', 'false'); $('c-name-err').hidden = true; }
+  $('c-company-req').hidden = !signable;
+  if (!signable) { $('c-company').setAttribute('aria-invalid', 'false'); $('c-company-err').hidden = true; }
 }
 
 /* ── Custom contract ("חוזה מותאם אישית") ──────
@@ -1128,14 +1128,15 @@ function readClient() {
 }
 
 function validateClient() {
-  const name = $('c-name');
+  const name = $('c-company');
   const email = $('c-email');
   const cid = $('c-companyid');
   const address = $('c-address');
   // A price offer may go without the client's details (the owner, 29.10.2026); an agreement needs
   // the name, the company number and the business address (31.10.2026).
   const signable = DOC_TYPES[state.docType].signable;
-  const nameOk = name.value.trim().length > 0 || !signable;
+  // The business name or the client's name (the owner, 18.11.2026): the business name is enough.
+  const nameOk = name.value.trim().length > 0 || $('c-name').value.trim().length > 0 || !signable;
   const emailOk = !email.value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim());
   const cidMissing = signable && !cid.value.trim();
   const cidOk = !cidMissing && (!cid.value.trim() || /^[0-9][0-9-]{3,18}$/.test(cid.value.trim()));
@@ -1147,7 +1148,7 @@ function validateClient() {
   address.setAttribute('aria-invalid', String(!addressOk));
   $('c-address-err').hidden = addressOk;
   name.setAttribute('aria-invalid', String(!nameOk));
-  $('c-name-err').hidden = nameOk;
+  $('c-company-err').hidden = nameOk;
   email.setAttribute('aria-invalid', String(!emailOk));
   $('c-email-err').hidden = emailOk;
   if (!nameOk || !emailOk || !cidOk || !addressOk) {
@@ -1159,9 +1160,9 @@ function validateClient() {
   return true;
 }
 
-['c-name', 'c-email', 'c-companyid', 'c-address'].forEach((id) => $(id).addEventListener('input', () => {
+['c-company', 'c-email', 'c-companyid', 'c-address'].forEach((id) => $(id).addEventListener('input', () => {
   if ($(id).getAttribute('aria-invalid') === 'true') {
-    const ok = id === 'c-name' || id === 'c-address' ? $(id).value.trim().length > 0 : true;
+    const ok = id === 'c-company' || id === 'c-address' ? $(id).value.trim().length > 0 : true;
     if (ok) { $(id).setAttribute('aria-invalid', 'false'); $(`${id}-err`).hidden = true; }
   }
 }));
@@ -1262,7 +1263,7 @@ $('btn-pdf').addEventListener('click', async (e) => {
 // Ctrl+P prints the current document too, never a stale or empty page: a price offer always
 // (no name needed), an agreement once it has the client's name.
 window.addEventListener('beforeprint', () => {
-  const ready = !DOC_TYPES[state.docType].signable || $('c-name').value.trim();
+  const ready = !DOC_TYPES[state.docType].signable || $('c-name').value.trim() || $('c-company').value.trim();
   $('print-root').replaceChildren(ready
     ? renderQuoteDoc(currentModel())
     : h('p', { style: 'font: 16px sans-serif; padding: 40px' }, 'כדי להדפיס הסכם התקשרות יש למלא את שם הלקוח.'));
@@ -1300,7 +1301,7 @@ $('btn-html').addEventListener('click', async () => {
       + `src:url(${fonts[i].replace('application/octet-stream', 'font/woff2')}) format('woff2');unicode-range:${range};}`).join('');
     const model = currentModel();
     const doc = renderQuoteDoc(model, { logoSrc: logo });
-    const safeTitle = `${model.docTitle} · ${model.client.name}`.replace(/[<>&"]/g, '');
+    const safeTitle = `${model.docTitle} · ${model.client.name || model.client.company}`.replace(/[<>&"]/g, '');
     const html = `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">`
       + `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${safeTitle}</title>`
       + `<style>${fontCss}body{margin:0;background:#fff}@page{size:A4;margin:14mm 12mm}${css}</style></head>`
