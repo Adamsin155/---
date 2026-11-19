@@ -89,6 +89,8 @@ function setSession(staff) {
 }
 
 let statsShown = null;
+// The tiles' sums in whole shekels (the owner, 19.11.2026: "815,375.28 ₪" ran out of its tile on the phone).
+const wholeShekels = (agorot) => Math.round(agorot / 100) * 100;
 function renderStats() {
   // The tiles count the month that is shown (section 117).
   const rows = shown();
@@ -107,7 +109,7 @@ function renderStats() {
   $('stats').classList.toggle('has-money', showMoney);
   $('stats').replaceChildren(
     ...QUOTE_TABS.map((t) => stat(t.label, String(count(t.key)))),
-    ...(showMoney ? [stat(`${signedWords} · כולל מע״מ`, formatILS(signedInMonth), ' stat-money'), stat('ממתין לחתימה · כולל מע״מ', formatILS(waitingInMonth), ' stat-money')] : []),
+    ...(showMoney ? [stat(`${signedWords} · כולל מע״מ`, formatILS(wholeShekels(signedInMonth)), ' stat-money'), stat('ממתין לחתימה · כולל מע״מ', formatILS(wholeShekels(waitingInMonth)), ' stat-money')] : []),
   );
   $('stats').hidden = false;
   // The numbers count up the first time the page shows them.
