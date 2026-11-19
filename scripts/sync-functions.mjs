@@ -35,11 +35,12 @@ export const OUT_DIR = join(ROOT, 'supabase/functions/_shared/app');
 //   drive-class.js                     _shared/drive.js (what a Drive file is: an edited video, footage, a graphic; 17.11.2026)
 //   drive-guard-logic.js               mcp ("כל הסרטונים הועלו לדרייב" only when the Drive has them, as the app; 17.11.2026)
 //   drive-auto-logic.js                drive-scan (the marks of 24, 7 and 23 the Drive shows, and the Gantt's empty links; 17.11.2026)
-export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js', 'gfx-auto-logic.js', 'drive-class.js', 'drive-guard-logic.js', 'drive-auto-logic.js'];
+//   drive-autolink-logic.js            drive-link and reminders (the clients' Drive folders found by meaning; 19.11.2026)
+export const ENTRIES = ['pricing.js', 'reminder-engine.js', 'push-config.js', 'wa-logic.js', 'calendar-feed.js', 'ics.js', 'gcal-logic.js', 'files-logic.js', 'metricool-logic.js', 'contract-ai-logic.js', 'contract-read-logic.js', 'contract-file.js', 'ask-logic.js', 'edit-count.js', 'ask-guide.js', 'contract-summary.js', 'mcp-logic.js', 'mcp-draft.js', 'monthly-rounds.js', 'gantt-auto.js', 'editor-auto.js', 'mark-guard-rules.js', 'gantt-template.js', 'shoot-crew.js', 'gfx-auto-logic.js', 'drive-class.js', 'drive-guard-logic.js', 'drive-auto-logic.js', 'drive-autolink-logic.js'];
 
 // Every edge function in supabase/functions/ (tests/sync-functions.test.mjs checks
 // the folder has no other, and what each one deploys).
-export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'drive-scan', 'gfx-auto', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook'];
+export const FUNCTIONS = ['ask', 'calendar', 'client-media', 'contract-ai', 'create-quote', 'drive', 'drive-scan', 'drive-link', 'gfx-auto', 'mcp', 'metricool', 'reminders', 'sales-samples', 'staff-admin', 'whatsapp-webhook'];
 export const FUNCTIONS_DIR = join(ROOT, 'supabase/functions');
 
 export const MARK = '// generated — edit app/ instead.';
