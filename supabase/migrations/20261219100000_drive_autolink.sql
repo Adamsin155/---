@@ -79,6 +79,9 @@ begin
   end if;
   select e into pick from jsonb_array_elements(s.candidates) e where e ->> 'id' = p_folder limit 1;
   if pick is null then raise exception 'not one of the folders' using errcode = '22023'; end if;
+  if exists (select 1 from public.clients c where c.id = p_client and coalesce(c.links ->> 'drive', '') <> '') then
+    return 'kept';
+  end if;
   if exists (select 1 from public.clients c where c.id <> p_client
              and c.links ->> 'drive' ~ ('/folders/' || p_folder || '([/?#]|$)')) then
     return 'taken';
