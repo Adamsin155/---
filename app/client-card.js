@@ -26,6 +26,7 @@ import {
 } from './protocol-ui.js';
 import { whatsappLink } from './quote-doc.js';
 import { safeLink } from './gantt-logic.js';
+import { loadDrivePick, autoLinkedTag, drivePickBlock } from './drive-pick.js';
 import { googleCalendarUrl, downloadIcs } from './calendar.js';
 // "שליחת זימון" (the calendar page's invitation, app/calendar-view.js): the office's.
 import { inviteFor, emailsOf, clientEmails, guestNames } from './calendar-view.js';
@@ -130,6 +131,7 @@ let quote = null;            // the signed agreement the client was opened from
 let access = [];             // network logins (without passwords)
 let vaultOk = false;         // may this user see and edit logins (editors may not)
 let statusNote = null;       // Ofir's latest weekly summary
+let driveState = null;       // public.drive_link_state of the client (the office's; app/drive-pick.js)
 let statusNotes = null;      // all of them (null: not loaded), for the Thursday rule
 let healthExtras = null;     // messages, history and date changes, for the colour (office only)
 let tlAll = false;           // the timeline shows everything done, not only the latest
@@ -214,7 +216,7 @@ async function loadCard() {
     // arrives; the card is drawn again for it only when no load is about to draw it.
     loadHistory();
     // The agreement and the rest are asked for side by side (they do not depend on each other).
-    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, driveRows, legacy, legacyChar, manual] = await Promise.all([
+    [quote, access, statusNotes, healthExtras, questions, ofirMeetings, delivFiles, mcLine, edited, editedMonth, driveRows, legacy, legacyChar, manual, driveState] = await Promise.all([
       c.quote_id && (!quote || quote.id !== c.quote_id)
         ? Promise.all([loadQuoteSummary(c.quote_id), loadQuoteToken(c.quote_id).catch(() => null)]).then(([q, token]) => (q ? { ...q, token } : q))
         : quote,
@@ -232,6 +234,8 @@ async function loadCard() {
       loadLegacyChar(id),
       // "קריאת חוזה חתום" (5.11.2026): what was confirmed for each contract file (none for whoever does not see the money).
       own() ? {} : import('./contract-read-ui.js').then((m) => m.loadManualContracts(id)).catch(() => ({})),
+      // "התיקייה בדרייב" (19.11.2026): what the system connected by itself, or the folders to pick from.
+      own() ? null : loadDrivePick(id),
     ]);
     statusNote = statusNotes?.[0] || null;
     setOfirMeetings(ofirMeetings); // the fast ladder waits for the end of his meeting (protocol v10)
@@ -753,7 +757,7 @@ function linksRow() {
     h('span', { class: 'me-label' }, 'קישורים:'),
     h('ul', { class: 'chips-row' }, ganttChip(),
         ...set.map((l) => h('li', {}, h('a', { class: 'chip link-chip', href: links[l.key], target: '_blank', rel: 'noopener' },
-          l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')))),
+          l.label, h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')), l.key === 'drive' ? autoLinkedTag(driveState, links.drive) : null)),
         ...missing.map((l) => h('li', {}, h('button', { type: 'button', class: 'chip chip-missing', onclick: () => openEdit(`ed-link-${l.key}`) }, `חסר: ${l.label}`)))),
     h('button', { type: 'button', class: 'btn-text', onclick: () => openEdit(`ed-link-${LINKS[0].key}`) }, set.length ? 'עריכת קישורים' : 'הוספת קישורים'));
 }
@@ -1061,6 +1065,7 @@ function renderHead(s) {
         fact('סיום החוזה', c.contract_end ? formatDay(c.contract_end) : null)),
     statusNoteBlock(),
     linksRow(),
+    own() ? null : drivePickBlock(driveState, { clientId: client.id, driveLink: safeLink(client.links?.drive), onDone: () => load() }),
     metricoolLine(),
     // The contract and the package's counters: one closed row with the month (the owner, 20.10.2026).
     own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractDocs(), contractBlock(s), deliverablesBlock(s)),

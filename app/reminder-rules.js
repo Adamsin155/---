@@ -2783,3 +2783,33 @@ const MAKEUP_ANSWER_RULE = {
 RULES.push(MAKEUP_SET_RULE, MAKEUP_ANSWER_RULE);
 RULE_BY_ID.set(MAKEUP_SET, MAKEUP_SET_RULE);
 RULE_BY_ID.set(MAKEUP_ANSWER, MAKEUP_ANSWER_RULE);
+
+// ── "איזו תיקייה בדרייב" (the owner, 19.11.2026; docs/ops.md, section 143) ──
+// The drive-link function found folders that could be a client's but is not sure which (or whether):
+// Irit and the owners hear of it once per client and set of folders (the case is `<client>@<the
+// folders' ids>`, so a new set is a new case), and Irit picks one in the card. Not when the card got a
+// Drive link meanwhile. A ring like any other, so it reaches the phone (the owner's rule of 7.10.2026).
+import { askWords as driveAskWords } from './drive-autolink-logic.js';
+export const DRIVE_ASK = { id: 'driveAsk', follows: 'irit' };
+RULES.push({
+  id: DRIVE_ASK.id, event: 'תיקייה בדרייב שהמערכת לא בטוחה בה: לבחור בכרטיס הלקוח', procs: [],
+  instances(env) {
+    const out = [];
+    for (const s of env.driveAsks || []) {
+      const c = env.clientById.get(s.client_id);
+      const candidates = Array.isArray(s.candidates) ? s.candidates : [];
+      if (!c || String(c.links?.drive || '').trim() || !candidates.length || !s.ask_key) continue;
+      out.push({
+        id: `${c.id}@${s.ask_key}`, cid: c.id, client: c, name: clientLabel(c), candidates,
+        url: `client.html?id=${encodeURIComponent(c.id)}#drive-pick`, anchors: { event: parseDate(s.updated_at) || env.now },
+      });
+    }
+    return out;
+  },
+  steps: [{
+    id: 'ask', to: () => [DRIVE_ASK.follows, OWNER], level: 'ring',
+    title: (i) => driveAskWords(i.name, i.candidates).title,
+    body: (i) => driveAskWords(i.name, i.candidates).body,
+  }],
+});
+RULE_BY_ID.set(DRIVE_ASK.id, RULES.at(-1));
