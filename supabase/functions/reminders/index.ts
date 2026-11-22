@@ -26,6 +26,7 @@ import { corsHeaders, bearer, ACTIONS } from './http.js';
 import { VAPID_PUBLIC_KEY } from '../_shared/app/push-config.js';
 import { atTimeIL, addDaysIL, dayKeyIL, weekdayIL } from '../_shared/app/tz.js';
 import { weekKey } from '../_shared/app/protocol-logic.js';
+import { rangeOf } from '../_shared/app/content-month-logic.js';
 
 // The new secret key when the project has one, else the legacy service-role key.
 function serviceKey(): string {
@@ -279,6 +280,22 @@ async function loadStaffTasks(now: Date): Promise<Row[]> {
 // Claude's checks of a fix task (17.11.2026, app/gfx-auto-logic.js; docs/ops.md, section 138): those
 // of the last two days (rule `gfxFix` tells the assignee what is not fixed yet, once per check).
 // Until migration 20261216100000_gfx_auto.sql adds the table, none.
+// The contents of each month against the contract (22.11.2026; docs/ops.md, section 145; app/content-month-logic.js):
+// public.content_months for last, this and next month, and each client's last Metricool sync (whether it
+// read the whole listing). Until migration 20261221100000_content_months.sql adds the function: null, and
+// the four content rules tell nothing.
+async function loadContentMonths(now: Date): Promise<{ contentMonths: Row[] | null; ganttSync: Row[] }> {
+  const { from, to } = rangeOf(now);
+  const { data, error } = await admin.rpc('content_months', { p_from: from, p_to: to });
+  if (error) {
+    const code = (error as { code?: string })?.code;
+    if (code === '42883' || code === 'PGRST202' || code === '42P01' || code === 'PGRST205') return { contentMonths: null, ganttSync: [] };
+    throw error;
+  }
+  const sync = await admin.from('client_gantt_sync').select('client_id, ok, stats');
+  return { contentMonths: (data ?? []) as Row[], ganttSync: sync.error ? [] : (sync.data ?? []) as Row[] };
+}
+
 // The open questions "איזו תיקייה בדרייב" (19.11.2026; docs/ops.md, section 143): the rule driveAsk.
 async function loadDriveAsks(): Promise<Row[]> {
   try {
@@ -364,7 +381,7 @@ const db = {
   async load(now: Date) {
     const today = atTimeIL(now, 0);
     const since = atTimeIL(addDaysIL(now, -weekdayIL(now) - 1), 0); // the week so far, for the owner's report
-    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt, makeupAnswers, gfxChecks, driveAsks] = await Promise.all([
+    const [clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, queued, recent, monthMarks, deals, accessLinks, ganttFailures, approvals, staffTasks, availability, shootTold, questions, changeRequests, decisions, unsigned, staffNotes, gantt, makeupAnswers, gfxChecks, driveAsks, content] = await Promise.all([
       all(() => admin.from('clients').select('*').in('status', ['active', 'ending']).is('archived_at', null).eq('landing', false).order('id')),
       all(() => admin.from('protocol_checks').select('client_id, item_key, state, note, at').order('client_id').order('item_key')),
       loadTasks(now),
@@ -397,10 +414,11 @@ const db = {
       loadMakeupAnswers(now),
       loadGfxChecks(now),
       loadDriveAsks(),
+      loadContentMonths(now),
     ]);
     const log = new Map<number, Row>();
     for (const r of [...queued, ...recent]) log.set(r.id, r);
-    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, makeupAnswers, gfxChecks, driveAsks, log: [...log.values()] };
+    return { clients, checks, tasks, staff, access, reviews, statusNotes, messages, subscriptions, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, gantt, makeupAnswers, gfxChecks, driveAsks, contentMonths: content.contentMonths, ganttSync: content.ganttSync, log: [...log.values()] };
   },
   // A monthly client's editing round (./tick.js openMonthlyRounds; docs/ops.md, section 94). The
   // round only when the client row is still the one loaded (its updated_at; the clients trigger

@@ -42,7 +42,10 @@ export const PATHS = { brands: '/admin/simpleProfiles', posts: '/v2/scheduler/po
 export const AUTH_HEADER = 'X-Mc-Auth';
 export const ZONE = 'Asia/Jerusalem';
 export const DAYS_BACK = 14;
-export const DAYS_AHEAD = 60;
+// 365 since 22.11.2026 (was 60): Ilai schedules a year ahead, and the months against the contract
+// (app/content-month-logic.js) see what is scheduled for each month. Still one request per brand; a
+// listing that comes back paged is partial (assumption 4) and nothing is removed on it.
+export const DAYS_AHEAD = 365;
 export const PAUSE_MS = 400;        // between two brands
 export const RUN_BUDGET_MS = 45000; // one tick stops starting new brands after this
 export const TIMEOUT_MS = 15000;    // one request

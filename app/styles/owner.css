@@ -408,3 +408,16 @@
 .wh-cover { margin-top: 12px; display: grid; gap: 6px; }
 .wh-missing summary { cursor: pointer; font-size: 14px; color: var(--text-2); min-height: 32px; }
 .wh-missing p { margin: 4px 0 0; font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+
+/* "תכנים מול החוזה" (22.11.2026; app/content-month-ui.js): owner.html#content and year.html#content. */
+.cmo-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.cmo-head .wgroup-h { margin: 0; }
+.cmo-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.cmo-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name n" "sub sub"; gap: 2px 12px; align-items: center;
+  padding: 10px 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
+.cmo-name { grid-area: name; font-weight: 600; color: var(--ds-ink); text-decoration: none; min-width: 0; overflow-wrap: anywhere; }
+.cmo-name:hover, .cmo-name:focus-visible { text-decoration: underline; }
+.cmo-n { grid-area: n; font-size: 18px; font-weight: 700; color: var(--ds-amber); }
+.cmo-sub { grid-area: sub; font-size: 13px; color: var(--ds-ink-2); }
+.cmo-ok { margin: 8px 0 0; color: var(--ds-ok); font-weight: 600; }
+.cmo-foot { margin: 8px 0 0; font-size: 13px; color: var(--ds-ink-2); }

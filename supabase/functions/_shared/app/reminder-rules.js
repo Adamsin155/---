@@ -2814,3 +2814,73 @@ RULES.push({
   }],
 });
 RULE_BY_ID.set(DRIVE_ASK.id, RULES.at(-1));
+
+// ── The contents of each month against the contract (the owner and Irit, 22.11.2026; docs/ops.md,
+// section 145; app/content-month-logic.js). From what Metricool shows went up or is scheduled
+// (public.content_months, loaded by the reminders function as env.contentMonths; null: not loaded
+// or not there yet, and then nothing is told):
+//   contentAhead     from the 20th: next month is scheduled below its target → Ilai and Irit;
+//   contentMonthEnd  in the first week: last month went up below its target → Ilai, Irit, Ofir, Lior;
+//   contentNoBrand   a client with contents and no Metricool brand, 45 days after the deal → Ilai and Irit, once;
+//   contentSummary   the first business day of the month, 09:00: the month's table, short first → the four.
+// A case exists only on a business day of its window and holds the month in its key: once a month.
+// The per-client notes are `batch`: one push with all of them, never one per client.
+import {
+  byClient as contentByClient, monthOfClient, monthTable, aheadDue, monthEndDue, summaryDue, noBrand as noContentBrand,
+  syncTrusted, aheadWords, monthEndWords, noBrandWords, summaryWords, AHEAD_TO, MONTH_END_TO, NO_BRAND_TO, SUMMARY_TO, ALERT_AT,
+} from './content-month-logic.js';
+export const CONTENT_RULES = { ahead: 'contentAhead', monthEnd: 'contentMonthEnd', noBrand: 'contentNoBrand', summary: 'contentSummary' };
+const contentMap = (env) => (env.contentMonths ? (env._contentMap ||= contentByClient(env.contentMonths)) : null);
+const syncOf = (env, id) => (env._ganttSync ||= new Map((env.ganttSync || []).map((s) => [s.client_id, s]))).get(id);
+const cardContent = (c) => `client.html?id=${encodeURIComponent(c.id)}#content-months`;
+function contentCases(env, due, test) {
+  const map = contentMap(env);
+  if (!map || !due) return [];
+  const out = [];
+  for (const c of env.clients) {
+    const m = monthOfClient(c, map.get(c.id), due.key, env.now);
+    if (!m || !test(c, m)) continue;
+    out.push({ id: `${due.key}`, cid: c.id, client: c, m, url: cardContent(c), anchors: { event: due.at } });
+  }
+  return out;
+}
+RULES.push({
+  id: CONTENT_RULES.ahead, event: 'חסרים תכנים בתזמון של החודש הבא, מול החוזה', procs: [],
+  // Only a client whose last sync read its whole listing: "scheduled" is known.
+  instances: (env) => contentCases(env, aheadDue(env.now), (c, m) => !!c.metricool_blog_id && syncTrusted(syncOf(env, c.id)) && m.planned < m.target),
+  steps: [{ id: 'ahead', to: AHEAD_TO, level: 'ring', batch: true, title: (i) => aheadWords(i.client, i.m).title, body: (i) => aheadWords(i.client, i.m).body }],
+});
+RULE_BY_ID.set(CONTENT_RULES.ahead, RULES.at(-1));
+RULES.push({
+  id: CONTENT_RULES.monthEnd, event: 'בחודש שעבר עלו פחות תכנים ממה שמגיע לפי החוזה', procs: [],
+  instances: (env) => contentCases(env, monthEndDue(env.now), (c, m) => !!c.metricool_blog_id && m.posted < m.target),
+  steps: [{ id: 'end', to: MONTH_END_TO, level: 'ring', batch: true, title: (i) => monthEndWords(i.client, i.m).title, body: (i) => monthEndWords(i.client, i.m).body }],
+});
+RULE_BY_ID.set(CONTENT_RULES.monthEnd, RULES.at(-1));
+RULES.push({
+  id: CONTENT_RULES.noBrand, event: 'לקוח עם תכנים בחוזה שלא מחובר למותג ב־Metricool', procs: [],
+  instances(env) {
+    if (!env.contentMonths || !isBusinessDay(env.now)) return [];
+    const event = atIL(env.now, ALERT_AT);
+    return env.clients.filter((c) => noContentBrand(c, env.now))
+      .map((c) => ({ id: 'nobrand', cid: c.id, client: c, url: `gantt.html?id=${encodeURIComponent(c.id)}`, anchors: { event } }));
+  },
+  steps: [{ id: 'brand', to: NO_BRAND_TO, level: 'ring', batch: true, title: (i) => noBrandWords(i.client).title, body: (i) => noBrandWords(i.client).body }],
+});
+RULE_BY_ID.set(CONTENT_RULES.noBrand, RULES.at(-1));
+RULES.push({
+  id: CONTENT_RULES.summary, event: 'סיכום החודש: מה מתוזמן לכל לקוח מול החוזה', procs: [],
+  instances(env) {
+    const map = contentMap(env);
+    const due = summaryDue(env.now);
+    if (!map || !due) return [];
+    const rows = monthTable(env.clients, map, due.key, env.now);
+    if (!rows.length) return [];
+    return [{ id: `summary.${due.key}`, cid: null, rows, key: due.key, url: 'owner.html#content', anchors: { event: due.at } }];
+  },
+  steps: [
+    { id: 'ilai', to: ['ilai'], level: 'ring', noFold: true, url: () => 'year.html#content', title: (i) => summaryWords(i.rows, i.key).title, body: (i) => summaryWords(i.rows, i.key).body },
+    { id: 'office', to: SUMMARY_TO.filter((p) => p !== 'ilai'), level: 'ring', noFold: true, title: (i) => summaryWords(i.rows, i.key).title, body: (i) => summaryWords(i.rows, i.key).body },
+  ],
+});
+RULE_BY_ID.set(CONTENT_RULES.summary, RULES.at(-1));

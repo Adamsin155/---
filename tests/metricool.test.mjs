@@ -46,8 +46,8 @@ test('the requests: the documented base, paths and parameters; the token only in
   assert.equal(brandsUrl({ userId: '4455' }), 'https://app.metricool.com/api/admin/simpleProfiles?userId=4455');
   const u = new URL(postsUrl({ userId: '4455', blogId: '777', now: NOW }));
   assert.equal(u.origin + u.pathname, 'https://app.metricool.com/api/v2/scheduler/posts');
-  assert.deepEqual(Object.fromEntries(u.searchParams), { start: '2026-10-29T00:00:00', end: '2027-01-11T23:59:59', timezone: 'Asia/Jerusalem', userId: '4455', blogId: '777' });
-  assert.deepEqual([W.from, W.to], ['2026-10-29', '2027-01-11']); // 14 days back, 60 ahead
+  assert.deepEqual(Object.fromEntries(u.searchParams), { start: '2026-10-29T00:00:00', end: '2027-11-12T23:59:59', timezone: 'Asia/Jerusalem', userId: '4455', blogId: '777' });
+  assert.deepEqual([W.from, W.to], ['2026-10-29', '2027-11-12']); // 14 days back, 60 ahead
   const calls = [];
   const fetch = async (url, init) => { calls.push({ url, init }); return { status: 200, json: async () => ({ data: [] }) }; };
   await getJson(fetch, postsUrl({ userId: '4455', blogId: '777', now: NOW }), TOKEN);

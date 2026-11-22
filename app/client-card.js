@@ -111,6 +111,7 @@ import { leafFar } from './protocol-ui.js';
 import { FOCUS_TOPICS } from './briefs.js';
 // The Metricool line near the Gantt (the owner, 20.10.2026).
 import { seesMetricool, connectsMetricool, metricoolWords, loadMetricool } from './card-metricool.js';
+import { byClient as contentByClient, cardLines as contentLines, cardNote as contentNote, contentTotal, contractMonths, hasContents } from './content-month-logic.js';
 import { ganttUrl } from './metricool-connect-logic.js';
 // The old system's signed documents (the owner, 25.10.2026; 20261105100000_legacy_contracts.sql): the office's.
 import { loadLegacyContracts } from './legacy-contracts-data.js';
@@ -1067,6 +1068,7 @@ function renderHead(s) {
     linksRow(),
     own() ? null : drivePickBlock(driveState, { clientId: client.id, driveLink: safeLink(client.links?.drive), onDone: () => load() }),
     metricoolLine(),
+    contentMonthsBlock(),
     // The contract and the package's counters: one closed row with the month (the owner, 20.10.2026).
     own() ? null : fold('contract', 'החוזה והחבילה', contractWords(s), contractDocs(), contractBlock(s), deliverablesBlock(s)),
     // The documents signed in the old system, when there are any (the owner, 25.10.2026).
@@ -1232,6 +1234,25 @@ function metricoolLine() {
     h('span', {}, 'Metricool: ', w.text),
     w.failed ? h('a', { class: 'cc-mc-fail', href: ganttUrl(client.id) }, w.failed) : null,
     w.connect && connectsMetricool(viewer) ? h('a', { class: 'btn-text', id: 'cc-mc-connect', href: ganttUrl(client.id) }, 'חיבור למותג בגאנט') : null);
+}
+
+// ── The contents of each month against the contract (Irit and the owner, 22.11.2026; app/content-month-logic.js) ──
+// Last, this and next month: what went up and what is scheduled in Metricool against the contract's share
+// of the month. For whoever sees the Metricool line; not before the migration (content undefined).
+function contentMonthsBlock() {
+  const viewer = { me, scope, error: viewerError };
+  if (!mcLine || mcLine.content === undefined || !seesMetricool(viewer)) return null;
+  const data = contentByClient(mcLine.content).get(client.id);
+  const lines = contentLines(client, data);
+  const note = lines.length ? null : contentNote(client, data, { mapped: !!mcLine.brand?.blogId });
+  if (!lines.length && !note) return null;
+  const total = contentTotal(client);
+  const basis = hasContents(client) && total ? `${total} תכנים בחוזה על ${contractMonths(client)} חודשים` : null;
+  return h('section', { class: 'cm', id: 'content-months', 'aria-labelledby': 'cm-h', tabindex: '-1' },
+    h('h3', { class: 'cm-h', id: 'cm-h' }, 'תכנים מול החוזה'),
+    lines.length ? h('ul', { class: 'cm-list' }, ...lines.map((l) => h('li', { class: `cm-row is-${l.tone}` },
+      h('span', { class: 'cm-dot', 'aria-hidden': 'true' }), h('span', {}, l.text)))) : h('p', { class: 'cm-note' }, note),
+    basis ? h('p', { class: 'cm-basis' }, `לפי Metricool · ${basis}`) : null);
 }
 
 // ── Archive (the owner and Ofir; the database checks) ──

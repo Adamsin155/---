@@ -95,6 +95,7 @@
           <button type="button" role="tab" class="tab" id="tab-work" aria-controls="view-work" hidden>עבודה לפי עובד</button>
           <button type="button" role="tab" class="tab" id="tab-table" aria-controls="view-table" hidden>טבלה</button>
           <button type="button" role="tab" class="tab" id="tab-shoots" aria-controls="view-shoots" hidden>ימי צילום</button>
+          <button type="button" role="tab" class="tab" id="tab-content" aria-controls="view-content" hidden>תכנים מול החוזה</button>
           <button type="button" role="tab" class="tab" id="tab-archive" aria-controls="view-archive" hidden>ארכיון</button>
         </div>
 
@@ -154,6 +155,10 @@
           <p class="eod-note" id="eod-assign" hidden></p>
           <p class="eod-note" id="eod-about">נספר מה שעבר את היעד שלו ונמצא אצל מישהו מהצוות, ומה שהיעד שלו היום ועוד פתוח. לקוחות בקליטה, ״ממתין ללקוח״ ועריכה עצורה לא נספרים. ההודעה היומית יוצאת ב־19:00 (בערב חג ב־13:00).</p>
         </section>
+
+        <!-- The contents of each month against the contract (app/content-month-ui.js; docs/ops.md, section 144):
+             the owner and the managers. -->
+        <section class="block ow-view cmo" id="view-content" role="tabpanel" aria-labelledby="tab-content" hidden></section>
 
         <!-- Who did what on which day (app/work-history-logic.js; docs/ops.md, section 82). -->
         <section class="block ow-view wh-view" id="view-work" role="tabpanel" aria-labelledby="tab-work" hidden>
