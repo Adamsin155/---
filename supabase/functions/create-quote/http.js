@@ -42,7 +42,8 @@ export async function callerIsOffice(rpc) {
 // "שינויים להצעה הזו" (the owner, 9.11.2026; docs/ops.md, section 123): the package's monthly price
 // (selection.custom.price) and its name as the document shows it (selection.custom.packageName), for
 // one quote, the catalog unchanged. Only the managers: public.is_manager(), the owners (Adam and Idan,
-// staff with no person), Irit, Ofir and Lior. Anyone else of the office (Ilai) is refused, for a
+// staff with no person), Irit, Ofir and Lior, and Amit since 22.11.2026 (public.can_edit_quotes(),
+// supabase/migrations/20261220100000_amit_quotes.sql). Anyone else of the office (Ilai) is refused, for a
 // price typed in "חוזה מותאם אישית" too (the same field). The engine (app/pricing.js) checks the
 // values themselves: the price 0 to 100,000 ₪, the name up to 60 characters with no markup, and the
 // totals are always computed from them on the server.
@@ -51,7 +52,7 @@ export const editsQuote = (sel) => !!sel?.custom && typeof sel.custom === 'objec
   && QUOTE_EDIT_KEYS.some((k) => sel.custom[k] !== undefined && sel.custom[k] !== null);
 export async function callerMayEditQuote(rpc) {
   try {
-    const { data, error } = await rpc('is_manager');
+    const { data, error } = await rpc('can_edit_quotes');
     return !error && data === true;
   } catch {
     return false;

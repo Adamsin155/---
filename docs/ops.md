@@ -5386,3 +5386,34 @@ Claude יראה פסקה של "מה ישתנה". עונים "כן" ורק אז �
 2. להכניס את התיקייה הראשית ל־`app_settings` (שורת SQL אחת, מחוץ לקוד).
 3. לפרוס את `drive-link` (חדשה), `reminders` (הכלל החדש) ו־`whatsapp-webhook` (מעתיקה את `reminder-rules.js`).
 4. לפרסם את האתר (הכרטיס).
+
+## 144. עמית מכינה הצעות מחיר וחוזים ורואה את "הצעות שנשלחו" עם הסכומים, כמו עירית (בקשת ליאור, אישור הבעלים 22.11.2026)
+
+**מה השתנה:**
+- **בונה הצעות:** עמית ב־`QUOTE_BUILDERS` (`app/manager-rules.js`). בתפריט שלה "הצעה חדשה והכנת חוזה" ו"הצעות שנשלחו". בטלפון שניהם תחת "עוד".
+- **שינויים להצעה הזו:** מחיר החבילה ושמה, ומחיר שמוקלד ב"חוזה מותאם אישית". עד עכשיו רק המנהלים (`public.is_manager()`). מעכשיו גם עמית: `canEditQuote` במסך, ו־`public.can_edit_quotes()` בשרת. create-quote שואל את הפונקציה החדשה במקום `is_manager`.
+- **הרשימה עם הסכומים:** `seesQuoteMoney` במסך, ו־`public.sees_quote_money()` במסד. איתה היא רואה את כל ההצעות, הגרסאות שלהן, החוזים הידניים (`manual_contracts`) וההצעות המוסתרות.
+- **Claude:** בחיבור ל־Claude היא מקבלת את "הכנת חוזה" (`prepare_contract_draft`), כי הוא שואל את `canBuildQuote`. "שליחת חוזה" נשאר רק של הבעלים.
+
+**מה לא השתנה:**
+- עמית לא מנהלת. היא לא רואה את המחירים בטבלת הלקוחות, את העסקאות של אנשי המכירות עם ההנחה, את הארכיון ואת אישור החוזים החריגים. `sees_income`, `is_manager`, `quote_reader` ו־`sees_money` לא זזו.
+- השורה "ממתינות לחתימה" ב"המשימות שלי" נשארת של עירית (`QUOTE_LIST_VIEWERS`).
+- לאף אחד אחר לא השתנה כלום.
+
+**קבצים:**
+- `app/manager-rules.js`, `app/shell-rules.js` (הערה), `app/builder.js`
+- `supabase/functions/create-quote/http.js`, `supabase/functions/create-quote/index.ts`
+- העותקים ב־`supabase/functions/_shared/app/`
+- `supabase/migrations/20261220100000_amit_quotes.sql`
+
+**בדיקות:**
+- `tests/amit-quotes.test.mjs`
+- `tests/sql/amit-quotes.test.mjs`
+- `tests/create-quote.test.mjs`
+- `tests/amit.test.mjs`
+- בדפדפן: `tests/amit-quotes-e2e.mjs`. כרום ב־1366 וב־390, ו־WebKit כמו iPhone 13. הקלדה מקש־מקש עם מחיקה, ושינוי מחיר. אילאי כביקורת.
+
+**לעלייה לאוויר, בסדר הזה:**
+1. להריץ את `20261220100000_amit_quotes.sql`. זה חייב לקרות לפני create-quote: create-quote החדש שואל את `can_edit_quotes`, ובלעדיה גם המנהלים לא יוכלו לשנות מחיר.
+2. לפרוס את `create-quote`, את `mcp` ואת `ask`. `mcp` ו־`ask` מעתיקים את `manager-rules.js`.
+3. לפרסם את האתר.

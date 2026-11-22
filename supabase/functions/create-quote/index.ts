@@ -15,7 +15,7 @@
 // only from the office's own site (./http.js; security audit of 6.10.2026, ops.md 36).
 // The package's monthly price and its shown name (selection.custom.price, .packageName; the
 // builder's "שינויים להצעה הזו", 9.11.2026, docs/ops.md section 123): the managers only
-// (public.is_manager(); editsQuote and callerMayEditQuote in ./http.js).
+// (public.can_edit_quotes(): the managers and Amit; editsQuote and callerMayEditQuote in ./http.js).
 //
 // "הכנת חוזה עם AI" (25.10.2026, docs/ops.md, section 68): `aiRun: <run id>` from the contract-ai
 // function marks a new contract "הוכן ע״י AI". The run must be the caller's own, successful, from

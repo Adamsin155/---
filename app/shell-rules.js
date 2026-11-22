@@ -118,6 +118,7 @@ export function menuOf(viewer) {
   // The builder of a quote and of the contract (the owner's wording, 7.10.2026). `short` is
   // the name in the phone's bottom bar, where the full one does not fit a quarter of 360px.
   // Only for whoever builds a contract (canBuildQuote, 8.10.2026): the owners, Irit, Lior, and Ofir since 28.10.2026.
+  // Amit since 22.11.2026 (with the list of sent quotes and its amounts, seesQuoteMoney).
   if (canBuildQuote(viewer)) list.push({ id: 'quote', href: 'index.html', label: QUOTE_LABEL, short: 'הצעה וחוזה' });
   // The list of sent quotes: the owners and Irit (6.10.2026), and Ofir with its amounts
   // (29.10.2026; the database answers nobody else).

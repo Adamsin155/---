@@ -289,9 +289,9 @@ test('the screens: the meeting\'s form, every client, the Gantt index with Metri
   assert.ok(flowNeeds(amit).includes('metricool'));
   assert.ok(METRICOOL_OFFICE.includes('amit'));
   assert.equal(mayCall('brands', { person: 'amit' }), true);
-  // Not the money or the contracts: her menu.
+  // Not the money: her menu. The quotes and contracts are hers since 22.11.2026 (tests/amit-quotes.test.mjs).
   const hrefs = menuOf(amit).map((x) => x.href).join(' ');
-  for (const page of ['quotes.html', 'payments.html', 'contract', 'owner.html', 'insights.html']) assert.ok(!hrefs.includes(page), page);
+  for (const page of ['payments.html', 'owner.html', 'insights.html']) assert.ok(!hrefs.includes(page), page);
   assert.ok(hrefs.includes('gantt.html'), hrefs);
   // Still nobody else's: Ilai and Shiel stay as they were.
   assert.equal(canManageAccessLinks({ me: 'shiel', scope: 'own' }), false);

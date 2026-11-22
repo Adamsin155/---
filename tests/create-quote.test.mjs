@@ -60,11 +60,11 @@ test('the price and the package name of one quote: the managers only, checked an
   assert.equal(editsQuote({ ...base, custom: { termMonths: 6 } }), false);
   assert.equal(editsQuote({ ...base, custom: { price: 0 } }), true);
   assert.equal(editsQuote({ ...base, custom: { packageName: 'ALL IN ONE' } }), true);
-  // Who: is_manager, and only a plain true.
+  // Who: can_edit_quotes (the managers and Amit, 22.11.2026), and only a plain true.
   const rpcOf = (answers) => async (fn) => answers[fn] ?? { data: null, error: { message: 'no such function' } };
-  assert.equal(await callerMayEditQuote(rpcOf({ is_manager: { data: true, error: null } })), true);
+  assert.equal(await callerMayEditQuote(rpcOf({ can_edit_quotes: { data: true, error: null } })), true);
   for (const no of [{ data: false, error: null }, { data: true, error: { message: 'x' } }, { data: 'true', error: null }, undefined]) {
-    assert.equal(await callerMayEditQuote(rpcOf(no ? { is_manager: no } : {})), false);
+    assert.equal(await callerMayEditQuote(rpcOf(no ? { can_edit_quotes: no } : {})), false);
   }
   assert.equal(await callerMayEditQuote(async () => { throw new Error('down'); }), false);
   // The function asks after reading the selection, before anything is saved, with its own refusal.
