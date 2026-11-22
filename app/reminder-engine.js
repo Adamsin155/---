@@ -63,6 +63,8 @@ export function buildEnv({
   makeupAnswers = [], // 15.11.2026: public.makeup_answers rows, Tal's answers on the Natali days (app/makeup-logic.js)
   gfxChecks = [], // 17.11.2026: public.gfx_ai_checks rows of the last days (Claude's checks of a fix task, app/gfx-auto-logic.js)
   driveAsks = [], // 19.11.2026: public.drive_link_state rows with an open question "איזו תיקייה בדרייב" (app/drive-autolink-logic.js)
+  contentMonths = null, // 22.11.2026: public.content_months rows of last, this and next month (app/content-month-logic.js); null: not loaded
+  ganttSync = [], // 22.11.2026: public.client_gantt_sync rows (whether the last Metricool sync read the whole listing)
 }) {
   const byClient = groupChecks(checks);
   const liveClients = clients.filter(live);
@@ -86,7 +88,7 @@ export function buildEnv({
     tasks: tasks.filter((t) => !t.done_at),
     // Tasks finished lately (the server loads the last two days): "the requester hears".
     doneTasks: tasks.filter((t) => t.done_at),
-    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, makeupAnswers, gfxChecks, driveAsks,
+    access, reviews, statusNotes, messages, subscriptions, staff, monthMarks, deals, accessLinks, ganttFailures, approvals, unsigned, staffTasks, availability, shootTold, questions, changeRequests, decisions, staffNotes, makeupAnswers, gfxChecks, driveAsks, contentMonths, ganttSync,
     personOf: (email) => people.get(String(email || '').toLowerCase()) || null,
     emailsOf: (person) => [...people].filter(([, p]) => p === person).map(([e]) => e),
     hasStaff: (person) => [...people.values()].includes(person),

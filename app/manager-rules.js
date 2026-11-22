@@ -45,7 +45,11 @@ export const QUOTE_LIST_VIEWERS = ['irit'];
 // seesFinance; the payments app stays the owners'). In the database: public.sees_quote_money(),
 // which asks public.sees_income() (supabase/migrations/20261128100000_managers_all.sql).
 export const QUOTE_MONEY_VIEWERS = MANAGERS; // Ofir since 29.10.2026, Irit and Lior since 4.11.2026
-export const seesQuoteMoney = (v) => isOwnerView(v) || (known(v) && QUOTE_MONEY_VIEWERS.includes(v.me));
+// Amit too since 22.11.2026 (the owner, at Lior's request): she builds contracts and reads the list
+// with its amounts, as Irit; only the quotes' money, not seesFinance (public.sees_quote_money(),
+// supabase/migrations/20261220100000_amit_quotes.sql; docs/ops.md, section 144).
+export const QUOTE_MONEY_EXTRA = ['amit'];
+export const seesQuoteMoney = (v) => isOwnerView(v) || (known(v) && (QUOTE_MONEY_VIEWERS.includes(v.me) || QUOTE_MONEY_EXTRA.includes(v.me)));
 export const canSeeQuoteList = (v) => seesQuoteMoney(v) || (known(v) && QUOTE_LIST_VIEWERS.includes(v.me));
 // Stav's and Amos's deals with what was agreed (the discount, a price typed by hand):
 // Irit and Ofir, whoever takes it prepares the contract (31.10.2026), and the owners.
@@ -56,8 +60,12 @@ export const canSeeDeals = (v) => isOwnerView(v) || (known(v) && DEAL_VIEWERS.in
 // exceptional one from his approvals card). The create-quote function answers the office only
 // (public.is_office(): these and Ilai); Ilai builds no contracts, so the screens leave him
 // out, and so the editors, Nirel, Eli and the field sales, whom the server refuses anyway.
-export const QUOTE_BUILDERS = ['irit', 'lior', 'ofir'];   // and the owner
+export const QUOTE_BUILDERS = ['irit', 'lior', 'ofir', 'amit'];   // and the owner; Amit since 22.11.2026
 export const canBuildQuote = (v) => isOwnerView(v) || (known(v) && QUOTE_BUILDERS.includes(v.me));
+// "שינויים להצעה הזו" and a price typed in "חוזה מותאם אישית": the managers, and Amit since
+// 22.11.2026 (she builds contracts as Irit). In the database: public.can_edit_quotes(), which create-quote asks.
+export const QUOTE_EDITORS_EXTRA = ['amit'];
+export const canEditQuote = (v) => isManager(v) || (known(v) && QUOTE_EDITORS_EXTRA.includes(v.me));
 // "החלטות" (decisions.html) and "בקרה ושיוך" (qa.html): Lior's and Ofir's screens, and the
 // owners'. Irit is of the office and the database would take her writes, but neither
 // screen is her work (8.10.2026). Nobody else's side of them changed.

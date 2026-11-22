@@ -9,7 +9,9 @@ import { loadClients, loadChecks, loadTasks, loadDirectory, quoteFacts } from '.
 import { $, fill, h, errorText, mountSession, viewerOf, VIEWER_UNKNOWN, directory, landingTag } from './protocol-ui.js';
 import {
   seesCalendar, sendsInvites, calendarEvents, byDay, weekDays, monthWeeks, rangeOf, shift, titleOf, todayKey, kindOf, wordsOf,
-  inviteFor, emailsOf, clientEmails, guestNames, dayOf, WEEKDAYS, OVERVIEW, weekPlan } from './calendar-view.js';
+  inviteFor, emailsOf, clientEmails, guestNames, dayOf, WEEKDAYS, OVERVIEW, weekPlan,
+  seesShootDays, salesMonth, salesDayText, salesCount, shootCountWords } from './calendar-view.js';
+import { supabase } from './supa.js';
 import { homeLink } from './shell-rules.js';
 import { TZ, dayFromKeyIL } from './tz.js';
 import { icon, iconSquare, dateLeaf, emptyRow } from './kit.js';
@@ -156,7 +158,69 @@ function monthView(days) {
       chosen.length ? eventList(chosen) : emptyRow({ icon: 'calendar', text: 'אין אירועים ביום הזה.' })));
 }
 
+// ── The field sales (22.11.2026; docs/ops.md, section 146) ──
+// Stav and whoever else is in SALES_CALENDAR: a month of days, taken by shoot days or free.
+// Dates and a count only, from public.sales_shoot_days: the page never holds a client.
+let sales = false;
+const salesRows = new Map(); // 'YYYY-MM' → rows of public.sales_shoot_days
+const salesAsked = new Set();
+async function loadSales(month) {
+  if (salesAsked.has(month)) return;
+  salesAsked.add(month);
+  const { first, last } = rangeOf('month', `${month}-01`);
+  const { data, error } = await supabase.rpc('sales_shoot_days', { p_from: first, p_to: last });
+  if (error) { salesAsked.delete(month); $('state').textContent = errorText(error); return; }
+  $('state').textContent = '';
+  salesRows.set(month, data || []);
+  render();
+}
+const SALES_TONE = { taken: 'pink', free: 'green', closed: 'gray', past: 'gray' };
+function salesView() {
+  const today = todayKey();
+  const month = anchor.slice(0, 7);
+  const rows = salesRows.get(month);
+  if (!rows) {
+    loadSales(month);
+    return h('p', { class: 'cp-count', role: 'status' }, 'טוען…');
+  }
+  const m = salesMonth(anchor, rows, today);
+  const keys = m.days.map((d) => d.key);
+  if (!selected || !keys.includes(selected)) selected = keys.includes(today) && today.startsWith(month) ? today : `${month}-01`;
+  const chosen = m.days.find((d) => d.key === selected);
+  const mark = (d) => {
+    if (d.state === 'taken' || (d.state === 'past' && d.n)) {
+      return h('span', { class: 'cp-sl', 'data-tone': 'pink' },
+        h('span', { class: 'cp-sl-long' }, shootCountWords(d.n)), h('span', { class: 'cp-sl-short' }, d.n > 1 ? `צילום ×${d.n}` : 'צילום'));
+    }
+    if (d.state === 'free') return h('span', { class: 'cp-sl', 'data-tone': 'green' }, 'פנוי');
+    return null;
+  };
+  const cell = (d) => h('button', {
+    type: 'button', class: `cp-cell cp-scell is-${d.state}${d.out ? ' is-out' : ''}${d.key === today ? ' is-today' : ''}`, 'data-day': d.key, 'data-state': d.state,
+    'aria-pressed': String(d.key === selected), 'aria-label': `${dayFmt.format(dayFromKeyIL(d.key))}: ${salesDayText(d)}`,
+    onclick: () => { selected = d.key; render(); document.querySelector(`.cp-cell[data-day="${d.key}"]`)?.focus(); },
+  }, h('span', { class: 'cp-num', 'aria-hidden': 'true' }, String(dayNum(d.key))), h('span', { 'aria-hidden': 'true' }, mark(d)));
+  return h('div', { class: 'cp-month cp-sales' },
+    h('p', { class: 'cp-count', role: 'status' }, salesCount(m)),
+    h('div', { class: 'cp-grid', role: 'group', 'aria-label': titleOf('month', anchor) },
+      WEEKDAYS.map((d) => h('span', { class: 'cp-wd', 'aria-hidden': 'true' }, d)),
+      m.days.map(cell)),
+    h('section', { class: 'cp-chosen', 'aria-labelledby': 'cp-chosen-h' },
+      h('div', { class: 'cp-chosen-head' }, leafOfDay(selected, today),
+        h('div', { class: 'cp-sday' },
+          h('h3', { id: 'cp-chosen-h' }, dayFmt.format(dayFromKeyIL(selected))),
+          h('p', { class: 'cp-sday-t', 'data-tone': SALES_TONE[chosen?.state] || 'gray' }, salesDayText(chosen))))));
+}
+function renderSales() {
+  $('cp-title').textContent = titleOf('month', anchor);
+  $('cp-prev').setAttribute('aria-label', 'החודש הקודם');
+  $('cp-next').setAttribute('aria-label', 'החודש הבא');
+  $('cp-today').disabled = anchor.slice(0, 7) === todayKey().slice(0, 7);
+  fill($('cp-view'), salesView());
+}
+
 function render() {
+  if (sales) return renderSales();
   const { from, until } = rangeOf(view, anchor);
   const list = calendarEvents({ viewer, clients, checks, tasks, from, until, site: site(), extra: googleEvents() });
   const days = byDay(list);
@@ -202,6 +266,16 @@ mountSession(async (staff) => {
   viewer = v;
   Object.assign(directory, await loadDirectory());
   if (v.error) { $('app').hidden = true; $('state').textContent = VIEWER_UNKNOWN; return; }
+  // The field sales of SALES_CALENDAR: the month of taken and free days, nothing else.
+  if (seesShootDays(v)) {
+    sales = true;
+    view = 'month';
+    $('cp-week').closest('.cp-views').hidden = true;
+    $('cp-lede').textContent = 'אילו ימים תפוסים בצילום ואילו פנויים, כדי לדעת מה להציע ללקוח.';
+    render();
+    setInterval(() => { if (!document.hidden) { salesAsked.delete(anchor.slice(0, 7)); loadSales(anchor.slice(0, 7)); } }, 120e3);
+    return;
+  }
   if (!seesCalendar(v)) {
     $('app').hidden = true;
     const home = homeLink(v);

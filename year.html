@@ -52,6 +52,8 @@
   <link rel="modulepreload" href="app/protocol-versions.js">
   <link rel="modulepreload" href="app/office-ui.js">
   <link rel="modulepreload" href="app/tz.js">
+  <link rel="modulepreload" href="app/content-month-ui.js">
+  <link rel="modulepreload" href="app/card-metricool.js">
   <link rel="modulepreload" href="app/catalog.js">
   <link rel="modulepreload" href="app/holidays.js">
   <link rel="modulepreload" href="app/supa.js">
@@ -74,6 +76,9 @@
   <link rel="modulepreload" href="app/shell-rules.js">
   <link rel="modulepreload" href="app/office-marks.js">
   <link rel="modulepreload" href="app/fast-ladder.js">
+  <link rel="modulepreload" href="app/gantt-data.js">
+  <link rel="modulepreload" href="app/content-month-logic.js">
+  <link rel="modulepreload" href="app/edit-count.js">
   <link rel="modulepreload" href="app/vendor/supabase.js">
   <link rel="modulepreload" href="app/data-cache.js">
   <link rel="modulepreload" href="app/feel.js">
@@ -84,6 +89,7 @@
   <link rel="modulepreload" href="app/contract-text.js">
   <link rel="modulepreload" href="app/characterization.js">
   <link rel="modulepreload" href="app/ask-logic.js">
+  <link rel="modulepreload" href="app/production.js">
   <link rel="modulepreload" href="app/access-nudge.js">
   <link rel="modulepreload" href="app/staff-notes-logic.js">
 </head>
@@ -130,6 +136,9 @@
         </div>
         <p class="of-banner is-warn yr-draft" id="yr-draft"><strong>המחזור החודשי הוא טיוטה</strong> — עד שיהיה פרוטוקול כתוב (החלטה 31). הפריטים, האחראים והמועדים הם הצעה של המערכת. אין בו פודקאסט.</p>
         <nav class="ctl-nav of-jump" aria-label="חלקי העמוד" id="yr-jump"></nav>
+
+        <!-- "תכנים מול החוזה" (app/content-month-ui.js; docs/ops.md, section 144): Ilai and the office. -->
+        <section class="block of-sec cmo" id="content" aria-labelledby="cmo-h" tabindex="-1" hidden></section>
 
         <section class="block of-sec" id="renewals" aria-labelledby="rn-h" tabindex="-1" hidden>
           <h2 class="wgroup-h" id="rn-h">חידושים ב־90 הימים הקרובים <span class="n" id="rn-n">0</span></h2>

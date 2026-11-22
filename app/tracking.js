@@ -113,7 +113,10 @@ function fillPeople() {
 function tile(name, tone, label, t) {
   return h('li', { class: 'ow-stat ct-stat' },
     h('span', { class: 'ow-stat-h' }, iconSquare(name, tone, { size: 'sm' }), h('span', { class: 'k' }, label)),
-    h('strong', { class: 'v ds-num' }, totalText(t)),
+    // "2140 מתוך 3417": the done number big, "מתוך …" smaller under it when the tile is narrow (a phone
+    // showed the two four-digit numbers spill out of the tiles, 22.11.2026). Same text as totalText.
+    h('strong', { class: 'v ds-num ct-total', 'aria-label': totalText(t) },
+      h('span', { class: 'ct-done' }, String(t.done)), ' ', h('span', { class: 'ct-of' }, `מתוך ${t.of}`)),
     h('span', { class: 'ct-stat-sub' }, t.clients === 1 ? 'לקוח אחד' : `${t.clients} לקוחות`));
 }
 function renderTotals() {

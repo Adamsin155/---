@@ -20,6 +20,8 @@ import { itemRow, saveMark, worksCycle } from './month-ui.js';
 import { PROTOCOL_HISTORY, versionOf } from './protocol-versions.js';
 import { officeLinks } from './office-ui.js';
 import { dayKeyIL } from './tz.js';
+import { mountContentList } from './content-month-ui.js';
+import { seesMetricool } from './card-metricool.js';
 // How many items a protocol version added: the gated ones and the ones added for every client.
 const newItems = (v) => (v.items?.length || 0) + (v.always?.length || 0);
 
@@ -84,10 +86,12 @@ function render() {
   $('renewals').hidden = !renew;
   if (renew) renderRenewals(now);
   renderMonths(now);
+  renderContent();
   $('versions').hidden = !seesVersions();
   if (seesVersions()) renderVersions();
   fill($('yr-jump'), h('ul', { class: 'chips-row' },
     renew ? h('li', {}, h('a', { class: 'chip', href: '#renewals' }, 'חידושים')) : null,
+    seesContent() ? h('li', {}, h('a', { class: 'chip', href: '#content' }, 'תכנים מול החוזה')) : null,
     h('li', {}, h('a', { class: 'chip', href: '#months' }, 'החודש של כל לקוח')),
     seesVersions() ? h('li', {}, h('a', { class: 'chip', href: '#versions' }, 'גרסאות הפרוטוקול')) : null));
 }
@@ -95,6 +99,20 @@ function keepFocus(fn) {
   const id = document.activeElement?.id;
   fn();
   if (id) document.getElementById(id)?.focus({ preventScroll: true });
+}
+
+// ── "תכנים מול החוזה" (22.11.2026; app/content-month-ui.js): Ilai and the office ──
+const seesContent = () => seesMetricool({ me, scope: viewer?.scope, error: viewer?.error });
+let contentList = null;
+function renderContent() {
+  $('content').hidden = !seesContent();
+  if (!seesContent()) return;
+  if (!contentList) {
+    contentList = mountContentList($('content'), { clients: () => clients });
+    contentList.reload().then(() => { if (location.hash === '#content') $('content').scrollIntoView({ block: 'start' }); });
+    return;
+  }
+  contentList.render();
 }
 
 // ── Renewals ────────────────────────────────

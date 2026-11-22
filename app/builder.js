@@ -56,8 +56,8 @@ let reviseId = null;
 const MCP_DRAFT = DEAL_PARAM || REVISE_PARAM ? {} : draftFromHash(location.hash);
 // "חוזה מותאם אישית" is the office's (the server refuses it from anyone else).
 let office = false;
-// "שינויים להצעה הזו" (the package's price and its name for this quote): the managers' (isManager
-// in app/manager-rules.js: the owners, Irit, Ofir, Lior); create-quote refuses them from anyone else.
+// "שינויים להצעה הזו" (the package's price and its name for this quote): the managers' and Amit's
+// (canEditQuote in app/manager-rules.js); create-quote refuses them from anyone else (public.can_edit_quotes()).
 let editor = false;
 // "הכנת חוזה עם AI" (the owner, 25.10.2026): the preparation that filled this contract,
 // { runId, marks }. `runId` (the contract-ai function's record) marks the contract "הוכן ע״י AI"
@@ -1362,7 +1362,7 @@ async function refreshSession() {
         // "חוזה מותאם אישית" is offered to the office only; "שינויים להצעה הזו" to the managers.
         const was = [office, editor];
         office = !v.error && v.scope === 'office';
-        editor = !v.error && rules.isManager(v);
+        editor = !v.error && rules.canEditQuote(v);
         if (office !== was[0] || editor !== was[1]) render();
       } catch { /* the menu could not be drawn; the server still decides who creates a quote */ }
     } else if (office || editor) { office = false; editor = false; render(); }

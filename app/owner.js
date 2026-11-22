@@ -30,7 +30,8 @@ import { canSeeInsights } from './insights.js';
 import { canSendMessages } from './messages-logic.js';
 import { TZ, dayKeyIL, dayFromKeyIL, daysBetweenIL } from './tz.js';
 // The manager profile (app/manager-rules.js): the table and the archive.
-import { canArchive, canPurge, canSeeTable, canSeeShootTable, seesFinance, sameName } from './manager-rules.js';
+import { canArchive, canPurge, canSeeTable, canSeeShootTable, seesFinance, sameName, isManager } from './manager-rules.js';
+import { mountContentList } from './content-month-ui.js';
 import {
   tableRow, columnsFor, filterRows, sortRows, filterOptions, toCsv, csvName, DEFAULT_FILTERS, dayText as dmy, moneyText,
 } from './manager-table.js';
@@ -198,7 +199,7 @@ function renderKeepingFocus() {
 }
 
 // ── Tabs ────────────────────────────────────
-const TABS = ['now', 'all', 'eod', 'work', 'table', 'shoots', 'archive'];
+const TABS = ['now', 'all', 'eod', 'work', 'table', 'shoots', 'content', 'archive'];
 const tabsShown = () => TABS.filter((t) => !$(`tab-${t}`).hidden);
 // The page's heading follows the tab.
 const VIEW_TITLES = {
@@ -208,6 +209,7 @@ const VIEW_TITLES = {
   work: ['עבודה לפי עובד', 'מה כל עובד עשה בכל יום. בוחרים עובד, ואז יום.'],
   table: ['כל הלקוחות בטבלה', 'שורה לכל לקוח: מה בחוזה, איפה הוא עומד, מה הבא ומה בוצע. מיון, סינון וייצוא.'],
   shoots: ['טבלת ימי צילום', 'כל הלקוחות הפעילים לפי יום הצילום האחרון שהתקיים: מי שצולם הכי מזמן למעלה, ומתחתם מי שטרם צולם.'],
+  content: ['תכנים מול החוזה', 'לכל לקוח: כמה תכנים עלו ומתוזמנים ב־Metricool החודש, מול מה שמגיע לו לפי החוזה. החסרים למעלה.'],
   archive: ['ארכיון', 'לקוחות שהועברו לארכיון: שחזור, או מחיקה לצמיתות.'],
 };
 // The chosen tab is brought whole into its row, which scrolls sideways on a phone when
@@ -256,6 +258,7 @@ function render() {
   else if (view === 'work') renderWork();
   else if (view === 'table') renderTable();
   else if (view === 'shoots') renderShoots();
+  else if (view === 'content') renderContent();
   else if (view === 'archive') renderArchive();
   else renderAll();
 }
@@ -895,6 +898,13 @@ $('purge-form').addEventListener('submit', async (e) => {
   $('ar-h').focus?.();
 });
 
+// ── "תכנים מול החוזה" (app/content-month-ui.js) ──
+let contentList = null;
+function renderContent() {
+  if (!contentList) { contentList = mountContentList($('view-content'), { clients: () => allClients }); contentList.reload(); return; }
+  contentList.render();
+}
+
 // ── Refresh ─────────────────────────────────
 $('btn-refresh').addEventListener('click', () => { archived = null; load(); });
 window.addEventListener('hashchange', () => {
@@ -948,6 +958,8 @@ mountSession(async (staff) => {
   $('tab-eod').hidden = !mayEod;
   $('tab-work').hidden = !canSeeWorkHistory(v);
   $('tab-archive').hidden = !mayArchive;
+  // "תכנים מול החוזה" (22.11.2026): the owner and the managers (Irit, Ofir, Lior).
+  $('tab-content').hidden = !isManager(v);
   $('ow-tabs').hidden = tabsShown().length < 2;
   // Someone with a person of their own goes back to their own tasks; the owner to the team's work.
   if (v.me) $('link-work').textContent = 'המשימות שלי';
@@ -970,7 +982,7 @@ mountSession(async (staff) => {
 function dressOwner() {
   for (const [hid, name, tone] of [['rows-h', 'alert', 'pink'], ['ans-h', 'chat', 'blue'], ['board-h', 'calendar', 'blue'], ['eod-items-h', 'clock', 'orange'], ['ar-h', 'archive', 'navy'],
     ['na-h', 'lock', 'navy'], ['landing-h', 'inbox', 'teal'], ['wk-h', 'chart', 'purple'], ['approvals-h', 'sign', 'orange']]) headIcon($(hid), name, tone);
-  for (const [tid, name] of [['tab-now', 'alert'], ['tab-all', 'grid'], ['tab-eod', 'clock'], ['tab-table', 'table'], ['tab-shoots', 'camera'], ['tab-archive', 'archive']]) leadIcon($(tid), name);
+  for (const [tid, name] of [['tab-now', 'alert'], ['tab-all', 'grid'], ['tab-eod', 'clock'], ['tab-table', 'table'], ['tab-shoots', 'camera'], ['tab-content', 'chart'], ['tab-archive', 'archive']]) leadIcon($(tid), name);
   besideIcon($('eod-head'), 'clock', 'orange');
   const empty = $('ow-empty');
   if (empty && !empty.querySelector('.k-svg')) { empty.classList.add('k-emptyrow'); empty.prepend(kIcon('check-circle', { size: 20 })); }
