@@ -15,7 +15,7 @@
 //     (Stav; Lior's request, approved by the owner on 22.11.2026) get the page in its own,
 //     smaller form: a month of days, each taken by shoot days (and how many) or free, from
 //     public.sales_shoot_days, which answers dates and a count only (seesShootDays,
-//     salesMonth below; docs/ops.md, section 144).
+//     salesMonth below; docs/ops.md, section 146).
 // The clients come in through the signed-in client, so the database (RLS) has already cut
 // them to what this person may see; the feed's own rule (visibleTo) agrees with it.
 // Dates are Israel days (app/tz.js), whatever the device's zone; the week starts on Sunday.

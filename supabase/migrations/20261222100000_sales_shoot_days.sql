@@ -1,12 +1,12 @@
 -- The field sales see which days are taken by shoot days (Lior's request, approved by the
 -- owner on 22.11.2026: "שלכל אנשי המכירות יהיה גישה ליומן, שיראו מתי יש ימי צילום";
--- docs/ops.md, section 144). The sales read no client at all (no row of public.clients
+-- docs/ops.md, section 146). The sales read no client at all (no row of public.clients
 -- reaches them), so the calendar page cannot build these days from the clients as it does
 -- for everyone else. This function hands them dates and a count only: no client, no hour,
 -- no address, no influencer, no characterization meeting.
 --
 --   public.sales_calendar_people()     the people who get it: Stav. One line to add another
---                                      (and the same list in app/calendar-view.js,
+--                                      (and the same list in app/protocol.js,
 --                                      SALES_CALENDAR; tests/sales-calendar.test.mjs).
 --   public.sales_shoot_days(from, to)  { day, n }: every shoot day of an active or ending
 --                                      client, its main one and every round's, in Israel

@@ -310,7 +310,7 @@ export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'ow
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
 // The field sales who see which days are taken by shoot days on "יומן" (Lior's request,
-// approved by the owner on 22.11.2026; docs/ops.md, section 144): dates and a count only,
+// approved by the owner on 22.11.2026; docs/ops.md, section 146): dates and a count only,
 // from public.sales_shoot_days, never a client. One line to add another; the database keeps
 // the same list (public.sales_calendar_people(), 20261222100000_sales_shoot_days.sql).
 export const SALES_CALENDAR = ['stav'];

@@ -158,7 +158,7 @@ function monthView(days) {
       chosen.length ? eventList(chosen) : emptyRow({ icon: 'calendar', text: 'אין אירועים ביום הזה.' })));
 }
 
-// ── The field sales (22.11.2026; docs/ops.md, section 144) ──
+// ── The field sales (22.11.2026; docs/ops.md, section 146) ──
 // Stav and whoever else is in SALES_CALENDAR: a month of days, taken by shoot days or free.
 // Dates and a count only, from public.sales_shoot_days: the page never holds a client.
 let sales = false;

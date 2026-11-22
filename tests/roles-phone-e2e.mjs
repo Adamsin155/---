@@ -448,7 +448,7 @@ await step('Eli lands on "ימי הצילום שלי", with tomorrow\'s shoots',
 });
 
 // ── Stav ──────────────────────────────────
-await step('Stav lands on "עסקה חדשה", sees his deals, and is offered only "שאלו את המערכת" besides', async () => {
+await step('Stav lands on "עסקה חדשה", sees his deals, and is offered only "יומן" and "שאלו את המערכת" besides', async () => {
   const { page } = await open('stav');
   await page.waitForURL(/deal\.html/);
   await settle(page);
@@ -456,9 +456,9 @@ await step('Stav lands on "עסקה חדשה", sees his deals, and is offered on
   await tidy(page, 'stav');
   assert.match(await page.innerText('main'), /העסקאות שלי[^]*מאפיית השכונה[^]*ממתין לחוזה[^]*סלון יופי לילך[^]*חוזה נשלח/);
   assert.equal(await page.locator('.page-head .head-actions a:visible, header.topbar nav a:visible').count(), 0);
-  // His deals and the bot (29.10.2026): both in the bar.
-  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['עסקה חדשה', 'שאלו']);
-  assert.equal(await page.locator('#app-side .side-link').count(), 2);
+  // His deals and the bot (29.10.2026), and "יומן" (22.11.2026: which days are taken by shoot days): all in the bar.
+  assert.deepEqual(await page.locator('#side-list .side-link:visible').allInnerTexts(), ['עסקה חדשה', 'יומן', 'שאלו']);
+  assert.equal(await page.locator('#app-side .side-link').count(), 3);
   assert.ok((await page.locator('#deal-submit, .deal-submit').first().boundingBox()).height >= 44);
   await shot(page, 'stav-01-deal');
   await page.goto(`${BASE}clients.html#mine`);
