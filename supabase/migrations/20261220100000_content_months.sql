@@ -55,7 +55,7 @@ language sql stable security invoker set search_path = '' as $$
       from per_content c
      group by c.client_id, to_char(c.day, 'YYYY-MM')
   )
-  select f.client_id, f.first_month, m.month, coalesce(m.posted, 0), coalesce(m.planned, 0)
+  select f.client_id, f.first_month, m.month, coalesce(m.posted, 0) as posted, coalesce(m.planned, 0) as planned
     from firsts f left join per_month m on m.client_id = f.client_id
    order by f.client_id, m.month;
 $$;
