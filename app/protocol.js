@@ -308,6 +308,12 @@ export const isSilent = (person) => SILENT_PEOPLE.includes(person);
 export const SCOPE = { irit: 'office', lior: 'office', ofir: 'office', ilai: 'own', nirel: 'own', nadia: 'own', yariv: 'own', anna: 'own', eli: 'own', amit: 'own', shiel: 'own', stav: 'sales', amos: 'sales', tal: 'makeup', gal: 'bookkeeper' };
 export const scopeOf = (person) => (person ? SCOPE[person] || 'own' : 'office');
 export const isSales = (person) => !!PEOPLE[person]?.sales;
+// The field sales who see which days are taken by shoot days on "יומן" (Lior's request,
+// approved by the owner on 22.11.2026; docs/ops.md, section 146): dates and a count only,
+// from public.sales_shoot_days, never a client. One line to add another; the database keeps
+// the same list (public.sales_calendar_people(), 20261222100000_sales_shoot_days.sql).
+export const SALES_CALENDAR = ['stav'];
+export const seesShootDaysOnly = (person) => isSales(person) && SALES_CALENDAR.includes(person);
 // Who receives graphics tasks (`graphics` above: Ilai and Nirel, 17.11.2026). A task given to one
 // of them about graphics closes by itself when the work shows (app/gfx-auto-logic.js). The same
 // list is in public.staff_task_create_brief (20261216100000_gfx_auto.sql).

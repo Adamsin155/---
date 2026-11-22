@@ -7,7 +7,7 @@
 //  - "שליחת זימון" opens Google Calendar with the right guests (the client when the
 //    agreement has their email, the characterizer; Lior and Eli on a shoot day), the one
 //    line about Google under the first one only, and only for the office;
-//  - an editor sees only her own work, Eli his shoot days, the field sales no page;
+//  - an editor sees only her own work, Eli his shoot days, Stav no event (her month of taken days: tests/sales-calendar-e2e.mjs);
 //  - 390px and 1366px, no side scroll, 44px targets;
 //  - her own Google Calendar (the owner, 21.10.2026): its events in grey with a "Google"
 //    tag, "לקבוע במערכת…?" under a matched meeting or shoot day (saved as the "קביעת מועד"
@@ -369,15 +369,12 @@ try {
     await eli.ctx.close();
   });
 
-  await step('the field sales have no calendar: not in the menu, and the page sends them home', async () => {
+  // Stav has her own calendar since 22.11.2026: only taken and free days (tests/sales-calendar-e2e.mjs).
+  await step('Stav: no event of a client on the calendar, only the month of taken and free days', async () => {
     const { page, ctx } = await signedIn('stav');
-    await page.waitForURL(/deal\.html|calendar\.html/);
     await settle(page);
-    if (/calendar\.html/.test(page.url())) {
-      assert.equal(await page.locator('#app').isHidden(), true);
-      assert.match(await text(page.locator('#state')), /אין לך גישה/);
-    }
-    assert.equal(await page.locator('a[href="calendar.html"]:visible').count(), 0);
+    assert.equal(await page.locator('#cp-view .cp-ev').count(), 0);
+    assert.equal(await page.locator('.cp-views').isHidden(), true);
     await ctx.close();
   });
 

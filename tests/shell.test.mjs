@@ -45,7 +45,10 @@ test('everything each role may open, in one order', () => {
   for (const editor of ['nirel', 'nadia', 'yariv', 'anna']) assert.deepEqual(ids(v(editor)), ['mine', 'clients', 'editor', 'calendar', 'ask'], editor);
   assert.deepEqual(ids(v('eli')), ['mine', 'clients', 'shoot', 'calendar', 'ask']);
   // The field agents: their own page, and the bot (29.10.2026).
-  for (const sales of ['stav', 'amos']) assert.deepEqual(menuOf(v(sales)), [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, { id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' }]);
+  // Stav also has "יומן" since 22.11.2026: which days are taken by shoot days (SALES_CALENDAR).
+  const ASK = { id: 'ask', href: 'ask.html', label: 'שאלו את המערכת', short: 'שאלו' };
+  assert.deepEqual(menuOf(v('stav')), [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, { id: 'calendar', href: 'calendar.html', label: 'יומן' }, ASK]);
+  assert.deepEqual(menuOf(v('amos')), [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, ASK]);
   // Someone the app could not identify is offered only their own work.
   assert.deepEqual(ids({ me: null, scope: 'own', error: new Error('x') }), ['mine']);
   assert.deepEqual(ids(null), ['mine']);
@@ -245,8 +248,9 @@ test('the phone\'s bar: the role\'s three screens and "עוד"; four or fewer al
   assert.deepEqual(bar(v('nadia')), [['mine', 'clients', 'editor', 'calendar'], 1]);
   assert.deepEqual(bar(v('eli')), [['mine', 'clients', 'shoot', 'calendar'], 1]);
   assert.deepEqual(barOf(menuOf(v('nadia')), v('nadia')).more.map((it) => it.id), ['ask']);
-  // The field sales: their deals and the bot, both in the bar.
-  assert.deepEqual(bar(v('stav')), [['deal', 'ask'], 0]);
+  // The field sales: their deals, Stav's calendar (22.11.2026) and the bot, all in the bar.
+  assert.deepEqual(bar(v('stav')), [['deal', 'calendar', 'ask'], 0]);
+  assert.deepEqual(bar(v('amos')), [['deal', 'ask'], 0]);
   // Four screens all fit in the bar.
   const four = profileMenu(OWNER, 'mine');
   assert.equal(four.length, 4);
