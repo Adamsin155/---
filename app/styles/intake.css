@@ -315,7 +315,7 @@ details.pp-sub[open] > summary.pp-sum::after { transform: rotate(-135deg); }
 
 /* "עם מי מצלמים" once it is set (25.10.2026): one line, and "שינוי". */
 .pp-shoot-line { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.pp-shoot-line .btn-text { min-height: 36px; }
+.pp-shoot-line .btn-text { min-height: 44px; } /* 44: a finger on a phone (worst-case sweep, 22.11.2026) */
 
 /* "אפיון חדש" (27.10.2026): the client picked from a list, every row one big tap. */
 .pk-card .field { margin-bottom: 4px; }

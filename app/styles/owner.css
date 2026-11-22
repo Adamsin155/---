@@ -127,7 +127,9 @@
 .ga-row:hover { background: var(--row-hover); }
 .ga-row:focus-visible { outline: 2.5px solid var(--ds-navy-2); outline-offset: -3px; }
 .ga-l1 { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 10px; color: var(--text); }
-.ga-name { font-size: 15.5px; font-weight: 600; }
+.ga-name { font-size: 15.5px; font-weight: 600; overflow-wrap: anywhere; min-width: 0; }
+/* A long unbroken name (an English name with no spaces) breaks inside the row instead of going out of it (worst-case sweep, 22.11.2026). */
+.ga-row > *, .ga-l1 > * { min-width: 0; }
 .ga-why { font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
 .ga-l2 { font-size: 13.5px; color: var(--text-2); padding-inline-start: 24px; overflow-wrap: anywhere; }
 .ga-row[aria-expanded='true'] .ga-l2::after { content: ''; }
