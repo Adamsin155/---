@@ -133,7 +133,7 @@
 .pipe { padding: 12px; border-radius: var(--ds-r-item); background: var(--ds-surface); }
 .pipe-h.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; justify-items: start; gap: 2px 12px; margin-bottom: 10px; }
 .pipe-h.has-leaf > .k-leaf { grid-column: 1; grid-row: 1 / span 3; inline-size: 56px; align-self: start; }
-.pipe-h.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; }
+.pipe-h.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; letter-spacing: -.03em; } /* "15.12" fits the 56px leaf in Safari too (worst-case sweep, 22.11.2026) */
 .pipe-h.has-leaf > :not(.k-leaf) { grid-column: 2; }
 .pipe-h .wclient { font-weight: 700; font-size: 15.5px; }
 .pipe-h > .muted { color: var(--ds-ink-2); font-size: 14px; }
