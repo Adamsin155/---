@@ -39,6 +39,10 @@
 @media (max-width: 380px) {
   #cc-head .cc-facts .fact { padding: 10px 12px; }
 }
+/* iPhone SE: an international phone number (+972-50-1234567) fits its half without touching the line (worst-case sweep, 22.11.2026). */
+@media (max-width: 340px) {
+  #cc-head .cc-facts .fact { padding-inline: 8px; }
+}
 
 /* ── The small heads inside the head card take the kit's square like the blocks below ── */
 #cc-head .deliv-head h2, #cc-head .cs-head h2 { font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; }

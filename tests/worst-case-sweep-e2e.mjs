@@ -53,7 +53,7 @@ const PAGES = [
   ['owner', 'index.html'],
   ['owner', 'team.html'],
   ['owner', 'payments.html'],
-  ['owner', 'payouts/'],
+  // payouts/ has its own sign-in and its own worst-case sweep: tests/payouts-sweep.mjs.
   ['owner', 'insights.html'],
   ['owner', 'calendar.html'],
   ['owner', 'ask.html'],
