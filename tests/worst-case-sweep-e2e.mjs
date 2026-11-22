@@ -26,7 +26,7 @@ import { chromium, webkit, devices } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { NOW, SUPA, emailOf, makeFlowFake, cid } from './late-world.mjs';
-import { worstWorld, LONG_BUSINESS, LONG_NAME, UNBROKEN } from './worst-world.mjs';
+import { world, extraRoutes } from './worst-case-data.mjs';
 
 const BASE = process.env.BASE_URL || 'http://localhost:8481/';
 const SHOTS = process.env.SHOTS === '1' && !!process.env.SHOTS_OUT;
@@ -34,53 +34,6 @@ const OUT = `${String(process.env.SHOTS_OUT || '').replace(/[\\/]+$/, '')}/`;
 if (SHOTS) mkdirSync(OUT, { recursive: true });
 const ONLY = process.env.ONLY || '';
 const SIZES_ONLY = process.env.SIZES ? process.env.SIZES.split(',') : null;
-const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
-
-// ── The data ─────────────────────────────────────────────────────────────────────────────
-function world() {
-  const db = worstWorld();
-  for (const [i, c] of db.clients.entries()) {
-    c.deliverables = {
-      ...(c.deliverables || {}), videos: 99, graphics: 99, shoot_days: 12,
-      tracking: {
-        ...(c.deliverables?.tracking || {}),
-        videos: { done: i % 4 === 0 ? 9999 : 2140, by: 'irit', at: '2026-10-19T09:00:00+03:00', auto: { done: 48, of: 99 } },
-        graphics: { done: i % 4 === 1 ? 9999 : 1367, by: 'irit', at: '2026-10-19T09:00:00+03:00', auto: { done: 30, of: 99 } },
-        shoots: { agreed: 12, held: 11, by: 'irit', at: '2026-10-19T09:00:00+03:00' },
-      },
-    };
-    c.contract_end ||= '2027-10-11';
-    c.metricool_blog_id ||= 1000 + i;
-  }
-  const at = (d) => new Date(NOW.getTime() - d * 864e5).toISOString();
-  db.quotes = Array.from({ length: 40 }, (_, i) => ({
-    id: `f0000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`, token: `t${i}`, number: `AST-2026-${String(9000 + i)}`,
-    client_name: i % 3 === 0 ? LONG_NAME : i % 3 === 1 ? UNBROKEN : 'לקוח',
-    monthly_gross_agorot: 81537528, term_gross_agorot: 978450336, created_at: at(i % 18), created_by_email: emailOf(i % 2 ? 'irit' : 'owner'),
-    status: ['sent', 'signed', 'expired'][i % 3], first_viewed_at: i % 2 ? at(1) : null, signed_at: i % 3 === 1 ? at(i % 18) : null, signer_name: LONG_NAME,
-    tier: 'Social + TV all in one', influencer: 'סמיון, מישל ודניס', doc: 'הסכם התקשרות', signable: 'true', expires_at: new Date(NOW.getTime() + 7 * 864e5).toISOString(),
-    phone: '+972-50-1234567', approval: 'none', approval_by: null, approval_note: null, approval_at: null, term: '12', valid: '168',
-    company: i % 2 ? LONG_BUSINESS : UNBROKEN, email: 'x@example.test', prepared_by: null, exceptions: null,
-    model: { client: { company: LONG_BUSINESS, phone: '+972-50-1234567' }, package: { tierName: 'Social + TV all in one', influencer: 'סמיון, מישל ודניס' }, docTitle: 'הסכם התקשרות', signable: true, termMonths: 12, validHours: 168 },
-  }));
-  return db;
-}
-// The functions the fake world does not answer, with big numbers.
-function extraRoutes(db) {
-  return async (r) => {
-    const p = new URL(r.request().url()).pathname;
-    const json = async (data) => { await r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data), headers: CORS }); return true; };
-    if (p === '/rest/v1/rpc/content_months') {
-      const rows = [];
-      for (const c of db.clients.slice(0, 50)) for (const month of ['2026-09', '2026-10', '2026-11']) rows.push({ client_id: c.id, first_month: '2026-01', month, posted: 999, planned: 1234 });
-      return json(rows);
-    }
-    if (p === '/rest/v1/rpc/sales_shoot_days') {
-      return json(Array.from({ length: 20 }, (_, i) => ({ day: `2026-10-${String(i + 1).padStart(2, '0')}`, n: (i % 4) + 1 })));
-    }
-    return null;
-  };
-}
 
 // ── The pages: [person, path, tab to click (optional)] ──────────────────────────────────────
 const C12 = cid(12);
@@ -175,7 +128,17 @@ function audit({ phone }) {
     const full = [...range.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0.5);
     const rects = full.map(seen).filter(Boolean);
     if (!rects.length) continue;
-    const box = el.closest(BOX);
+    // The box the text must stay in: the nearest tile/card/chip/button, or the nearest thing that is
+    // drawn as a box (a background, a border or a shadow), whichever is closer.
+    let painted = null;
+    for (let e = el; e && e !== document.body && e !== document.documentElement; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      const bg = s.backgroundColor && !/rgba\(0, 0, 0, 0\)|transparent/.test(s.backgroundColor);
+      const bd = ['Top', 'Right', 'Bottom', 'Left'].some((k) => parseFloat(s[`border${k}Width`]) > 0 && s[`border${k}Style`] !== 'none' && !/rgba\(0, 0, 0, 0\)|transparent/.test(s[`border${k}Color`]));
+      if ((bg || bd || s.boxShadow !== 'none') && s.display !== 'inline') { painted = e; break; }
+    }
+    const tagged = el.closest(BOX);
+    const box = tagged && painted ? (tagged.contains(painted) ? painted : tagged) : tagged || painted;
     texts.push({ el, rects, fixed: fixedUp(el), t: n.nodeValue.trim().slice(0, 40) });
     if (box && shown(box)) {
       const b = box.getBoundingClientRect();
@@ -200,7 +163,9 @@ function audit({ phone }) {
     }
   }
   if (de.scrollWidth > window.innerWidth + 1) {
-    const wide = [...document.body.querySelectorAll('*')].filter((e) => shown(e) && e.getBoundingClientRect().right > window.innerWidth + 1 && !scrollerUp(e.parentElement, null)).slice(-1)[0];
+    // Right to left, what is too wide sticks out on the left: the deepest such element names it.
+    const out1 = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && (r.right > window.innerWidth + 1 || r.left < -1); };
+    const wide = [...document.body.querySelectorAll('*')].filter((e) => shown(e) && out1(e) && !scrollerUp(e.parentElement, null) && getComputedStyle(e).position !== 'fixed').slice(-1)[0];
     out.push({ kind: 'sideways', where: wide ? label(wide) : '', text: '', by: de.scrollWidth - window.innerWidth });
   }
   if (phone) {

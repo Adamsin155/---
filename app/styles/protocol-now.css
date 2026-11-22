@@ -36,6 +36,9 @@
 .now-what { font-size: 14.5px; font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
 .now-meta { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
 .now-body .pchips { margin-top: 4px; }
+/* A long name with no spaces breaks inside the row (Safari otherwise drew it out of the card; worst-case sweep, 22.11.2026). */
+.now-body > * { min-width: 0; max-width: 100%; }
+.now-client { overflow-wrap: anywhere; }
 
 /* Ran out: red, and in words. */
 .now-clock[data-state='expired'] { background: var(--late-soft); border-color: color-mix(in srgb, var(--late) 45%, var(--line)); }
