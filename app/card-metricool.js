@@ -6,6 +6,7 @@
 // before their migrations the line is not shown. docs/ops.md, section 27.
 import { supabase } from './supa.js';
 import { loadBrands, loadNoBrand } from './gantt-data.js';
+import { rangeOf } from './content-month-logic.js';
 
 // Who sees the line: the office (the owners, Irit, Lior, Ofir) and Ilai.
 export const seesMetricool = ({ me = null, scope = 'own', error = null } = {}) => !error && (scope === 'office' || me === 'ilai');
@@ -26,12 +27,22 @@ export function metricoolWords({ brand, none = false, failed = 0 } = {}) {
 
 // The client's brand, the "no brand" mark and how many of its Gantt's entries failed.
 export async function loadMetricool(clientId) {
-  const [brands, none, failed] = await Promise.all([
+  const [brands, none, failed, content] = await Promise.all([
     loadBrands(clientId).catch(() => undefined),
     loadNoBrand(clientId),
     countFailed(clientId),
+    loadContentMonths(clientId),
   ]);
-  return { brand: brands === undefined ? undefined : brands[clientId] || { blogId: null, brand: null }, none, failed };
+  return { brand: brands === undefined ? undefined : brands[clientId] || { blogId: null, brand: null }, none, failed, content };
+}
+// The contents of last, this and next month against the contract (22.11.2026; app/content-month-logic.js):
+// public.content_months rows of this client ([] when it has none), or undefined before the migration.
+export async function loadContentMonths(clientId = null, now = new Date()) {
+  const { from, to } = rangeOf(now);
+  try {
+    const { data, error } = await supabase.rpc('content_months', { p_from: from, p_to: to, p_client: clientId });
+    return error ? undefined : data || [];
+  } catch { return undefined; }
 }
 async function countFailed(clientId) {
   try {
