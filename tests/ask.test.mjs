@@ -371,7 +371,7 @@ test('the function: a how-to goes to app_guide, with the guide of whoever asked 
   assert.ok(owner.guide.howto.some((h) => /סיכום היום/.test(h.path)));
   // A field agent: the deal page and the bot, nothing else.
   const stav = await guideOfReply('stav', false, 'איך שולחים עסקה?');
-  assert.deepEqual(stav.guide.mine.map((s) => s.id), ['deal', 'ask']);
+  assert.deepEqual(stav.guide.mine.map((s) => s.id), ['deal', 'calendar', 'ask']); // "יומן" since 22.11.2026
   assert.match(stav.first, /שואל: סתיו/);
 });
 

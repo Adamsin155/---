@@ -82,8 +82,11 @@ test('no leaks: a screen or a how-to is in a guide only when the person has its 
   assert.ok(!qs(ilai).includes('איך מוסיפים לקוח חדש?'));
   for (const s of ['stav', 'amos']) {
     const g = guideOf(v(s));
-    assert.deepEqual(ids(g.mine), ['deal', 'ask'], s);
-    assert.deepEqual(qs(g), ['איך שולחים עסקה חדשה?'], s);
+    // Stav's "יומן" (22.11.2026): which days are taken by shoot days, and nothing of a client.
+    const cal = s === 'stav';
+    assert.deepEqual(ids(g.mine), cal ? ['deal', 'calendar', 'ask'] : ['deal', 'ask'], s);
+    assert.deepEqual(qs(g), cal ? ['איפה רואים אילו ימים פנויים לצילום?', 'איך שולחים עסקה חדשה?'] : ['איך שולחים עסקה חדשה?'], s);
+    if (cal) assert.match(g.mine.find((x) => x.id === 'calendar').what, /בלי פרטי לקוחות/);
     assert.equal(g.client_pages, undefined, s);
   }
   // The other roles: what is not theirs is not in their guide.
@@ -165,7 +168,7 @@ test('the tool app_guide: the caller\'s guide, reads nothing, keeps nothing of o
   assert.deepEqual(nadia.manager, []);
   assert.ok(!JSON.stringify(nadia).includes('owner.html'));
   const stav = await run(v('stav'), {});
-  assert.deepEqual(ids(stav.mine), ['deal', 'ask']);
+  assert.deepEqual(ids(stav.mine), ['deal', 'calendar', 'ask']);
   assert.equal(raw.reads.length, 0, 'the guide reads nothing');
   // Without a viewer (never from the function): an error line, not someone else's guide.
   assert.match((await run(undefined, {})).error, /אין מדריך/);

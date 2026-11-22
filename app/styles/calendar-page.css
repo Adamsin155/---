@@ -111,3 +111,28 @@
   .cp-more { align-self: flex-start; font-size: 12px; padding-inline: 6px; }
 }
 @media print { .cp-bar, .cp-inv { display: none; } .cp-day, .cp-ev, .cp-cell { box-shadow: none; border: 1px solid #999; } }
+
+/* The field sales' month (22.11.2026; docs/ops.md, section 144): each day taken by shoot days
+   (pink, with how many) or free (green); weekends, holidays and the days that passed quiet.
+   The word is always there: the colour is never the only carrier. */
+.cp-sl { display: inline-block; max-inline-size: 100%; padding: 2px 6px; border-radius: 6px; background: var(--k-bg); color: var(--k-fg);
+  font-size: 11.5px; line-height: 1.35; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-sl-long { display: none; }
+.cp-scell.is-closed { background: transparent; color: var(--ds-muted); }
+.cp-scell.is-closed .cp-num { font-weight: 400; }
+.cp-scell.is-past { color: var(--ds-muted); }
+.cp-scell.is-past .cp-sl { opacity: .55; }
+.cp-scell.is-taken { background: var(--k-pink-soft); }
+.cp-scell.is-taken .cp-sl { background: var(--ds-surface); }
+.cp-scell.is-out .cp-sl { opacity: .5; }
+.cp-sday { display: grid; gap: 4px; min-width: 0; }
+.cp-sday-t { margin: 0; font-size: 15px; font-weight: 600; color: var(--ds-ink); }
+.cp-sday-t[data-tone='pink'] { color: var(--k-pink); }
+.cp-sday-t[data-tone='green'] { color: var(--k-green); }
+.cp-sday-t[data-tone='gray'] { color: var(--ds-muted); }
+@media (min-width: 900px) {
+  .cp-scell { min-height: 84px; }
+  .cp-sl { align-self: flex-start; font-size: 12.5px; padding: 3px 8px; }
+  .cp-sl-long { display: inline; }
+  .cp-sl-short { display: none; }
+}

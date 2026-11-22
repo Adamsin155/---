@@ -10,7 +10,7 @@
 // modules (tests/shell.test.mjs holds them equal for every role).
 // Screens only: what anyone may read or open is decided by the database and by each
 // page's own gate. No DOM here, so node can test it.
-import { PEOPLE, isSales, isMakeup, isBookkeeper } from './protocol.js';
+import { PEOPLE, isSales, isMakeup, isBookkeeper, seesShootDaysOnly } from './protocol.js';
 import { isOwnerView, canManageTeam } from './team-rules.js';
 import { canAsk } from './ask-logic.js';
 import {
@@ -84,7 +84,11 @@ const ASK_ITEM = { id: 'ask', href: 'ask.html', label: 'שאלו את המערכ
 export function menuOf(viewer) {
   const me = viewer?.me || null;
   // The field sales: their deals, and "שאלו את המערכת" (everyone on the staff since 29.10.2026).
-  if (known(viewer) && isSales(me)) return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' }, ASK_ITEM];
+  // "יומן" for those in SALES_CALENDAR (22.11.2026): only which days are taken by shoot days.
+  if (known(viewer) && isSales(me)) {
+    return [{ id: 'deal', href: 'deal.html', label: 'עסקה חדשה' },
+      ...(seesShootDaysOnly(me) ? [{ id: 'calendar', href: 'calendar.html', label: 'יומן' }] : []), ASK_ITEM];
+  }
   // Natali's makeup artist (15.11.2026; docs/ops.md, section 133): her one screen, and nothing else.
   if (known(viewer) && isMakeup(me)) return [MAKEUP_ITEM];
   // The bookkeeper (16.11.2026; docs/ops.md, section 137): her one screen, and nothing else.

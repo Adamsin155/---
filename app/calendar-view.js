@@ -11,7 +11,11 @@
 //     stay on "המשימות שלי", so the week is meetings;
 //   - everyone else sees their own feed: Eli his shoot days (in his window), an editor
 //     the deadlines of her work and her tasks, Ilai his;
-//   - the field sales have no client work: no page (seesCalendar).
+//   - the field sales have no client work: no events (seesCalendar). Those in SALES_CALENDAR
+//     (Stav; Lior's request, approved by the owner on 22.11.2026) get the page in its own,
+//     smaller form: a month of days, each taken by shoot days (and how many) or free, from
+//     public.sales_shoot_days, which answers dates and a count only (seesShootDays,
+//     salesMonth below; docs/ops.md, section 144).
 // The clients come in through the signed-in client, so the database (RLS) has already cut
 // them to what this person may see; the feed's own rule (visibleTo) agrees with it.
 // Dates are Israel days (app/tz.js), whatever the device's zone; the week starts on Sunday.
@@ -19,7 +23,8 @@
 // The person's own Google Calendar comes in beside these (app/gcal-page.js; the owner,
 // 21.10.2026) as more events of the same shape ({ uid, kind: 'google', title, start,
 // minutes | end | allDay }) through `extra` below.
-import { PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSales, shootTypeName, characterizerOf } from './protocol.js';
+import { PEOPLE, SHOOT_TYPES, PHOTOGRAPHERS, isSales, shootTypeName, characterizerOf, seesShootDaysOnly } from './protocol.js';
+import { isBusinessDay } from './protocol-logic.js';
 import { feedEvents, OWNER, shootMinutes } from './calendar-feed.js';
 import { googleCalendarUrl, cleanGuests } from './calendar.js';
 import { TZ, dayKeyIL, dayFromKeyIL, dateIL, partsIL, weekdayIL } from './tz.js';
@@ -54,6 +59,48 @@ export const todayKey = (now = new Date()) => dayKeyIL(now);
 // The Sunday of the week of a day.
 export const weekStart = (key) => addDays(key, -weekdayIL(dateIL(...split(key), 12)));
 export const weekDays = (key) => { const first = weekStart(key); return Array.from({ length: 7 }, (_, i) => addDays(first, i)); };
+
+// ── The field sales: taken or free (22.11.2026) ──
+// Only the people of SALES_CALENDAR (app/protocol.js), and never anyone who has the full page.
+export const seesShootDays = (v) => known(v) && !seesCalendar(v) && seesShootDaysOnly(v.me);
+// "יום צילום" / "2 צילומים": the words of a taken day.
+export const shootCountWords = (n) => (n === 1 ? 'יום צילום' : `${n} צילומים`);
+// Every day of a month's grid for the sales. `rows`: public.sales_shoot_days ({ day, n }).
+//   state  'taken' (a shoot is set), 'free' (a business day with none), 'closed' (Friday,
+//          Saturday or a holiday: no shoot is set then), 'past' (before today; `n` still says
+//          whether there was one).
+//   out    a day of the months around it, drawn quietly.
+export function salesMonth(key, rows = [], today = todayKey()) {
+  const counts = {};
+  for (const r of rows) {
+    const k = String(r?.day ?? '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k)) counts[k] = (counts[k] || 0) + (Number(r.n) || 0);
+  }
+  const { month, weeks } = monthWeeks(key);
+  const days = weeks.flat().map((k) => {
+    const n = counts[k] || 0;
+    const state = k < today ? 'past' : n ? 'taken' : isBusinessDay(dateIL(...split(k), 12)) ? 'free' : 'closed';
+    return { key: k, n, state, out: !k.startsWith(month) };
+  });
+  return { month, weeks: weeks.length, days };
+}
+// The sentence under the grid for the chosen day.
+export function salesDayText(day) {
+  if (!day) return '';
+  if (day.state === 'taken') return day.n === 1 ? 'יש יום צילום ביום הזה.' : `יש ${day.n} צילומים ביום הזה.`;
+  if (day.state === 'free') return 'פנוי: אין צילום ביום הזה.';
+  if (day.state === 'closed') return 'סוף שבוע או חג: אין צילומים ביום הזה.';
+  return day.n ? 'היום הזה עבר. היה בו צילום.' : 'היום הזה עבר.';
+}
+// The month's line: how many days are taken and how many business days are still free.
+export function salesCount(month) {
+  const own = month.days.filter((d) => !d.out);
+  const taken = own.filter((d) => d.state === 'taken').length;
+  const free = own.filter((d) => d.state === 'free').length;
+  const t = taken === 1 ? 'יום אחד תפוס' : `${taken} ימים תפוסים`;
+  const f = free === 1 ? 'יום עבודה אחד פנוי' : `${free} ימי עבודה פנויים`;
+  return `${t} בצילום · ${f}`;
+}
 const monthOf = (key) => key.slice(0, 7);
 const firstOfMonth = (key) => `${monthOf(key)}-01`;
 // The weeks a month is drawn in: from the Sunday on or before the 1st to the Saturday on
