@@ -505,7 +505,7 @@ a.gt-row-main { text-decoration: none; }
    of a row is bold navy, and a client's name in the list of clients is bold. */
 .gt-aday.has-leaf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 12px; }
 .gt-aday.has-leaf > .k-leaf { inline-size: 56px; }
-.gt-aday.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; }
+.gt-aday.has-leaf > .k-leaf .k-leaf-day { font-size: 21px; line-height: 1.5; letter-spacing: -.03em; } /* "15.12" fits the 56px leaf in Safari too (worst-case sweep, 22.11.2026) */
 .gt-aday.has-leaf > .gt-aday-h { margin: 0; font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; color: var(--ds-ink); }
 .gt-aday.has-leaf > .gt-rows { grid-column: 1 / -1; }
 body:not(.is-share) .gt-row-time { color: var(--ds-navy-text); font-weight: 700; font-size: 13.5px; }

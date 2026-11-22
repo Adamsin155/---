@@ -39,6 +39,10 @@
 @media (max-width: 380px) {
   #cc-head .cc-facts .fact { padding: 10px 12px; }
 }
+/* iPhone SE: an international phone number (+972-50-1234567) fits its half without touching the line (worst-case sweep, 22.11.2026). */
+@media (max-width: 340px) {
+  #cc-head .cc-facts .fact { padding-inline: 8px; }
+}
 
 /* ── The small heads inside the head card take the kit's square like the blocks below ── */
 #cc-head .deliv-head h2, #cc-head .cs-head h2 { font-family: var(--ds-font-h); font-size: 17px; font-weight: 400; }
@@ -331,7 +335,7 @@ dialog .dlg-foot .btn { min-height: 46px; }
 /* ── Item rows, less tall: no empty band under the text (the "סיימתי" row was ~110px on a phone) ── */
 #phases .fin-row > .irow, .my-next .fin-row > .irow, #mc-slot .fin-row > .irow { padding-block: 6px; }
 @media (max-width: 760px) {
-  #phases .fin-row > .na-btn, .my-next .fin-row > .na-btn, #mc-slot .fin-row > .na-btn { min-height: 28px; margin: -6px 0 4px; padding-block: 0; font-size: 13px; align-self: start; }
+  #phases .fin-row > .na-btn, .my-next .fin-row > .na-btn, #mc-slot .fin-row > .na-btn { min-height: 44px; margin: -14px 0 -4px; padding-block: 0; font-size: 13px; align-self: start; } /* 44 to tap, drawn where the 28px one was (margins take the 16px back; worst-case sweep, 22.11.2026) */
   #phases .fin-row > .irow, .my-next .fin-row > .irow, #mc-slot .fin-row > .irow { padding-bottom: 2px; }
 }
 
@@ -345,7 +349,7 @@ dialog .dlg-foot .btn { min-height: 46px; }
 .cc-mc .btn-text { min-height: 36px; display: inline-flex; align-items: center; }
 
 /* ── The tasks: "משימה חדשה" beside the title; the form only when asked for ── */
-#tasks .side-head > #task-new { min-height: 40px; }
+#tasks .side-head > #task-new { min-height: 44px; } /* 44: a finger on a phone (worst-case sweep, 22.11.2026) */
 #tasks .task-form[hidden] { display: none; }
 
 /* ── "העברה לארכיון" at the foot of the card ── */

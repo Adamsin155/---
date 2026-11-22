@@ -127,8 +127,10 @@
   .sd tbody td::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
   .sd tbody td:first-child { grid-column: 1 / -1; }
   .sd tbody td:first-child::before { content: none; }
-  .sd .mt-name { display: inline-flex; align-items: center; min-height: 44px; font-size: 15px; }
-  .sd tbody td:first-child .sub { margin-block-start: -8px; }
+  /* The 44px to tap come from padding, not a fixed height: a name of two or three lines then pushes
+     the contact line down instead of being drawn over it (worst-case sweep, 22.11.2026). One line looks as before. */
+  .sd .mt-name { display: inline-flex; align-items: center; min-height: 0; padding-block: 11px; margin-block-end: -8px; font-size: 15px; }
+  .sd tbody td:first-child .sub { margin-block-start: 0; }
   .sd tbody tr.sd-group, .sd tbody tr.more-row, .sd tbody tr.sd-none { display: block; padding: 0; background: none; border-radius: 0; border: 0; }
   .sd .sd-group th { display: block; padding: 10px 2px 4px; border: 0; background: none; }
   .sd tbody tr.sd-none td::before { content: none; }

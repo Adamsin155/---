@@ -740,3 +740,7 @@ dialog.preview[open] { display: flex; flex-direction: column; }
   .te-ghead { gap: 6px; }
   .te-text, .te-input { padding: 8px 10px; }
 }
+
+/* A client's name link anywhere in the app: a long name with no spaces breaks inside its row (Safari drew
+   it out of the card and made the page scroll sideways; worst-case sweep, 22.11.2026). */
+.wclient { overflow-wrap: anywhere; min-width: 0; max-width: 100%; }

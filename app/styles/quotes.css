@@ -16,7 +16,7 @@
 .stats.has-money .stat { grid-column: span 2; }
 .stats.has-money .stat-money { grid-column: span 3; container-type: inline-size; }
 /* A sum grows smaller with its tile, so it never runs out of it on a phone (the owner, 19.11.2026). */
-.stats.has-money .stat-money .v { font-size: clamp(18px, 13cqi, 40px); }
+.stats.has-money .stat-money .v { font-size: clamp(14px, 12cqi, 40px); } /* 9 digits ("127,198,544 ₪") fit an iPhone SE too (worst-case sweep, 22.11.2026) */
 .stat:first-child .k { color: inherit; opacity: .85; }
 
 .login { max-width: 400px; margin: 0 auto; padding: 32px 24px; display: grid; gap: 14px; }

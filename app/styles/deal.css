@@ -56,6 +56,9 @@
 .deal-clock { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .deal-clock.is-late { color: var(--late); }
 .deal-task-meta { margin: 0; color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
+/* Safari sizes a grid column by the longest unbroken piece (a link, an email) even with overflow-wrap: anywhere: the card then
+   grew to 740px on an iPhone. min-width 0 keeps every column to the card's width (worst-case sweep, 22.11.2026). */
+.deals-card > *, .deal-task > *, .deal-task-head > * { min-width: 0; }
 .deal-task-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .deal-task-acts .btn { min-height: 44px; }
 /* A wide screen: the form, and the agent's deals beside it. */
