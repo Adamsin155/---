@@ -85,11 +85,13 @@ test('a month that ended counts what went up; this month counts what is planned 
 });
 
 test('the alerts\' days: business days of their window only, with the month in the key', () => {
-  assert.deepEqual(aheadDue(NOV)?.key, '2026-12');
-  assert.equal(aheadDue(dateIL(2026, 11, 19, 12)), null, 'before the 20th');
-  assert.equal(aheadDue(dateIL(2026, 11, 21, 12)), null, 'Saturday');
+  assert.deepEqual(aheadDue(dateIL(2026, 12, 20, 12))?.key, '2027-01');
+  assert.equal(aheadDue(NOV), null, 'not before 1.12.2026 (the owner, 22.11.2026)');
+  assert.equal(aheadDue(dateIL(2026, 12, 17, 12)), null, 'before the 20th');
+  assert.equal(aheadDue(dateIL(2026, 12, 26, 12)), null, 'Saturday');
   assert.equal(monthEndDue(NOV), null, 'not in the first week');
-  assert.equal(monthEndDue(dateIL(2026, 12, 1, 12)).key, '2026-11');
+  assert.equal(monthEndDue(dateIL(2026, 12, 1, 12)), null, 'November is not told');
+  assert.equal(monthEndDue(dateIL(2027, 1, 4, 12)).key, '2026-12');
   assert.equal(summaryDue(dateIL(2026, 12, 1, 12)).key, '2026-12');
   assert.equal(summaryDue(dateIL(2026, 12, 8, 12)), null);
   const at = summaryDue(dateIL(2026, 12, 1, 12)).at;
@@ -145,29 +147,29 @@ test('nothing is told before the counting function exists (contentMonths null)',
 
 test('from the 20th: next month scheduled short → Ilai and Irit, only with a trusted sync, once a month', () => {
   const rowsDec = [
-    { client_id: 'c1', first_month: '2026-10', month: '2026-12', posted: 0, planned: 5 },
-    { client_id: 'c2', first_month: '2026-10', month: '2026-12', posted: 0, planned: 0 },
+    { client_id: 'c1', first_month: '2026-10', month: '2027-01', posted: 0, planned: 5 },
+    { client_id: 'c2', first_month: '2026-10', month: '2027-01', posted: 0, planned: 0 },
   ];
-  const at10 = dateIL(2026, 11, 22, 10, 5);
+  const at10 = dateIL(2026, 12, 20, 10, 5);
   const r = due(MONTHS(rowsDec), at10).filter((x) => x.rule === CONTENT_RULES.ahead);
   assert.deepEqual(r.map((x) => [x.clientId, x.person]), [['c1', 'ilai'], ['c1', 'irit']], 'c2: its last sync was partial; c3: no brand');
-  assert.equal(r[0].key, 'contentAhead:c1:2026-12:ahead@ilai');
+  assert.equal(r[0].key, 'contentAhead:c1:2027-01:ahead@ilai');
   assert.equal(r[0].batch, true);
-  assert.equal(r[0].title, 'חסר בתזמון לדצמבר: פיצה דוגמה 5/6');
-  assert.equal(due(MONTHS(rowsDec), dateIL(2026, 11, 22, 9, 30)).filter((x) => x.rule === CONTENT_RULES.ahead).length, 0, 'not before 10:00');
-  assert.equal(due(MONTHS(rowsDec), dateIL(2026, 11, 19, 12)).filter((x) => x.rule === CONTENT_RULES.ahead).length, 0, 'not before the 20th');
+  assert.equal(r[0].title, 'חסר בתזמון לינואר: פיצה דוגמה 5/6');
+  assert.equal(due(MONTHS(rowsDec), dateIL(2026, 12, 20, 9, 30)).filter((x) => x.rule === CONTENT_RULES.ahead).length, 0, 'not before 10:00');
+  assert.equal(due(MONTHS(rowsDec), dateIL(2026, 12, 17, 12)).filter((x) => x.rule === CONTENT_RULES.ahead).length, 0, 'not before the 20th');
 });
 
 test('the first week: last month went up short → Ilai, Irit, Ofir and Lior', () => {
-  const rowsNov = [{ client_id: 'c1', first_month: '2026-10', month: '2026-11', posted: 4, planned: 6 }];
-  const r = due(MONTHS(rowsNov), dateIL(2026, 12, 1, 10, 1)).filter((x) => x.rule === CONTENT_RULES.monthEnd);
+  const rowsNov = [{ client_id: 'c1', first_month: '2026-10', month: '2026-12', posted: 4, planned: 6 }];
+  const r = due(MONTHS(rowsNov), dateIL(2027, 1, 4, 10, 1)).filter((x) => x.rule === CONTENT_RULES.monthEnd);
   assert.deepEqual(r.map((x) => x.person), ['ilai', 'irit', 'ofir', 'lior']);
-  assert.equal(r[0].body, 'לקוח פיצה דוגמה: עלו 4 מתוך 6 בנובמבר. חסרים 2.');
-  assert.equal(due(MONTHS(rowsNov), dateIL(2026, 12, 9, 10, 1)).filter((x) => x.rule === CONTENT_RULES.monthEnd).length, 0, 'after the first week');
+  assert.equal(r[0].body, 'לקוח פיצה דוגמה: עלו 4 מתוך 6 בדצמבר. חסרים 2.');
+  assert.equal(due(MONTHS(rowsNov), dateIL(2027, 1, 11, 10, 1)).filter((x) => x.rule === CONTENT_RULES.monthEnd).length, 0, 'after the first week');
 });
 
 test('no brand: Ilai and Irit, once (the key has no month)', () => {
-  const r = due(MONTHS([]), dateIL(2026, 11, 22, 10, 1)).filter((x) => x.rule === CONTENT_RULES.noBrand);
+  const r = due(MONTHS([]), dateIL(2026, 12, 1, 10, 1)).filter((x) => x.rule === CONTENT_RULES.noBrand);
   assert.deepEqual(r.map((x) => [x.clientId, x.person]), [['c3', 'ilai'], ['c3', 'irit']]);
   assert.equal(r[0].key, 'contentNoBrand:c3:nobrand:brand@ilai');
   assert.match(r[0].url, /^gantt\.html\?id=c3$/);
@@ -193,13 +195,24 @@ test('the 1st at 09:00: one summary of the month to the four, short first; Ilai\
 
 test('the per-client notes go out together: one push with all of them', () => {
   const rowsDec = [
-    { client_id: 'c1', first_month: '2026-10', month: '2026-12', posted: 0, planned: 5 },
-    { client_id: 'c9', first_month: '2026-10', month: '2026-12', posted: 0, planned: 2 },
+    { client_id: 'c1', first_month: '2026-10', month: '2027-01', posted: 0, planned: 5 },
+    { client_id: 'c9', first_month: '2026-10', month: '2027-01', posted: 0, planned: 2 },
   ];
-  const env = buildEnv({ ...MONTHS(rowsDec), clients: [...CL, live({ ...year, id: 'c9', business: 'עוד עסק' })], ganttSync: [...SYNC, { client_id: 'c9', ok: true, stats: {} }], now: dateIL(2026, 11, 22, 10, 5) });
+  const env = buildEnv({ ...MONTHS(rowsDec), clients: [...CL, live({ ...year, id: 'c9', business: 'עוד עסק' })], ganttSync: [...SYNC, { client_id: 'c9', ok: true, stats: {} }], now: dateIL(2026, 12, 20, 10, 5) });
   const queued = computeReminders({ env, log: [] }).filter((x) => x.rule === CONTENT_RULES.ahead && x.person === 'ilai')
     .map((x, i) => ({ ...x, id: i + 1, status: 'queued', reason: 'batch', created_at: env.now.toISOString() }));
   const out = lateBatches({ env, log: queued });
   assert.equal(out.length, 1);
-  assert.equal(out[0].title, 'חסר בתזמון לדצמבר: 2 פריטים');
+  assert.equal(out[0].title, 'חסר בתזמון לינואר: 2 פריטים');
+});
+
+test('the alerts start on 1.12.2026; the first month-end alert is about December', async () => {
+  const m = await import('../app/content-month-logic.js');
+  const d = (s) => new Date(s);
+  assert.equal(m.aheadDue(d('2026-11-23T08:00:00Z')), null);
+  assert.equal(m.summaryDue(d('2026-11-23T08:00:00Z')), null);
+  assert.equal(m.summaryDue(d('2026-12-01T08:00:00Z')).key, '2026-12');
+  assert.equal(m.monthEndDue(d('2026-12-01T08:00:00Z')), null);
+  assert.equal(m.aheadDue(d('2026-12-21T08:00:00Z')).key, '2027-01');
+  assert.equal(m.monthEndDue(d('2027-01-04T08:00:00Z')).key, '2026-12');
 });

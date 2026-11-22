@@ -149,9 +149,13 @@ export function monthTable(clients, map, key, now = new Date()) {
 // Its key holds the month: once a month per client.
 const dayOf = (now) => partsIL(now).day;
 const at = (now, hhmm) => { const p = partsIL(now); const [h, m] = hhmm.split(':').map(Number); return dateIL(p.year, p.month, p.day, h, m); };
-export const aheadDue = (now) => isBusinessDay(now) && dayOf(now) >= AHEAD_FROM_DAY ? { key: addMonth(monthOf(now), 1), at: at(now, ALERT_AT) } : null;
-export const monthEndDue = (now) => isBusinessDay(now) && dayOf(now) <= MONTH_END_DAYS ? { key: addMonth(monthOf(now), -1), at: at(now, ALERT_AT) } : null;
-export const summaryDue = (now) => isBusinessDay(now) && dayOf(now) <= MONTH_END_DAYS ? { key: monthOf(now), at: at(now, SUMMARY_AT) } : null;
+// The alerts start on 1.12.2026 (the owner, 22.11.2026): until then Irit and Ilai go over the
+// list and fix. The first month-end alert is about December (early January), not November.
+export const ALERTS_FROM_MONTH = '2026-12';
+export const alertsStarted = (now) => monthOf(now) >= ALERTS_FROM_MONTH;
+export const aheadDue = (now) => alertsStarted(now) && isBusinessDay(now) && dayOf(now) >= AHEAD_FROM_DAY ? { key: addMonth(monthOf(now), 1), at: at(now, ALERT_AT) } : null;
+export const monthEndDue = (now) => alertsStarted(now) && addMonth(monthOf(now), -1) >= ALERTS_FROM_MONTH && isBusinessDay(now) && dayOf(now) <= MONTH_END_DAYS ? { key: addMonth(monthOf(now), -1), at: at(now, ALERT_AT) } : null;
+export const summaryDue = (now) => alertsStarted(now) && isBusinessDay(now) && dayOf(now) <= MONTH_END_DAYS ? { key: monthOf(now), at: at(now, SUMMARY_AT) } : null;
 // A client long enough after the deal to have a Metricool brand, and with none (nor marked "ללקוח
 // אין מותג", clients.metricool_none).
 export function noBrand(client, now = new Date()) {

@@ -2827,7 +2827,7 @@ RULE_BY_ID.set(DRIVE_ASK.id, RULES.at(-1));
 // The per-client notes are `batch`: one push with all of them, never one per client.
 import {
   byClient as contentByClient, monthOfClient, monthTable, aheadDue, monthEndDue, summaryDue, noBrand as noContentBrand,
-  syncTrusted, aheadWords, monthEndWords, noBrandWords, summaryWords, AHEAD_TO, MONTH_END_TO, NO_BRAND_TO, SUMMARY_TO, ALERT_AT,
+  syncTrusted, alertsStarted, aheadWords, monthEndWords, noBrandWords, summaryWords, AHEAD_TO, MONTH_END_TO, NO_BRAND_TO, SUMMARY_TO, ALERT_AT,
 } from './content-month-logic.js';
 export const CONTENT_RULES = { ahead: 'contentAhead', monthEnd: 'contentMonthEnd', noBrand: 'contentNoBrand', summary: 'contentSummary' };
 const contentMap = (env) => (env.contentMonths ? (env._contentMap ||= contentByClient(env.contentMonths)) : null);
@@ -2860,7 +2860,7 @@ RULE_BY_ID.set(CONTENT_RULES.monthEnd, RULES.at(-1));
 RULES.push({
   id: CONTENT_RULES.noBrand, event: 'לקוח עם תכנים בחוזה שלא מחובר למותג ב־Metricool', procs: [],
   instances(env) {
-    if (!env.contentMonths || !isBusinessDay(env.now)) return [];
+    if (!env.contentMonths || !alertsStarted(env.now) || !isBusinessDay(env.now)) return [];
     const event = atIL(env.now, ALERT_AT);
     return env.clients.filter((c) => noContentBrand(c, env.now))
       .map((c) => ({ id: 'nobrand', cid: c.id, client: c, url: `gantt.html?id=${encodeURIComponent(c.id)}`, anchors: { event } }));
