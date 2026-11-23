@@ -19,6 +19,9 @@
 //   - the owners only (public.my_person() null; 9.11.2026, docs/ops.md, section 116): the write tools of
 //     ./write-tools.js, with the owner's own token through the database's gate, each with a dry run first.
 //     Lior and Ofir neither see nor run them;
+//   - create_contract (23.11.2026, docs/ops.md, section 149): whoever builds contracts (canBuildQuote: the
+//     owners, Irit, Lior, Ofir) creates a contract with the client's details typed in the chat, through
+//     create-quote alone (./write-tools.js), with a dry run first;
 //   - public.mcp_usage keeps who, which tool, ok or a short code, and when. Never the arguments,
 //     never the answers. The log gets short codes only.
 import { TOOLS, runTool, guardDb } from '../ask/tools.js';
@@ -29,7 +32,7 @@ import { canBuildQuote } from '../_shared/app/manager-rules.js';
 import { mayUseMcp } from '../_shared/app/mcp-logic.js';
 import { MONEY_RPC, MONEY_RPC_BEFORE } from '../_shared/app/ask-logic.js';
 import { DRAFT_TOOL, DRAFT_SCHEMA, DRAFT_ERRORS, draftDescription, draftAnswer } from '../_shared/app/mcp-draft.js';
-import { MCP_WRITE_TOOLS, WRITE_NAMES, runWrite, guardWrite, mayWrite } from './write-tools.js';
+import { MCP_WRITE_TOOLS, WRITE_NAMES, runWrite, guardWrite, mayWrite, CONTRACT_TOOL, MCP_CONTRACT_TOOL } from './write-tools.js';
 
 export const LATEST_VERSION = '2025-11-25';
 export const VERSIONS = [LATEST_VERSION, '2025-06-18', '2025-03-26'];
@@ -74,8 +77,8 @@ const FROM_ASK = /^(You answer questions|Answer in Hebrew|Passwords and|When the
 export const INSTRUCTIONS = [
   ...SYSTEM.split('\n').filter((line) => FROM_ASK.test(line)),
   'The tools read the system with the rights of the person connected: what they cannot see is simply missing.',
-  `A closed deal: ${DRAFT_TOOL} gives a link to the contract builder. Never ask for the client's details for it: they are typed on the builder.`,
-  'Tools that change the system (the owners only): call each first with dry_run: true, show the owner the Hebrew preview as it is, and call again with dry_run: false only after the owner says yes to it. Never ask for or pass on phones, emails or ids.',
+  `A closed deal: when the person wants the contract, use ${CONTRACT_TOOL.name}: set the package choices from the deal, take the client's details from what the person wrote (ask for the name or the business and the company id when missing), show the preview, and create it only after a yes. ${DRAFT_TOOL} only when the person asks for a draft to finish on the builder; then give its link inside a code block, whole, so it is not cut.`,
+  'Tools that change the system: call each first with dry_run: true, show the person the Hebrew preview as it is, and call again with dry_run: false only after they say yes to it. Never ask for or pass on phones, emails or ids, except the client\'s own details for create_contract.',
 ].join('\n');
 
 // The tools as MCP lists them: ask's own, as they are, and the draft.
@@ -217,7 +220,7 @@ export function makeHandler(deps) {
     // What goes into mcp_usage as the tool: a name of ours, never words the caller made up.
     const isCall = hasId && msg.method === 'tools/call';
     const asked = isCall && hasFields(msg.params) ? msg.params.name : null;
-    const toolName = asked === DRAFT_TOOL || READ_NAMES.has(asked) || WRITE_NAMES.has(asked) || asked === 'drive_folders' ? asked : 'unknown';
+    const toolName = asked === DRAFT_TOOL || asked === CONTRACT_TOOL.name || READ_NAMES.has(asked) || WRITE_NAMES.has(asked) || asked === 'drive_folders' ? asked : 'unknown';
 
     // A light limit for each person, before the database is asked anything.
     if (hasId && !allow(user.id, now())) {
@@ -264,7 +267,7 @@ export function makeHandler(deps) {
       case 'ping':
         return rpcResult(id, {});
       case 'tools/list':
-        return rpcResult(id, { tools: [...MCP_READ_TOOLS, ...(canBuildQuote(viewer) ? [draftTool()] : []), ...(owner ? [...MCP_WRITE_TOOLS, FOLDERS_TOOL] : [])] });
+        return rpcResult(id, { tools: [...MCP_READ_TOOLS, ...(canBuildQuote(viewer) ? [draftTool(), MCP_CONTRACT_TOOL] : []), ...(owner ? [...MCP_WRITE_TOOLS, FOLDERS_TOOL] : [])] });
       case 'tools/call': {
         const args = hasFields(msg.params) ? msg.params.arguments ?? {} : null;
         if (!hasFields(msg.params) || typeof asked !== 'string' || !hasFields(args)) {
@@ -275,8 +278,8 @@ export function makeHandler(deps) {
           await keepUsage(user.email, 'unknown', 'unknown_tool');
           return rpcError(200, id, E.PARAMS, 'unknown tool');
         }
-        const out = WRITE_NAMES.has(toolName)
-          ? await callWrite({ userClient, owner, token, gateKey: await gateKeyOf(), deps, now, baseUrl: baseUrl() }, toolName, args)
+        const out = WRITE_NAMES.has(toolName) || toolName === CONTRACT_TOOL.name
+          ? await callWrite({ userClient, owner: toolName === CONTRACT_TOOL.name ? canBuildQuote(viewer) : owner, token, gateKey: await gateKeyOf(), deps, now, baseUrl: baseUrl() }, toolName, args)
           : toolName === DRAFT_TOOL
             ? callDraft(viewer, args)
             : toolName === FOLDERS_TOOL.name || (toolName === 'drive_files' && owner && folderIdOf(args?.client) && /drive.google.com/.test(String(args?.client)))
@@ -306,7 +309,8 @@ async function callRead({ userClient, viewer, seesMoney, deps, now }, name, args
   return { text: r.content, isError: !!r.isError, code: r.isError ? 'tool_error' : 'ok' };
 }
 
-// The owner's write tools (./write-tools.js): with the owner's own client (the gate's key on it), the
+// The owner's write tools (./write-tools.js), and create_contract for whoever builds contracts (`owner` is
+// then canBuildQuote, as the caller passes it): with the person's own client (the gate's key on it), the
 // database deciding the rest. The contract goes to create-quote, the builder's own function, with the
 // same token and the key (that function takes a connected app's token only so: an owner's, via this one).
 async function callWrite({ userClient, owner, token, gateKey, deps, now, baseUrl }, name, args) {

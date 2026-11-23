@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeHandler, claimsOf, GATE_HEADER, WRITE_REFUSED } from '../supabase/functions/mcp/handler.js';
 import { WRITE_TOOLS, WRITE_GATE, WRITE_NAMES, MCP_WRITE_TOOLS, mayWrite, guardWrite, NOTES_OFF, sendText } from '../supabase/functions/mcp/write-tools.js';
-import { mcpGateOf, mcpCallerIsOwner, MCP_GATE_HEADER } from '../supabase/functions/create-quote/http.js';
+import { mcpGateOf, mcpCallerMayCreate, MCP_GATE_HEADER, MCP_QUOTE_BUILDERS } from '../supabase/functions/create-quote/http.js';
+import { QUOTE_BUILDERS } from '../app/manager-rules.js';
 import { DRAFT_TOOL } from '../app/mcp-draft.js';
 import { clientState } from '../app/protocol-logic.js';
 import { folderTitle } from '../app/qa-logic.js';
@@ -486,11 +487,17 @@ test('create-quote: the key the mcp function holds, then an owner who is switche
   assert.equal(mcpGateOf(key), key);
   for (const sent of [null, undefined, '', 'short', 'x'.repeat(80), `${key}\n`, `${key} or 1=1`, 5, {}]) assert.equal(mcpGateOf(sent), null, String(sent));
   const rpcOf = (person, on) => async (fn) => ({ data: fn === 'my_person' ? person : on, error: null });
-  assert.equal(await mcpCallerIsOwner(rpcOf(null, true)), true);
-  assert.equal(await mcpCallerIsOwner(rpcOf('lior', true)), false);
-  assert.equal(await mcpCallerIsOwner(rpcOf('ofir', true)), false);
-  assert.equal(await mcpCallerIsOwner(rpcOf(null, false)), false);
-  assert.equal(await mcpCallerIsOwner(async () => ({ data: null, error: { code: 'x' } })), false);
+  assert.equal(await mcpCallerMayCreate(rpcOf(null, true)), true);
+  // Since 23.11.2026 (create_contract): whoever builds contracts, switched on; nobody else.
+  assert.equal(await mcpCallerMayCreate(rpcOf('lior', true)), true);
+  assert.equal(await mcpCallerMayCreate(rpcOf('ofir', true)), true);
+  assert.equal(await mcpCallerMayCreate(rpcOf('irit', true)), true);
+  assert.equal(await mcpCallerMayCreate(rpcOf('ofir', false)), false);
+  assert.equal(await mcpCallerMayCreate(rpcOf('ilai', true)), false);
+  assert.equal(await mcpCallerMayCreate(rpcOf('yariv', true)), false);
+  assert.equal(await mcpCallerMayCreate(rpcOf(null, false)), false);
+  assert.deepEqual(MCP_QUOTE_BUILDERS, QUOTE_BUILDERS);
+  assert.equal(await mcpCallerMayCreate(async () => ({ data: null, error: { code: 'x' } })), false);
   assert.equal(MCP_GATE_HEADER, GATE_HEADER);
   const src = readFileSync(new URL('../supabase/functions/create-quote/index.ts', import.meta.url), 'utf8');
   const gate = src.indexOf('mcpGateOf(');
@@ -498,6 +505,60 @@ test('create-quote: the key the mcp function holds, then an owner who is switche
   const refusal = src.indexOf("if (isOAuthToken(req.headers.get('authorization'))) return json(403, { error: 'not_allowed' });");
   const who = src.search(/auth\.getUser\(/);
   assert.ok(gate > 0 && gate < refusal && refusal < who, 'the key first, then the refusal of any other app, then who');
-  assert.match(src, /if \(viaMcp && !\(await mcpCallerIsOwner\(/);
-  assert.ok(src.indexOf('mcpCallerIsOwner(') > src.indexOf('callerIsOffice('), 'after the office check');
+  assert.match(src, /if \(viaMcp && !\(await mcpCallerMayCreate\(/);
+  assert.ok(src.indexOf('mcpCallerMayCreate(') > src.indexOf('callerIsOffice('), 'after the office check');
+});
+
+// ── create_contract (the owner, 23.11.2026; docs/ops.md, section 149) ──
+// Ofir writes the deal and the client's details to his Claude and gets the contract itself, as in the old
+// system: a preview first, then create-quote with his own token and the gate's key; nothing else asked.
+test('create_contract: whoever builds contracts; the typed details go only to create-quote; a preview first', async () => {
+  const w = world();
+  for (const who of ['owner', 'lior', 'ofir']) {
+    const tools = await list(w, who);
+    const t = tools.find((x) => x.name === 'create_contract');
+    assert.ok(t, `${who} has create_contract`);
+    assert.equal(t.annotations.readOnlyHint, false);
+    assert.match(t.description, /dry_run: true/);
+  }
+  const details = { name: 'משה כהן', company: 'מוסך משה בע״מ', company_id: '514 000 111', address: 'הרצל 3, חולון', phone: '050-7654321', email: 'moshe@garage.test' };
+  const contract = { mode: 'free', influencer: 'natali', months: 12, monthlyPrice: 350000 };
+  // The preview: nothing created, the business named, the phone, the email and the number not repeated.
+  const pre = await call(w, 'ofir', 'create_contract', { contract, client: details, dry_run: true });
+  assert.equal(pre.isError, false, JSON.stringify(pre));
+  assert.equal(pre.dry_run, true);
+  assert.match(pre.preview, /מוסך משה/);
+  assert.match(pre.preview, /12 חודשים/);
+  for (const s of ['050-7654321', 'moshe@garage.test', '514000111', '514 000 111']) assert.ok(!JSON.stringify(pre).includes(s), s);
+  assert.deepEqual(w.fetched, []);
+  assert.deepEqual(w.log.filter((r) => r.method !== 'GET'), [], 'no database write for the preview');
+  // Created: create-quote with Ofir's own token and the key; the details as the builder sends them.
+  const out = await call(w, 'ofir', 'create_contract', { contract, client: details, dry_run: false });
+  assert.equal(out.done, true, JSON.stringify(out));
+  const [req] = w.fetched;
+  assert.equal(req.url, `${BASE}/functions/v1/create-quote`);
+  assert.equal(req.headers.Authorization, `Bearer ${tokenFor('ofir')}`);
+  assert.equal(req.headers[GATE_HEADER], 'the-gate-key');
+  assert.deepEqual(req.body.client, { name: 'משה כהן', company: 'מוסך משה בע״מ', companyId: '514000111', address: 'הרצל 3, חולון', phone: '050-7654321', email: 'moshe@garage.test', notes: '' });
+  assert.equal(req.body.selection.custom.price, 350000, 'the price the deal set (create-quote asks can_edit_quotes)');
+  assert.equal(out.sign_link, 'https://app.astrateg.tech/q.html#t=tok-123');
+  assert.match(out.whatsapp, /^https:\/\/wa\.me\/\?text=/);
+  assert.match(out.message, /שלום משה כהן/);
+  for (const s of ['050-7654321', 'moshe@garage.test', '514000111']) assert.ok(!JSON.stringify(out).includes(s), s);
+  assert.deepEqual(w.log.filter((r) => r.method !== 'GET').map((r) => r.path).filter((p) => !/^\/rpc\/(is_office|my_person|mcp_allowed|sees_)/.test(p)), [], 'nothing else written');
+  // Missing the company id or a name: asked for, nothing created.
+  const w2 = world();
+  assert.equal((await call(w2, 'ofir', 'create_contract', { contract, client: { ...details, company_id: '' }, dry_run: false })).code, 'details_missing');
+  assert.equal((await call(w2, 'ofir', 'create_contract', { contract, client: { ...details, name: '', company: '' }, dry_run: false })).code, 'details_missing');
+  assert.equal((await call(w2, 'ofir', 'create_contract', { contract, dry_run: false })).code, 'details_missing');
+  assert.equal((await call(w2, 'ofir', 'create_contract', { contract, client: { ...details, company_id: 'abc' }, dry_run: false })).code, 'bad_input');
+  assert.equal((await call(w2, 'ofir', 'create_contract', { contract, client: { ...details, vault: 'x' }, dry_run: false })).code, 'unknown_field');
+  // The client's details never inside the contract's own fields.
+  assert.equal((await call(w2, 'ofir', 'create_contract', { contract: { ...contract, specialClauses: ['טלפון 0529998888'] }, client: details, dry_run: true })).code, 'personal_details');
+  assert.deepEqual(w2.fetched, []);
+  // create-quote failing: said, not a link.
+  const w3 = world({ quoteFails: true });
+  assert.equal((await call(w3, 'ofir', 'create_contract', { contract, client: details, dry_run: false })).code, 'quote_failed');
+  // Ofir still has none of the owners' write tools.
+  assert.equal((await call(w, 'ofir', 'send_contract', { deal: 'קפה גלית', contract: { package: 'podcast-natali' }, dry_run: true })).code, 'not_allowed');
 });

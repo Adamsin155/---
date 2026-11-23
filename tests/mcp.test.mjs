@@ -154,10 +154,12 @@ test('ping, unknown methods, tools/list', async () => {
   const names = result.tools.map((t) => t.name);
   for (const t of TOOLS) assert.ok(names.includes(t.name), t.name);
   assert.ok(names.includes(DRAFT_TOOL));
+  assert.ok(names.includes('create_contract'));
   for (const t of result.tools) {
     assert.equal(t.inputSchema.type, 'object', t.name);
     assert.equal(t.input_schema, undefined, t.name);
-    assert.equal(t.annotations.readOnlyHint, true, t.name);
+    // create_contract (23.11.2026) is the only one of Ofir's that writes: the contract, after a yes.
+    assert.equal(t.annotations.readOnlyHint, t.name !== 'create_contract', t.name);
     assert.equal(typeof t.description, 'string');
   }
   assert.equal(MCP_READ_TOOLS.length, TOOLS.length, 'all of ask\'s tools, drive_files too');

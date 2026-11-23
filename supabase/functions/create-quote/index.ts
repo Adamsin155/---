@@ -25,12 +25,12 @@
 // The owner's "send_contract" from Claude (9.11.2026, docs/ops.md, section 116): the mcp function calls
 // here with the owner's OAuth token and the gate's key that only it holds (mcpGateOf), passed on to the
 // database, whose gate (public.mcp_request_gate()) checks it on every call of the person's client: a wrong
-// key and is_office is refused there. Then only an owner who is switched on (mcpCallerIsOwner). A
+// key and is_office is refused there. Then only an owner, or since 23.11.2026 anyone who builds contracts (create_contract, section 149), switched on (mcpCallerMayCreate). A
 // connected app's token with no key is refused here, as before.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { validateSelection, buildQuoteModel, normalizeSelection, exceptionOf } from '../_shared/app/pricing.js';
 import { isOAuthToken } from '../_shared/oauth-token.js';
-import { corsHeaders, callerIsOffice, aiRunProblem, mcpGateOf, mcpCallerIsOwner, MCP_GATE_HEADER, editsQuote, callerMayEditQuote } from './http.js';
+import { corsHeaders, callerIsOffice, aiRunProblem, mcpGateOf, mcpCallerMayCreate, MCP_GATE_HEADER, editsQuote, callerMayEditQuote } from './http.js';
 
 // The new secret key when the project has one, else the legacy service-role key (as the other
 // functions do; the owner, 21.10.2026: with the legacy key the insert failed, "הפעולה לא הושלמה").
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
   // The message keeps the words "not staff": the builder turns them into Hebrew
   // (explainError in app/supa.js), also in a page published before this change.
   if (!(await callerIsOffice((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not staff: quotes are prepared by the office' });
-  if (viaMcp && !(await mcpCallerIsOwner((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not_allowed' });
+  if (viaMcp && !(await mcpCallerMayCreate((fn: string) => userClient.rpc(fn)))) return json(403, { error: 'not_allowed' });
 
   let selection, client, revise: string | null = null, aiRun: string | null = null;
   try {

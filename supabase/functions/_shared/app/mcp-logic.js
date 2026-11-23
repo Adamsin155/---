@@ -21,13 +21,15 @@ export const mayUseMcp = ({ office, person } = {}) => (office === true && person
 export const CONSENT_CAN = [
   'לקרוא מהמערכת את מה שאת/ה רואה במסכים שלך: לקוחות, משימות, ימי צילום, גאנט ועריכה',
   'להכין טיוטת חוזה, שנפתחת אצלך במחולל לבדיקה',
+  // create_contract (23.11.2026, docs/ops.md, section 149): whoever builds contracts.
+  'ליצור חוזה ללקוח עם הפרטים שכתבת, רק אחרי שאישרת',
   // The owners' write tools (docs/ops.md, section 116; supabase/functions/mcp/write-tools.js).
   'לבעלים בלבד: לשנות במערכת מה שביקשת (סימון, מועד, משימה, חוזה), רק אחרי שאישרת',
 ];
 export const CONSENT_CANNOT = [
   'לא רואה טלפונים, מיילים, כתובות, הערות, סיסמאות או שכר',
   'לא מוחק לקוחות או נתונים, ולא נוגע בסיסמאות, בכניסות ובשכר',
-  'לליאור ולאופיר: לא שומר ולא שולח כלום',
+  'לליאור, לאופיר ולעירית: לא משנה כלום במערכת חוץ מחוזה שאישרת, ולא שולח כלום ללקוח',
 ];
 export const CONSENT_WORDS = {
   bad_link: 'הקישור הזה לא תקין או שפג תוקפו. חוזרים ל־Claude ומתחברים מחדש.',

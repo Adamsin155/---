@@ -614,6 +614,69 @@ async function sendContractTool(ctx, a) {
   };
 }
 
+// ── 6b. "create_contract": whoever builds contracts, with the client's details typed in the chat ──
+// The owner, 23.11.2026 (docs/ops.md, section 149): Ofir writes the deal and the client's details to his
+// Claude and gets the contract ready to sign, as in the old system, instead of a draft link (a long link
+// that Claude shows cut in the middle, and a copy of it opens nothing). The owners, Irit, Lior and Ofir
+// (Amit when she is switched on for Claude). The same draft checks and the same create-quote as
+// send_contract; nothing is read from the database here. The details go only to create-quote, and the
+// answer names the business, never the phone, the email or the company number.
+export const CONTRACT_DETAIL_LIMITS = { name: 120, company: 120, company_id: 20, address: 200, phone: 40, email: 160 };
+const DETAIL_TO_QUOTE = { name: 'name', company: 'company', company_id: 'companyId', address: 'address', phone: 'phone', email: 'email' };
+export function contractDetailsOf(raw, agreement) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) refuse('חסרים פרטי הלקוח (client): שם או שם העסק, ח.פ / ת.ז, ואם יש: כתובת, טלפון ומייל.', 'details_missing');
+  const extra = Object.keys(raw).filter((k) => !(k in CONTRACT_DETAIL_LIMITS));
+  if (extra.length) refuse('יש בפרטי הלקוח שדה שהכלי לא מקבל.', 'unknown_field', { fields: extra.map((k) => k.slice(0, 40)).slice(0, 10) });
+  const out = {};
+  for (const [k, max] of Object.entries(CONTRACT_DETAIL_LIMITS)) {
+    const v = raw[k] === undefined || raw[k] === null ? '' : raw[k];
+    if (typeof v !== 'string') refuse('פרטי הלקוח הם טקסט.', 'bad_input', { fields: [k] });
+    const t = v.replace(/\s+/g, ' ').trim();
+    if (t.length > max) refuse(`ארוך מדי (${k}).`, 'bad_input', { fields: [k] });
+    out[DETAIL_TO_QUOTE[k]] = t;
+  }
+  out.companyId = out.companyId.replace(/[\s.]/g, '');
+  const missing = [];
+  if (agreement && !out.name && !out.company) missing.push('שם הלקוח או שם העסק');
+  if (agreement && !out.companyId) missing.push('ח.פ / ת.ז');
+  if (missing.length) refuse(`חסר ${missing.join(' ו')}: הסכם לא יוצא בלעדיהם. לשאול את האדם ולשלוח שוב.`, 'details_missing');
+  if (out.companyId && !/^[0-9][0-9-]{3,18}$/.test(out.companyId)) refuse('ח.פ / ת.ז צריך להיות מספרים בלבד.', 'bad_input', { fields: ['company_id'] });
+  if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) refuse('המייל לא נראה תקין.', 'bad_input', { fields: ['email'] });
+  if (out.phone && !/^[0-9+()\-\s]{7,20}$/.test(out.phone)) refuse('הטלפון לא נראה תקין.', 'bad_input', { fields: ['phone'] });
+  return out;
+}
+async function createContractTool(ctx, a) {
+  const d = draftOf(a.contract);
+  if (d.error) refuse(DRAFT_ERRORS[d.error] || DRAFT_ERRORS.bad_input, String(d.error).slice(0, 32), { fields: d.fields });
+  const doc = DOC_TYPES[d.toSend.docType] || DOC_TYPES.agreement;
+  const agreement = doc.signable === true;
+  const details = contractDetailsOf(a.client, agreement);
+  const who = details.company || details.name || 'הלקוח';
+  const t = d.model.totals;
+  const summary = {
+    document: d.model.docTitle, for: who, package: `${d.model.package.tierName} · ${d.model.package.influencer}`, months: d.model.termMonths,
+    monthly_with_vat_ils: ils(t.monthlyGross), whole_term_with_vat_ils: ils(t.termGross), differs_from_package: d.exceptions, to_check: d.check,
+  };
+  const filled = [details.name && 'שם', details.company && 'שם העסק', details.companyId && 'ח.פ', details.address && 'כתובת', details.phone && 'טלפון', details.email && 'מייל'].filter(Boolean);
+  const preview = `ייווצר ${d.model.docTitle} ל${who}: ${summary.package}, ${summary.months} חודשים, ${summary.monthly_with_vat_ils.toLocaleString('he-IL')} ₪ לחודש כולל מע״מ (${summary.whole_term_with_vat_ils.toLocaleString('he-IL')} ₪ לכל התקופה).${d.exceptions.length ? ` שונה מהחבילה: ${d.exceptions.join(' ')}` : ''} פרטי הלקוח שנכתבו: ${filled.join(', ')}.${d.check?.length ? ` לבדוק: ${d.check.join(' ')}` : ''} אחרי "כן" הוא יופיע ב״הצעות שנשלחו״ עם קישור לחתימה, ותקבלו הודעה מוכנה לשליחה ללקוח בוואטסאפ.`;
+  if (a.dry_run !== false) return { preview, summary };
+  const made = await ctx.createQuote({ selection: d.toSend, client: { ...details, notes: '' } });
+  if (!made.ok) refuse(made.status === 403 ? 'יצירת החוזה נדחתה (הרשאה).' : 'החוזה לא נוצר. אפשר ליצור אותו במחולל.', made.status === 403 ? 'not_allowed' : 'quote_failed');
+  const q = made.data;
+  if (!q?.token) refuse('החוזה נשמר, אבל עוד אין לו קישור. רואים אותו ב״הצעות שנשלחו״.', 'no_link');
+  const link = `${DRAFT_SITE}${SIGN_PAGE}#t=${encodeURIComponent(q.token)}`;
+  const message = sendText({ name: details.name, number: q.number, link, agreement, months: d.model.termMonths, hours: doc.validHours });
+  return {
+    done: `${d.model.docTitle} ${q.number} נוצר ל${who}.`,
+    number: q.number,
+    sign_link: link,
+    message,
+    whatsapp: whatsappLink('', message),
+    send: `שליחה: לפתוח את הקישור whatsapp ולבחור את הלקוח, או ב״הצעות שנשלחו״ (${DRAFT_SITE}${SENT_PAGE}) ללחוץ ״תזכורת בוואטסאפ״ בשורה של ${q.number}.`,
+    summary,
+  };
+}
+
 // ── 7. A request for a change or a fix to the system (the developer reads the list) ──
 export const REQUEST_MAX = 2000;
 async function systemRequestTool(ctx, a) {
@@ -745,6 +808,25 @@ export const WRITE_TOOLS = [
     run: systemRequestTool,
   },
 ];
+// For whoever builds contracts (the owners too): listed and run by the handler for canBuildQuote.
+const DETAIL_PROPS = Object.fromEntries(Object.entries(CONTRACT_DETAIL_LIMITS).map(([k, max]) => [k, { type: 'string', maxLength: max }]));
+export const CONTRACT_TOOL = {
+  name: 'create_contract',
+  title: 'יצירת חוזה ללקוח, עם פרטי הלקוח',
+  description: 'WRITES: creates the contract of a closed deal in the system, as the contract builder does, and gives the number, the signing link and a ready WhatsApp message. contract: the package choices, exactly as prepare_contract_draft (all its rules: set only what the deal says; the client\'s details never in those fields). client: the client\'s details as the person wrote them: name (the contact), company (the business), company_id (ח.פ / ת.ז, digits), and when given address, phone, email. An agreement needs a name or a business, and the company id: when one is missing, ask the person for it. Use this instead of prepare_contract_draft whenever the person wants the contract itself. First call with dry_run: true and show the person the preview; only after they confirm, call again with dry_run: false and the same arguments. Give them the signing link and the WhatsApp link. It does not message the client by itself.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      contract: { ...DRAFT_SCHEMA, description: 'The package choices, as prepare_contract_draft.' },
+      client: { type: 'object', properties: DETAIL_PROPS, additionalProperties: false, description: 'The client\'s details, as the person wrote them.' },
+      dry_run: { type: 'boolean', description: 'true (the default): only a Hebrew preview, nothing is created. false: create it, only after the person said yes to the preview.' },
+    },
+    required: ['contract', 'client', 'dry_run'], additionalProperties: false,
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  run: createContractTool,
+};
+export const MCP_CONTRACT_TOOL = { name: CONTRACT_TOOL.name, title: CONTRACT_TOOL.title, description: CONTRACT_TOOL.description, inputSchema: CONTRACT_TOOL.input_schema, annotations: CONTRACT_TOOL.annotations };
 export const WRITE_NAMES = new Set(WRITE_TOOLS.map((t) => t.name));
 export const MCP_WRITE_TOOLS = WRITE_TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: t.input_schema, annotations: t.annotations }));
 // Who: an owner (public.my_person() null, in the office). Lior and Ofir read and draft only.
@@ -756,7 +838,7 @@ const WORDS = {
 // One call: { text, isError, code } (the code for mcp_usage: ok, preview, or a short code).
 // ctx: { db: guardWrite(the owner's client), now(), createQuote(body) → { ok, status, data } }.
 export async function runWrite(ctx, name, args) {
-  const tool = WRITE_TOOLS.find((t) => t.name === name);
+  const tool = name === CONTRACT_TOOL.name ? CONTRACT_TOOL : WRITE_TOOLS.find((t) => t.name === name);
   if (!tool) return { text: JSON.stringify({ error: 'unknown tool' }), isError: true, code: 'unknown_tool' };
   const a = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
   const known = Object.keys(tool.input_schema.properties);
@@ -765,7 +847,7 @@ export async function runWrite(ctx, name, args) {
   if (a.dry_run !== undefined && typeof a.dry_run !== 'boolean') return { text: JSON.stringify({ error: 'dry_run הוא true או false.', code: 'bad_input' }), isError: true, code: 'bad_input' };
   try {
     const out = await tool.run(ctx, a);
-    if (out.preview) return { text: JSON.stringify({ dry_run: true, nothing_was_changed: true, preview: out.preview, ...(out.summary ? { summary: out.summary } : {}), next: 'Show the owner this preview. Only after a yes, call again with dry_run: false.' }), isError: false, code: 'preview' };
+    if (out.preview) return { text: JSON.stringify({ dry_run: true, nothing_was_changed: true, preview: out.preview, ...(out.summary ? { summary: out.summary } : {}), next: 'Show the person this preview. Only after a yes, call again with dry_run: false.' }), isError: false, code: 'preview' };
     if (out.done === undefined) return { text: JSON.stringify(out), isError: false, code: 'ok' };
     const { done, ...rest } = out;
     return { text: JSON.stringify({ done: true, result: done, ...rest }), isError: false, code: 'ok' };

@@ -81,12 +81,18 @@ export const MCP_GATE_HEADER = 'x-mcp-gate';
 export function mcpGateOf(sent) {
   return typeof sent === 'string' && /^[0-9a-f-]{64,200}$/i.test(sent) ? sent : null;
 }
-// And only an owner who is switched on for Claude (public.my_person() null, public.mcp_allowed()); asked
-// after callerIsOffice. `rpc` is the caller's own client (the key on it, through the database's gate).
-export async function mcpCallerIsOwner(rpc) {
+// And only someone who builds contracts and is switched on for Claude: an owner (public.my_person() null)
+// or one of QUOTE_BUILDERS (Irit, Lior, Ofir, Amit; "create_contract", the owner, 23.11.2026, docs/ops.md,
+// section 149), with public.mcp_allowed(); asked after callerIsOffice. `rpc` is the caller's own client
+// (the key on it, through the database's gate).
+// QUOTE_BUILDERS of app/manager-rules.js, written here so this function deploys no more files
+// (tests/mcp-write.test.mjs holds the two equal).
+export const MCP_QUOTE_BUILDERS = ['irit', 'lior', 'ofir', 'amit'];
+export async function mcpCallerMayCreate(rpc) {
   try {
     const [person, on] = await Promise.all([rpc('my_person'), rpc('mcp_allowed')]);
-    return !person.error && person.data === null && !on.error && on.data === true;
+    if (person.error || on.error || on.data !== true) return false;
+    return person.data === null || MCP_QUOTE_BUILDERS.includes(person.data);
   } catch {
     return false;
   }
