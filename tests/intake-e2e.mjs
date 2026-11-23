@@ -494,21 +494,29 @@ await step('scripts and Zoom (12, 13): the link to the client\'s links, the Zoom
   await lior.waitForFunction(() => document.getElementById('chk-p12-scripts')?.checked);
   await lior.check('#chk-p12-numbered');
   await lior.waitForFunction(() => document.getElementById('chk-p12-numbered')?.checked);
-  // The approval waits for the Zoom's recording; it is never "not relevant".
-  assert.equal(await lior.isDisabled('#zm-approved'), true);
+  // The Zoom: done or not, nothing to paste (the owner, 23.11.2026); never "not relevant".
+  assert.equal(await lior.locator('#zm-rec').count(), 0, 'no recording link');
+  assert.equal(await lior.locator('#zm-approved').count(), 0, 'the Zoom is the approval (v12)');
+  assert.equal(await lior.getAttribute('#zm-no', 'aria-pressed'), 'true');
   assert.equal(await lior.locator('text=לא רלוונטי').count(), 0);
   await lior.fill('#zm-at', '2026-10-13T16:00');
   await lior.click('#zm-save');
   await toastHas(lior, 'הזום נקבע');
   assert.equal(checkOf(B, 'p13.zoomat').note, new Date('2026-10-13T16:00:00+03:00').toISOString());
   assert.equal(await lior.locator('a:has-text("הוספה ליומן")').count(), 1);
-  await lior.fill('#zm-rec', 'https://zoom.us/rec/share/golan');
-  await lior.click('#zm-rec-save');
-  await toastHas(lior, 'ההקלטה נשמרה');
-  await lior.waitForSelector('#zm-approved:not([disabled])');
-  await lior.click('#zm-approved');
-  await lior.waitForSelector('.ik-approve .ok-line');
-  assert.equal(checkOf(B, 'p13.approved').state, 'done');
+  await lior.click('#zm-yes');
+  await lior.waitForSelector('.zm-done .ok-line');
+  assert.equal(checkOf(B, 'p13.zoom').state, 'done');
+  assert.equal(checkOf(B, 'p13.zoom').note ?? null, null, 'no link kept');
+  assert.equal(await lior.getAttribute('#zm-yes', 'aria-pressed'), 'true');
+  await shotOf(lior, '#zm-h + p', '05a-zoom-head-360'); await shotOf(lior, '.zm-done', '05b-zoom-done-360');
+  // A mark by mistake: "לא בוצע" takes it off.
+  await lior.click('#zm-no');
+  await lior.waitForSelector('#zm-yes[aria-pressed="false"]');
+  assert.equal(checkOf(B, 'p13.zoom'), null);
+  await lior.click('#zm-yes');
+  await lior.waitForSelector('.zm-done .ok-line');
+  assert.equal(checkOf(B, 'p13.zoom').state, 'done');
   assert.ok(await noHScroll(lior));
   assert.deepEqual(await unlabeled(lior), [], 'form controls without a label');
   await shot(lior, '05-scripts-360');

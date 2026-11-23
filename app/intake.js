@@ -717,9 +717,8 @@ function renderScripts() {
   const p13 = procState('p13');
   const link = (round === 1 ? client.links?.scripts : null) || checks[key('p12.docs')]?.note || '';
   const zoomAt = checks[key('p13.zoomat')]?.state === 'done' ? new Date(checks[key('p13.zoomat')].note) : null;
-  const rec = checks[key('p13.zoom')]?.note || '';
-  if (!scV || scV.round !== round) scV = { round, link, at: zoomAt && !Number.isNaN(zoomAt.getTime()) ? inputValueIL(zoomAt) : '', rec };
-  const approved = isDone(key('p13.approved'));
+  const zoomDone = isDone(key('p13.zoom'));
+  if (!scV || scV.round !== round) scV = { round, link, at: zoomAt && !Number.isNaN(zoomAt.getTime()) ? inputValueIL(zoomAt) : '' };
   const videos = client.deliverables?.videos;
   const zoomEvent = zoomAt && !Number.isNaN(zoomAt.getTime()) ? googleCalendarUrl({ title: `זום לאישור התסריטים · ${client.name}`, start: zoomAt, minutes: 60, details: link ? `תסריטים: ${link}` : '' }) : null;
   return h('div', { class: 'ik-stack' },
@@ -734,7 +733,7 @@ function renderScripts() {
       itemCheck('p12.numbered', 'לכל סרטון מספר ברור')),
     h('section', { class: 'ik-card', 'aria-labelledby': 'zm-h' },
       h('h2', { id: 'zm-h' }, 'זום לאישור התוכן (13)'),
-      h('p', { class: 'muted' }, approved ? 'הלקוח אישר את התסריטים.' : `${dueWords(p13) || 'עד יום העסקים השלישי מהאפיון'}.`),
+      h('p', { class: 'muted' }, zoomDone ? 'הזום התקיים: התסריטים אושרו.' : `${dueWords(p13) || 'עד יום העסקים השלישי מהאפיון'}.`),
       link ? null : h('p', { class: 'ik-note' }, 'כשמדביקים את קישור התסריטים, מתאמים זום.'),
       h('a', { class: 'btn btn-sm ik-go', id: 'zm-focus', href: '#focus' }, 'סיכום דגשים לקוח (גם בזמן הזום)'),
       field({ fid: 'zm-at', label: 'מועד הזום', control: textInput(scV.at, (x) => { scV.at = x; }, { type: 'datetime-local', dir: 'ltr' }) }),
@@ -742,13 +741,16 @@ function renderScripts() {
         h('button', { type: 'button', class: 'btn', id: 'zm-save', disabled: busy, onclick: saveZoomAt }, zoomAt ? 'עדכון המועד' : 'קביעת הזום'),
         zoomEvent ? h('a', { class: 'btn btn-ghost', href: zoomEvent, target: '_blank', rel: 'noopener' }, 'הוספה ליומן', h('span', { class: 'sr-only' }, ' (נפתח בחלון חדש)')) : null),
       zoomAt ? h('p', { class: 'hint' }, `הזום: ${formatStamp(zoomAt)}`) : null,
-      field({ fid: 'zm-rec', label: 'קישור להקלטת הזום', control: textInput(scV.rec, (x) => { scV.rec = x; }, { type: 'url', inputmode: 'url', dir: 'ltr' }) }),
-      h('button', { type: 'button', class: 'btn', id: 'zm-rec-save', disabled: busy, onclick: saveRecording }, rec ? 'עדכון ההקלטה' : 'שמירת ההקלטה'),
-      h('div', { class: 'ik-approve' },
-        approved ? h('p', { class: 'ok-line' }, `הלקוח אישר · ${who(checks[key('p13.approved')].by_email)} · ${formatStamp(checks[key('p13.approved')].at)}`)
-          : h('button', { type: 'button', class: 'btn btn-primary ik-big', id: 'zm-approved', disabled: busy || !isDone(key('p13.zoom')), 'aria-describedby': 'zm-approved-d', onclick: () => toggle(key('p13.approved'), true, 'zm-approved') }, 'הלקוח אישר את התסריטים'),
-        h('p', { class: 'hint', id: 'zm-approved-d' }, isDone(key('p13.zoom')) ? 'אישור לקוח הוא אישור אמיתי: אי אפשר לסמן אותו "לא רלוונטי". לא מצלמים תוכן שלא אושר.' : 'אחרי שהזום התקיים ונשמרה ההקלטה.')),
-      itemCheck('p13.fixes', 'תיקונים שנשארו אחרי הזום עודכנו בעמוד התסריטים', { hint: 'אם היו. עד יום עסקים אחד אחרי הזום.' })));
+      // Lior marks the Zoom done or not, nothing to paste (the owner, 23.11.2026; docs/ops.md, section 148):
+      // "בוצע" marks p13.zoom, "לא בוצע" takes the mark off. Since v12 the Zoom is the client's approval,
+      // so "הלקוח אישר" and the fixes after it are not shown here.
+      h('div', { class: 'ik-approve zm-done', role: 'group', 'aria-labelledby': 'zm-q' },
+        h('p', { class: 'zm-q', id: 'zm-q' }, 'הזום התקיים?'),
+        h('div', { class: 'ik-row' },
+          h('button', { type: 'button', class: `btn ${zoomDone ? 'btn-primary' : ''}`, id: 'zm-yes', 'aria-pressed': String(zoomDone), disabled: busy, onclick: () => { if (!zoomDone) toggle(key('p13.zoom'), true, 'zm-no'); } }, 'בוצע'),
+          h('button', { type: 'button', class: `btn ${zoomDone ? '' : 'btn-primary'}`, id: 'zm-no', 'aria-pressed': String(!zoomDone), disabled: busy, onclick: () => { if (zoomDone) toggle(key('p13.zoom'), false, 'zm-yes'); } }, 'לא בוצע')),
+        zoomDone ? h('p', { class: 'ok-line' }, `הזום בוצע · ${who(checks[key('p13.zoom')].by_email)} · ${formatStamp(checks[key('p13.zoom')].at)}`)
+          : h('p', { class: 'hint' }, 'מסמנים "בוצע" אחרי שהזום התקיים והלקוח אישר את התסריטים.'))));
 }
 async function saveScriptsLink() {
   const v = clean($('sc-link').value);
@@ -779,18 +781,6 @@ async function saveZoomAt() {
   busy = false;
   render('zm-save');
 }
-async function saveRecording() {
-  const v = clean($('zm-rec').value);
-  if (!validUrl(v)) { $('zm-rec').setAttribute('aria-invalid', 'true'); $('zm-rec-err').textContent = 'קישור שמתחיל ב־https://, בלי סיסמה.'; $('zm-rec-err').hidden = false; $('zm-rec').focus(); return; }
-  busy = true;
-  try {
-    checks[key('p13.zoom')] = await setCheck(id, key('p13.zoom'), 'done', v);
-    toast('ההקלטה נשמרה. הזום סומן כהתקיים.');
-  } catch (err) { toast(`לא נשמר. ${errorText(err)}`); }
-  busy = false;
-  render('zm-approved');
-}
-
 // ── The characterization, read-only ────────
 // Everything the meeting gave, as text: the 11 fields, the brand's colours and logo
 // link, what was received, and the client's materials from the client's files (no
