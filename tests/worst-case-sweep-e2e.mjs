@@ -62,6 +62,7 @@ const PAGES = [
   ['irit', 'tracking.html', '#tab-tasks'],
   ['irit', 'prep.html'],
   ['irit', 'messages.html'],
+  ['lior', `intake.html?id=${encodeURIComponent(cid(4))}#scripts`],
   ['lior', 'decisions.html'],
   ['ofir', 'qa.html'],
   ['ilai', 'year.html'],
