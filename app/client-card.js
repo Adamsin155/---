@@ -564,7 +564,8 @@ document.addEventListener('keydown', (e) => {
 
 // ── Header ──────────────────────────────────
 // A long compound name (״בן־אליעזר־וינשטיין״) may break after its hyphens: the words stay the same.
-const breakable = (text) => String(text || '').split(/(?<=[־/-])/).flatMap((part, i) => (i ? [document.createElement('wbr'), part] : [part]));
+// (No lookbehind: Safari before 16.4 cannot read it.)
+const breakable = (text) => (String(text || '').match(/[^־/-]*[־/-]|[^־/-]+$/g) || ['']).flatMap((part, i) => (i ? [document.createElement('wbr'), part] : [part]));
 function fact(k, v, extra = null) {
   return h('div', { class: 'fact' }, h('dt', {}, k), h('dd', {}, v || h('span', { class: 'muted' }, 'לא הוזן'), extra));
 }

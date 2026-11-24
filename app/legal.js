@@ -73,7 +73,9 @@ export const PRICE_CLAUSE = '{{2.1}}';
 // refer to (app/contract-text.js).
 // The way of paying, as the person wrote it (the owner, 18.11.2026: "צ'קים, פיימנט או כל דבר אחר"):
 // a special term that names a way of paying is clause 2.2 itself, and leaves the special terms.
-export const PAY_WAY = /(?<![א-ת])(?:ב|ב?ה|ו|ש)?(?:הוראת\s*קבע|העבר(?:ה|ות)(?:\s*(?:בנקאי(?:ת|ות)|לחשבון))?|צ['׳"]?קים|צ['׳]ק|שיקים|כרטיס\s*אשראי|אשראי|מזומן|ביט|פייבוקס|פיימנט|פייפאל)(?![א-ת])|\b(?:paybox|bit|paypal|payment)\b|^ה?תשלום\s+(?:יתבצע\s+|יהיה\s+)?ב/i;
+// No lookbehind ("(?<!"): Safari before 16.4 cannot read it, and every staff page loads this file
+// (Ilai's Mac, 24.11.2026: the pages stayed grey). "(?:^|[^א-ת])" says the same for test().
+export const PAY_WAY = /(?:^|[^א-ת])(?:ב|ב?ה|ו|ש)?(?:הוראת\s*קבע|העבר(?:ה|ות)(?:\s*(?:בנקאי(?:ת|ות)|לחשבון))?|צ['׳"]?קים|צ['׳]ק|שיקים|כרטיס\s*אשראי|אשראי|מזומן|ביט|פייבוקס|פיימנט|פייפאל)(?![א-ת])|\b(?:paybox|bit|paypal|payment)\b|^ה?תשלום\s+(?:יתבצע\s+|יהיה\s+)?ב/i;
 const termLines = (ctx) => String(ctx.specialTerms || '').split('\n').map((l) => l.trim()).filter(Boolean);
 export const payTermOf = (ctx) => termLines(ctx).find((l) => PAY_WAY.test(l)) || null;
 // The written words made a sentence of clause 2.2: "התשלום בצ'קים" as is; "צ'קים" → "התשלום יתבצע

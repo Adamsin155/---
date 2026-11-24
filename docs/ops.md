@@ -5549,3 +5549,15 @@ Claude יראה פסקה של "מה ישתנה". עונים "כן" ורק אז �
   - `tests/create-quote.test.mjs`
   - `tests/sync-functions.test.mjs`
 - **פריסה:** קודם ה־SQL, אחר כך הפונקציות `create-quote` ו־`mcp`, ובסוף האתר (מילות דף ההסכמה ב־`app/mcp-logic.js`).
+
+## 150. Safari ישן: בלי lookbehind בקוד (עילאי, 24.11.2026)
+
+"הלקוחות שלי" של עילאי נשאר אפור במחשב שלו (Mac, Safari), גם אחרי רענון. המסד ענה מהר, ועם הנתונים האמיתיים שלו הדף נטען תקין ב־Safari חדש. אז הסיבה בדפדפן.
+
+- **הסיבה:** ב־18.11 נכנס ל־`app/legal.js` ביטוי רגולרי עם lookbehind (`(?<!…)`), והוא שגיאת תחביר ב־Safari שלפני 16.4. כל עמוד של הצוות טוען את הקובץ דרך קוד הכניסה (`protocol-ui.js` ← `set-password.js` ← `quote-doc.js` ← `pricing.js` ← `contract-text.js` ← `legal.js`). לכן העמוד נעצר לפני שהתחיל.
+- **התיקון:** שלושת המקומות נכתבו בלי lookbehind, עם אותה תוצאה בדיוק. נבדק מול הביטוי הישן:
+  - `PAY_WAY` ב־`legal.js`
+  - `breakable` ב־`client-card.js`
+  - `PAIR` ב־`legacy-char-logic.js`, שהיה ביטוי והיום הוא הפונקציה `pairMatch`
+- **השומר:** `tests/old-safari.test.mjs` לא נותן ל־lookbehind לחזור ל־`app/` ולעמודים.
+- **לא נבדק:** Safari ישן אמיתי. ל־Playwright יש רק WebKit חדש.
