@@ -27,10 +27,22 @@ const DECORATED = /^[=\-–—_~*]{2,}\s*(.+?)\s*[=\-–—_~*]{2,}$/u;
 // "key: value". The colon is not one between two digits (10:30); the key is short (60 at
 // most, 10 words), has a letter, no sentence inside it (". " or "!"), and is not a link's
 // "https".
-const PAIR = /^(.{1,60}?)\s*(?<!\d)[:：](?!\d)\s*(.*)$/u;
+// Was /^(.{1,60}?)\s*(?<!\d)[:：](?!\d)\s*(.*)$/u; written out, since Safari before 16.4 cannot read a
+// lookbehind (Ilai's Mac, 24.11.2026). [the whole line, the key, the value] or null.
+function pairMatch(line) {
+  for (const m of line.matchAll(/[:：]/gu)) {
+    const i = m.index;
+    if (i === 0) continue;
+    if (/\d/.test(line[i - 1]) || /\d/.test(line[i + 1] || '')) continue;
+    const before = line.slice(0, i);
+    if ([...before.replace(/\s+$/u, '')].length > 60) return null;
+    return [line, before, line.slice(i + 1).replace(/^\s+/u, '')];
+  }
+  return null;
+}
 
 function pairOf(line) {
-  const m = PAIR.exec(line);
+  const m = pairMatch(line);
   if (!m) return null;
   const key = m[1].trim();
   if (!key || !LETTER.test(key) || words(key) > 10 || /!|\.\s/.test(key) || /^https?$/i.test(key) || /^\/\//.test(m[2])) return null;
