@@ -16,7 +16,10 @@ import { isGraphics } from './protocol.js';
 import { dayKeyIL } from './tz.js';
 
 // ── The kinds ─────────────────────────────
-export const GFX_KINDS = [['make', 'להכין'], ['fix', 'לתקן'], ['schedule', 'לתזמן']];
+// 'schedule' is the graphics' scheduling; 'schedule_videos' (the owner, 24.11.2026; docs/ops.md, section
+// 152) the videos', given apart from it and closed by the videos scheduled in the Gantt.
+export const GFX_KINDS = [['make', 'להכין'], ['fix', 'לתקן'], ['schedule', 'לתזמן גרפיקות'], ['schedule_videos', 'לתזמן סרטונים']];
+const UNIT = (kind) => (kind === 'schedule_videos' ? 'סרטונים' : 'גרפיקות');
 export const GFX_LABEL = Object.fromEntries(GFX_KINDS);
 export const GFX_COUNT_MAX = 200;
 export const AUTO_EMAIL = 'system:auto'; // done_by_email of a task the system closed
@@ -95,12 +98,13 @@ export function driveSince(rows, since, base) {
 // sync added for a new post is created when the post is). A row scheduled before the task and
 // published after it is not new work, and is not counted.
 // → { count, last: the newest moment (ISO) or null }
-export function ganttSince(rows, since) {
+//   kind: 'graphic' (the default) or 'video' (a "לתזמן סרטונים" task).
+export function ganttSince(rows, since, kind = 'graphic') {
   const from = time(since);
   let count = 0;
   let last = null;
   for (const r of rows || []) {
-    if (r.kind !== 'graphic' || !['scheduled', 'posted'].includes(r.state)) continue;
+    if (r.kind !== kind || !['scheduled', 'posted'].includes(r.state)) continue;
     const at = r.live_at || r.created_at;
     if (!(time(at) > from)) continue;
     count += 1;
@@ -122,8 +126,9 @@ export function judge(task, { drive = [], gantt = [] } = {}) {
   const kind = kindOf(task);
   const out = { kind, n: 0, close: false, note: null, source: null };
   if (!judged(task) || kind === 'fix') return out;
-  const d = driveSince(drive, task.created_at, task.gfx_base);
-  const g = ganttSince(gantt, task.created_at);
+  const videos = kind === 'schedule_videos';
+  const d = videos ? { files: 0, last: null } : driveSince(drive, task.created_at, task.gfx_base);
+  const g = ganttSince(gantt, task.created_at, videos ? 'video' : 'graphic');
   // להכין: the files in the Drive (or graphics already scheduled, which were surely made);
   // לתזמן: the Gantt only.
   const useDrive = kind === 'make' && d.files >= g.count && d.files > 0;
@@ -133,14 +138,14 @@ export function judge(task, { drive = [], gantt = [] } = {}) {
   let enough = out.n >= need;
   if (enough && task.auto_reopened_at) {
     const nd = kind === 'make' ? driveSince(drive, task.auto_reopened_at, task.auto_reopen_base).files : 0;
-    const ng = ganttSince(gantt, task.auto_reopened_at).count;
+    const ng = ganttSince(gantt, task.auto_reopened_at, videos ? 'video' : 'graphic').count;
     enough = nd + ng > 0;
   }
   if (!enough) return out;
   out.close = true;
   out.note = out.source === 'drive'
     ? `נסגר אוטומטית: עלו ${out.n} גרפיקות בדרייב${d.last ? ` ב־${dm(d.last)}` : ''}`
-    : `נסגר אוטומטית: תוזמנו ${out.n} גרפיקות בגאנט${g.last ? ` עד ${dm(dayKeyIL(new Date(g.last)))}` : ''}`;
+    : `נסגר אוטומטית: תוזמנו ${out.n} ${UNIT(kind)} בגאנט${g.last ? ` עד ${dm(dayKeyIL(new Date(g.last)))}` : ''}`;
   return out;
 }
 

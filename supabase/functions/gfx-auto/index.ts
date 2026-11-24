@@ -32,7 +32,7 @@ const store = {
     return must(await admin.from('drive_daily').select('client_id, day, folder, kind, files').in('client_id', clientIds).eq('kind', 'graphic').gte('day', fromDay).gt('files', 0).limit(10000)) as Row[];
   },
   async gantt(clientIds: string[]) {
-    return must(await admin.from('client_gantt').select('client_id, kind, state, live_at, created_at').in('client_id', clientIds).eq('kind', 'graphic').in('state', ['scheduled', 'posted']).limit(10000)) as Row[];
+    return must(await admin.from('client_gantt').select('client_id, kind, state, live_at, created_at').in('client_id', clientIds).in('kind', ['graphic', 'video']).in('state', ['scheduled', 'posted']).limit(10000)) as Row[];
   },
   async close(id: string, note: string, n: number | null) {
     return must(await admin.rpc('staff_task_auto_close', { p_id: id, p_note: note, p_done: n })) === true;

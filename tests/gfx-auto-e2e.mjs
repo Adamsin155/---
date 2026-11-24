@@ -196,8 +196,8 @@ async function formFlow(page, tag) {
   assert.equal(await page.locator('#st-gfx').isHidden(), true, 'no client yet');
   await page.selectOption('#st-client', C1.id);
   await page.locator('#st-gfx:not([hidden])').waitFor();
-  assert.equal(await page.locator('#st-gfx legend').innerText(), 'גרפיקות (לא חובה)');
-  assert.deepEqual(await page.locator('#st-gfx .st-chip span').allInnerTexts(), ['להכין', 'לתקן', 'לתזמן']);
+  assert.equal(await page.locator('#st-gfx legend').innerText(), 'סוג המשימה (לא חובה)');
+  assert.deepEqual(await page.locator('#st-gfx .st-chip span').allInnerTexts(), ['להכין', 'לתקן', 'לתזמן גרפיקות', 'לתזמן סרטונים']);
   // To Nadia: gone; back to Ilai: there.
   await page.selectOption('#st-assignee', 'nadia');
   assert.equal(await page.locator('#st-gfx').isHidden(), true, 'not a graphics person');
@@ -210,6 +210,14 @@ async function formFlow(page, tag) {
   await page.locator('.st-chip', { hasText: 'לתקן' }).click();
   assert.equal(await page.locator('input[name="gfxKind"]:checked').count(), 0, 'a chip pressed again is unchosen');
   assert.equal(await page.locator('.st-gfx-count').isHidden(), false);
+  // "לתזמן סרטונים" (24.11.2026): the number is of videos; the graphics' scheduling of graphics.
+  await page.locator('.st-chip', { hasText: 'לתזמן סרטונים' }).click();
+  assert.equal(await page.locator('label[for="st-gfxCount"]').innerText(), 'כמה סרטונים');
+  assert.equal(await page.locator('.st-gfx-hint').innerText(), 'כשהסרטונים יתוזמנו בגאנט, הנודניק ייסגר לבד.');
+  await shot(page, `gfx-form-videos-${tag}`, '#st-form');
+  await page.locator('.st-chip', { hasText: 'לתזמן גרפיקות' }).click();
+  assert.equal(await page.locator('label[for="st-gfxCount"]').innerText(), 'כמה גרפיקות');
+  assert.equal(await page.locator('.st-gfx-hint').innerText(), 'כשהגרפיקות יתוזמנו בגאנט, הנודניק ייסגר לבד.');
   await page.locator('.st-chip', { hasText: 'להכין' }).click();
   // The number, key by key: a letter never stays, Backspace deletes, typed again.
   const n = page.locator('#st-gfxCount');
@@ -241,6 +249,22 @@ async function formFlow(page, tag) {
   await page.locator('#st-form').waitFor({ state: 'detached' });
   const sent = calls.filter((c) => c.name === 'staff_task_create_brief').at(-1);
   assert.deepEqual([sent.body.p_assignee, sent.body.p_client, sent.body.p_brief], ['ilai', C1.id, { gfx_kind: 'make', gfx_count: 10 }]);
+  // A second one, the videos' scheduling, with its own number typed key by key.
+  await page.click('#st-new');
+  await page.selectOption('#st-assignee', 'ilai');
+  await page.selectOption('#st-client', C1.id);
+  await page.locator('.st-chip', { hasText: 'לתזמן סרטונים' }).click();
+  const v = page.locator('#st-gfxCount');
+  await v.click();
+  await v.pressSequentially('13', { delay: 40 });
+  await v.press('Backspace');
+  await v.pressSequentially('2', { delay: 40 });
+  assert.equal(await v.inputValue(), '12');
+  await page.fill('#st-body', `מאפיית הדגמה- לתזמן את הסרטונים (${tag})`);
+  await page.click('#st-send');
+  await page.locator('#st-form').waitFor({ state: 'detached' });
+  const sent2 = calls.filter((c) => c.name === 'staff_task_create_brief').at(-1);
+  assert.deepEqual(sent2.body.p_brief, { gfx_kind: 'schedule_videos', gfx_count: 12 });
 }
 
 let exitCode = 0;

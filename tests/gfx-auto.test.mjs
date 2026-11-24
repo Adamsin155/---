@@ -102,6 +102,22 @@ test('judge: a make task closes on the Drive, a schedule task on the Gantt only,
   assert.equal(judge({ ...t, body: 'לתקן גרפיקות לפי ההערות' }, { drive, gantt }).close, false);
 });
 
+test('"לתזמן סרטונים" (24.11.2026): closed by the videos scheduled in the Gantt, never by graphics or by the Drive', () => {
+  const t = { id: 't', status: 'open', assignee: 'ilai', client_id: 'c', created_at: GIVEN, gfx_base: 0, body: 'לתזמן', gfx_kind: 'schedule_videos', gfx_count: 3 };
+  const v = (live) => ({ kind: 'video', state: 'scheduled', live_at: live, created_at: '2026-10-20T10:00:00Z' });
+  const gfx = { kind: 'graphic', state: 'scheduled', live_at: '2026-11-15T15:09:00Z', created_at: '2026-11-15T12:45:00Z' };
+  const two = judge(t, { drive: [d('2026-11-15', 9)], gantt: [gfx, gfx, gfx, v('2026-11-15T09:00:00Z'), v('2026-11-16T09:00:00Z'), v('2026-11-01T09:00:00Z')] });
+  assert.deepEqual([two.close, two.n, two.source], [false, 2, 'gantt'], 'graphics, Drive files and videos from before the task do not count');
+  assert.equal(progressText({ ...t, gfx_done: two.n }), 'לתזמן סרטונים · 2 מתוך 3');
+  const three = judge(t, { gantt: [v('2026-11-15T09:00:00Z'), v('2026-11-16T09:00:00Z'), v('2026-11-17T09:00:00Z')] });
+  assert.deepEqual([three.close, three.note], [true, 'נסגר אוטומטית: תוזמנו 3 סרטונים בגאנט עד 17.11']);
+  // The graphics' scheduling is not closed by videos.
+  assert.equal(judge({ ...t, gfx_kind: 'schedule' }, { gantt: [v('2026-11-15T09:00:00Z'), v('2026-11-16T09:00:00Z'), v('2026-11-17T09:00:00Z')] }).close, false);
+  assert.equal(progressText({ gfx_kind: 'schedule', gfx_count: 5, gfx_done: 1 }), 'לתזמן גרפיקות · 1 מתוך 5');
+  assert.deepEqual(gfxChoice({ assignee: 'ilai', clientId: 'c', kind: 'schedule_videos', count: '12' }).value, { gfx_kind: 'schedule_videos', gfx_count: 12 });
+  assert.equal(kindOf({ body: 'כלום', gfx_kind: 'schedule_videos' }), 'schedule_videos');
+});
+
 test('a typed task closes when its number is reached, and shows "4 מתוך 10" until then', () => {
   const t = { status: 'open', assignee: 'ilai', client_id: 'c', created_at: GIVEN, gfx_base: 0, body: 'משימה', gfx_kind: 'make', gfx_count: 10 };
   const four = judge(t, { drive: [d('2026-11-05', 4)] });

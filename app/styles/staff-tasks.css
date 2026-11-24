@@ -80,7 +80,7 @@
 .st-gfx-form { margin: 0; padding: 12px; border: 1px solid var(--ds-line, var(--line)); border-radius: var(--ds-r-item); display: grid; gap: 10px; min-width: 0; }
 .st-gfx-form[hidden], .st-gfx-count[hidden] { display: none; }
 .st-gfx-form legend { padding: 0 6px; font-weight: 700; font-size: 15px; }
-.st-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-inline-size: 360px; }
+.st-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-inline-size: 360px; } /* four kinds: two rows of two (24.11.2026) */
 .st-chip { position: relative; display: flex; min-width: 0; }
 .st-chip input { position: absolute; opacity: 0; inline-size: 1px; block-size: 1px; }
 .st-chip span {
