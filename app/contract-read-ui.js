@@ -13,7 +13,7 @@ import { checkReadForm, clientPatchFromRead, keepableRow, LIMITS } from './contr
 // Asking contract-ai and adding the row: shared with "הצעות שנשלחו", which reads a new file by itself.
 import { askContractRead, insertManualContract } from './contract-read-api.js';
 
-export const MANUAL_COLS = 'id, client_id, file_id, business, company_id, contact_name, package_id, package_name, monthly_net_agorot, term_months, signed_on, read_by_ai, created_by_email, created_at';
+export const MANUAL_COLS = 'id, client_id, file_id, business, company_id, contact_name, phone, email, address, package_id, package_name, monthly_net_agorot, term_months, signed_on, read_by_ai, created_by_email, created_at';
 
 // The confirmed readings of one client: { fileId: row }. Empty when the table is not there yet, or
 // for whoever may not see them (row level security answers no rows).
@@ -52,6 +52,10 @@ function markup() {
         field('cr-business', 'שם העסק', text('cr-business', LIMITS.business)),
         field('cr-company', 'ח.פ / ע.מ', text('cr-company', 12, { inputmode: 'numeric', dir: 'ltr' })),
         field('cr-contact', 'איש קשר', text('cr-contact', LIMITS.contact)),
+        // 25.11.2026 (docs/ops.md, section 153): filled in the client's card where it is empty.
+        field('cr-phone', 'טלפון', text('cr-phone', LIMITS.phone, { type: 'tel', inputmode: 'tel', dir: 'ltr', autocomplete: 'off' })),
+        field('cr-email', 'מייל', text('cr-email', LIMITS.email, { type: 'email', inputmode: 'email', dir: 'ltr', autocapitalize: 'off', spellcheck: 'false' })),
+        field('cr-address', 'כתובת העסק', text('cr-address', LIMITS.address)),
         field('cr-package', 'חבילה', h('select', { class: 'input', id: 'cr-package' },
           h('option', { value: '' }, 'לא ידוע / אחר'),
           ...PACKAGE_OPTIONS.map((p) => h('option', { value: p.id }, p.name)))),
@@ -67,11 +71,14 @@ function markup() {
         h('button', { type: 'submit', class: 'btn btn-primary', id: 'cr-submit' }, 'אישור ושמירה'))));
 }
 
-const FIELDS = { business: 'cr-business', company_id: 'cr-company', contact_name: 'cr-contact', package_id: 'cr-package', monthly_net: 'cr-monthly', term_months: 'cr-term', signed_on: 'cr-signed' };
+const FIELDS = { business: 'cr-business', company_id: 'cr-company', contact_name: 'cr-contact', phone: 'cr-phone', email: 'cr-email', address: 'cr-address', package_id: 'cr-package', monthly_net: 'cr-monthly', term_months: 'cr-term', signed_on: 'cr-signed' };
 function setForm(v = {}) {
   $('cr-business').value = v.business || '';
   $('cr-company').value = v.company_id || '';
   $('cr-contact').value = v.contact_name || '';
+  $('cr-phone').value = v.phone || '';
+  $('cr-email').value = v.email || '';
+  $('cr-address').value = v.address || '';
   $('cr-package').value = v.package_id || '';
   $('cr-monthly').value = v.monthly_net ? String(v.monthly_net) : '';
   $('cr-term').value = v.term_months ? String(v.term_months) : '';
