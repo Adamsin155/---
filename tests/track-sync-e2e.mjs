@@ -211,20 +211,6 @@ for (const [name, engine, size] of ENGINES) {
   });
 }
 
-// ── 2b. The move to the new Drive (24.11.2026): the check is paused, the tick is taken with 31 of 48 ──
-await step('2b Yariv (iphone, paused during the move to the new Drive): the tick on 24 is taken although the Drive has 31 of 48', async () => {
-  const db = office();
-  const { page, ctx } = await signedIn(wk, 'yariv', db, { device: devices['iPhone 13'], path: `client.html?id=${N}`, wait: '#cc-head h1', paused: true });
-  const p24 = await show24(page);
-  const fold = p24.locator('details.chk-fold');
-  if (!(await fold.evaluate((d) => d.open))) await fold.locator('summary').click();
-  await p24.locator('#i-p24-drive').click();
-  await page.waitForFunction(() => document.querySelector('#i-p24-drive')?.checked === true, null, { timeout: 8000 });
-  await settle(page);
-  assert.ok(checkOf(db, N, 'p24.drive'), 'taken while the check is paused');
-  await ctx.close();
-});
-
 // ── 3. editor.html: "מוכן לבדיקה" with 10 of 24 in the Drive ──
 for (const [name, engine, size] of ENGINES) {
   await step(`3  Yariv on editor.html (${name}): "מוכן לבדיקה" is refused in the dialog; nothing of the hand-off is marked`, async () => {

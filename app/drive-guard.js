@@ -22,7 +22,7 @@ const WORDS = { ...ERRORS, not_allowed: 'את הדרייב של הלקוח בו�
 // are being deleted and moved, so the folders do not show what was really made, and the check would
 // stop the editors from marking. While true, the mark is written without looking into the Drive.
 // Back on: false (after the move and the new links). Tests turn it on with globalThis.__driveCheckOn.
-export const DRIVE_CHECK_PAUSED = true;
+export const DRIVE_CHECK_PAUSED = false;
 const KEEP_MS = 120e3;
 const passed = new Map(); // `${clientId}|${key}` → when the folder was found full
 

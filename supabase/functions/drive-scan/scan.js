@@ -8,6 +8,11 @@ import { clientState } from '../_shared/app/protocol-logic.js';
 import { driveMarks, ganttFills } from '../_shared/app/drive-auto-logic.js';
 
 export const WINDOW_DAYS = 30;
+// The move to the new Drive (the owner, 24-25.11.2026; docs/ops.md, section 154): the clients' files were
+// copied there on 24.11, so every copy is dated 24.11. Only what was added from COUNT_FROM on is counted,
+// and the days before it are left as they were (never zeroed): the copies are not new work, and the
+// counts kept until the move stay. Applies to the daily scan; the one-time back-scan is not run again.
+export const COUNT_FROM = new Date('2026-11-25T00:00:00+02:00');
 export const BATCH = 8;
 export const BUDGET_MS = 45000; // stops taking clients after this; the next run goes on from there
 export const SCAN_DEPTH = 3;
@@ -70,7 +75,8 @@ export async function autoStep({ store, clientId, files, now, stats }) {
 // fillLink(clientId, id, link) → written?
 export async function runScan({ store, drive, now = new Date(), clock = () => Date.now(), batch = BATCH, budgetMs = BUDGET_MS }) {
   const started = clock();
-  const since = atTimeIL(addDaysIL(now, -WINDOW_DAYS), 0);
+  const window = atTimeIL(addDaysIL(now, -WINDOW_DAYS), 0);
+  const since = window < COUNT_FROM ? COUNT_FROM : window;
   const fromDay = dayKeyIL(since);
   const all = await store.targets();
   const queue = [...all].sort((a, b) => String(a.scanned_at || '').localeCompare(String(b.scanned_at || ''))).slice(0, batch);

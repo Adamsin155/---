@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileClass, makeDrive, FOLDER_MIME } from '../supabase/functions/_shared/drive.js';
-import { dayRows, mergeRows, runScan, BATCH } from '../supabase/functions/drive-scan/scan.js';
+import { dayRows, mergeRows, runScan, BATCH, COUNT_FROM } from '../supabase/functions/drive-scan/scan.js';
 
 const VIDEO = 'video/mp4';
 const IMAGE = 'image/png';
@@ -68,8 +68,20 @@ test('a run: the clients counted longest ago, never counted first; a failure is 
   assert.equal(stats.failed, 2);
   assert.equal(stats.clients, BATCH - 2);
   assert.equal(stats.files, BATCH - 2);
-  // Thirty days back, from the start of the day in Israel.
-  assert.equal(asked[0].since, '2026-09-29T21:00:00.000Z');
+  // Before the move to the new Drive's day (COUNT_FROM, 25.11.2026): from that day, not thirty days back.
+  assert.equal(asked[0].since, '2026-11-24T22:00:00.000Z');
+});
+
+test('the move to the new Drive (25.11.2026): the copies of 24.11 are not counted, the days before 25.11 are never zeroed; later, thirty days back', async () => {
+  const asked = []; const befores = [];
+  const store = { ...fakeStore([{ id: 'c1', links: { drive: FOLDER }, scanned_at: null }]), before: async (id, fromDay) => { befores.push(fromDay); return []; } };
+  const drive = { list: async (id, opts) => { asked.push(opts); return { files: [], truncated: false }; } };
+  await runScan({ store, drive, now: new Date('2026-11-26T10:00:00Z') });
+  assert.equal(asked[0].since, '2026-11-24T22:00:00.000Z');
+  assert.deepEqual(befores, ['2026-11-25'], 'only rows from 25.11 on may be zeroed');
+  await runScan({ store, drive, now: new Date('2027-01-10T10:00:00Z') });
+  assert.equal(asked[1].since, '2026-12-10T22:00:00.000Z', 'thirty days back, from the start of the day in Israel');
+  assert.equal(COUNT_FROM.toISOString(), '2026-11-24T22:00:00.000Z');
 });
 
 test('out of time: the run stops taking clients, the next one goes on', async () => {
