@@ -37,11 +37,15 @@ export const readTooBig = (media, bytes) => Number(bytes) > (media.kind === 'doc
 export const READ_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['business', 'company_id', 'contact_name', 'package_id', 'monthly_net', 'total_net', 'term_months', 'signed_on', 'notes'],
+  required: ['business', 'company_id', 'contact_name', 'phone', 'email', 'address', 'package_id', 'monthly_net', 'total_net', 'term_months', 'signed_on', 'notes'],
   properties: {
     business: { type: 'string' },
     company_id: { type: 'string' },
     contact_name: { type: 'string' },
+    // 25.11.2026 (docs/ops.md, section 153): the client's phone, email and address, for the card.
+    phone: { type: 'string' },
+    email: { type: 'string' },
+    address: { type: 'string' },
     package_id: { type: 'string', enum: ['', ...PACKAGE_IDS] },
     monthly_net: { type: 'integer' },
     total_net: { type: 'integer' },
@@ -60,6 +64,7 @@ export function readSystemPrompt() {
     'אתה קורא הסכם התקשרות חתום של "אסטרטג", משרד שיווק בישראל, ומחזיר את פרטיו בדיוק כפי שהם כתובים בו.',
     'אל תנחש ואל תשלים: מה שלא כתוב בחוזה מוחזר ריק ("") או 0.',
     'business: שם העסק של הלקוח (לא אסטרטג). company_id: ח.פ/ע.מ של הלקוח, ספרות בלבד (לא של אסטרטג, 514729938). contact_name: שם איש הקשר או החותם מטעם הלקוח.',
+    'phone: הטלפון של הלקוח כפי שכתוב בחוזה (לא של אסטרטג). email: המייל של הלקוח (לא של אסטרטג). address: כתובת העסק של הלקוח (רחוב, מספר, עיר). מה שלא כתוב: "".',
     'package_id: החבילה מהרשימה, לפי שם החבילה והמשפיען שכתובים בחוזה. "משפיען לבחירה" או "משפיען מרשימת המשפיענים של אסטרטג" הוא המשפיען choice. אם החבילה לא מתאימה לאף אחת: "".',
     PACKAGE_IDS.map(packageLine).join('\n'),
     'monthly_net: התמורה החודשית בשקלים לפני מע״מ, מספר שלם (אם כתוב רק כולל מע״מ, חלק ב־1.18 ועגל). term_months: מספר חודשי ההתחייבות.',
@@ -79,7 +84,12 @@ export function validDay(s, now = new Date()) {
   if (d.getUTCFullYear() !== +m[1] || d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return false;
   return +m[1] >= 2020 && d.getTime() <= now.getTime() + 2 * 864e5;
 }
-export const LIMITS = { business: 120, contact: 80, note: 200, notes: 3, monthlyMax: 200000, termMax: 60 };
+export const LIMITS = { business: 120, contact: 80, phone: 20, email: 254, address: 200, note: 200, notes: 3, monthlyMax: 200000, termMax: 60 };
+// The client's phone, email and address as the card keeps them ('' when not usable); the same shapes
+// as the database's private.clean_phone / clean_email / clean_address.
+export const cleanPhone = (v) => { const t = String(v ?? '').trim(); return /^[0-9+()\- ]{7,20}$/.test(t) && /[0-9]{3}/.test(t) ? t : ''; };
+export const cleanEmail = (v) => { const t = String(v ?? '').trim().toLowerCase(); return t.length <= LIMITS.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t) ? t : ''; };
+export const cleanAddress = (v) => { const t = String(v ?? '').replace(/\s+/g, ' ').trim(); return t.length >= 4 && t.length <= LIMITS.address ? t : ''; };
 
 // The model's answer, checked: { result, dropped }. Never throws. `result`:
 // { business, company_id, contact_name, package_id, monthly_net (₪ or null), term_months (or null),
@@ -116,6 +126,9 @@ export function validateReadResult(raw, now = new Date()) {
       business: clip(r.business, LIMITS.business),
       company_id: company.length === 9 ? company : '',
       contact_name: clip(r.contact_name, LIMITS.contact),
+      phone: cleanPhone(r.phone),
+      email: cleanEmail(r.email),
+      address: cleanAddress(r.address),
       package_id: pkg,
       monthly_net: monthly >= 1 && monthly <= LIMITS.monthlyMax ? monthly : fromTotal,
       term_months: term >= 1 && term <= LIMITS.termMax ? term : null,
@@ -153,6 +166,12 @@ export function checkReadForm(form, now = new Date()) {
   if (term !== null && !(Number.isInteger(term) && term >= 1 && term <= LIMITS.termMax)) errors.term_months = `חודשים: בין 1 ל־${LIMITS.termMax}.`;
   const day = String(form.signed_on || '').trim();
   if (day && !validDay(day, now)) errors.signed_on = 'תאריך החתימה לא תקין.';
+  const phone = String(form.phone ?? '').trim();
+  if (phone && !cleanPhone(phone)) errors.phone = 'הטלפון לא נראה תקין.';
+  const email = String(form.email ?? '').trim();
+  if (email && !cleanEmail(email)) errors.email = 'המייל לא נראה תקין.';
+  const address = String(form.address ?? '').replace(/\s+/g, ' ').trim();
+  if (address && !cleanAddress(address)) errors.address = 'הכתובת קצרה או ארוכה מדי.';
   if (!business) errors.business = 'חסר שם העסק.';
   if (Object.keys(errors).length) return { ok: false, errors };
   return {
@@ -161,6 +180,7 @@ export function checkReadForm(form, now = new Date()) {
     row: {
       business, company_id: company || null, contact_name: clip(form.contact_name, LIMITS.contact) || null,
       package_id: pkg || null, monthly_net_agorot: monthly === null ? null : monthly * 100, term_months: term, signed_on: day || null,
+      phone: cleanPhone(phone) || null, email: cleanEmail(email) || null, address: cleanAddress(address) || null,
     },
   };
 }
@@ -196,6 +216,7 @@ export function manualAmounts(row) {
 export function formFromRead(r = {}) {
   return {
     business: r.business || '', company_id: r.company_id || '', contact_name: r.contact_name || '', package_id: r.package_id || '',
+    phone: r.phone || '', email: r.email || '', address: r.address || '',
     monthly_net: r.monthly_net ? String(r.monthly_net) : '', term_months: r.term_months ? String(r.term_months) : '', signed_on: r.signed_on || '',
   };
 }

@@ -62,7 +62,7 @@ const D = {
 };
 const check = (key, at = '2026-10-13T09:00:00+03:00') => ({ client_id: D.id, item_key: key, state: 'done', note: null, by_email: 'ilai@astrateg.test', at });
 // What the AI "reads" from a contract (the shape of the model's strict answer, app/contract-read-logic.js READ_SCHEMA).
-const READ_ANSWER = { business: 'מספרת אבי בע״מ', company_id: '515151515', contact_name: 'אבי כהן', package_id: 'social-choice', monthly_net: 3900, term_months: 12, signed_on: '2026-10-12', notes: ['החתימה בעמוד האחרון קשה לקריאה'] };
+const READ_ANSWER = { business: 'מספרת אבי בע״מ', company_id: '515151515', contact_name: 'אבי כהן', phone: '050-1112233', email: 'avi@example.co.il', address: 'הרצל 12, חיפה', package_id: 'social-choice', monthly_net: 3900, term_months: 12, signed_on: '2026-10-12', notes: ['החתימה בעמוד האחרון קשה לקריאה'] };
 const reads = [];
 // public.sees_quote_money(): the owners (staff with no person), Irit, Ofir and Lior.
 const seesMoney = (u) => !!u && (staff.find((r) => r.email === u.email)?.person === null || ['irit', 'ofir', 'lior'].includes(personOf(u)));
@@ -568,6 +568,8 @@ await step('Ofir opens a client by hand on the phone and attaches the signed con
   assert.equal(await p.inputValue('#cr-package'), 'social-choice');
   assert.equal(await p.inputValue('#cr-term'), '12');
   assert.equal(await p.inputValue('#cr-signed'), '2026-10-12');
+  // 25.11.2026: the phone, the email and the address are read too (the database fills the card's empty ones).
+  assert.deepEqual([await p.inputValue('#cr-phone'), await p.inputValue('#cr-email'), await p.inputValue('#cr-address')], ['050-1112233', 'avi@example.co.il', 'הרצל 12, חיפה']);
   assert.match(await p.innerText('#cr-notes'), /החתימה בעמוד האחרון/);
   await p.waitForFunction(() => /נשמר ב״הצעות שנשלחו״/.test(document.getElementById('cr-hint')?.textContent || ''));
   assert.equal(db.manual_contracts.length, 1, 'kept right after the reading');
@@ -915,6 +917,14 @@ await step('WebKit (iPhone 13): the review of a read contract takes typing and d
   await typeKeys(p, '#cr-contact', 'דנה לוי', 2);
   await clearKeys(p, '#cr-term');
   await typeKeys(p, '#cr-term', '24');
+  // The phone, the email and the address (25.11.2026), key by key with deleting.
+  await clearKeys(p, '#cr-phone');
+  await typeKeys(p, '#cr-phone', '052-7654321', 2);
+  await clearKeys(p, '#cr-email');
+  await typeKeys(p, '#cr-email', 'dana@example.co.il', 3);
+  await clearKeys(p, '#cr-address');
+  await typeKeys(p, '#cr-address', 'הנביאים 5, חיפה', 2);
+  assert.deepEqual([await p.inputValue('#cr-phone'), await p.inputValue('#cr-email'), await p.inputValue('#cr-address')], ['052-7654321', 'dana@example.co.il', 'הנביאים 5, חיפה']);
   assert.equal(await p.inputValue('#cr-contact'), 'דנה לוי');
   assert.ok(await noHScroll(p));
   await shot(p, 'b14-webkit-read-review', { fullPage: false });
@@ -922,6 +932,7 @@ await step('WebKit (iPhone 13): the review of a read contract takes typing and d
   await toastHas(p, 'פרטי החוזה עודכנו');
   const mc = db.manual_contracts.find((m) => m.client_id === D.id);
   assert.deepEqual([mc.contact_name, mc.term_months, mc.created_by_email], ['דנה לוי', 24, 'irit@astrateg.test']);
+  assert.deepEqual([mc.phone, mc.email, mc.address], ['052-7654321', 'dana@example.co.il', 'הנביאים 5, חיפה']);
   await ctx.close();
   await wk.close();
 });

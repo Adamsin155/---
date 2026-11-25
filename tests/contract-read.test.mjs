@@ -26,7 +26,7 @@ test('the schema is strict and names the catalog\'s packages, "משפיען לב
 
 test('the answer is checked: numbers, dates and the package; nothing unknown gets in', () => {
   const good = validateReadResult({ business: ' סטודיו  סיוון ', company_id: '066-196445', contact_name: 'סיוון פנסו', package_id: 'social-choice', monthly_net: 3900, term_months: 12, signed_on: '2026-11-04', notes: [] }, NOW);
-  assert.deepEqual(good.result, { business: 'סטודיו סיוון', company_id: '066196445', contact_name: 'סיוון פנסו', package_id: 'social-choice', monthly_net: 3900, term_months: 12, signed_on: '2026-11-04', notes: [] });
+  assert.deepEqual(good.result, { business: 'סטודיו סיוון', company_id: '066196445', contact_name: 'סיוון פנסו', phone: '', email: '', address: '', package_id: 'social-choice', monthly_net: 3900, term_months: 12, signed_on: '2026-11-04', notes: [] });
   assert.deepEqual(good.dropped, []);
   const bad = validateReadResult({ business: '', company_id: '123', package_id: 'gold', monthly_net: 99999999, term_months: 400, signed_on: '2027-13-01', notes: ['א', '', 'ב', 'ג', 'ד'] }, NOW);
   assert.deepEqual([bad.result.company_id, bad.result.package_id, bad.result.monthly_net, bad.result.term_months, bad.result.signed_on], ['', '', null, null, '']);
@@ -52,7 +52,7 @@ test('the end of the contract, the review form, what fills the client, the amoun
   assert.equal(contractEndOf('2026-11-04', null), null);
   const f = checkReadForm({ business: 'בסט קאר', company_id: '51 515151 5', contact_name: '', package_id: 'social-choice', monthly_net: '3,900', term_months: '12', signed_on: '2026-11-04' }, NOW);
   assert.equal(f.ok, true);
-  assert.deepEqual(f.row, { business: 'בסט קאר', company_id: '515151515', contact_name: null, package_id: 'social-choice', monthly_net_agorot: 390000, term_months: 12, signed_on: '2026-11-04' });
+  assert.deepEqual(f.row, { business: 'בסט קאר', company_id: '515151515', contact_name: null, package_id: 'social-choice', monthly_net_agorot: 390000, term_months: 12, signed_on: '2026-11-04', phone: null, email: null, address: null });
   const e = checkReadForm({ business: '', company_id: '12', monthly_net: '39.5', term_months: '0', signed_on: '2026-02-30', package_id: 'x' }, NOW);
   assert.deepEqual(Object.keys(e.errors).sort(), ['business', 'company_id', 'monthly_net', 'package_id', 'signed_on', 'term_months']);
   // The client: only what is missing, except the package's name and the end, which the contract decides.
@@ -161,4 +161,17 @@ test('a contract with only a total: the monthly price is the total divided by th
   assert.equal(validateReadResult({ monthly_net: 3900, total_net: 46800, term_months: 12 }, NOW).result.monthly_net, 3900);
   assert.equal(validateReadResult({ monthly_net: 0, total_net: 40000, term_months: 0 }, NOW).result.monthly_net, null);
   assert.ok(READ_SCHEMA.required.includes('total_net'));
+});
+
+test("25.11.2026: the client's phone, email and address are read and checked; a bad one is left empty or refused", () => {
+  const r = validateReadResult({ business: 'מאפיית הדגמה', company_id: '515151515', contact_name: 'דנה', phone: ' 050-1234567 ', email: ' Dana@Example.CO.IL ', address: ' הרצל  12,  חיפה ', package_id: '', monthly_net: 0, total_net: 0, term_months: 12, signed_on: '', notes: [] }, NOW).result;
+  assert.deepEqual([r.phone, r.email, r.address], ['050-1234567', 'dana@example.co.il', 'הרצל 12, חיפה']);
+  const bad = validateReadResult({ business: 'x', phone: 'אין', email: 'not-an-email', address: 'א' }, NOW).result;
+  assert.deepEqual([bad.phone, bad.email, bad.address], ['', '', '']);
+  const f = checkReadForm({ business: 'מאפיית הדגמה', phone: '03-123', email: 'x@', address: 'הרצל 12' }, NOW);
+  assert.equal(f.ok, false);
+  assert.deepEqual(Object.keys(f.errors).sort(), ['email', 'phone']);
+  const ok = checkReadForm({ business: 'מאפיית הדגמה', phone: '050 1234567', email: 'a@b.co', address: 'הרצל 12' }, NOW);
+  assert.deepEqual([ok.row.phone, ok.row.email, ok.row.address], ['050 1234567', 'a@b.co', 'הרצל 12']);
+  assert.ok(READ_SCHEMA.required.includes('phone') && READ_SCHEMA.required.includes('email') && READ_SCHEMA.required.includes('address'));
 });
