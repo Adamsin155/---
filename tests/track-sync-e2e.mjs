@@ -79,13 +79,15 @@ function office() {
   return db;
 }
 
-async function signedIn(engine, role, db, { width = 390, device = null, path, wait }) {
+async function signedIn(engine, role, db, { width = 390, device = null, path, wait, paused = false }) {
   const fake = makeFlowFake(db);
   const phone = !device && width < 600;
   const ctx = device
     ? await engine.newContext({ ...device, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' })
     : await engine.newContext({ locale: 'he-IL', timezoneId: 'Asia/Jerusalem', viewport: { width, height: phone ? 844 : 900 }, isMobile: phone, hasTouch: phone });
   await ctx.clock.install({ time: NOW });
+  // The Drive check is paused during the move to the new Drive (24.11.2026); this test checks it on.
+  if (!paused) await ctx.addInitScript(() => { globalThis.__driveCheckOn = true; });
   await ctx.route(`${SUPA}/**`, fake.route);
   const page = await ctx.newPage();
   watchCsp(page);
@@ -208,6 +210,20 @@ for (const [name, engine, size] of ENGINES) {
     await ctx.close();
   });
 }
+
+// ── 2b. The move to the new Drive (24.11.2026): the check is paused, the tick is taken with 31 of 48 ──
+await step('2b Yariv (iphone, paused during the move to the new Drive): the tick on 24 is taken although the Drive has 31 of 48', async () => {
+  const db = office();
+  const { page, ctx } = await signedIn(wk, 'yariv', db, { device: devices['iPhone 13'], path: `client.html?id=${N}`, wait: '#cc-head h1', paused: true });
+  const p24 = await show24(page);
+  const fold = p24.locator('details.chk-fold');
+  if (!(await fold.evaluate((d) => d.open))) await fold.locator('summary').click();
+  await p24.locator('#i-p24-drive').click();
+  await page.waitForFunction(() => document.querySelector('#i-p24-drive')?.checked === true, null, { timeout: 8000 });
+  await settle(page);
+  assert.ok(checkOf(db, N, 'p24.drive'), 'taken while the check is paused');
+  await ctx.close();
+});
 
 // ── 3. editor.html: "מוכן לבדיקה" with 10 of 24 in the Drive ──
 for (const [name, engine, size] of ENGINES) {

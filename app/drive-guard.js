@@ -18,6 +18,11 @@ export { isDriveKey } from './drive-guard-logic.js';
 // The refusals' words on this check: who may look into the folder is not the Gantt's sentence.
 const WORDS = { ...ERRORS, not_allowed: 'את הדרייב של הלקוח בודקים העורך שלו, עילאי, עירית, אופיר, ליאור והבעלים.', no_client: 'הלקוח לא נמצא. רעננו את הדף.',
   no_folder: 'אין קישור לתיקיית הדרייב בכרטיס הלקוח. מבקשים מעירית להוסיף אותו, ואז מסמנים.' };
+// Paused while the office moves to a new Drive (the owner, 24.11.2026; docs/ops.md, section 151): files
+// are being deleted and moved, so the folders do not show what was really made, and the check would
+// stop the editors from marking. While true, the mark is written without looking into the Drive.
+// Back on: false (after the move and the new links). Tests turn it on with globalThis.__driveCheckOn.
+export const DRIVE_CHECK_PAUSED = true;
 const KEEP_MS = 120e3;
 const passed = new Map(); // `${clientId}|${key}` → when the folder was found full
 
@@ -25,6 +30,7 @@ const passed = new Map(); // `${clientId}|${key}` → when the folder was found 
 //   client: the client's row when the screen has it (else it is read).
 export async function checkDriveVideos(clientId, key, { client = null, now = new Date() } = {}) {
   if (!isDriveKey(key)) return null;
+  if (DRIVE_CHECK_PAUSED && !globalThis.__driveCheckOn) return null;
   const memo = `${clientId}|${key}`;
   if (Date.now() - (passed.get(memo) || 0) < KEEP_MS) return null;
   let row = client;
