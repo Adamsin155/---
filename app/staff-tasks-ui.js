@@ -85,7 +85,7 @@ function explain(err) {
   if (/task text is required/.test(msg)) return `כותבים מה צריך לעשות, עד ${BODY_MAX} תווים.`;
   if (/needs the full brief|invalid brief/.test(msg)) return 'משימה לניראל צריכה בריף מלא: הבעיה, מה לשנות, מה נשאר והתוצאה.';
   if (/client not found/.test(msg)) return 'הלקוח שנבחר לא נמצא. בחרו לקוח אחר או השאירו ריק.';
-  if (/graphics count|graphics kind/.test(msg)) return `כמה גרפיקות: מספר בין 1 ל־${GFX_COUNT_MAX}.`;
+  if (/graphics count|graphics kind/.test(msg)) return `הכמות: מספר בין 1 ל־${GFX_COUNT_MAX}.`;
   if (/not done/.test(msg)) return 'המשימה כבר פתוחה. הרשימה רועננה.';
   if (/not allowed|permission denied/.test(msg)) return 'אין לך הרשאה לפעולה הזו.';
   return errorText(err);
@@ -149,6 +149,9 @@ function clearError(el) {
 const GFX_HINT = {
   make: 'כשהגרפיקות יעלו לדרייב או יתוזמנו בגאנט, הנודניק ייסגר לבד.',
   fix: 'כשיעלו גרפיקות חדשות לדרייב, ה־AI יבדוק אותן מול ההערות. הכול תוקן: הנודניק ייסגר לבד.',
+  schedule: 'כשהגרפיקות יתוזמנו בגאנט, הנודניק ייסגר לבד.',
+  // 24.11.2026 (docs/ops.md, section 152): the videos' scheduling, given apart from the graphics'.
+  schedule_videos: 'כשהסרטונים יתוזמנו בגאנט, הנודניק ייסגר לבד.',
 };
 let lastKind = '';
 function showGfx() {
@@ -158,7 +161,8 @@ function showGfx() {
   fs.hidden = !(isGraphics(form.elements.assignee.value) && form.elements.client?.value);
   const kind = form.querySelector('input[name="gfxKind"]:checked')?.value || '';
   form.querySelector('.st-gfx-count').hidden = kind === 'fix';
-  fs.querySelector('.st-gfx-hint').textContent = kind === 'fix' ? GFX_HINT.fix : GFX_HINT.make;
+  form.querySelector('label[for="st-gfxCount"]').textContent = kind === 'schedule_videos' ? 'כמה סרטונים' : 'כמה גרפיקות';
+  fs.querySelector('.st-gfx-hint').textContent = GFX_HINT[kind] || GFX_HINT.make;
 }
 // A chosen chip pressed again is unchosen (the choice stays optional).
 function toggleKind(input) {
@@ -261,7 +265,7 @@ function newForm() {
     }),
     h('div', { class: 'err', id: 'st-gfxCount-err', hidden: true }));
   const gfxBox = h('fieldset', { class: 'st-gfx-form', id: 'st-gfx', hidden: true },
-    h('legend', {}, 'גרפיקות (לא חובה)'),
+    h('legend', {}, 'סוג המשימה (לא חובה)'),
     h('div', { class: 'st-chips', role: 'radiogroup', 'aria-label': 'סוג המשימה' },
       ...GFX_KINDS.map(([k, l]) => h('label', { class: 'st-chip' },
         h('input', { type: 'radio', name: 'gfxKind', value: k, onclick: (e) => toggleKind(e.currentTarget) }), h('span', {}, l)))),
