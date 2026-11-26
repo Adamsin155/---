@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { freshDatabase, migrationSql } from './pg.mjs';
 
 const FILE = '20261225100000_autofill_client.sql';
+const FILE2 = '20261226100000_char_client_details.sql';
 let db;
 const users = {};
 
@@ -27,6 +28,7 @@ const newClient = async (extra = '') => (await db.query(`insert into public.clie
 before(async () => {
   db = await freshDatabase();
   await db.exec(migrationSql(FILE)); // runs again safely
+  await db.exec(migrationSql(FILE2));
   for (const [key, person] of Object.entries({ owner: null, ofir: 'ofir', irit: 'irit' })) {
     const email = `${key}@astrateg.test`;
     const r = await db.query('insert into auth.users (email, email_confirmed_at) values ($1, now()) returning id', [email]);
@@ -83,4 +85,16 @@ test('a contract uploaded by hand: the company id, email, phone and address fill
 test('the file only adds: nothing dropped or deleted', () => {
   const sql = readFileSync(new URL(`../../supabase/migrations/${FILE}`, import.meta.url), 'utf8');
   assert.equal(sql.match(/\bdrop\s+(table|column|function)|\bdelete\s+from\b|\btruncate\b/gi), null);
+});
+
+test('26.11.2026: the client details at the top of the form fill the empty card; the contact phone before the business phone', async () => {
+  const id = (await db.query("insert into public.clients (name, status, shoot_type) values ('דנה לוי', 'active', 'natali') returning id")).rows[0].id;
+  const r = await as('ofir', "insert into public.characterizations (client_id, fields) values ($1, $2)", [id, JSON.stringify({
+    contact_name: 'דנה לוי', business_name: 'מאפיית הדגמה', invoice_name: 'מאפיית הדגמה בע״מ', company_id: '51-515151-5', contact_phone: '052-1112233', phone: '04-8888888', email: 'Dana@Example.co.il' })]);
+  assert.equal(r.error, undefined, r.error);
+  const c = (await db.query('select business, invoice_name, company_id, contact_email, phone from public.clients where id = $1', [id])).rows[0];
+  assert.deepEqual(c, { business: 'מאפיית הדגמה', invoice_name: 'מאפיית הדגמה בע״מ', company_id: '515151515', contact_email: 'dana@example.co.il', phone: '052-1112233' });
+  // The office reads and writes the invoice name.
+  const u = await as('irit', "update public.clients set invoice_name = 'שם אחר' where id = $1 returning invoice_name", [id]);
+  assert.equal(u.error, undefined, u.error);
 });

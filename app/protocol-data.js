@@ -50,7 +50,7 @@ async function all(build) {
 // public.clients_contact() beside clients_private() (null before that migration, and
 // outside the office).
 export const CLIENT_PRIVATE = ['phone', 'notes', 'closed_reason'];
-const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, editor, protocol_version';
+const CLIENT_COLS = 'id, name, business, address, package_name, shoot_type, characterizer, has_logo, editor_name, deal_at, char_at, shoot_at, contract_end, status, quote_id, created_at, created_by_email, links, deliverables, rounds, verified_at, verified_by, editor, protocol_version, invoice_name';
 const LEGACY_COLS = `${CLIENT_COLS}, ${CLIENT_PRIVATE.join(', ')}`;
 // The second editor (`editor2`, 20261031100000_access_and_editors.sql) is read with the
 // rest. Before that migration the column is missing: the rows are read without it from

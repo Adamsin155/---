@@ -1360,10 +1360,13 @@ async function detailsFlow(page, who, shots) {
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'ed-email');
   await typeKeys(page, '#ed-email', '.co.il');
   assert.equal(await page.inputValue('#ed-email'), 'Ruth@Shtihim.co.il');
+  // "שם לחשבונית" (26.11.2026), key by key with a mistake taken back.
+  await page.fill('#ed-invoice', '');
+  assert.deepEqual(await typeKeys(page, '#ed-invoice', 'רות שטיחים בע״מX', 1), ['רות שטיחים בע״מX', 'רות שטיחים בע״מ']);
   assert.deepEqual(await unlabeled(page, '#dlg-edit'), []);
   assert.ok(await noHScroll(page), 'the details dialog scrolls sideways');
   // 16px, so iOS does not zoom in on focus (the whole dialog's fields), and 44px to tap.
-  for (const sel of ['#ed-email', '#ed-company-id', '#ed-phone']) {
+  for (const sel of ['#ed-email', '#ed-company-id', '#ed-phone', '#ed-invoice']) {
     assert.equal(await page.locator(sel).evaluate((el) => getComputedStyle(el).fontSize), '16px', sel);
     assert.ok((await page.locator(sel).boundingBox()).height >= 44, sel);
   }
@@ -1381,7 +1384,7 @@ async function detailsFlow(page, who, shots) {
   // Saved, and kept: the deliverables keep the monthly videos too.
   assert.equal(V.deliverables.shoot_monthly, true);
   assert.equal(V.deliverables.videos_month, 8);
-  assert.deepEqual([V.contact_email, V.company_id], ['ruth@shtihim.co.il', '514729938']);
+  assert.deepEqual([V.contact_email, V.company_id, V.invoice_name], ['ruth@shtihim.co.il', '514729938', 'רות שטיחים בע״מ']);
   // After a reload: the card shows them with the phone, the package block the switch, and the dialog keeps it.
   // After a reload (Chromium; WebKit with the fixed clock loses this fake's session on a
   // reload, so there the card drawn again from the saved row is read).
@@ -1390,6 +1393,7 @@ async function detailsFlow(page, who, shots) {
   const facts = (await page.locator('.cc-facts').innerText()).replace(/\s+/g, ' ');
   assert.match(facts, /אימייל ruth@shtihim\.co\.il/);
   assert.match(facts, /ח\.פ \/ ת\.ז 514729938/);
+  assert.match(facts, /שם לחשבונית רות שטיחים בע״מ/);
   await page.locator('#deliv-shoot-monthly').waitFor({ state: 'attached' });
   await page.click('#btn-edit');
   await page.waitForSelector('#dlg-edit[open]');

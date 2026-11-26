@@ -53,6 +53,21 @@ export const FORM_FIELDS = [
   { key: 'campaigns', item: 'p04.campaigns', label: 'צרכים לקמפיינים' },
   { key: 'special', item: 'p04.special', label: 'דגשים מיוחדים' },
 ];
+// "פרטי הלקוח" (Irit and the owner, 26.11.2026; docs/ops.md, section 155): Ofir fills the client's
+// details in the meeting, at the top of the form. None is required; they are not among the 11 and
+// close no item. When saved, the database puts what is missing into the client's card (the trigger
+// characterizations_zz_fill_client): the name and the business are only read, the rest fills empty
+// fields. The business phone stays where it is, among the 11 ("טלפון העסק").
+export const CLIENT_FIELDS = [
+  { key: 'contact_name', label: 'שם פרטי ומשפחה', max: 120 },
+  { key: 'business_name', label: 'שם העסק', max: 120 },
+  { key: 'invoice_name', label: 'שם העסק לחשבונית', max: 200, hint: 'כפי שיופיע בחשבונית, אם שונה משם העסק.' },
+  { key: 'company_id', label: 'ח.פ / ת.ז', max: 20, numeric: true },
+  { key: 'contact_phone', label: 'טלפון', max: 20, tel: true, hint: 'הטלפון של איש הקשר.' },
+  { key: 'email', label: 'מייל', max: 160, email: true },
+];
+export const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(v));
+export const validCompanyId = (v) => /^\d{8,9}$/.test(clean(v).replace(/[\s.-]/g, ''));
 // "קמפיין ממומן" (Ofir, 28.10.2026): five more questions, right under "צרכים לקמפיינים". Not
 // required: they are not among the 11 and close no item of the protocol. `choices`: a pick of
 // one; the rest are text.
@@ -164,6 +179,9 @@ export const endedClientFields = (v) => ({ address: clean(v.address), has_logo: 
 export function formProblems(f) {
   const out = {};
   if (clean(f.phone) && !validPhone(f.phone)) out.phone = 'הטלפון לא נראה תקין.';
+  if (clean(f.contact_phone) && !validPhone(f.contact_phone)) out.contact_phone = 'הטלפון לא נראה תקין.';
+  if (clean(f.email) && !validEmail(f.email)) out.email = 'המייל לא נראה תקין.';
+  if (clean(f.company_id) && !validCompanyId(f.company_id)) out.company_id = 'ח.פ / ת.ז: 8 או 9 ספרות.';
   if (clean(f.logo_url) && !validUrl(f.logo_url)) out.logo_url = 'קישור ללוגו צריך להתחיל ב־https:// (בלי סיסמה בקישור).';
   return out;
 }

@@ -975,11 +975,31 @@ await step('WebKit (iPhone 13): "לקוח חדש", the client search and the for
     await typeKeys(p, '#form-services', 'עיצוב שיער');
     await clearKeys(p, '#form-services');
     await typeKeys(p, '#form-services', 'עיצוב שיער וצבע', 2);
+    // "פרטי הלקוח" (26.11.2026): at the top, none required, typed and deleted key by key.
+    assert.equal(await p.innerText('#form-client legend'), 'פרטי הלקוח');
+    await typeKeys(p, '#form-contact_name', 'אבי כהן', 2);
+    await typeKeys(p, '#form-business_name', 'מספרת אבי', 2);
+    await typeKeys(p, '#form-invoice_name', 'מספרת אבי בע״מ', 2);
+    await typeKeys(p, '#form-company_id', '515151515', 2);
+    await typeKeys(p, '#form-contact_phone', '052-1112233', 2);
+    await typeKeys(p, '#form-email', 'avi@example.co.il', 3);
+    // A wrong email is said on its field and nothing is saved; corrected, it saves.
+    await clearKeys(p, '#form-email');
+    await typeKeys(p, '#form-email', 'avi@example', 2);
+    await p.click('#form-save');
+    await p.waitForSelector('#form-email-err:not([hidden])');
+    assert.equal(db.characterizations.find((x) => x.client_id === avi.id)?.fields.email, undefined);
+    await clearKeys(p, '#form-email');
+    await typeKeys(p, '#form-email', 'avi@example.co.il', 3);
+    assert.equal(await p.isHidden('#form-email-err'), true, 'the error goes while it is corrected');
     assert.ok(await noHScroll(p));
+    if (OUT) await p.locator('#form-client').screenshot({ path: `${OUT}/b11b-webkit-char-client.png` });
     await shot(p, 'b11-webkit-char-only');
     await p.click('#form-save');
     await toastHas(p, 'האפיון נשמר בתיק הלקוח');
     assert.equal(db.characterizations.find((x) => x.client_id === avi.id)?.fields.services, 'עיצוב שיער וצבע');
+    const cf = db.characterizations.find((x) => x.client_id === avi.id)?.fields;
+    assert.deepEqual([cf.contact_name, cf.business_name, cf.invoice_name, cf.company_id, cf.contact_phone, cf.email], ['אבי כהן', 'מספרת אבי', 'מספרת אבי בע״מ', '515151515', '052-1112233', 'avi@example.co.il']);
     await ctx.close();
   }
   await wk.close();
