@@ -1052,6 +1052,8 @@ function renderHead(s) {
         // The client's email and company number (28.10.2026): the office's, with the phone.
         fact('אימייל', c.contact_email ? h('a', { href: `mailto:${c.contact_email}`, dir: 'ltr' }, c.contact_email) : null),
         fact('ח.פ / ת.ז', c.company_id ? h('span', { dir: 'ltr', class: 'num' }, c.company_id) : null),
+        // 26.11.2026 (docs/ops.md, section 155): from the characterization form, or typed in "עריכת פרטים".
+        c.invoice_name ? fact('שם לחשבונית', c.invoice_name) : null,
         // Irit (10.11.2026): "הערות" on the client next to the company number, phone and email
         // (clients.notes, written in "עריכת פרטים"); no longer at the foot of the card.
         fact('הערות', c.notes ? h('span', { class: 'cc-notes' }, c.notes) : null,
@@ -2850,6 +2852,7 @@ function openEdit(focusId = 'ed-name') {
   $('ed-phone').value = c.phone || '';
   $('ed-email').value = c.contact_email || '';
   $('ed-company-id').value = c.company_id || '';
+  $('ed-invoice').value = c.invoice_name || '';
   $('ed-package').value = c.package_name || '';
   $('ed-deal').value = toLocal(c.deal_at);
   $('ed-status').value = c.status;
@@ -3002,6 +3005,7 @@ $('ed-form').addEventListener('submit', async (e) => {
   const contact = {
     ...(mail.value !== (client.contact_email ?? null) ? { contact_email: mail.value } : {}),
     ...(cid.value !== (client.company_id ?? null) ? { company_id: cid.value } : {}),
+    ...(($('ed-invoice').value.replace(/\s+/g, ' ').trim() || null) !== (client.invoice_name ?? null) ? { invoice_name: $('ed-invoice').value.replace(/\s+/g, ' ').trim() || null } : {}),
   };
   const val = (i) => $(i).value.trim() || null;
   // A shoot day set against the usual order: ask, with the reason; the answer is kept in the date-change history.

@@ -34,7 +34,7 @@ import { checkMark } from './mark-guards.js';
 import {
   accessStatusesFor, MAIN_NETWORKS, networkName, FORM_FIELDS, MATERIALS, MATERIAL_STATES, endedProblems, endedNote, endedChecks,
   endedClientFields, formProblems, isComplete, missingFields, filledCount, missingMaterials, formChecks, missingTask, blockingTask,
-  MISSING_TITLE, isBlockingTitle, DRAFT_KEY, readDraft, draftText, draftWins, validUrl, CAMPAIGN_FIELDS, campaignValue,
+  MISSING_TITLE, isBlockingTitle, DRAFT_KEY, readDraft, draftText, draftWins, validUrl, CAMPAIGN_FIELDS, campaignValue, CLIENT_FIELDS,
 } from './characterization.js';
 import { FOCUS_TOPICS, MUST, MUST_NOT, briefChecks, emptyTopics, roundKey, NOT_RAISED, SUMMARY, BRIEF_KEYS } from './briefs.js';
 import { loadCharacterization, saveCharacterization, loadBriefs, saveBrief, missingTable } from './intake-data.js';
@@ -439,6 +439,13 @@ function renderForm() {
   const onField = (k) => (x) => {
     formV[k] = x;
     writeDraft();
+    // A field's error goes while it is being corrected (it is checked again on saving).
+    if (formErrors[k]) {
+      delete formErrors[k];
+      const e = document.getElementById(`form-${k}-err`);
+      if (e) { e.hidden = true; e.textContent = ''; }
+      document.getElementById(`form-${k}`)?.removeAttribute('aria-invalid');
+    }
     const p = document.getElementById('form-progress');
     if (p && p.textContent !== progressText()) p.textContent = progressText(); // announced only when it changes
     const btn = document.getElementById('form-save');
@@ -456,6 +463,7 @@ function renderForm() {
       h('button', { type: 'button', class: 'btn-text', id: 'draft-drop', onclick: dropDraft }, 'לבטל את הטיוטה')) : null,
     charRow ? h('p', { class: 'doc-go' }, h('a', { class: 'btn btn-sm', id: 'form-doc', href: charDocHref(id) }, 'מסמך האפיון'), h('span', { class: 'hint' }, ' להעתקה ולהורדה של כל מה שנשמר')) : null,
     h('p', { class: 'ik-progress', id: 'form-progress', 'aria-live': 'polite' }, progressText()),
+    clientGroup(onField, problems),
     ...FORM_FIELDS.flatMap((f) => [field({
       fid: `form-${f.key}`, label: f.label, hint: f.hint || null, error: problems[f.key],
       control: f.short ? textInput(formV[f.key], onField(f.key), f.tel ? { type: 'tel', inputmode: 'tel', dir: 'ltr' } : {}) : textArea(formV[f.key], onField(f.key)),
@@ -478,6 +486,20 @@ function renderForm() {
     h('div', { class: 'ik-actions ik-sticky' },
       h('span', { class: 'hint', id: 'form-draft', 'aria-live': 'off' }),
       h('button', { type: 'submit', class: 'btn btn-primary ik-big', id: 'form-save', disabled: busy }, busy ? 'שומר…' : saveLabel())));
+}
+// "פרטי הלקוח" (Irit and the owner, 26.11.2026): at the top, none of them required; what is missing
+// in the client's card is filled from them when the form is saved (the database does it).
+function clientGroup(onField, problems) {
+  return h('fieldset', { class: 'ik-group', id: 'form-client' },
+    h('legend', {}, 'פרטי הלקוח'),
+    h('p', { class: 'muted' }, 'לא חובה. נכנס לכרטיס הלקוח, רק לשדות שעוד ריקים שם.'),
+    ...CLIENT_FIELDS.map((x) => field({
+      fid: `form-${x.key}`, label: x.label, hint: x.hint || null, error: problems[x.key],
+      control: textInput(formV[x.key], onField(x.key), {
+        maxlength: String(x.max), autocomplete: 'off',
+        ...(x.tel ? { type: 'tel', inputmode: 'tel', dir: 'ltr' } : x.email ? { type: 'email', inputmode: 'email', dir: 'ltr', autocapitalize: 'off', spellcheck: 'false' } : x.numeric ? { inputmode: 'numeric', dir: 'ltr' } : {}),
+      }),
+    })));
 }
 // "קמפיין ממומן" (Ofir, 28.10.2026): five questions under "צרכים לקמפיינים", none of them required.
 function campaignGroup(onField) {
@@ -506,7 +528,7 @@ async function submitForm() {
   const f = { ...formV };
   const problems = formProblems(f);
   formErrors = problems;
-  if (Object.keys(problems).length) { render(); showProblems(problems, ['phone', 'logo_url'], 'form-'); return; }
+  if (Object.keys(problems).length) { render(); showProblems(problems, ['contact_phone', 'email', 'company_id', 'phone', 'logo_url'], 'form-'); return; }
   const complete = isComplete(f);
   busy = true;
   render();
@@ -548,7 +570,7 @@ async function submitCharOnly() {
   const f = { ...formV };
   const problems = formProblems(f);
   formErrors = problems;
-  if (Object.keys(problems).length) { render(); showProblems(problems, ['phone', 'logo_url'], 'form-'); return; }
+  if (Object.keys(problems).length) { render(); showProblems(problems, ['contact_phone', 'email', 'company_id', 'phone', 'logo_url'], 'form-'); return; }
   busy = true;
   render();
   try {
@@ -819,6 +841,9 @@ async function showRead() {
       !charRow ? h('p', { class: 'ik-note', id: 'rd-none' }, charError && !missingTable(charError) ? 'לא הצלחנו לטעון את האפיון. רעננו את הדף.' : 'האפיון עוד לא נשמר במערכת. כשהוא יישמר, הוא יופיע כאן.')
         : [filled < FORM_FIELDS.length ? h('p', { class: 'muted' }, `מולאו ${filled} מתוך ${FORM_FIELDS.length} השדות. מה שחסר: לשאול את ${charBy || 'אופיר'}.`) : null,
           h('dl', { class: 'ik-read', id: 'rd-fields' }, ...FORM_FIELDS.flatMap((x) => row(x.label, f[x.key], { ltr: !!x.tel })))]),
+    charRow ? h('section', { class: 'ik-card', 'aria-labelledby': 'rd-client-h' },
+      h('h2', { id: 'rd-client-h' }, 'פרטי הלקוח'),
+      h('dl', { class: 'ik-read', id: 'rd-client' }, ...CLIENT_FIELDS.flatMap((x) => row(x.label, f[x.key], { ltr: !!(x.tel || x.email || x.numeric) })))) : null,
     charRow ? h('section', { class: 'ik-card', 'aria-labelledby': 'rd-ads-h' },
       h('h2', { id: 'rd-ads-h' }, 'קמפיין ממומן'),
       h('dl', { class: 'ik-read', id: 'rd-ads' }, ...CAMPAIGN_FIELDS.flatMap((x) => row(x.label, campaignValue(f, x))))) : null,
